@@ -1,0 +1,86 @@
+<!-- public/html/dashboard.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA9qkNEaiu9vpTB0bzqhw_Ei55Mt2UqN3A&callback=initMap" async defer></script>
+</head>
+<body>
+    <div class="container">
+        <button onclick="location.href='/upload'">Report a Hazard</button>
+        <h1>Dashboard</h1>
+
+        <!-- Google Map -->
+        <div id="map" style="height: 60vh;"></div>
+
+        <!-- Toggle Button to Minimize Reports Table -->
+        <button id="toggleBtn" onclick="toggleReports()">Minimize Reports</button>
+
+        <!-- Reports Table -->
+        <div id="reports" style="height: 40vh; overflow-y: auto;">
+            <h2>Reports Log</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Hazard ID</th>
+                        <th>Hazard Type</th>
+                        <th>Location</th>
+                        <th>Report Time</th>
+                        <th>Image</th>
+                        <th>Status</th>
+                        <th>Reported By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>1</td>
+                        <td>Pot Hole</td>
+                        <td>Tel Aviv, Dizengoff Street</td>
+                        <td>2025-03-24 12:00</td>
+                        <td><img src="image_url" alt="image" width="50"></td>
+                        <td>Pending</td>
+                        <td>John Doe</td>
+                    </tr>
+                    <!-- Add more rows as necessary -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Initialize Google Map with Israel's region
+        function initMap() {
+            const israel = { lat: 31.7683, lng: 35.2137 }; // Coordinates of Israel
+            const map = new google.maps.Map(document.getElementById("map"), {
+                zoom: 8,
+                center: israel,
+            });
+
+            // Optionally add markers to the map
+            new google.maps.Marker({
+                position: israel,
+                map: map,
+                title: "Israel",
+            });
+        }
+
+        // Toggle Reports Table
+        function toggleReports() {
+            const reports = document.getElementById('reports');
+            const toggleBtn = document.getElementById('toggleBtn');
+            if (reports.style.display === 'none') {
+                reports.style.display = 'block';
+                toggleBtn.textContent = 'Minimize Reports';
+                document.getElementById('map').style.height = '60vh';
+            } else {
+                reports.style.display = 'none';
+                toggleBtn.textContent = 'Maximize Reports';
+                document.getElementById('map').style.height = '100vh';
+            }
+        }
+    </script>
+</body>
+</html>

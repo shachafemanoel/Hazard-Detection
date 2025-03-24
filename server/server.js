@@ -112,7 +112,17 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, '../public/html/login.html'));
 });
 
+app.get('/dashboard', (req, res) => {
+    // אם המשתמש לא מחובר, תחזיר אותו לדף התחברות
+    if (!req.isAuthenticated()) {
+        return res.redirect('/');
+    }
+    res.sendFile(path.join(__dirname, '../public/html/dashboard.html'));
+});
+
+
 // הרצת השרת
 app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
 });
+
