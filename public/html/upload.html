@@ -1,0 +1,70 @@
+<!-- public/html/upload.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Report a Hazard</title>
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <button onclick="location.href='/dashboard'">Dashboard</button>
+            <h1>Report a Hazard</h1>
+        </div>
+        <!-- Hazard Type Section -->
+        <div class="form-group">
+            <h2>Hazard Type</h2>
+            <select name="hazard-type" id="hazard-type">
+                <option value="pothole">Pothole</option>
+                <option value="crack">Crack</option>
+                <option value="cross">Crosswalk</option>
+            </select>
+        </div>
+        
+        <!-- Description Section -->
+        <div class="form-group">
+            <h2>Description</h2>
+            <textarea name="description" id="description" rows="4" maxlength="150" placeholder="Describe the hazard (max 30 words)"></textarea>
+        </div>
+        
+        <!-- Location Section -->
+        <div class="form-group">
+            <h2>Location</h2>
+            <div>
+                <label for="city">City:</label>
+                <input type="text" name="city" id="city">
+            </div>
+            <div>
+                <label for="street">Street:</label>
+                <input type="text" name="street" id="street">
+            </div>
+            <div>
+                <label for="number">House Number:</label>
+                <input type="text" name="number" id="number">
+            </div>
+        </div>
+        
+        <!-- Media Upload Section -->
+        <div class="form-group">
+            <h2>Upload Media</h2>
+            <input type="file" name="media" id="media">
+            <button type="button" onclick="useCamera()">Use Camera</button>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="form-group">
+            <button type="submit" id="submit-report">Submit Report</button>
+        </div>
+    </div>
+
+    <script>
+        // פונקציה לפתיחת המצלמה (כדוגמה)
+        function useCamera() {
+            alert("Opening camera...");
+            // בעתיד תוכל להוסיף קוד כדי לפתוח את מצלמת המכשיר ולהעלות תמונה
+        }
+    </script>
+</body>
+</html>
