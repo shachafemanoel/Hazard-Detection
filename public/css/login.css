@@ -1,0 +1,53 @@
+/* public/css/login.css */
+
+/* עיצוב כללי */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f4f4;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh; /* לוקח את כל גובה המסך */
+}
+
+/* קונטיינר */
+.container {
+    padding: 20px;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    width: 300px; /* גודל קבוע לקונטיינר */
+    text-align: center;
+}
+
+/* כותרת */
+h1 {
+    margin: 20px 0;
+    font-size: 24px;
+    color: #333;
+}
+
+/* כפתורים */
+.buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 15px; /* רווח בין הכפתורים */
+}
+
+button {
+    padding: 12px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    font-size: 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    width: 100%; /* כפתורים לרוחב כל הקונטיינר */
+}
+
+button:hover {
+    background-color: #45a049;
+}
