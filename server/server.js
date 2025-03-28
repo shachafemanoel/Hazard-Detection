@@ -14,6 +14,7 @@ const __dirname = path.dirname(__filename);
 dotenv.config();
 const app = express();
 const port = 3000;
+app.use(express.json());
 
 
 // חיבור ל-Redis בענן
@@ -95,8 +96,6 @@ app.get('/auth/google', (req, res, next) => {
     }
 }, passport.authenticate('google', { scope: ['profile', 'email'], prompt: 'select_account' }));  
 
-
-
 // נקודת חזרה לאחר ההתחברות
 app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }), async (req, res) => {
     const mode = req.session.authMode || 'login';
@@ -149,6 +148,65 @@ app.get('/dashboard', (req, res) => {
         return res.redirect('/');
     }
     res.sendFile(path.join(__dirname, '../public/html/dashboard.html'));
+});
+
+// יצירת דיווח חדש
+app.post('/api/reports', async (req, res) => {
+    if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { type, location, time, image, status, reportedBy } = req.body;
+
+    const report = {
+        id: new Date().getTime(), // מזהה ייחודי לדיווח (מזמן היצירה)
+        type,
+        location,
+        time,
+        image,
+        status,
+        reportedBy,
+    };
+
+    const reportKey = `report:${report.id}`;  // יצירת המפתח הייחודי לכל דיווח
+
+    try {
+        // שמירה ב-Redis תחת המפתח הייחודי
+        await client.json.set(reportKey, '$', report);  // משתמשים ב-JSON.SET כדי לשמור את הדיווח
+
+        res.status(200).json({ message: 'Report saved successfully' });
+    } catch (err) {
+        res.status(500).json({ error: 'Error saving report' });
+    }
+});
+
+// שליפת כל הדיווחים
+app.get('/api/reports', async (req, res) => {
+    if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    try {
+        // שליפת כל המפתחות במאגר Redis שכוללים את המידע על הדיווחים
+        const reportKeys = await client.keys('report:*'); // מצא את כל המפתחות שמתחילים ב- 'report:'
+
+        if (reportKeys.length === 0) {
+            return res.status(404).json({ error: 'No reports found' });
+        }
+
+        // שליפת כל הדיווחים מ-Redis
+        const reports = [];
+        for (const key of reportKeys) {
+            const report = await client.json.get(key);  // קבלת הנתונים כ-JSON
+            reports.push(report);
+        }
+
+        console.log('Fetched all reports:', reports);
+        res.json(reports);  // החזרת הדיווחים בצורת JSON
+    } catch (err) {
+        console.error('Error fetching reports:', err);
+        res.status(500).json({ error: 'Error fetching reports from Redis' });
+    }
 });
 
 

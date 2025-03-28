@@ -34,17 +34,8 @@
                         <th>Reported By</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <tr>
-                        <td>1</td>
-                        <td>Pot Hole</td>
-                        <td>Tel Aviv, Dizengoff Street</td>
-                        <td>2025-03-24 12:00</td>
-                        <td><img src="image_url" alt="image" width="50"></td>
-                        <td>Pending</td>
-                        <td>John Doe</td>
-                    </tr>
-                    <!-- Add more rows as necessary -->
+                <tbody id="reports-body">
+                    <!-- Reports will be dynamically populated here -->
                 </tbody>
             </table>
         </div>
@@ -81,6 +72,38 @@
                 document.getElementById('map').style.height = '100vh';
             }
         }
+
+        // Fetch reports from the server and populate the table
+        async function fetchReports() {
+            const response = await fetch('/api/reports');
+            const reports = await response.json();
+            
+            const tbody = document.getElementById('reports-body');
+            tbody.innerHTML = ''; // Clear the existing rows
+
+            reports.forEach(report => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${report.id}</td>
+                    <td>${report.type}</td>
+                    <td>${report.location}</td>
+                    <td>${report.time}</td>
+                    <td>
+                        ${report.image ? 
+                            `<img src="${report.image}" alt="image" width="50">` :
+                            "No Image"
+                        }
+                    </td>
+                    <td>${report.status}</td>
+                    <td>${report.reportedBy}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Call fetchReports on page load
+        window.onload = fetchReports;
     </script>
+    <script src="../js/dashboard.js" defer></script>
 </body>
 </html>
