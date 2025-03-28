@@ -1,13 +1,15 @@
 document.addEventListener("DOMContentLoaded", async () => {
+    let map;
+    const geocoder = new google.maps.Geocoder(); 
+
     // פונקציה לטעינת המפה עם קואורדינטות ישראל
     function initMap() {
-        const israel = { lat: 31.7683, lng: 35.2137 }; // Coordinates of Israel
-        const map = new google.maps.Map(document.getElementById("map"), {
+        const israel = { lat: 31.7683, lng: 35.2137 }; 
+        map = new google.maps.Map(document.getElementById("map"), {
             zoom: 8,
             center: israel,
         });
 
-        // הוספת סמן למפה
         new google.maps.Marker({
             position: israel,
             map: map,
@@ -19,14 +21,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     function openModal(imageUrl) {
         const modal = document.getElementById("image-modal");
         const modalImage = document.getElementById("modal-image");
-        modal.style.display = "flex"; // Use flex to center it
+        modal.style.display = "flex"; 
         modalImage.src = imageUrl;
     }
 
     // פונקציה לסגירת המודל
     function closeModal() {
-        const modal = document.getElementById("image-modal");
-        modal.style.display = "none";
+        document.getElementById("image-modal").style.display = "none";
     }
 
     // סגירת המודל אם לוחצים מחוץ לתמונה
@@ -36,6 +37,31 @@ document.addEventListener("DOMContentLoaded", async () => {
             closeModal();
         }
     });
+
+    // פונקציה להמיר כתובת לקואורדינטות ולהוסיף סמן למפה
+    async function geocodeAddress(address) {
+        const apiKey = "AIzaSyAXxZ7niDaxuyPEzt4j9P9U0kFzKHO9pZk"; // המפתח שלך
+        const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
+        
+        try {
+            const response = await fetch(geocodeUrl);
+            const data = await response.json();
+            
+            if (data.status === "OK") {
+                const location = data.results[0].geometry.location;
+                new google.maps.Marker({
+                    map: map,
+                    position: location,
+                    title: address,
+                });
+                map.setCenter(location);
+            } else {
+                console.error("Geocode error:", data.status);
+            }
+        } catch (error) {
+            console.error("Error with Geocoding API:", error);
+        }
+    }
 
     // טען את הדיווחים מהשרת
     try {
@@ -49,7 +75,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const reports = await response.json();
         
         const tbody = document.getElementById('reports-body');
-        tbody.innerHTML = ''; // Clear the existing rows
+        tbody.innerHTML = ''; 
 
         reports.forEach(report => {
             const row = document.createElement('tr');
@@ -57,66 +83,64 @@ document.addEventListener("DOMContentLoaded", async () => {
                 <td>${report.id}</td>
                 <td>${report.type}</td>
                 <td>${report.location}</td>
-                <td>${new Date(report.time).toLocaleString()}</td> <!-- Convert the time to a readable format -->
+                <td>${new Date(report.time).toLocaleString()}</td> 
                 <td><img src="${report.image}" alt="image" width="50" style="cursor:pointer;"></td>
                 <td>${report.status}</td>
                 <td>${report.reportedBy}</td>
             `;
 
-            // מוסיף מאזין אירועים על התמונה
             const img = row.querySelector('img');
             img.addEventListener('click', () => openModal(report.image));
 
             tbody.appendChild(row);
+
+            if (report.location) {
+                geocodeAddress(report.location); // המר את הכתובת לקואורדינטות
+            }
         });
 
-        // הפעלת המפה אחרי טעינת הדיווחים
-        initMap();
+        initMap(); // הפעלת המפה לאחר טעינת הדיווחים
 
     } catch (error) {
         console.error("Error loading reports:", error);
         alert("שגיאה בטעינת הדיווחים: " + error.message);
     }
 
-    // פונקציה להחלפת התצוגה של הדיווחים
+    // פונקציות להחלפת תצוגת הדיווחים והגדרת המפה
     const toggleReportsBtn = document.getElementById('toggleBtn');
     const toggleMapBtn = document.getElementById('toggleMapBtn');
     const reportsContainer = document.getElementById('reports');
     const mapContainer = document.getElementById('map');
 
-    // הפונקציה להגדלת המפה והסתרת הדיווחים
+    // פונקציה להגדלת המפה והסתרת הדיווחים
     toggleMapBtn.addEventListener('click', () => {
         if (mapContainer.style.height !== '100vh') {
-            // מעבר למצב של מפה מוגדלת
             mapContainer.style.height = '100vh';
             mapContainer.style.display = 'block';
-            reportsContainer.style.display = 'none'; // הסתרת הדיווחים
+            reportsContainer.style.display = 'none'; 
             toggleMapBtn.textContent = 'Minimize Map'; 
-            toggleReportsBtn.style.display = 'none'; // הסתרת כפתור הדיווחים
+            toggleReportsBtn.style.display = 'none'; 
         } else {
-            // החזרת שני האלמנטים
             mapContainer.style.height = '60vh';
             reportsContainer.style.display = 'block';
             toggleMapBtn.textContent = 'Maximize Map'; 
-            toggleReportsBtn.style.display = 'inline'; // החזרת כפתור הדיווחים
+            toggleReportsBtn.style.display = 'inline'; 
         }
     });
 
-    // הפונקציה להגדלת יומן הדיווחים והסתרת המפה
+    // פונקציה להגדלת יומן הדיווחים והסתרת המפה
     toggleReportsBtn.addEventListener('click', () => {
         if (reportsContainer.style.height !== '100vh') {
-            // מעבר למצב של יומן דיווחים מוגדל
             reportsContainer.style.height = '100vh';
             reportsContainer.style.display = 'block';
-            mapContainer.style.display = 'none'; // הסתרת המפה
+            mapContainer.style.display = 'none'; 
             toggleReportsBtn.textContent = 'Minimize Reports'; 
-            toggleMapBtn.style.display = 'none'; // הסתרת כפתור המפה
+            toggleMapBtn.style.display = 'none'; 
         } else {
-            // החזרת שני האלמנטים
             reportsContainer.style.height = '40vh';
             mapContainer.style.display = 'block';
             toggleReportsBtn.textContent = 'Maximize Reports'; 
-            toggleMapBtn.style.display = 'inline'; // החזרת כפתור המפה
+            toggleMapBtn.style.display = 'inline'; 
         }
     });
 });

@@ -201,7 +201,6 @@ app.get('/api/reports', async (req, res) => {
             reports.push(report);
         }
 
-        console.log('Fetched all reports:', reports);
         res.json(reports);  // החזרת הדיווחים בצורת JSON
     } catch (err) {
         console.error('Error fetching reports:', err);
