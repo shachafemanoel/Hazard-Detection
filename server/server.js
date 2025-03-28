@@ -80,12 +80,41 @@ passport.deserializeUser((user, done) => {
 });
 
 // כפתור התחברות עם Google
-app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+app.get('/auth/google', (req, res, next) => {
+    const mode = req.query.mode || 'login'; // ברירת מחדל היא login
+    req.session.authMode = mode; // שמירה ב-session כדי להשתמש לאחר האימות
+
+    if (req.isAuthenticated()) {
+        req.logout(() => {  
+            req.session.destroy(() => {
+                next(); // לאחר התנתקות מוחלטת - נשלח את המשתמש ל-Google
+            });
+        });
+    } else {
+        next();
+    }
+}, passport.authenticate('google', { scope: ['profile', 'email'], prompt: 'select_account' }));  
+
+
 
 // נקודת חזרה לאחר ההתחברות
-app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }), (req, res) => {
-    res.redirect('/upload'); // הפניה לדף לאחר התחברות מוצלחת
+app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }), async (req, res) => {
+    const mode = req.session.authMode || 'login';
+    const userKey = `user:${req.user.id}`;
+
+    // יצירת משתמש חדש ב-Redis בלי לבדוק אם כבר קיים
+    const newUser = {
+        email: req.user.emails[0].value,
+        username: req.user.displayName,
+        type: 'user'
+    };
+
+    await client.set(userKey, JSON.stringify(newUser));
+    console.log(`User registered or updated: ${req.user.displayName}`);
+
+    res.redirect('/upload'); // הפניה לדף ההעלאה
 });
+
 
 // דף העלאת קבצים (Upload)
 app.get('/upload', async (req, res) => {
@@ -100,7 +129,9 @@ app.get('/upload', async (req, res) => {
 // יציאה מהמערכת
 app.get('/logout', (req, res) => {
     req.logout(() => {
-        res.redirect('/');
+        req.session.destroy(() => {
+            res.redirect('/');
+        });
     });
 });
 
