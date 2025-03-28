@@ -41,6 +41,14 @@
         </div>
     </div>
 
+    <!-- Modal for displaying large image -->
+    <div id="image-modal" style="display:none;">
+        <div id="modal-content">
+            <span id="close-modal" style="cursor:pointer; position: absolute; top: 10px; right: 10px; font-size: 30px; color: white;">&times;</span>
+            <img id="modal-image" src="" alt="Large Image" style="max-width: 90%; max-height: 90vh; display: block; margin: 0 auto;">
+        </div>
+    </div>
+
     <script>
         // Initialize Google Map with Israel's region
         function initMap() {
@@ -83,17 +91,16 @@
 
             reports.forEach(report => {
                 const row = document.createElement('tr');
+                // יצירת קוד התמונה עם onclick לפתיחת מודל
+                const imageHtml = `
+                    <img src="${report.image}" alt="image" width="50" style="cursor:pointer;" onclick="openModal('${report.image}')">
+                `;
                 row.innerHTML = `
                     <td>${report.id}</td>
                     <td>${report.type}</td>
                     <td>${report.location}</td>
                     <td>${report.time}</td>
-                    <td>
-                        ${report.image ? 
-                            `<img src="${report.image}" alt="image" width="50">` :
-                            "No Image"
-                        }
-                    </td>
+                    <td>${imageHtml}</td>
                     <td>${report.status}</td>
                     <td>${report.reportedBy}</td>
                 `;
@@ -103,6 +110,29 @@
 
         // Call fetchReports on page load
         window.onload = fetchReports;
+
+        // Modal functionality
+        const modal = document.getElementById("image-modal");
+        const modalImage = document.getElementById("modal-image");
+        const closeModal = document.getElementById("close-modal");
+
+        // Open the modal with the image
+        function openModal(imageUrl) {
+            modal.style.display = "flex"; // Use flex to center it
+            modalImage.src = imageUrl;
+        }
+
+        // Close the modal
+        closeModal.onclick = () => {
+            modal.style.display = "none";
+        };
+
+        // Close the modal if clicked outside the image
+        window.onclick = (event) => {
+            if (event.target === modal) {
+                modal.style.display = "none";
+            }
+        };
     </script>
     <script src="../js/dashboard.js" defer></script>
 </body>

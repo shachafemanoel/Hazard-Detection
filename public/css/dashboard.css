@@ -50,3 +50,37 @@ button {
 button:hover {
     background-color: #45a049;
 }
+
+/* The Modal */
+#image-modal {
+    display: none; /* Hidden by default */
+    position: fixed; /* Stay in place */
+    z-index: 1000; /* Sit on top */
+    left: 0;
+    top: 0;
+    width: 100%; /* Full width */
+    height: 100%; /* Full height */
+    background-color: rgba(0, 0, 0, 0.7); /* Background with transparency */
+    align-items: center; /* Center the modal */
+    justify-content: center; /* Center the modal */
+}
+
+/* Modal content (the image) */
+#modal-content {
+    position: relative;
+    max-width: 80%;
+    max-height: 80%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Close button (X) */
+#close-modal {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 30px;
+    color: white;
+    font-weight: bold;
+}
