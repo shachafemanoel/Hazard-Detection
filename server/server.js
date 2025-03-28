@@ -38,17 +38,18 @@ connectRedis();
 
 // הגדרת session
 app.use(session({
-    secret: process.env.SESSION_SECRET,
+    secret: 'your-secret-key',  // הוסף כאן מפתח ייחודי וסודי
     resave: false,
-    saveUninitialized: true
+    saveUninitialized: true,
+    cookie: { secure: false }   // הגדרה עבור סשנים לא מאובטחים ב-localhost
 }));
 app.use(passport.initialize());
 app.use(passport.session());
 
 // הגדרת אסטרטגיית Google OAuth
 passport.use(new GoogleStrategy({
-    clientID: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    clientID: "46375555882-rmivba20noas9slfskb3cfvugssladrr.apps.googleusercontent.com",
+    clientSecret: "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",
     callbackURL: "http://localhost:3000/auth/google/callback"
 }, async (accessToken, refreshToken, profile, done) => {
     // חיפוש אם המשתמש כבר קיים ב-Redis
