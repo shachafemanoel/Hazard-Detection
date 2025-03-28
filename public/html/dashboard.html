@@ -16,8 +16,11 @@
         <!-- Google Map -->
         <div id="map" style="height: 60vh;"></div>
 
-        <!-- Toggle Button to Minimize Reports Table -->
-        <button id="toggleBtn" onclick="toggleReports()">Minimize Reports</button>
+        <!-- Toggle Button to Maximize Reports Table -->
+        <button id="toggleBtn">Maximize Reports</button>
+
+        <!-- Toggle Button to Maximize Map -->
+        <button id="toggleMapBtn">Maximize Map</button>
 
         <!-- Reports Table -->
         <div id="reports" style="height: 40vh; overflow-y: auto;">
@@ -49,91 +52,6 @@
         </div>
     </div>
 
-    <script>
-        // Initialize Google Map with Israel's region
-        function initMap() {
-            const israel = { lat: 31.7683, lng: 35.2137 }; // Coordinates of Israel
-            const map = new google.maps.Map(document.getElementById("map"), {
-                zoom: 8,
-                center: israel,
-            });
-
-            // Optionally add markers to the map
-            new google.maps.Marker({
-                position: israel,
-                map: map,
-                title: "Israel",
-            });
-        }
-
-        // Toggle Reports Table
-        function toggleReports() {
-            const reports = document.getElementById('reports');
-            const toggleBtn = document.getElementById('toggleBtn');
-            if (reports.style.display === 'none') {
-                reports.style.display = 'block';
-                toggleBtn.textContent = 'Minimize Reports';
-                document.getElementById('map').style.height = '60vh';
-            } else {
-                reports.style.display = 'none';
-                toggleBtn.textContent = 'Maximize Reports';
-                document.getElementById('map').style.height = '100vh';
-            }
-        }
-
-        // Fetch reports from the server and populate the table
-        async function fetchReports() {
-            const response = await fetch('/api/reports');
-            const reports = await response.json();
-            
-            const tbody = document.getElementById('reports-body');
-            tbody.innerHTML = ''; // Clear the existing rows
-
-            reports.forEach(report => {
-                const row = document.createElement('tr');
-                // יצירת קוד התמונה עם onclick לפתיחת מודל
-                const imageHtml = `
-                    <img src="${report.image}" alt="image" width="50" style="cursor:pointer;" onclick="openModal('${report.image}')">
-                `;
-                row.innerHTML = `
-                    <td>${report.id}</td>
-                    <td>${report.type}</td>
-                    <td>${report.location}</td>
-                    <td>${report.time}</td>
-                    <td>${imageHtml}</td>
-                    <td>${report.status}</td>
-                    <td>${report.reportedBy}</td>
-                `;
-                tbody.appendChild(row);
-            });
-        }
-
-        // Call fetchReports on page load
-        window.onload = fetchReports;
-
-        // Modal functionality
-        const modal = document.getElementById("image-modal");
-        const modalImage = document.getElementById("modal-image");
-        const closeModal = document.getElementById("close-modal");
-
-        // Open the modal with the image
-        function openModal(imageUrl) {
-            modal.style.display = "flex"; // Use flex to center it
-            modalImage.src = imageUrl;
-        }
-
-        // Close the modal
-        closeModal.onclick = () => {
-            modal.style.display = "none";
-        };
-
-        // Close the modal if clicked outside the image
-        window.onclick = (event) => {
-            if (event.target === modal) {
-                modal.style.display = "none";
-            }
-        };
-    </script>
     <script src="../js/dashboard.js" defer></script>
 </body>
 </html>
