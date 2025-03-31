@@ -123,7 +123,7 @@ app.get('/upload', async (req, res) => {
     }
 
     // הצגת דף ה-upload
-    res.sendFile(path.join(__dirname, '../public/html/upload.html'));
+    res.sendFile(path.join(__dirname, '../public/upload.html'));
 });
 
 // יציאה מהמערכת
@@ -140,7 +140,7 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 // דף ברירת מחדל
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, '../public/html/login.html'));
+    res.sendFile(path.join(__dirname, '../public/login.html'));
 });
 
 app.get('/dashboard', (req, res) => {
@@ -148,7 +148,7 @@ app.get('/dashboard', (req, res) => {
     if (!req.isAuthenticated()) {
         return res.redirect('/');
     }
-    res.sendFile(path.join(__dirname, '../public/html/dashboard.html'));
+    res.sendFile(path.join(__dirname, '../public/dashboard.html'));
 });
 
 // יצירת דיווח חדש

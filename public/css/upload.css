@@ -73,3 +73,17 @@ input[type="file"]::file-selector-button {
 #logout-btn:hover {
     background-color: #e53935;
 }
+
+    video {
+        width: 100%;
+        height: auto;
+        border-radius: 8px;
+    }
+
+    @media (max-width: 600px) {
+        .btn {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+    }
+
