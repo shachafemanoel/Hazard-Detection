@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Detection</title>
+  <link rel="stylesheet" href="../css/upload.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+</head>
+<body>
+  <div class="header">
+    <h1>Live Hazard Detection</h1>
+  </div>
+
+  <div id="upload-container">
+    <button onclick="location.href='/dashboard'">Dashboard</button>
+    <button onclick="location.href='/upload'">Back</button>
+    <h2>Live Camera Feed</h2>
+
+    <!-- כפתורי הפעלה וסגירה -->
+    <button id="open-camera-btn" class="btn btn-success">📷 הפעל מצלמה</button>
+    <button id="close-camera-btn" class="btn btn-danger" style="display: none;">❌ כבה מצלמה</button>
+
+    <!-- וידאו וקנבס -->
+    <div style="position: relative; display: inline-block; margin-top: 20px;">
+      <video id="camera-stream" autoplay playsinline width="544" height="544"></video>
+      <canvas id="overlay-canvas" width="544" height="544"></canvas>
+
+    </div>
+  </div>
+
+  <script src="../js/upload_tf.js" defer></script>
+</body>
+</html>

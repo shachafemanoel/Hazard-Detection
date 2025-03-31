@@ -1,0 +1,57 @@
+<!-- public/html/dashboard.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA9qkNEaiu9vpTB0bzqhw_Ei55Mt2UqN3A&callback=initMap" async defer></script>
+</head>
+<body>
+    <div id="dashboard-container">
+        <button onclick="location.href='/upload'">Report a Hazard</button>
+        <h1>Dashboard</h1>
+
+        <!-- Google Map -->
+        <div id="map" style="height: 60vh;"></div>
+
+        <!-- Toggle Button to Maximize Reports Table -->
+        <button id="toggleBtn">Maximize Reports</button>
+
+        <!-- Toggle Button to Maximize Map -->
+        <button id="toggleMapBtn">Maximize Map</button>
+
+        <!-- Reports Table -->
+        <div id="reports" style="height: 40vh; overflow-y: auto;">
+            <h2>Reports Log</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Hazard ID</th>
+                        <th>Hazard Type</th>
+                        <th>Location</th>
+                        <th>Report Time</th>
+                        <th>Image</th>
+                        <th>Status</th>
+                        <th>Reported By</th>
+                    </tr>
+                </thead>
+                <tbody id="reports-body">
+                    <!-- Reports will be dynamically populated here -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal for displaying large image -->
+    <div id="image-modal" style="display:none;">
+        <div id="modal-content">
+            <span id="close-modal" style="cursor:pointer; position: absolute; top: 10px; right: 10px; font-size: 30px; color: white;">&times;</span>
+            <img id="modal-image" src="" alt="Large Image" style="max-width: 90%; max-height: 90vh; display: block; margin: 0 auto;">
+        </div>
+    </div>
+
+    <script src="../js/dashboard.js" defer></script>
+</body>
+</html>
