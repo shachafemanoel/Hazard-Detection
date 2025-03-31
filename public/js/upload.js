@@ -160,47 +160,45 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   // פונקציה לציור התוצאה (התמונה + תיבות) על ה-canvas הראשי
   function drawResults(boxes) {
-    // ניקוי ה-canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // שליפה מה-letterboxParams (כדי לשמור על אותו ציור)
     const { offsetX, offsetY, newW, newH } = letterboxParams;
-
-    // קודם ממלאים שחור, אח"כ מציירים את התמונה באותו אופן כמו ב-offscreen
+  
     ctx.fillStyle = "black";
     ctx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
     if (currentImage) {
       ctx.drawImage(currentImage, offsetX, offsetY, newW, newH);
     }
-
-    // עיבוד כל התיבות וחישוב המיקום לציור
+  
     boxes.forEach((box, idx) => {
       let [x1, y1, x2, y2, score, classId] = box;
-
-      // אם המודל מחזיר ערכי פיקסל שכבר כוללים את הפסים השחורים,
-      // אין צורך להזיז או לפענח offset. אם זה מנורמל (0..1), נכפיל ב-640:
-      // (נניח שזה מנורמל; אם כבר בפיקסלים 0..640, אפשר להשאיר ככה)
-      x1 *= FIXED_SIZE;
-      y1 *= FIXED_SIZE;
-      x2 *= FIXED_SIZE;
-      y2 *= FIXED_SIZE;
-
-      if (score >= confidenceThreshold) {
-        const boxW = x2 - x1;
-        const boxH = y2 - y1;
-        const labelName = classNames[Math.floor(classId)] || `Class ${classId}`;
-        const scorePerc = (score * 100).toFixed(1);
-
-        ctx.strokeStyle = "red";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(x1, y1, boxW, boxH);
-
-        ctx.fillStyle = "red";
-        ctx.font = "16px Arial";
-        const textX = x1;
-        const textY = y1 > 10 ? y1 - 5 : 10;
-        ctx.fillText(`${labelName} (${scorePerc}%)`, textX, textY);
-      }
+  
+      if (score < confidenceThreshold) return;
+  
+      // נניח שהמודל מחזיר קואורדינטות פיקסליות (ולא מנורמלות) - לכן לא נכפיל
+      const boxW = x2 - x1;
+      const boxH = y2 - y1;
+  
+      // הדפסה לצורך דיבוג
+      console.log(`Box ${idx}: x1=${x1}, y1=${y1}, x2=${x2}, y2=${y2}, w=${boxW}, h=${boxH}, score=${(score * 100).toFixed(1)}%`);
+  
+      // סינון תיבות חשודות (קטנות מדי או שליליות)
+      if (boxW <= 1 || boxH <= 1 || boxW > FIXED_SIZE || boxH > FIXED_SIZE) return;
+  
+      const labelName = classNames[Math.floor(classId)] || `Class ${classId}`;
+      const scorePerc = (score * 100).toFixed(1);
+  
+      ctx.strokeStyle = "red";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x1, y1, boxW, boxH);
+  
+      ctx.fillStyle = "red";
+      ctx.font = "16px Arial";
+      const textX = x1;
+      const textY = y1 > 10 ? y1 - 5 : 10;
+      ctx.fillText(`${labelName} (${scorePerc}%)`, textX, textY);
     });
   }
+  
+  console.log("tf version:", tf.version.tfjs);
+
 });

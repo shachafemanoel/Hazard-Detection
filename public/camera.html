@@ -2,33 +2,33 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Live Detection</title>
-  <link rel="stylesheet" href="../css/upload.css" />
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+  <title>Live Detection with ONNX (Letterbox Logic)</title>
+  <!-- טעינת הספרייה onnxruntime-web (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+  
+  <style>
+    #camera-stream {
+      display: none; /* לא חייבים להציג את הוידאו עצמו אם מציירים על canvas */
+    }
+    #overlay-canvas {
+      border: 1px solid #aaa;
+    }
+  </style>
 </head>
 <body>
-  <div class="header">
-    <h1>Live Hazard Detection</h1>
-  </div>
+  <h1>Live Detection (Single-Image Logic, ONNX)</h1>
 
-  <div id="upload-container">
-    <button onclick="location.href='/dashboard'">Dashboard</button>
-    <button onclick="location.href='/upload'">Back</button>
-    <h2>Live Camera Feed</h2>
+  <!-- כפתורים לפתיחה וסגירה של המצלמה -->
+  <button id="start-camera">Start Camera</button>
+  <button id="stop-camera" style="display:none;">Stop Camera</button>
 
-    <!-- כפתורי הפעלה וסגירה -->
-    <button id="open-camera-btn" class="btn btn-success">📷 הפעל מצלמה</button>
-    <button id="close-camera-btn" class="btn btn-danger" style="display: none;">❌ כבה מצלמה</button>
+  <br/><br/>
 
-    <!-- וידאו וקנבס -->
-    <div style="position: relative; display: inline-block; margin-top: 20px;">
-      <video id="camera-stream" autoplay playsinline width="544" height="544"></video>
-      <canvas id="overlay-canvas" width="544" height="544"></canvas>
+  <!-- וידאו וקנבס לציור התוצאות -->
+  <video id="camera-stream" autoplay playsinline></video>
+  <canvas id="overlay-canvas"></canvas>
 
-    </div>
-  </div>
-
-  <script src="../js/upload_tf.js" defer></script>
+  <!-- הפניה לסקריפט שמכיל את כל הלוגיקה -->
+  <script src="../js/upload_tf.js"></script>
 </body>
 </html>
