@@ -1,1 +1,31 @@
-.env
+# 📸 התעלמות מכל סוגי התמונות
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.webp
+
+# 🎥 התעלמות מקבצי וידאו נפוצים
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.flv
+*.wmv
+*.webm
+
+# 📦 אופציונלי: התעלמות מקבצי מודלים כבדים
+*.pt
+*.onnx
+*.h5
+
+# 🧪 אופציונלי: תיקיות שיכולות להיות זמניות או מה-Datasets
+datasets/
+data/
+__pycache__/
+node_modules
+node_modules
+node_modules
+node_modules

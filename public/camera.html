@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Live Detection with ONNX (Letterbox Logic)</title>
+  <!-- טעינת הספרייה onnxruntime-web (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+  
+  <style>
+    #camera-stream {
+      display: none; /* לא חייבים להציג את הוידאו עצמו אם מציירים על canvas */
+    }
+    #overlay-canvas {
+      border: 1px solid #aaa;
+    }
+  </style>
+</head>
+<body>
+  <h1>Live Detection (Single-Image Logic, ONNX)</h1>
+
+  <!-- כפתורים לפתיחה וסגירה של המצלמה -->
+  <button id="start-camera">Start Camera</button>
+  <button id="stop-camera" style="display:none;">Stop Camera</button>
+
+  <br/><br/>
+
+  <!-- וידאו וקנבס לציור התוצאות -->
+  <video id="camera-stream" autoplay playsinline></video>
+  <canvas id="overlay-canvas"></canvas>
+
+  <!-- הפניה לסקריפט שמכיל את כל הלוגיקה -->
+  <script src="../js/upload_tf.js"></script>
+</body>
+</html>

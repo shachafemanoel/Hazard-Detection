@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Report a Hazard</title>
+  <link rel="stylesheet" href="../css/upload.css">
+</head>
+<body>
+  <!-- טעינת הספרייה של ONNX Runtime Web -->
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+
+  <div class="header">
+    <h1>Report a Hazard</h1>
+  </div>
+  
+  <div id="upload-container">
+    <button onclick="location.href='/dashboard'">Dashboard</button>
+    <h2>Detection</h2>
+    <button onclick="location.href='camera.html'">Live Detection</button>
+    
+    <!-- קלט להעלאת תמונה ידנית לצפייה מקדימה -->
+    <h3>Upload Image for Preview</h3>
+    <input type="file" id="image-upload" accept="image/*">
+    
+    <!-- Slider לבחירת סף האמון -->
+    <div id="slider-container">
+      <label for="confidence-slider">
+        Confidence Threshold: <span id="conf-value">0.5</span>
+      </label>
+      <input type="range" id="confidence-slider" min="0" max="1" step="0.05" value="0.5">
+    </div>
+    
+    <!-- Canvas להצגת תצוגת המקדימה עם תוצאות הזיהוי -->
+    <canvas id="preview-canvas"></canvas>
+  </div>
+  
+  <!-- אלמנט canvas נוסף (במקרה הצורך ל־live detection) -->
+  <canvas id="overlay-canvas"></canvas>
+  
+  <!-- אלמנט video להצגת הזרם מהמצלמה (במקרה של live detection) -->
+  <video id="camera-stream" autoplay style="display: none;"></video>
+  
+  <!-- Logout Button -->
+  <div class="form-group">
+    <button type="button" id="logout-btn">Logout</button>
+  </div>
+  
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.6.0/dist/tf.min.js"></script>
+
+  <!-- סקריפט הראשי -->
+  <script src="../js/upload.js" defer></script>
+</body>
+</html>
