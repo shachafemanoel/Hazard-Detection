@@ -6,11 +6,14 @@ document.addEventListener("DOMContentLoaded", async function () {
   const ctx = canvas.getContext("2d");
   const logoutBtn = document.getElementById("logout-btn");
 
-  // המודל (YOLO באון-אן-אקס) מיוצא לגודל 640x640
-  const FIXED_SIZE =320;
+  const FIXED_SIZE = 640;
 
-  // רשימת המחלקות
-  const classNames = ['Alligator Crack', 'Block Crack', 'Construction Joint Crack', 'Crosswalk Blur', 'Lane Blur', 'Longitudinal Crack', 'Manhole', 'Patch Repair', 'Pothole', 'Transverse Crack', 'Wheel Mark Crack'];
+  const classNames = [
+    'AggregateExposure', 'AlligatorCrack', 'AsphaltJoint', 'BrokenPlate',
+    'ConcreteJoint', 'Crack', 'LongitudinalCrack', 'ManholeCover',
+    'Marking', 'MarkingVague', 'MassiveRepair', 'Pit',
+    'StripRepair', 'Tiremark', 'TransverseCrack'
+  ];
 
   let session = null;
   try {
