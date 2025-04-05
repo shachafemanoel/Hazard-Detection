@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 11
+names: ['Alligator Crack', 'Block Crack', 'Construction Joint Crack', 'Crosswalk Blur', 'Lane Blur', 'Longitudinal Crack', 'Manhole', 'Patch Repair', 'Pothole', 'Transverse Crack', 'Wheel Mark Crack']
+
+roboflow:
+  workspace: devflo
+  project: rdd2022-ook7x
+  version: 3
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/devflo/rdd2022-ook7x/dataset/3
