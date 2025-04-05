@@ -16,10 +16,7 @@
 *.wmv
 *.webm
 
-# 📦 אופציונלי: התעלמות מקבצי מודלים כבדים
-*.pt
-*.onnx
-*.h5
+
 
 # 🧪 אופציונלי: תיקיות שיכולות להיות זמניות או מה-Datasets
 datasets/
