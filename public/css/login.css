@@ -1,105 +1,140 @@
-/* הגדרת כללי בסיס */
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-    font-family: Arial, sans-serif;
-  }
-  
-  /* רקע כללי */
-  body {
-    background-color: #f4f4f9;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    margin: 0;
-  }
-  
-  /* קונטיינר עיקרי */
-  .container {
-    width: 100%;
-    max-width: 400px;
-    background-color: #ffffff;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  }
-  
-  /* כותרת */
-  h1 {
-    text-align: center;
-    font-size: 24px;
-    color: #333;
-    margin-bottom: 30px; /* רווח גדול יותר */
-  }
-  
-  /* כפתורים כלליים */
-  button {
-    width: 100%;
-    padding: 10px;
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    font-size: 16px;
-    cursor: pointer;
-    margin-bottom: 10px;
-    transition: background-color 0.3s;
-  }
-  
-  button:hover {
-    background-color: #45a049;
-  }
-  
-  /* התמקדות בפרטי הטופס */
-  input[type="email"], input[type="text"], input[type="password"] {
-    width: 100%;
-    padding: 12px;
-    margin-bottom: 20px; /* רווח גדול יותר */
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    font-size: 14px;
-  }
-  
-  input[type="email"]:focus, input[type="text"]:focus, input[type="password"]:focus {
-    outline: none;
-    border-color: #4CAF50;
-  }
-  
-  /* טקסט שגיאה */
-  #email-error {
-    color: red;
-    font-size: 14px;
-    margin-top: 10px;
-  }
-  
-  /* הפעלת אפשרויות התחברות או הרשמה */
-  #email-options {
-    text-align: center;
-    margin-bottom: 20px;
-  }
-  
-  /* הפעלת טפסים */
-  #signup-form, #login-form, #forgot-password-form {
-    display: none;
-  }
-  
-  /* כפתור לשכחת סיסמה */
-  button.forgot-password {
-    width: 100%;
-    background-color: #FF6347;
-  }
-  
-  button.forgot-password:hover {
-    background-color: #e55347;
-  }
-  
-  /* רווחים בין כותרות לשדות */
-  h2 {
-    margin-bottom: 15px;
-    font-size: 20px;
-    text-align: center;
-    color: #333;
-  }
-  
+/* הגדרת כללי בסיס */  
+* {  
+    box-sizing: border-box;  
+    margin: 0;  
+    padding: 0;  
+    font-family: Arial, sans-serif;  
+}  
+
+/* רקע כללי */  
+body {  
+    background-color: #f4f4f9;  
+    display: flex;  
+    justify-content: center;  
+    align-items: center;  
+    height: 100vh;  
+}  
+
+/* קונטיינר עיקרי */  
+.container {  
+    width: 100%;  
+    max-width: 450px;  /* גודל מוגדל */  
+    background-color: #ffffff;  
+    padding: 40px;  /* ריפוד גדול יותר */  
+    border-radius: 8px;  
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);  
+    position: relative;  /* נדרש למיקום הכפתור */  
+}  
+
+/* כותרת */  
+h1 {  
+    text-align: center;  
+    font-size: 24px;  
+    color: #333;  
+    margin: 40px 0 30px; /* רווח בין כפתור הכניסה לכותרת */  
+}  
+
+/* כפתור Back */  
+#back-options {  
+    position: absolute;  
+    top: 10px;  /* מרווח קטן מהחלק העליון */  
+    left: 20px;  /* ממוקם בצד שמאל */  
+    font-size: 16px;  /* גודל טקסט */  
+    color: white;  /* צבע טקסט אפור כהה */  
+    cursor: pointer;  
+}  
+
+#back-options:hover {  
+    text-decoration: underline;  /* מוסיף קו תחתי בהhover */  
+}  
+
+/* קונטיינר לכפתורי התחברות והרשמה */  
+.button-container {  
+    display: flex;  /* תצוגה גמישה */  
+    justify-content: space-between;  /* רווחים אחידים בין הכפתורים */  
+    margin-bottom: 20px;  /* רווח תחתון */  
+}  
+
+/* כפתורים כלליים */  
+button {  
+    flex: 1;  /* כל כפתור תופס שווה מקום */  
+    padding: 10px;  
+    background-color: #4CAF50;  
+    color: white;  
+    border: none;  
+    border-radius: 5px;  
+    font-size: 16px;  
+    cursor: pointer;  
+    transition: background-color 0.3s;  
+    margin-right: 10px;  /* מרווח בין הכפתורים */  
+}  
+
+button:last-child {  
+    margin-right: 0;  /* מסיר מרווח מהכפתור האחרון */  
+}  
+
+button:hover {  
+    background-color: #45a049;  
+}  
+
+/* התמקדות בפרטי הטופס */  
+input[type="email"], input[type="text"], input[type="password"] {  
+    width: 100%;  
+    padding: 12px;  
+    margin-bottom: 20px; /* רווח גדול יותר */  
+    border: 1px solid #ccc;  
+    border-radius: 5px;  
+    font-size: 14px;  
+}  
+
+input[type="email"]:focus, input[type="text"]:focus, input[type="password"]:focus {  
+    outline: none;  
+    border-color: #4CAF50;  
+}  
+
+/* טקסט שגיאה */  
+#email-error {  
+    color: red;  
+    font-size: 14px;  
+    margin-top: 10px;  
+}  
+
+/* הפעלת אפשרויות התחברות או הרשמה */  
+#email-options {  
+    text-align: center;  
+    margin-bottom: 20px;  
+}  
+
+/* הפעלת טפסים */  
+#signup-form, #login-form, #forgot-password-form {  
+    display: none;  
+}  
+
+/* כפתור לשכחת סיסמה */  
+button.forgot-password {  
+    width: 100%;  
+    background-color: #FF6347;  
+}  
+
+button.forgot-password:hover {  
+    background-color: #e55347;  
+}  
+
+/* רווחים בין כותרות לשדות */  
+h2 {  
+    margin-bottom: 15px;  
+    font-size: 20px;  
+    text-align: center;  
+    color: #333;  
+}  
+
+/* עיצוב הכפתור של האיפוס סיסמה */  
+button.reset-password {  
+    position: center;  /* ממוקם במרכז */
+    background-color: #28a745;  /* צבע רקע ירוק */  
+    margin-top: 10px;  /* מרווח מעל הכפתור */  
+}  
+
+button.reset-password:hover {  
+    background-color: #218838;  /* צבע ירוק כהה יותר בהhover */  
+}  

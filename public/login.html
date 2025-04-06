@@ -17,6 +17,8 @@
         <div id="email-options" style="display: none;">  
             <button onclick="showSignupForm()">Sign Up</button>  
             <button onclick="showLoginForm()">Log In</button>  
+            <button onclick="toggleForgotPassword()">Forgot Password</button>
+            <button id="back-options" onclick="backToMainScreen()" style="display: none;">Back</button>
         </div>  
 
         <div id="email-form" style="display: none;">  
@@ -29,7 +31,6 @@
             <button type="submit">Register</button>  
             </form>  
             <p id="email-error"></p>  
-            <button id="back-signup" onclick="backToMainScreen()" style="display: none;">Back</button>
         </div>  
 
         <div id="login-form" style="display: none;">  
@@ -39,8 +40,6 @@
             <input type="password" name="password" placeholder="Password" required minlength="8" id="login-password" />  
             <button type="submit">Log In</button>  
             </form>  
-            <button onclick="toggleForgotPassword()">Forgot Password?</button>  
-            <button id="back-login" onclick="backToMainScreen()" style="display: none;">Back</button>
         </div>      
 
         <div id="forgot-password-form" style="display: none;">  
@@ -49,7 +48,6 @@
             <input type="email" name="email" placeholder="Enter your email" required id="reset-email" />  
             <button type="submit">Reset Password</button>  
             </form>  
-            <button id="back-forgot-password" onclick="backToMainScreen()" style="display: none;">Back</button>
         </div>  
     </div>  
 

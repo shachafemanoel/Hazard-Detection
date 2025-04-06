@@ -50,45 +50,47 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 
-// פונקציה לסירוגין טופסים
 function toggleForm() {
     document.getElementById('buttons').style.display = 'none';
     document.getElementById('email-options').style.display = 'block';
+    document.getElementById('back-options').style.display = 'block'; // הצגת כפתור back
     document.getElementById('email-form').style.display = 'block'; // הוספתי כדי להציג את הטופס
 }
 
-// פונקציה שתחזיר את המסך הראשי (הכפתורים הראשיים)
 function backToMainScreen() {
+    // הסתרת כל הטפסים
     document.getElementById('signup-form').style.display = 'none';
     document.getElementById('login-form').style.display = 'none';
     document.getElementById('forgot-password-form').style.display = 'none';
     document.getElementById('email-options').style.display = 'none';
     document.getElementById('email-form').style.display = 'none';
     document.getElementById('buttons').style.display = 'block';
-    document.getElementById('back-button').style.display = 'none';
+    document.getElementById('back-options').style.display = 'none'; 
 }
 
-// פונקציה שתציג את טופס ההרשמה
+// הצגת טופס הרשמה
 function showSignupForm() {
     document.getElementById('signup-form').style.display = 'block';
     document.getElementById('login-form').style.display = 'none';
     document.getElementById('forgot-password-form').style.display = 'none';
-    document.getElementById('back-signup').style.display = 'block'; // הצגת כפתור Back
+    document.getElementById('back-options').style.display = 'block'; // הצגת כפתור back בטופס הרשמה
 }
 
-// פונקציה שתציג את טופס ההתחברות
+// הצגת טופס התחברות
 function showLoginForm() {
     document.getElementById('signup-form').style.display = 'none';
     document.getElementById('login-form').style.display = 'block';
     document.getElementById('forgot-password-form').style.display = 'none';
-    document.getElementById('back-login').style.display = 'block'; // הצגת כפתור Back
+    document.getElementById('back-options').style.display = 'block'; // הצגת כפתור back בטופס התחברות
 }
+
 
 // פונקציה שתציג את טופס שחזור הסיסמה
 function toggleForgotPassword() {
     document.getElementById('forgot-password-form').style.display = 'block';
     document.getElementById('login-form').style.display = 'none';
-    document.getElementById('back-forgot-password').style.display = 'block'; // הצגת כפתור Back
+    document.getElementById('signup-form').style.display = 'none';
+    document.getElementById('back-options').style.display = 'block'; // הצגת כפתור Back
 }
 
 
