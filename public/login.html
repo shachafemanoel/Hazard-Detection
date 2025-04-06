@@ -1,56 +1,58 @@
 <!DOCTYPE html>  
 <html lang="en">  
 <head>  
-  <meta charset="UTF-8" />  
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>  
-  <title>Sign in to Hazard Reporter</title>  
-  <link rel="stylesheet" href="../css/login.css">  
+    <meta charset="UTF-8" />  
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>  
+    <title>Sign in to Hazard Reporter</title>  
+    <link rel="stylesheet" href="../css/login.css">  
 </head>  
 <body>  
-  <div class="container">  
-    <h1>Sign in to Hazard Reporter</h1>  
-    <div class="buttons" id="buttons">  
-      <button onclick="location.href='/auth/google?mode=login'">Continue with Google</button>  
-      <button onclick="toggleForm()">Continue with Email</button>  
+    <div class="container">  
+        <h1>Sign in to Hazard Reporter</h1>  
+        <div class="buttons" id="buttons">  
+        <button onclick="location.href='/auth/google?mode=login'">Continue with Google</button>  
+        <button onclick="toggleForm()">Continue with Email</button>  
+        </div>  
+
+        <div id="email-options" style="display: none;">  
+            <button onclick="showSignupForm()">Sign Up</button>  
+            <button onclick="showLoginForm()">Log In</button>  
+        </div>  
+
+        <div id="email-form" style="display: none;">  
+        <div id="signup-form" style="display: none;">  
+            <h2>Sign Up</h2>  
+            <form id="register-form">  
+            <input type="email" name="email" placeholder="Email" required id="email" />  
+            <input type="text" name="username" placeholder="Username" required minlength="3" id="username" />  
+            <input type="password" name="password" placeholder="Password" required minlength="8" id="password" />  
+            <button type="submit">Register</button>  
+            </form>  
+            <p id="email-error"></p>  
+            <button id="back-signup" onclick="backToMainScreen()" style="display: none;">Back</button>
+        </div>  
+
+        <div id="login-form" style="display: none;">  
+            <h2>Log In</h2>  
+            <form id="login-form-inner">  
+            <input type="email" name="email" placeholder="Email" required id="login-email" />  
+            <input type="password" name="password" placeholder="Password" required minlength="8" id="login-password" />  
+            <button type="submit">Log In</button>  
+            </form>  
+            <button onclick="toggleForgotPassword()">Forgot Password?</button>  
+            <button id="back-login" onclick="backToMainScreen()" style="display: none;">Back</button>
+        </div>      
+
+        <div id="forgot-password-form" style="display: none;">  
+            <h2>Reset Password</h2>  
+            <form id="reset-password-form">  
+            <input type="email" name="email" placeholder="Enter your email" required id="reset-email" />  
+            <button type="submit">Reset Password</button>  
+            </form>  
+            <button id="back-forgot-password" onclick="backToMainScreen()" style="display: none;">Back</button>
+        </div>  
     </div>  
 
-    <div id="email-options" style="display: none;">  
-      <button onclick="showSignupForm()">Sign Up</button>  
-      <button onclick="showLoginForm()">Log In</button>  
-    </div>  
-
-    <div id="email-form" style="display: none;">  
-      <div id="signup-form" style="display: none;">  
-        <h2>Sign Up</h2>  
-        <form id="register-form">  
-          <input type="email" name="email" placeholder="Email" required id="email" />  
-          <input type="text" name="username" placeholder="Username" required minlength="3" id="username" />  
-          <input type="password" name="password" placeholder="Password" required minlength="8" id="password" />  
-          <button type="submit">Register</button>  
-        </form>  
-        <p id="email-error"></p>  
-      </div>  
-
-      <div id="login-form" style="display: none;">  
-        <h2>Log In</h2>  
-        <form id="login-form-inner">  
-          <input type="email" name="email" placeholder="Email" required id="login-email" />  
-          <input type="password" name="password" placeholder="Password" required minlength="8" id="login-password" />  
-          <button type="submit">Log In</button>  
-        </form>  
-        <button onclick="toggleForgotPassword()">Forgot Password?</button>  
-      </div>      
-
-      <div id="forgot-password-form" style="display: none;">  
-        <h2>Reset Password</h2>  
-        <form id="reset-password-form">  
-          <input type="email" name="email" placeholder="Enter your email" required id="reset-email" />  
-          <button type="submit">Reset Password</button>  
-        </form>  
-      </div>  
-    </div>  
-  </div>  
-
-  <script src="../js/login.js" defer></script>  
+    <script src="../js/login.js" defer></script>  
 </body>  
 </html>  

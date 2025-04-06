@@ -57,27 +57,40 @@ function toggleForm() {
     document.getElementById('email-form').style.display = 'block'; // הוספתי כדי להציג את הטופס
 }
 
-// פונקציה להציג את טופס ההרשמה
+// פונקציה שתחזיר את המסך הראשי (הכפתורים הראשיים)
+function backToMainScreen() {
+    document.getElementById('signup-form').style.display = 'none';
+    document.getElementById('login-form').style.display = 'none';
+    document.getElementById('forgot-password-form').style.display = 'none';
+    document.getElementById('email-options').style.display = 'none';
+    document.getElementById('email-form').style.display = 'none';
+    document.getElementById('buttons').style.display = 'block';
+    document.getElementById('back-button').style.display = 'none';
+}
+
+// פונקציה שתציג את טופס ההרשמה
 function showSignupForm() {
     document.getElementById('signup-form').style.display = 'block';
     document.getElementById('login-form').style.display = 'none';
     document.getElementById('forgot-password-form').style.display = 'none';
-    document.getElementById('email-error').textContent = ''; // ניקוי שגיאות ישנות
+    document.getElementById('back-signup').style.display = 'block'; // הצגת כפתור Back
 }
 
-// פונקציה להציג את טופס הכניסה
+// פונקציה שתציג את טופס ההתחברות
 function showLoginForm() {
-    document.getElementById('signup-form').style.display = 'none'; // הסתרת טופס ההרשמה
-    document.getElementById('login-form').style.display = 'block'; // הצגת טופס ההתחברות
-    document.getElementById('forgot-password-form').style.display = 'none'; // הסתרת טופס שחזור סיסמה
-    document.getElementById('email-error').textContent = ''; // ניקוי שגיאות ישנות
+    document.getElementById('signup-form').style.display = 'none';
+    document.getElementById('login-form').style.display = 'block';
+    document.getElementById('forgot-password-form').style.display = 'none';
+    document.getElementById('back-login').style.display = 'block'; // הצגת כפתור Back
 }
 
-// פונקציה להציג את טופס שכחת הסיסמה
+// פונקציה שתציג את טופס שחזור הסיסמה
 function toggleForgotPassword() {
     document.getElementById('forgot-password-form').style.display = 'block';
     document.getElementById('login-form').style.display = 'none';
+    document.getElementById('back-forgot-password').style.display = 'block'; // הצגת כפתור Back
 }
+
 
 // פונקציית אימות אימייל
 function validateEmail(email) {
