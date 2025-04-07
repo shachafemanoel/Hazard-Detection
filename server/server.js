@@ -6,6 +6,10 @@ import dotenv from 'dotenv';
 import { createClient } from 'redis';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import nodemailer from 'nodemailer'; 
+import { createTransport } from 'nodemailer';
+import sgMail from '@sendgrid/mail';
+import crypto from 'crypto';
 
 // הגדרת __dirname בסביבה של ES Modules
 const __filename = fileURLToPath(import.meta.url);
@@ -16,6 +20,8 @@ const app = express();
 const port = 3000;
 app.use(express.json());
 
+// הגדרת SendGrid API Key
+sgMail.setApiKey("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");
 
 // חיבור ל-Redis בענן
 const client = createClient({
@@ -273,4 +279,86 @@ app.post('/login', async (req, res) => {
     }
 
     return res.status(404).json({ error: 'User not found' });
+});
+
+
+// שליחה למייל של קישור לאיפוס סיסמה
+app.post('/forgot-password', async (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+        return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const userKeys = await client.keys('user:*');
+    let userId = null;
+    for (const key of userKeys) {
+        const userData = JSON.parse(await client.get(key));
+        if (userData.email === email) {
+            userId = key;
+            break;
+        }
+    }
+
+    if (!userId) {
+        return res.status(404).json({ error: 'Email not found' });
+    }
+
+    // יצירת טוקן ייחודי
+    const token = crypto.randomBytes(20).toString('hex');
+    const tokenKey = `reset:${token}`;
+    
+    // שמירת הטוקן עם תוקף של 10 דקות
+    await client.setEx(tokenKey, 600, userId); // 600 שניות = 10 דקות
+
+    const resetUrl = `http://localhost:3000/reset-password.html?token=${token}`;
+
+    const message = {
+        to: email,
+        from: 'hazard.reporter@outlook.com', // כתובת שנרשמה ואושרה ב-SendGrid
+        subject: 'Password Reset Request',
+        html: `
+            <h3>Hello,</h3>
+            <p>You requested to reset your password. Click the link below to reset it:</p>
+            <a href="${resetUrl}">${resetUrl}</a>
+            <p>This link will expire in 10 minutes.</p>
+        `
+    };
+    
+    try {
+        await sgMail.send(message); 
+        console.log("Reset email sent successfully to", email);
+        res.status(200).json({ message: 'Reset link sent to your email' });
+    } catch (error) {
+        console.error("Error sending email: ", error);
+        res.status(500).json({ error: 'Failed to send email' });
+    } 
+});
+
+// איפוס סיסמה לפי טוקן
+app.post('/reset-password', async (req, res) => {
+    const { token, password } = req.body;
+    if (!token || !password) {
+        return res.status(400).json({ error: 'Missing token or password' });
+    }
+
+    // ולידציה בסיסית
+    const valid = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/.test(password);
+    if (!valid) {
+        return res.status(400).json({ error: 'Invalid password format' });
+    }
+
+    const tokenKey = `reset:${token}`;
+    const userKey = await client.get(tokenKey);
+
+    if (!userKey) {
+        return res.status(400).json({ error: 'Token expired or invalid' });
+    }
+
+    const userData = JSON.parse(await client.get(userKey));
+    userData.password = password;
+
+    await client.set(userKey, JSON.stringify(userData));
+    await client.del(tokenKey); // הסר את הטוקן לאחר השימוש
+
+    res.status(200).json({ message: 'Password reset successfully' });
 });

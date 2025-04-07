@@ -92,12 +92,44 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     
 
-    // שחזור סיסמה
-    document.getElementById('reset-password-form')?.addEventListener('submit', function(event) {
-        event.preventDefault();
+    // אירוע שליחת טופס "שכחתי סיסמא"
+    document.getElementById('reset-password-form')?.addEventListener('submit', async function(event) {
+        event.preventDefault(); // מונע ריענון
+
         const email = document.getElementById('reset-email').value.trim();
-        document.getElementById('email-error').textContent = '';
-        console.log('Sending reset link to:', email);
+        const errorElement = document.getElementById('reset-password-error');
+
+        errorElement.textContent = '';
+        errorElement.style.color = 'red';
+
+        // ולידציה בסיסית על האימייל
+        if (!validateEmail(email)) {
+            errorElement.textContent = 'Invalid email address.';
+            return;
+        }
+
+        try {
+            const res = await fetch('/forgot-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+                // הצגת הודעת הצלחה
+                errorElement.style.color = 'green';
+                errorElement.textContent = 'If the email is registered, you will receive a password reset link shortly.';
+                document.getElementById('reset-password-form').reset();
+            } else {
+                // הצגת הודעת שגיאה
+                errorElement.textContent = data.error || 'Something went wrong. Please try again.';
+            }
+        } catch (err) {
+            console.error('Error during password reset request:', err);
+            errorElement.textContent = 'Server error. Please try again later.';
+        }
     });
 });
 
