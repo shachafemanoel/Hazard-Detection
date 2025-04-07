@@ -1,54 +1,93 @@
+// js/login.js
 document.addEventListener('DOMContentLoaded', function () {
-    // פונקציה להפעלת חלון הכניסה/הרשמה
-    document.getElementById('register-form')?.addEventListener('submit', function(event) {
-        event.preventDefault(); // מונע שליחת הטופס
-        const email = document.getElementById('email').value;
-        const username = document.getElementById('username').value;
-        const password = document.getElementById('password').value;
-
-        // ניקוי הודעות שגיאה ישנות
-        document.getElementById('email-error').textContent = '';
-
-        // אימות אימייל וסיסמא
+    // אירוע שליחת טופס הרשמה
+    document.getElementById('register-form')?.addEventListener('submit', async function(event) {
+        event.preventDefault();
+    
+        const email = document.getElementById('email').value.trim();
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value.trim();
+        const errorElement = document.getElementById('email-error');
+    
+        errorElement.textContent = '';
+        errorElement.style.color = 'red';
+    
         if (!validateEmail(email)) {
-            document.getElementById('email-error').textContent = 'Invalid email address.';
+            errorElement.textContent = 'Invalid email address.';
             return;
         }
         if (!validatePassword(password)) {
-            document.getElementById('email-error').textContent = 'Password must be at least 8 characters long and contain both letters and numbers.';
+            errorElement.textContent = 'Password must be at least 8 characters long and contain both letters and numbers.';
             return;
         }
+    
+        try {
+            const res = await fetch('/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, username, password })
+            });
+    
+            const data = await res.json();
+    
+            if (res.ok) {
+                errorElement.style.color = 'green';
+                errorElement.textContent = 'Registration successful! Logging you in...';
+    
+                // המתנה של 5 שניות ואז מעבר לדף upload
+                setTimeout(() => {
+                    window.location.href = '/upload.html';
+                }, 3000);
+    
+                return;
+            } else {
+                errorElement.textContent = data.error || 'Registration failed.';
+            }
+        } catch (err) {
+            console.error('Error registering user:', err);
+            errorElement.textContent = 'Server error. Please try again.';
+        }
+    });
+    
 
-        // כאן חיייב לקרוא לפונקצית API כדי להרשם
-        console.log('Registering user:', { email, username, password });
-        document.getElementById('email-error').textContent = 'Registration successful!'; // דוגמה להודעת הצלחה
+    // התחברות
+    document.getElementById('login-form')?.addEventListener('submit', async function(event) {
+        event.preventDefault();
+        const email = document.getElementById('login-email').value.trim();
+        const password = document.getElementById('login-password').value.trim();
+        const errorElement = document.getElementById('email-error');
+        errorElement.textContent = '';
+
+        try {
+            const res = await fetch('/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+
+            const data = await res.json();
+
+            if (res.ok) {
+                // הפניה לדף ניהול (למשל dashboard)
+                window.location.href = '/dashboard';
+            } else {
+                errorElement.textContent = data.error || 'Login failed.';
+            }
+        } catch (err) {
+            console.error('Login error:', err);
+            errorElement.textContent = 'Server error. Please try again.';
+        }
     });
 
-    document.getElementById('login-form')?.addEventListener('submit', function(event) {
-        event.preventDefault(); // מונע שליחת הטופס
-        const email = document.getElementById('login-email').value;
-        const password = document.getElementById('login-password').value;
-
-        // ניקוי הודעות שגיאה ישנות
-        document.getElementById('email-error').textContent = '';
-
-        // כאן חיייב לקרוא לפונקצית API כדי להתחבר
-        console.log('Logging in user:', { email, password });
-
-        // יש להוסיף בדיקות שגיאה פה, למשל אם המשתמש לא קיים או סיסמה לא נכונה.
-    });
-
+    // שחזור סיסמה
     document.getElementById('reset-password-form')?.addEventListener('submit', function(event) {
-        event.preventDefault(); // מונע שליחת הטופס
-        const email = document.getElementById('reset-email').value;
-
-        // ניקוי הודעות שגיאה ישנות
+        event.preventDefault();
+        const email = document.getElementById('reset-email').value.trim();
         document.getElementById('email-error').textContent = '';
-
-        // כאן חיייב לקרוא לפונקצית API שליחת לינק לשחזור
         console.log('Sending reset link to:', email);
     });
 });
+
 
 function toggleForm() {
     document.getElementById('buttons').style.display = 'none';
@@ -105,3 +144,4 @@ function validatePassword(password) {
     const regex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/;
     return regex.test(password);
 }
+

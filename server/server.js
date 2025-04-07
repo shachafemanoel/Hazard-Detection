@@ -215,3 +215,37 @@ app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
 });
 
+// רישום משתמש רגיל (לא Google)
+app.post('/register', async (req, res) => {
+    const { email, username, password } = req.body;
+
+    // ולידציה בסיסית
+    if (!email || !username || !password) {
+        return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // חיפוש אם קיים כבר משתמש עם אותו אימייל
+    const existingKeys = await client.keys('user:*');
+    for (const key of existingKeys) {
+        const user = await client.get(key);
+        const parsed = JSON.parse(user);
+        if (parsed.email === email) {
+            return res.status(409).json({ error: 'Email already exists' });
+        }
+    }
+
+    // יצירת מזהה ייחודי למשתמש
+    const newUserId = Date.now(); // אפשר להחליף ל־uuid אם תרצה
+    const userKey = `user:${newUserId}`;
+
+    const newUser = {
+        email,
+        username,
+        password, // טקסט גולמי, לפי בקשתך
+        type: 'user'
+    };
+
+    await client.set(userKey, JSON.stringify(newUser));
+    
+    res.status(201).json({ message: 'User registered successfully', user: { email, username } });
+});
