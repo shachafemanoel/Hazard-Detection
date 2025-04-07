@@ -6,8 +6,6 @@ import dotenv from 'dotenv';
 import { createClient } from 'redis';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import nodemailer from 'nodemailer'; 
-import { createTransport } from 'nodemailer';
 import sgMail from '@sendgrid/mail';
 import crypto from 'crypto';
 
@@ -118,13 +116,18 @@ app.get('/auth/google/callback', passport.authenticate('google', { failureRedire
     await client.set(userKey, JSON.stringify(newUser));
     console.log(`User registered or updated: ${req.user.displayName}`);
 
+    req.session.user = {
+        email: req.user.emails[0].value,
+        username: req.user.displayName
+    };
+
     res.redirect('/upload'); // הפניה לדף ההעלאה
 });
 
 
 // דף העלאת קבצים (Upload)
 app.get('/upload', async (req, res) => {
-    if (!req.isAuthenticated()) {
+    if (!req.session.user) {
         return res.redirect('/'); // אם לא מחובר, מחזירים לדף הבית
     }
 
@@ -151,7 +154,7 @@ app.get('/', (req, res) => {
 
 app.get('/dashboard', (req, res) => {
     // אם המשתמש לא מחובר, תחזיר אותו לדף התחברות
-    if (!req.isAuthenticated()) {
+    if (!req.session.user) {
         return res.redirect('/');
     }
     res.sendFile(path.join(__dirname, '../public/dashboard.html'));
@@ -252,6 +255,11 @@ app.post('/register', async (req, res) => {
     };
 
     await client.set(userKey, JSON.stringify(newUser));
+
+    req.session.user = {
+        email,
+        username
+    };
     
     res.status(201).json({ message: 'User registered successfully', user: { email, username } });
 });
@@ -303,10 +311,19 @@ app.post('/forgot-password', async (req, res) => {
         return res.status(404).json({ error: 'Email not found' });
     }
 
+    // ✅ מחיקת טוקנים קודמים של אותו משתמש אם קיימים
+    const existingTokens = await client.keys('reset:*');
+    for (const key of existingTokens) {
+        const value = await client.get(key);
+        if (value === userId) {
+            await client.del(key);
+        }
+    }
+
     // יצירת טוקן ייחודי
     const token = crypto.randomBytes(20).toString('hex');
     const tokenKey = `reset:${token}`;
-    
+
     // שמירת הטוקן עם תוקף של 10 דקות
     await client.setEx(tokenKey, 600, userId); // 600 שניות = 10 דקות
 
@@ -323,7 +340,7 @@ app.post('/forgot-password', async (req, res) => {
             <p>This link will expire in 10 minutes.</p>
         `
     };
-    
+
     try {
         await sgMail.send(message); 
         console.log("Reset email sent successfully to", email);
@@ -333,6 +350,7 @@ app.post('/forgot-password', async (req, res) => {
         res.status(500).json({ error: 'Failed to send email' });
     } 
 });
+
 
 // איפוס סיסמה לפי טוקן
 app.post('/reset-password', async (req, res) => {
