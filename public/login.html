@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>  
 <html lang="en">  
 <head>  
@@ -10,8 +11,8 @@
     <div class="container">  
         <h1>Sign in to Hazard Reporter</h1>  
         <div class="buttons" id="buttons">  
-        <button onclick="location.href='/auth/google?mode=login'">Continue with Google</button>  
-        <button onclick="toggleForm()">Continue with Email</button>  
+            <button onclick="location.href='/auth/google?mode=login'">Continue with Google</button>  
+            <button onclick="toggleForm()">Continue with Email</button>  
         </div>  
 
         <div id="email-options" style="display: none;">  
@@ -25,10 +26,10 @@
         <div id="signup-form" style="display: none;">  
             <h2>Sign Up</h2>  
             <form id="register-form">  
-            <input type="email" name="email" placeholder="Email" required id="email" />  
-            <input type="text" name="username" placeholder="Username" required minlength="3" id="username" />  
-            <input type="password" name="password" placeholder="Password" required minlength="8" id="password" />  
-            <button type="submit">Register</button>  
+                <input type="email" name="email" placeholder="Email" required id="email" />  
+                <input type="text" name="username" placeholder="Username" required minlength="3" id="username" />  
+                <input type="password" name="password" placeholder="Password" required minlength="8" id="password" />  
+                <button type="submit">Register</button>  
             </form>  
             <p id="email-error"></p>  
         </div>  
@@ -36,18 +37,20 @@
         <div id="login-form" style="display: none;">  
             <h2>Log In</h2>  
             <form id="login-form-inner">  
-            <input type="email" name="email" placeholder="Email" required id="login-email" />  
-            <input type="password" name="password" placeholder="Password" required minlength="8" id="login-password" />  
-            <button type="submit">Log In</button>  
+                <input type="email" name="email" placeholder="Email" required id="login-email" />  
+                <input type="password" name="password" placeholder="Password" required minlength="8" id="login-password" />  
+                <button type="submit">Log In</button>  
             </form>  
+            <p id="login-error"></p>
         </div>      
 
         <div id="forgot-password-form" style="display: none;">  
             <h2>Reset Password</h2>  
             <form id="reset-password-form">  
-            <input type="email" name="email" placeholder="Enter your email" required id="reset-email" />  
-            <button type="submit">Reset Password</button>  
+                <input type="email" name="email" placeholder="Enter your email" required id="reset-email" />  
+                <button type="submit">Reset Password</button>  
             </form>  
+            <p id="reset-password-error"></p>
         </div>  
     </div>  
 

@@ -249,3 +249,28 @@ app.post('/register', async (req, res) => {
     
     res.status(201).json({ message: 'User registered successfully', user: { email, username } });
 });
+
+
+app.post('/login', async (req, res) => {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+        return res.status(400).json({ error: 'Missing email or password' });
+    }
+
+    const userKeys = await client.keys('user:*');
+    for (const key of userKeys) {
+        const userData = await client.get(key);
+        const user = JSON.parse(userData);
+
+        if (user.email === email) {
+            if (user.password === password) {
+                return res.status(200).json({ message: 'Login successful', user: { email, username: user.username } });
+            } else {
+                return res.status(401).json({ error: 'Incorrect password' });
+            }
+        }
+    }
+
+    return res.status(404).json({ error: 'User not found' });
+});

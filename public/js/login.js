@@ -53,23 +53,35 @@ document.addEventListener('DOMContentLoaded', function () {
     // התחברות
     document.getElementById('login-form')?.addEventListener('submit', async function(event) {
         event.preventDefault();
+    
         const email = document.getElementById('login-email').value.trim();
         const password = document.getElementById('login-password').value.trim();
-        const errorElement = document.getElementById('email-error');
+        const errorElement = document.getElementById('login-error');
+    
         errorElement.textContent = '';
-
+        errorElement.style.color = 'red';
+    
+        if (!validateEmail(email)) {
+            errorElement.textContent = 'Invalid email format.';
+            return;
+        }
+    
         try {
             const res = await fetch('/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password })
             });
-
+    
             const data = await res.json();
-
+    
             if (res.ok) {
-                // הפניה לדף ניהול (למשל dashboard)
-                window.location.href = '/dashboard';
+                errorElement.style.color = 'green';
+                errorElement.textContent = 'Login successful! Redirecting...';
+    
+                setTimeout(() => {
+                    window.location.href = '/upload.html';
+                }, 3000);
             } else {
                 errorElement.textContent = data.error || 'Login failed.';
             }
@@ -78,6 +90,7 @@ document.addEventListener('DOMContentLoaded', function () {
             errorElement.textContent = 'Server error. Please try again.';
         }
     });
+    
 
     // שחזור סיסמה
     document.getElementById('reset-password-form')?.addEventListener('submit', function(event) {
