@@ -45,7 +45,10 @@ app.use(session({
     secret: 'your-secret-key',  // הוסף כאן מפתח ייחודי וסודי
     resave: false,
     saveUninitialized: true,
-    cookie: { secure: false }   // הגדרה עבור סשנים לא מאובטחים ב-localhost
+    cookie: { 
+        secure: false,
+        httpOnly: true,
+     }   // הגדרה עבור סשנים לא מאובטחים ב-localhost
 }));
 app.use(passport.initialize());
 app.use(passport.session());
@@ -161,7 +164,7 @@ app.get('/dashboard', (req, res) => {
 
 // יצירת דיווח חדש
 app.post('/api/reports', async (req, res) => {
-    if (!req.isAuthenticated()) {
+    if (!req.session.user && !req.isAuthenticated()) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
@@ -191,7 +194,7 @@ app.post('/api/reports', async (req, res) => {
 
 // שליפת כל הדיווחים
 app.get('/api/reports', async (req, res) => {
-    if (!req.isAuthenticated()) {
+    if (!req.session.user && !req.isAuthenticated()) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
