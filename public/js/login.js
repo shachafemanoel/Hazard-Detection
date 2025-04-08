@@ -1,5 +1,19 @@
 // js/login.js
 document.addEventListener('DOMContentLoaded', function () {
+    const params = new URLSearchParams(window.location.search);
+    const error = params.get('error');
+
+    if (error === 'EmailExists') {
+        const container = document.querySelector('.container');
+        const errorMsg = document.createElement('div');
+        errorMsg.textContent = 'Email already exists. Please try again.';
+        errorMsg.classList.add('error-banner');
+        container.insertBefore(errorMsg, container.firstChild);
+
+        // ניקוי ה-URL כדי שלא יחזור ברענון
+        window.history.replaceState({}, document.title, '/');
+    }
+
     // אירוע שליחת טופס הרשמה
     document.getElementById('register-form')?.addEventListener('submit', async function(event) {
         event.preventDefault();

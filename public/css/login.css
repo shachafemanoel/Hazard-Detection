@@ -138,3 +138,14 @@ button.reset-password {
 button.reset-password:hover {  
     background-color: #218838;  /* צבע ירוק כהה יותר בהhover */  
 }  
+
+.error-banner {
+    background-color: #ffdddd;
+    color: red;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid red;
+    border-radius: 5px;
+    font-weight: bold;
+    text-align: center;
+}

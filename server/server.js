@@ -8,6 +8,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import sgMail from '@sendgrid/mail';
 import crypto from 'crypto';
+import flash from 'connect-flash';  
+
 
 // הגדרת __dirname בסביבה של ES Modules
 const __filename = fileURLToPath(import.meta.url);
@@ -17,6 +19,7 @@ dotenv.config();
 const app = express();
 const port = 3000;
 app.use(express.json());
+app.use(flash());  
 
 // הגדרת SendGrid API Key
 sgMail.setApiKey("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");
@@ -88,45 +91,90 @@ passport.deserializeUser((user, done) => {
     done(null, user);
 });
 
-// כפתור התחברות עם Google
-app.get('/auth/google', (req, res, next) => {
-    const mode = req.query.mode || 'login'; // ברירת מחדל היא login
-    req.session.authMode = mode; // שמירה ב-session כדי להשתמש לאחר האימות
+// כפתור התחברות/הרשמה עם Google  
+app.get('/auth/google', async (req, res, next) => {  
+    const mode = req.query.mode || 'login';  
+    req.session.authMode = mode; // נשמור את המצב (login/signup) ב-session  
 
-    if (req.isAuthenticated()) {
-        req.logout(() => {  
-            req.session.destroy(() => {
-                next(); // לאחר התנתקות מוחלטת - נשלח את המשתמש ל-Google
-            });
-        });
-    } else {
-        next();
-    }
-}, passport.authenticate('google', { scope: ['profile', 'email'], prompt: 'select_account' }));  
+    // אם המשתמש כבר מחובר, ננתק אותו כדי למנוע בלבול בהרשמה או התחברות חדשה  
+    if (req.isAuthenticated()) {  
+        req.logout(function(err) {  
+            if (err) {  
+                console.error('Error during logout:', err);  
+                return res.redirect('/login.html?error=LogoutFailed');  
+            }  
+            req.session.destroy(() => {  
+                next(); // נמשיך רק אחרי שה-session נוקתה  
+            });  
+        });  
+    } else {  
+        next(); // אם המשתמש לא מחובר, ממשיכים ישירות  
+    }  
+}, passport.authenticate('google', {  
+    scope: ['profile', 'email'],  
+    prompt: 'select_account' // מוודא שהמשתמש בוחר חשבון כל פעם  
+}));  
 
-// נקודת חזרה לאחר ההתחברות
-app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }), async (req, res) => {
-    const mode = req.session.authMode || 'login';
-    const userKey = `user:${req.user.id}`;
+// פונקציה לבדוק אם המייל קיים  
+async function emailExists(email) {  
+    const existingUserKeys = await client.keys('user:*');  
+    for (const key of existingUserKeys) {  
+        const userData = JSON.parse(await client.get(key));  
+        if (userData.email === email) {  
+            return true; // מייל קיים  
+        }  
+    }  
+    return false; // מייל לא קיים  
+}  
 
-    // יצירת משתמש חדש ב-Redis בלי לבדוק אם כבר קיים
-    const newUser = {
-        email: req.user.emails[0].value,
-        username: req.user.displayName,
-        type: 'user'
-    };
+// נקודת חזרה לאחר ההתחברות  
+app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }), async (req, res) => {  
+    const mode = req.session.authMode || 'login';  
+    const email = req.user.emails[0].value;  
+    const displayName = req.user.displayName;  
 
-    await client.set(userKey, JSON.stringify(newUser));
-    console.log(`User registered or updated: ${req.user.displayName}`);
+    // בדוק אם המייל קיים במערכת  
+    const userExists = await emailExists(email);  
 
-    req.session.user = {
-        email: req.user.emails[0].value,
-        username: req.user.displayName
-    };
+    if (mode === 'signup') {  
+        if (userExists) {  
+            console.log("Email already exists! Redirecting to login.");  
+            return res.redirect('/login.html?error=EmailExists');  
+        }  
 
-    res.redirect('/upload'); // הפניה לדף ההעלאה
-});
+        // רק אם לא קיים - צור משתמש חדש  
+        const newUserKey = `user:${req.user.id}`;  
+        const newUser = {  
+            email,  
+            username: displayName,  
+            type: 'google' // מבהיר שזו הרישום דרך גוגל  
+        };  
 
+        await client.set(newUserKey, JSON.stringify(newUser));  
+        console.log('New user created (Google signup):', displayName);  
+
+        req.session.user = { email, username: displayName };  
+        return res.redirect('/upload.html');  
+    }  
+
+    // אם זה login mode  
+    if (mode === 'login') {  
+        if (!userExists) {  
+            console.log("User not found during login.");  
+            return res.redirect('/login.html?error=UserNotFound');  
+        }  
+
+        req.session.user = {  
+            email,  
+            username: displayName // אנו מקבלים את השם מדף החלון  
+        };  
+        console.log('Google login successful for:', displayName);  
+        return res.redirect('/upload.html');  
+    }  
+
+    // fallback  
+    res.redirect('/login.html');  
+});  
 
 // דף העלאת קבצים (Upload)
 app.get('/upload', async (req, res) => {
@@ -227,47 +275,44 @@ app.listen(port, () => {
 });
 
 // רישום משתמש רגיל (לא Google)
-app.post('/register', async (req, res) => {
-    const { email, username, password } = req.body;
+app.post('/register', async (req, res) => {  
+    const { email, username, password } = req.body;  
 
-    if (!email || !username || !password) {
-        return res.status(400).json({ error: 'Missing required fields' });
-    }
+    if (!email || !username || !password) {  
+        return res.status(400).json({ error: 'Missing required fields' });  
+    }  
 
-    const userKeys = await client.keys('user:*');
-    let existingKey = null;
+    const existingUserKey = await client.keys(`user:*`).then(keys => {  
+        return keys.find(async (key) => {  
+            const user = JSON.parse(await client.get(key));  
+            return user.email === email; // בדיקה אם המייל קיים  
+        });  
+    });  
 
-    for (const key of userKeys) {
-        const user = await client.get(key);
-        const parsed = JSON.parse(user);
-        if (parsed.email === email) {
-            existingKey = key;
-            break;
-        }
-    }
+    if (existingUserKey) {  
+        return res.status(400).json({ error: 'User already registered with this email.' }); // הודעת שגיאה  
+    }  
 
-    const userId = existingKey ? existingKey : `user:${Date.now()}`;
+    const userId = `user:${Date.now()}`;  
+    const newUser = {  
+        email,  
+        username,  
+        password,  
+        type: 'user'  
+    };  
 
-    const updatedUser = {
-        email,
-        username,
-        password,
-        type: 'user'
-    };
+    await client.set(userId, JSON.stringify(newUser));  
 
-    await client.set(userId, JSON.stringify(updatedUser));
+    req.session.user = {  
+        email,  
+        username  
+    };  
 
-    req.session.user = {
-        email,
-        username
-    };
-
-    res.status(201).json({ 
-        message: existingKey ? 'User updated successfully' : 'User registered successfully', 
-        user: { email, username } 
-    });
-});
-
+    res.status(201).json({   
+        message: 'User registered successfully',   
+        user: { email, username }   
+    });  
+});  
 
 
 app.post('/login', async (req, res) => {
