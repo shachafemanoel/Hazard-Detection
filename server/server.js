@@ -153,7 +153,6 @@ app.get('/', (req, res) => {
 });
 
 app.get('/dashboard', (req, res) => {
-    // אם המשתמש לא מחובר, תחזיר אותו לדף התחברות
     if (!req.session.user) {
         return res.redirect('/');
     }
@@ -228,41 +227,44 @@ app.listen(port, () => {
 app.post('/register', async (req, res) => {
     const { email, username, password } = req.body;
 
-    // ולידציה בסיסית
     if (!email || !username || !password) {
         return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // חיפוש אם קיים כבר משתמש עם אותו אימייל
-    const existingKeys = await client.keys('user:*');
-    for (const key of existingKeys) {
+    const userKeys = await client.keys('user:*');
+    let existingKey = null;
+
+    for (const key of userKeys) {
         const user = await client.get(key);
         const parsed = JSON.parse(user);
         if (parsed.email === email) {
-            return res.status(409).json({ error: 'Email already exists' });
+            existingKey = key;
+            break;
         }
     }
 
-    // יצירת מזהה ייחודי למשתמש
-    const newUserId = Date.now(); // אפשר להחליף ל־uuid אם תרצה
-    const userKey = `user:${newUserId}`;
+    const userId = existingKey ? existingKey : `user:${Date.now()}`;
 
-    const newUser = {
+    const updatedUser = {
         email,
         username,
-        password, // טקסט גולמי, לפי בקשתך
+        password,
         type: 'user'
     };
 
-    await client.set(userKey, JSON.stringify(newUser));
+    await client.set(userId, JSON.stringify(updatedUser));
 
     req.session.user = {
         email,
         username
     };
-    
-    res.status(201).json({ message: 'User registered successfully', user: { email, username } });
+
+    res.status(201).json({ 
+        message: existingKey ? 'User updated successfully' : 'User registered successfully', 
+        user: { email, username } 
+    });
 });
+
 
 
 app.post('/login', async (req, res) => {
@@ -279,6 +281,13 @@ app.post('/login', async (req, res) => {
 
         if (user.email === email) {
             if (user.password === password) {
+
+                // ✅ שמירה בסשן – כמו שעשית בהתחברות עם גוגל
+                req.session.user = {
+                    email,
+                    username: user.username
+                };
+
                 return res.status(200).json({ message: 'Login successful', user: { email, username: user.username } });
             } else {
                 return res.status(401).json({ error: 'Incorrect password' });
@@ -288,6 +297,7 @@ app.post('/login', async (req, res) => {
 
     return res.status(404).json({ error: 'User not found' });
 });
+
 
 
 // שליחה למייל של קישור לאיפוס סיסמה
@@ -359,7 +369,6 @@ app.post('/reset-password', async (req, res) => {
         return res.status(400).json({ error: 'Missing token or password' });
     }
 
-    // ולידציה בסיסית
     const valid = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/.test(password);
     if (!valid) {
         return res.status(400).json({ error: 'Invalid password format' });
@@ -376,7 +385,12 @@ app.post('/reset-password', async (req, res) => {
     userData.password = password;
 
     await client.set(userKey, JSON.stringify(userData));
-    await client.del(tokenKey); // הסר את הטוקן לאחר השימוש
+    await client.del(tokenKey);
+
+    req.session.user = {
+        email: userData.email,
+        username: userData.username
+    };
 
     res.status(200).json({ message: 'Password reset successfully' });
 });

@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const res = await fetch('/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify({ email, username, password })
             });
     
@@ -70,6 +71,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const res = await fetch('/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify({ email, password })
             });
     
@@ -112,6 +114,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const res = await fetch('/forgot-password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify({ email })
             });
 
