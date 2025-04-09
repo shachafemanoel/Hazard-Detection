@@ -1,140 +1,166 @@
-/* הגדרת כללי בסיס */  
-* {  
-    box-sizing: border-box;  
-    margin: 0;  
-    padding: 0;  
-    font-family: Arial, sans-serif;  
-}  
+/* כללי בסיס */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+}
 
-/* רקע כללי */  
-body {  
-    background-color: #f4f4f9;  
-    display: flex;  
-    justify-content: center;  
-    align-items: center;  
-    height: 100vh;  
-}  
+/* רקע כללי */
+body {
+    background-color: #f4f4f9;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
 
-/* קונטיינר עיקרי */  
-.container {  
-    width: 100%;  
-    max-width: 450px;  /* גודל מוגדל */  
-    background-color: #ffffff;  
-    padding: 40px;  /* ריפוד גדול יותר */  
-    border-radius: 8px;  
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);  
-    position: relative;  /* נדרש למיקום הכפתור */  
-}  
+/* קונטיינר עיקרי */
+.container {
+    width: 100%;
+    max-width: 450px;  /* גודל מוגדל */
+    background-color: #ffffff;
+    padding: 40px;  /* ריפוד גדול יותר */
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    position: relative;
+}
 
-/* כותרת */  
-h1 {  
-    text-align: center;  
-    font-size: 24px;  
-    color: #333;  
-    margin: 40px 0 30px; /* רווח בין כפתור הכניסה לכותרת */  
-}  
+/* כותרת */
+h1 {
+    text-align: center;
+    font-size: 24px;
+    color: #333;
+    margin: 40px 0 30px;
+}
 
-/* כפתור Back */  
-#back-options {  
-    position: absolute;  
-    top: 10px;  /* מרווח קטן מהחלק העליון */  
-    left: 20px;  /* ממוקם בצד שמאל */  
-    font-size: 16px;  /* גודל טקסט */  
-    color: white;  /* צבע טקסט אפור כהה */  
-    cursor: pointer;  
-}  
+/* כפתור Back */
+#back-options {
+    position: absolute;
+    top: 10px;
+    left: 20px;
+    font-size: 16px;
+    color: white;
+    cursor: pointer;
+}
 
-#back-options:hover {  
-    text-decoration: underline;  /* מוסיף קו תחתי בהhover */  
-}  
+#back-options:hover {
+    text-decoration: underline;
+}
 
-/* קונטיינר לכפתורי התחברות והרשמה */  
-.button-container {  
-    display: flex;  /* תצוגה גמישה */  
-    justify-content: space-between;  /* רווחים אחידים בין הכפתורים */  
-    margin-bottom: 20px;  /* רווח תחתון */  
-}  
+/* קונטיינר לכפתורי התחברות והרשמה */
+.button-container {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
 
-/* כפתורים כלליים */  
-button {  
-    flex: 1;  /* כל כפתור תופס שווה מקום */  
-    padding: 10px;  
-    background-color: #4CAF50;  
-    color: white;  
-    border: none;  
-    border-radius: 5px;  
-    font-size: 16px;  
-    cursor: pointer;  
-    transition: background-color 0.3s;  
-    margin-right: 10px;  /* מרווח בין הכפתורים */  
-}  
+/* כפתורים כלליים */
+button {
+    flex: 1;
+    padding: 10px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    margin-right: 10px;
+}
 
-button:last-child {  
-    margin-right: 0;  /* מסיר מרווח מהכפתור האחרון */  
-}  
+button:last-child {
+    margin-right: 0;
+}
 
-button:hover {  
-    background-color: #45a049;  
-}  
+button:hover {
+    background-color: #45a049;
+}
 
-/* התמקדות בפרטי הטופס */  
-input[type="email"], input[type="text"], input[type="password"] {  
-    width: 100%;  
-    padding: 12px;  
-    margin-bottom: 20px; /* רווח גדול יותר */  
-    border: 1px solid #ccc;  
-    border-radius: 5px;  
-    font-size: 14px;  
-}  
+/* התמקדות בפרטי הטופס */
+input[type="email"], input[type="text"], input[type="password"] {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 20px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 14px;
+}
 
-input[type="email"]:focus, input[type="text"]:focus, input[type="password"]:focus {  
-    outline: none;  
-    border-color: #4CAF50;  
-}  
+input[type="email"]:focus, input[type="text"]:focus, input[type="password"]:focus {
+    outline: none;
+    border-color: #4CAF50;
+}
 
-/* טקסט שגיאה */  
-#email-error {  
-    color: red;  
-    font-size: 14px;  
-    margin-top: 10px;  
-}  
+/* הפעלת אפשרויות התחברות או הרשמה */
+#email-options {
+    text-align: center;
+    margin-bottom: 20px;
+}
 
-/* הפעלת אפשרויות התחברות או הרשמה */  
-#email-options {  
-    text-align: center;  
-    margin-bottom: 20px;  
-}  
+/* הפעלת טפסים */
+#signup-form, #login-form, #forgot-password-form {
+    display: none;
+}
 
-/* הפעלת טפסים */  
-#signup-form, #login-form, #forgot-password-form {  
-    display: none;  
-}  
+/* כפתור לשכחת סיסמה */
+button.forgot-password {
+    width: 100%;
+    background-color: #FF6347;
+}
 
-/* כפתור לשכחת סיסמה */  
-button.forgot-password {  
-    width: 100%;  
-    background-color: #FF6347;  
-}  
+button.forgot-password:hover {
+    background-color: #e55347;
+}
 
-button.forgot-password:hover {  
-    background-color: #e55347;  
-}  
+/* רווחים בין כותרות לשדות */
+h2 {
+    margin-bottom: 15px;
+    font-size: 20px;
+    text-align: center;
+    color: #333;
+}
 
-/* רווחים בין כותרות לשדות */  
-h2 {  
-    margin-bottom: 15px;  
-    font-size: 20px;  
-    text-align: center;  
-    color: #333;  
-}  
+/* עיצוב הכפתור של האיפוס סיסמה */
+button.reset-password {
+    position: center;
+    background-color: #28a745;
+    margin-top: 10px;
+}
 
-/* עיצוב הכפתור של האיפוס סיסמה */  
-button.reset-password {  
-    position: center;  /* ממוקם במרכז */
-    background-color: #28a745;  /* צבע רקע ירוק */  
-    margin-top: 10px;  /* מרווח מעל הכפתור */  
-}  
+button.reset-password:hover {
+    background-color: #218838;
+}
 
-button.reset-password:hover {  
-    background-color: #218838;  /* צבע ירוק כהה יותר בהhover */  
-}  
+/* עיצוב בסיסי לשגיאה */
+.error-banner {
+    background-color: #f8d7da; /* צבע רקע עדין יותר */
+    color: #842029; /* צבע טקסט כהה יותר */
+    padding: 15px 20px;
+    border-radius: 8px;
+    margin: 20px auto;
+    max-width: 400px;
+    font-weight: bold;
+    text-align: center;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    font-family: sans-serif;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    animation: fadeIn 0.5s ease-in-out; /* אנימציה */
+}
+
+/* מוסיף אנימציה של הצגת שגיאה בצורה חלקה */
+@keyframes fadeIn {
+    0% {
+        opacity: 0;
+        transform: translateY(-30px);  /* התחל מנקודה גבוהה יותר */
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* אם השגיאה מוסתרת, לא תוצג */
+.error-banner.hidden {
+    display: none;
+}
