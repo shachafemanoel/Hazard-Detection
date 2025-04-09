@@ -53,43 +53,74 @@ app.use(session({
         httpOnly: true,
      }   // הגדרה עבור סשנים לא מאובטחים ב-localhost
 }));
+
 app.use(passport.initialize());
 app.use(passport.session());
 
-// הגדרת אסטרטגיית Google OAuth
+passport.serializeUser((user, done) => {
+    done(null, user.email); // מזהה יחיד
+  });
+  
+  passport.deserializeUser(async (email, done) => {
+    try {
+      const keys = await client.keys('user:*');
+      for (const key of keys) {
+        const user = JSON.parse(await client.get(key));
+        if (user.email === email) return done(null, user);
+      }
+      done(null, false);
+    } catch (err) {
+      done(err, null);
+    }
+  });
+
+// הגדרת האסטרטגיה של גוגל
 passport.use(new GoogleStrategy({
     clientID: "46375555882-rmivba20noas9slfskb3cfvugssladrr.apps.googleusercontent.com",
     clientSecret: "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",
     callbackURL: "http://localhost:3000/auth/google/callback"
-}, async (accessToken, refreshToken, profile, done) => {
-    // חיפוש אם המשתמש כבר קיים ב-Redis
-    const userKey = `user:${profile.id}`;
-    const existingUser = await client.get(userKey);
-
-    if (!existingUser) {
-        // אם המשתמש לא קיים, ניצור משתמש חדש ונשמור ב-Redis
-        const newUser = {
-            email: profile.emails[0].value,
-            username: profile.displayName,  // אם צריך, אפשר להוסיף שם משתמש נוסף
-            type: 'user',
-        };
-
-        await client.set(userKey, JSON.stringify(newUser));
-        console.log(`New user created: ${profile.displayName}`);
-    } else {
-        console.log(`Existing user: ${profile.displayName}`);
-    }
-
-    return done(null, profile);
-}));
-
-passport.serializeUser((user, done) => {
-    done(null, user);
-});
-
-passport.deserializeUser((user, done) => {
-    done(null, user);
-});
+    },
+    async (accessToken, refreshToken, profile, done) => {
+        try {
+          const googleId = profile.id;
+          const email = profile.emails[0].value;
+          const username = profile.displayName;
+    
+          const googleKey = `user:${googleId}`;
+          const googleUser = await client.get(googleKey);
+    
+          if (googleUser) {
+            // קיים משתמש עם גוגל ID → התחברות
+            return done(null, JSON.parse(googleUser));
+          }
+    
+          // בדיקה אם מייל כבר קיים אצל משתמש עם timestamp (רישום רגיל)
+          const keys = await client.keys('user:*');
+          for (const key of keys) {
+            if (key === googleKey) continue; // דלג על מפתח הגוגל שכבר בדקנו
+            const user = JSON.parse(await client.get(key));
+            if (user.email === email) {
+              // מייל כבר קיים מרישום רגיל → אל תיצור
+              return done(null, false, { message: 'EmailExists' });
+            }
+          }
+    
+          // לא קיים בכלל → צור משתמש חדש עם גוגל
+          const newUser = {
+            email,
+            username,
+            type: 'user'
+          };
+          await client.set(googleKey, JSON.stringify(newUser));
+    
+          return done(null, newUser);
+    
+        } catch (err) {
+          console.error('Google Strategy Error:', err);
+          return done(err, null);
+        }
+      }
+    ));
 
 // כפתור התחברות/הרשמה עם Google  
 app.get('/auth/google', async (req, res, next) => {  
@@ -128,53 +159,38 @@ async function emailExists(email) {
 }  
 
 // נקודת חזרה לאחר ההתחברות  
-app.get('/auth/google/callback', passport.authenticate('google', { failureRedirect: '/' }), async (req, res) => {  
-    const mode = req.session.authMode || 'login';  
-    const email = req.user.emails[0].value;  
-    const displayName = req.user.displayName;  
+app.get('/auth/google/callback', (req, res, next) => {
+    passport.authenticate('google', async (err, user, info) => {
+        const mode = req.session.authMode || 'login';
 
-    // בדוק אם המייל קיים במערכת  
-    const userExists = await emailExists(email);  
+        if (err) {
+            console.error('Google Auth Error:', err);
+            return res.redirect('/login.html?error=ServerError');
+        }
 
-    if (mode === 'signup') {  
-        if (userExists) {  
-            console.log("Email already exists! Redirecting to login.");  
-            return res.redirect('/login.html?error=EmailExists');  
-        }  
+        if (!user) {
+            // משתמש לא אותנטי → בדוק אם זה בגלל שהמייל כבר תפוס
+            if (info && info.message === 'EmailExists') {
+                return res.redirect('/login.html?error=EmailExists');
+            }
+            return res.redirect('/login.html?error=AuthFailed');
+        }
 
-        // רק אם לא קיים - צור משתמש חדש  
-        const newUserKey = `user:${req.user.id}`;  
-        const newUser = {  
-            email,  
-            username: displayName,  
-            type: 'google' // מבהיר שזו הרישום דרך גוגל  
-        };  
+        // התחברות או רישום מוצלחים
+        req.login(user, async (err) => {
+            if (err) {
+                console.error('Login Error:', err);
+                return res.redirect('/login.html?error=LoginFailed');
+            }
 
-        await client.set(newUserKey, JSON.stringify(newUser));  
-        console.log('New user created (Google signup):', displayName);  
+            req.session.user = { email: user.email, username: user.username };
 
-        req.session.user = { email, username: displayName };  
-        return res.redirect('/upload.html');  
-    }  
+            return res.redirect('/upload.html');
+        });
+    })(req, res, next);
+});
 
-    // אם זה login mode  
-    if (mode === 'login') {  
-        if (!userExists) {  
-            console.log("User not found during login.");  
-            return res.redirect('/login.html?error=UserNotFound');  
-        }  
 
-        req.session.user = {  
-            email,  
-            username: displayName // אנו מקבלים את השם מדף החלון  
-        };  
-        console.log('Google login successful for:', displayName);  
-        return res.redirect('/upload.html');  
-    }  
-
-    // fallback  
-    res.redirect('/login.html');  
-});  
 
 // דף העלאת קבצים (Upload)
 app.get('/upload', async (req, res) => {

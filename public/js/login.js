@@ -3,14 +3,57 @@ document.addEventListener('DOMContentLoaded', function () {
     const params = new URLSearchParams(window.location.search);
     const error = params.get('error');
 
-    if (error === 'EmailExists') {
-        const container = document.querySelector('.container');
-        const errorMsg = document.createElement('div');
-        errorMsg.textContent = 'Email already exists. Please try again.';
-        errorMsg.classList.add('error-banner');
-        container.insertBefore(errorMsg, container.firstChild);
+    if (error) {
+        let message = '';
+        let targetElement = null;
 
-        // ניקוי ה-URL כדי שלא יחזור ברענון
+        switch (error) {
+            case 'EmailExists':
+                message = 'Email already exists. Please try again.';
+                targetElement = document.getElementById('email-error');
+                break;
+            case 'UserNotFound':
+                message = 'User not found. Please sign up.';
+                targetElement = document.getElementById('login-error');
+                break;
+            case 'LoginFailed':
+                message = 'Incorrect email or password.';
+                targetElement = document.getElementById('login-error');
+                break;
+            case 'LogoutFailed':
+                message = 'Error logging out. Please refresh and try again.';
+                // הצגה כללית בראש הדף
+                const container = document.querySelector('.container');
+                const logoutMsg = document.createElement('div');
+                logoutMsg.textContent = message;
+                logoutMsg.classList.add('error-banner');
+                container.insertBefore(logoutMsg, container.firstChild);
+
+                // הוספת אנימציה של fade-in לשגיאה
+                logoutMsg.classList.add('fade-in');
+                break;
+            default:
+                message = 'An unknown error occurred.';
+        }
+
+        if (targetElement) {
+            targetElement.textContent = message;
+            targetElement.style.color = 'red';
+
+            // הוספת אנימציה של fade-in לשגיאות בטופס
+            targetElement.classList.add('fade-in');
+
+            // מוודא שהתוכן יוצג
+            if (targetElement.id === 'email-error') {
+                showSignupForm();
+                toggleForm();
+            } else if (targetElement.id === 'login-error') {
+                showLoginForm();
+                toggleForm();
+            }
+        }
+
+        // ניקוי ה-URL
         window.history.replaceState({}, document.title, '/');
     }
 
