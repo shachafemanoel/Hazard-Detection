@@ -17,6 +17,50 @@ function initMap() {
     loadReports();
 }
 
+// פותח את מודל התמונה
+function openModal(imageUrl) {
+    const modal = document.getElementById("image-modal");
+    const modalImage = document.getElementById("modal-image");
+    modal.style.display = "flex";
+    modalImage.src = imageUrl;
+}
+
+function closeModal() {
+    document.getElementById("image-modal").style.display = "none";
+}
+
+window.addEventListener("click", (event) => {
+    const modal = document.getElementById("image-modal");
+    if (event.target === modal) {
+        closeModal();
+    }
+});
+
+// ממיר כתובת לקואורדינטות ומוסיף סמן
+async function geocodeAddress(address) {
+    const apiKey = "AIzaSyAXxZ7niDaxuyPEzt4j9P9U0kFzKHO9pZk";
+    const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
+
+    try {
+        const response = await fetch(geocodeUrl);
+        const data = await response.json();
+
+        if (data.status === "OK") {
+            const location = data.results[0].geometry.location;
+            new google.maps.Marker({
+                map: map,
+                position: location,
+                title: address,
+            });
+        } else {
+            console.error("Geocode error:", data.status);
+        }
+    } catch (error) {
+        console.error("Error with Geocoding API:", error);
+    }
+}
+
+// טוען דיווחים מהשרת ומכניס לטבלה ולמפה
 async function loadReports() {
     try {
         const response = await fetch('/api/reports', {
@@ -26,8 +70,8 @@ async function loadReports() {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
             }
-        });
-
+          });
+          
         if (!response.ok) {
             console.error("Error fetching reports:", response.statusText);
             return;
@@ -65,47 +109,7 @@ async function loadReports() {
     }
 }
 
-async function geocodeAddress(address) {
-    const apiKey = "AIzaSyAXxZ7niDaxuyPEzt4j9P9U0kFzKHO9pZk";
-    const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
-
-    try {
-        const response = await fetch(geocodeUrl);
-        const data = await response.json();
-
-        if (data.status === "OK") {
-            const location = data.results[0].geometry.location;
-            new google.maps.Marker({
-                map: map,
-                position: location,
-                title: address,
-            });
-        } else {
-            console.error("Geocode error:", data.status);
-        }
-    } catch (error) {
-        console.error("Error with Geocoding API:", error);
-    }
-}
-
-function openModal(imageUrl) {
-    const modal = document.getElementById("image-modal");
-    const modalImage = document.getElementById("modal-image");
-    modal.style.display = "flex";
-    modalImage.src = imageUrl;
-}
-
-function closeModal() {
-    document.getElementById("image-modal").style.display = "none";
-}
-
-window.addEventListener("click", (event) => {
-    const modal = document.getElementById("image-modal");
-    if (event.target === modal) {
-        closeModal();
-    }
-});
-
+// מאזין לטעינת המסמך - רק בשביל לחצנים
 document.addEventListener("DOMContentLoaded", () => {
     const toggleReportsBtn = document.getElementById('toggleBtn');
     const toggleMapBtn = document.getElementById('toggleMapBtn');
