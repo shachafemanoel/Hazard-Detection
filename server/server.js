@@ -8,14 +8,11 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import sgMail from '@sendgrid/mail';
 import crypto from 'crypto';
-<<<<<<< HEAD
 import { db, bucket } from './firebaseAdmin.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Buffer } from 'buffer';
 
-=======
-import flash from 'connect-flash';  
->>>>>>> origin/master
+
 
 
 // הגדרת __dirname בסביבה של ES Modules
@@ -29,8 +26,7 @@ app.use(express.json());
 app.use(flash());  
 
 // הגדרת SendGrid API Key
-sgMail.setApiKey("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");
-
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 // חיבור ל-Redis בענן
 const client = createClient({
     username: 'default',
@@ -264,13 +260,8 @@ app.post('/api/reports', async (req, res) => {
 });
 
 // שליפת כל הדיווחים
-<<<<<<< HEAD
-app.post('/api/reports', async (req, res) => {
-    if (!req.isAuthenticated()) {
-=======
 app.get('/api/reports', async (req, res) => {
     if (!req.session.user && !req.isAuthenticated()) {
->>>>>>> origin/master
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
