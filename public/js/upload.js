@@ -5,6 +5,31 @@ document.addEventListener("DOMContentLoaded", async function () {
   const canvas = document.getElementById("preview-canvas");
   const ctx = canvas.getContext("2d");
   const logoutBtn = document.getElementById("logout-btn");
+  const saveBtn = document.getElementById("save-detection");
+
+  saveBtn.addEventListener("click", () => {
+    canvas.toBlob(async (blob) => {
+      if (!blob) return alert("❌ Failed to get image blob");
+  
+      const file = new File([blob], "detection.jpg", { type: "image/jpeg" });
+      const formData = new FormData();
+      formData.append("file", file);
+  
+      try {
+        const res = await fetch("/upload-detection", {
+          method: "POST",
+          body: formData,
+        });
+  
+        const result = await res.json();
+        alert("✅ Saved to server: " + result.message + "\n📸 " + result.url);
+      } catch (err) {
+        alert("❌ Failed to save image");
+        console.error(err);
+      }
+    }, "image/jpeg", 0.95);
+  });
+  
 
   // המודל (YOLO באון-אן-אקס) מיוצא לגודל 640x640
   const FIXED_SIZE =640;

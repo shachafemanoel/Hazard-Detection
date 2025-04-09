@@ -1,3 +1,4 @@
+// 📦 External dependencies
 import express from 'express';
 import session from 'express-session';
 import passport from 'passport';
@@ -8,42 +9,64 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import sgMail from '@sendgrid/mail';
 import crypto from 'crypto';
-import { db, bucket } from './firebaseAdmin.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Buffer } from 'buffer';
 
+// 📦 Firebase & Cloudinary
+import { db, bucket } from './firebaseAdmin.js';
+import { v2 as cloudinary } from 'cloudinary';
+import multer from 'multer';
+import streamifier from 'streamifier';
 
-
-
-// הגדרת __dirname בסביבה של ES Modules
+// 🌍 ES Modules __dirname polyfill
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-dotenv.config(); 
-const app = express();
-const port = 3000;
-app.use(express.json());
-app.use(flash());  
+// 📁 Load environment variables
+dotenv.config();
 
-// הגדרת SendGrid API Key
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-// חיבור ל-Redis בענן
-const client = createClient({
-    username: 'default',
-    password: 'e7uFJGU10TYEVhTJFoOkyPog0fBMhJMG',
-    socket: {
-        host: 'redis-13437.c44.us-east-1-2.ec2.redns.redis-cloud.com',
-        port: 13437
-    }
+// ☁️ Cloudinary config
+cloudinary.config({
+  cloud_name: 'dgn5da9f8',
+  api_key: '239479697485235',
+  api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// האזנה לאירועים
-client.on('error', (err) => console.log('Redis Client Error:', err));
+// 🎛️ Setup multer (in-memory uploads)
+const upload = multer();
+
+// 🚀 Initialize Express app
+const app = express();
+const port = 3000;
+
+// 📦 Middleware
+app.use(express.json());
+app.use(session({
+  secret: 'your-secret-key',
+  resave: false,
+  saveUninitialized: true,
+  cookie: { secure: false, httpOnly: true }
+}));
+
+// 📨 SendGrid API
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+// 🔌 Redis client
+const client = createClient({
+  username: 'default',
+  password: 'e7uFJGU10TYEVhTJFoOkyPog0fBMhJMG',
+  socket: {
+    host: 'redis-13437.c44.us-east-1-2.ec2.redns.redis-cloud.com',
+    port: 13437
+  }
+});
 
 async function connectRedis() {
     await client.connect();
-    console.log('Connected to Redis');
-}
+    console.log('✅ Connected to Redis');
+  }
+  
+
 connectRedis();
 
 // הגדרת session
@@ -385,7 +408,8 @@ app.post('/login', async (req, res) => {
 
                 // ✅ שמירה בסשן – כמו שעשית בהתחברות עם גוגל
                 req.session.user = {
-                    email,node_modules/
+                    email: user.email,
+
 
                     username: user.username
                 };
@@ -496,3 +520,50 @@ app.post('/reset-password', async (req, res) => {
 
     res.status(200).json({ message: 'Password reset successfully' });
 });
+
+
+app.post('/upload-detection', upload.single('file'), async (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+  
+    try {
+      const streamUpload = (buffer) => {
+        return new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { folder: 'detections' },
+            (error, result) => {
+              if (result) {
+                resolve(result);
+              } else {
+                reject(error);
+              }
+            }
+          );
+          streamifier.createReadStream(buffer).pipe(stream);
+        });
+      };
+  
+      const result = await streamUpload(req.file.buffer);
+  
+      // שמירה ב-Redis עם תאריך
+      const detectionId = `detection:${Date.now()}`;
+      const detectionData = {
+        imageUrl: result.secure_url,
+        timestamp: new Date().toISOString()
+      };
+  
+      await client.json.set(detectionId, '$', detectionData);
+      console.log("💾 Detection saved to Redis:", detectionId);
+  
+      res.status(200).json({
+        message: 'Image uploaded to Cloudinary',
+        url: result.secure_url
+      });
+    } catch (e) {
+      console.error('🔥 Upload error:', e);
+      res.status(500).json({ error: 'Failed to upload to Cloudinary' });
+    }
+  });
+  
+
