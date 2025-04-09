@@ -1,3 +1,8 @@
+// upload_tf.js
+import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js";
+import { storage } from "./firebaseConfig.js";
+
+
 document.addEventListener("DOMContentLoaded", () => {
   const startBtn = document.getElementById("start-camera");
   const stopBtn = document.getElementById("stop-camera");
@@ -10,19 +15,17 @@ document.addEventListener("DOMContentLoaded", () => {
   let detecting = false;
   let session = null;
   let frameCount = 0;
+  const pendingDetections = [];
 
-  // צור offscreen canvas פעם אחת
   const offscreen = document.createElement("canvas");
   offscreen.width = FIXED_SIZE;
   offscreen.height = FIXED_SIZE;
   const offCtx = offscreen.getContext("2d", { willReadFrequently: true });
 
-  // פרמטרי letterbox יחושבו פעם אחת לאחר טעינת הווידאו
   let letterboxParams = null;
 
   const classNames = ['Alligator Crack', 'Block Crack', 'Construction Joint Crack', 'Crosswalk Blur', 'Lane Blur', 'Longitudinal Crack', 'Manhole', 'Patch Repair', 'Pothole', 'Transverse Crack', 'Wheel Mark Crack'];
 
-  // טוען את המודל עם ניסיון להשתמש ב-WebGL כ-backend
   async function loadModel() {
     try {
       try {
@@ -37,7 +40,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // מחשב את פרמטרי ה-letterbox פעם אחת, כאשר הווידאו מוכן
   function computeLetterboxParams() {
     const scale = Math.min(FIXED_SIZE / video.videoWidth, FIXED_SIZE / video.videoHeight);
     const newW = Math.round(video.videoWidth * scale);
@@ -47,35 +49,66 @@ document.addEventListener("DOMContentLoaded", () => {
     letterboxParams = { scale, newW, newH, offsetX, offsetY };
   }
 
-  // לולאת זיהוי – מעבדת כל 3 פריימים
+  async function uploadDetectionImage(canvas) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(async (blob) => {
+        if (!blob) return reject("❌ No blob from canvas");
+
+        const timestamp = Date.now();
+        const imageRef = ref(storage, `detections/${timestamp}.jpg`);
+
+        await uploadBytes(imageRef, blob);
+        const url = await getDownloadURL(imageRef);
+
+        console.log("☁️ Uploaded image to Firebase Storage:", url);
+        resolve(url);
+      }, "image/jpeg", 0.9);
+    });
+  }
+
+  async function saveDetection(canvas, label, score) {
+    try {
+      const imageUrl = await uploadDetectionImage(canvas);
+      const report = {
+        type: label,
+        location: "Unknown",
+        time: new Date().toISOString(),
+        imageUrl,
+        status: "unreviewed",
+        reportedBy: "anonymous"
+      };
+
+      pendingDetections.push(report);
+      console.log("📝 Detection queued:", report);
+    } catch (err) {
+      console.error("❌ Error during image upload:", err);
+    }
+  }
+
   async function detectLoop() {
     if (!detecting || !session) return;
 
     frameCount++;
     if (frameCount % 4 !== 0) {
-      requestAnimationFrame(detectLoop);
+      requestAnimationFrame(() => detectLoop());
       return;
     }
 
-    // השתמש בפרמטרי letterbox שחושבו מראש
     if (!letterboxParams) computeLetterboxParams();
 
-    // שרטוט על offscreen canvas בעזרת הפרמטרים
     offCtx.fillStyle = "black";
     offCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
     offCtx.drawImage(video, letterboxParams.offsetX, letterboxParams.offsetY, letterboxParams.newW, letterboxParams.newH);
 
     const imageData = offCtx.getImageData(0, 0, FIXED_SIZE, FIXED_SIZE);
     const { data, width, height } = imageData;
-    const numChannels = 3;
-    const tensorData = new Float32Array(width * height * numChannels);
+    const tensorData = new Float32Array(width * height * 3);
     for (let i = 0, j = 0; i < data.length; i += 4, j += 3) {
-      tensorData[j]     = data[i]     / 255;
+      tensorData[j] = data[i] / 255;
       tensorData[j + 1] = data[i + 1] / 255;
       tensorData[j + 2] = data[i + 2] / 255;
     }
 
-    // המרת נתונים מ-HWC ל-CHW
     const chwData = new Float32Array(3 * width * height);
     for (let c = 0; c < 3; c++) {
       for (let h = 0; h < height; h++) {
@@ -96,8 +129,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const outputData = output.data;
       const boxes = [];
       for (let i = 0; i < outputData.length; i += 6) {
-        const box = outputData.slice(i, i + 6);
-        boxes.push(box);
+        boxes.push(outputData.slice(i, i + 6));
       }
 
       canvas.width = video.videoWidth;
@@ -105,33 +137,40 @@ document.addEventListener("DOMContentLoaded", () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      boxes.forEach(([x1, y1, x2, y2, score, classId]) => {
-        if (score < 0.5) return;
+      for (const [x1, y1, x2, y2, score, classId] of boxes) {
+        if (score < 0.5) continue;
         const scaleX = video.videoWidth / FIXED_SIZE;
         const scaleY = video.videoHeight / FIXED_SIZE;
         const boxW = (x2 - x1) * scaleX;
         const boxH = (y2 - y1) * scaleY;
         const left = x1 * scaleX;
-        const top  = y1 * scaleY;
-        if (boxW < 1 || boxH < 1) return;
+        const top = y1 * scaleY;
+        if (boxW < 1 || boxH < 1) continue;
+
         ctx.strokeStyle = "red";
         ctx.lineWidth = 2;
         ctx.strokeRect(left, top, boxW, boxH);
+
         const label = classNames[Math.floor(classId)] || `Class ${classId}`;
         const scorePerc = (score * 100).toFixed(1);
         ctx.fillStyle = "red";
         ctx.font = "16px Arial";
         const textY = top > 10 ? top - 5 : 10;
         ctx.fillText(`${label} (${scorePerc}%)`, left, textY);
-      });
+
+        console.log("📦 Detected object:", label, scorePerc + "%");
+
+        if (frameCount % 60 === 0) {
+          await saveDetection(canvas, label, score);
+        }
+      }
     } catch (err) {
       console.error("❌ Error running ONNX model:", err);
     }
 
-    requestAnimationFrame(detectLoop);
+    requestAnimationFrame(() => detectLoop());
   }
 
-  // הפעלת המצלמה והזיהוי
   startBtn.addEventListener("click", async () => {
     if (!session) await loadModel();
     try {
@@ -150,7 +189,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  stopBtn.addEventListener("click", () => {
+  stopBtn.addEventListener("click", async () => {
     detecting = false;
     if (stream) {
       stream.getTracks().forEach((track) => track.stop());
@@ -161,5 +200,22 @@ document.addEventListener("DOMContentLoaded", () => {
     stopBtn.style.display = "none";
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     console.log("Camera stopped");
+
+    if (pendingDetections.length > 0) {
+      console.log(`📨 Sending ${pendingDetections.length} detections to server...`);
+      for (const detection of pendingDetections) {
+        try {
+          const res = await fetch("/api/reports", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(detection)
+          });
+          const result = await res.json();
+          console.log("✅ Detection saved:", result);
+        } catch (e) {
+          console.error("🔥 Failed to send detection:", e);
+        }
+      }
+    }
   });
 });

@@ -1,224 +1,211 @@
-/***************************
+/**
  * yolo_tfjs.js
- * דוגמה לקוד JavaScript מלא
- ***************************/
+ * מודול JavaScript מודולרי לזיהוי אובייקטים באמצעות YOLOv5 עם ONNX Runtime
+ */
 
-// -- הגדרות ברירת מחדל --
-const MODEL_PATH = "object_detecion_model/road_damage_detection_last_version_web_model/model.json"; 
-const classNames = ['Alligator Crack', 'Block Crack', 'Construction Joint Crack', 'Crosswalk Blur', 'Lane Blur', 'Longitudinal Crack', 'Manhole', 'Patch Repair', 'Pothole', 'Transverse Crack', 'Wheel Mark Crack'];
-
-// גודל הקלט שהמודל דורש (למשל 640 או 544 – בדוק במה אומן)
-const FIXED_SIZE = 640; 
-
-// משתנים גלובליים
-let yoloModel = null;    // יאחסן את המודל הטעון
-let isDetecting = false; // דגל להרצת לולאה
-let cameraStream = null; // זרם המצלמה
-
-/***************************************************
- * 1) טעינת המודל – קוראים פעם אחת בתחילת הדרך
- ***************************************************/
-async function loadModel() {
+/**
+ * טוען מודל ONNX מהנתיב המצוין
+ * @param {string} modelPath - נתיב למודל ONNX
+ * @returns {Promise<ort.InferenceSession>} - אובייקט InferenceSession טעון
+ */
+export async function loadModel(modelPath) {
   try {
-    yoloModel = await tf.loadGraphModel(MODEL_PATH);
-    console.log("✅ YOLO TF.js model loaded!");
+    let session;
+    try {
+      // ניסיון לטעון עם WebGL
+      session = await ort.InferenceSession.create(modelPath, { executionProviders: ['webgl'] });
+      console.log("✅ YOLO model loaded with WebGL!");
+    } catch (err) {
+      // נסיגה למעבד אם WebGL נכשל
+      console.warn("WebGL backend failed, falling back to CPU:", err);
+      session = await ort.InferenceSession.create(modelPath);
+      console.log("✅ YOLO model loaded with CPU!");
+    }
+    return session;
   } catch (err) {
-    console.error("❌ Failed to load TF.js model:", err);
+    console.error("❌ Failed to load ONNX model:", err);
+    throw err;
   }
 }
 
-/********************************************************
- * 2) פונקציית עזר: הכנת תמונה (canvas) לפורמט המתאים
- *    (כולל Letterbox ל-FIXED_SIZE×FIXED_SIZE, NHWC וכו')
- ********************************************************/
-function preprocessImage(source) {
-  // ניצור canvas זמני בגודל שהמודל דורש
+/**
+ * מחשב פרמטרים של letterbox לשמירה על יחס גובה-רוחב
+ * @param {number} origWidth - רוחב המקור
+ * @param {number} origHeight - גובה המקור
+ * @param {number} targetSize - גודל היעד (ברירת מחדל: 640)
+ * @returns {Object} - אובייקט פרמטרים של letterbox
+ */
+export function computeLetterboxParams(origWidth, origHeight, targetSize = 640) {
+  const scale = Math.min(targetSize / origWidth, targetSize / origHeight);
+  const newW = Math.round(origWidth * scale);
+  const newH = Math.round(origHeight * scale);
+  const offsetX = Math.floor((targetSize - newW) / 2);
+  const offsetY = Math.floor((targetSize - newH) / 2);
+  
+  return { scale, newW, newH, offsetX, offsetY };
+}
+
+/**
+ * מעבד תמונה לטנסור מותאם לקלט המודל
+ * @param {HTMLImageElement|HTMLVideoElement|HTMLCanvasElement} image - אלמנט תמונה/וידאו/קנבס
+ * @param {number} targetSize - גודל היעד (ברירת מחדל: 640)
+ * @returns {Object} - אובייקט המכיל את הטנסור ופרמטרי letterbox
+ */
+export function preprocessImageToTensor(image, targetSize = 640) {
+  // יצירת קנווס זמני
   const offscreen = document.createElement("canvas");
-  offscreen.width = FIXED_SIZE;
-  offscreen.height = FIXED_SIZE;
-  const offCtx = offscreen.getContext("2d");
+  offscreen.width = targetSize;
+  offscreen.height = targetSize;
+  const offCtx = offscreen.getContext("2d", { willReadFrequently: true });
 
-  // חישוב scale כדי לשמור על יחס רוחב/גובה (letterbox)
-  const scale = Math.min(
-    FIXED_SIZE / source.width,
-    FIXED_SIZE / source.height
-  );
-  const newW = Math.round(source.width * scale);
-  const newH = Math.round(source.height * scale);
-  const offsetX = Math.floor((FIXED_SIZE - newW) / 2);
-  const offsetY = Math.floor((FIXED_SIZE - newH) / 2);
+  // חישוב פרמטרי letterbox
+  const imgWidth = image.naturalWidth || image.videoWidth || image.width;
+  const imgHeight = image.naturalHeight || image.videoHeight || image.height;
+  const letterboxParams = computeLetterboxParams(imgWidth, imgHeight, targetSize);
+  const { offsetX, offsetY, newW, newH } = letterboxParams;
 
-  // מילוי שחור + ציור התמונה
+  // מילוי שחור והעתקת התמונה עם letterbox
   offCtx.fillStyle = "black";
-  offCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
-  offCtx.drawImage(source, offsetX, offsetY, newW, newH);
+  offCtx.fillRect(0, 0, targetSize, targetSize);
+  offCtx.drawImage(image, offsetX, offsetY, newW, newH);
 
-  // הפיכה ל-Tensor [1, FIXED_SIZE, FIXED_SIZE, 3]
-  const input = tf.browser.fromPixels(offscreen)
-    .slice([0, 0, 0], [FIXED_SIZE, FIXED_SIZE, 3])
-    .div(255.0)
-    .expandDims(0);
+  // המרה לנתוני פיקסלים
+  const imageData = offCtx.getImageData(0, 0, targetSize, targetSize);
+  const { data, width, height } = imageData;
 
-  return input;
-}
-
-/**************************************************************
- * 3) פונקציית עזר: הרצת המודל + פענוח פלט
- *    מניחה שהפלט הוא טנסור יחיד [N, 6] עם מבנה:
- *    [x1, y1, x2, y2, score, classId]  לכל אובייקט
- **************************************************************/
-function runInference(model, inputTensor) {
-  // משתמשים ב-tf.tidy כדי לשחרר זיכרון אוטומטית לטנזורים זמניים
-  const boxesData = tf.tidy(() => {
-    const predictions = model.execute(inputTensor); // או executeAsync אם צריך
-    const data = predictions.dataSync(); // מחזיר Float32Array
-    predictions.dispose();
-    return data;
-  });
-
-  // הופכים למערך של קופסאות
-  const results = [];
-  for (let i = 0; i < boxesData.length; i += 6) {
-    const box = boxesData.slice(i, i + 6);
-    results.push(box);
+  // נרמול הנתונים ל-0-1
+  const tensorData = new Float32Array(width * height * 3);
+  for (let i = 0, j = 0; i < data.length; i += 4, j += 3) {
+    tensorData[j] = data[i] / 255;
+    tensorData[j + 1] = data[i + 1] / 255;
+    tensorData[j + 2] = data[i + 2] / 255;
   }
-  return results;
+
+  // ארגון מחדש למבנה CHW (Channels, Height, Width)
+  const chwData = new Float32Array(3 * width * height);
+  for (let c = 0; c < 3; c++) {
+    for (let h = 0; h < height; h++) {
+      for (let w = 0; w < width; w++) {
+        chwData[c * width * height + h * width + w] = tensorData[h * width * 3 + w * 3 + c];
+      }
+    }
+  }
+
+  // יצירת טנסור ONNX
+  const dims = [1, 3, height, width];
+  const tensor = new ort.Tensor("float32", chwData, dims);
+
+  return { tensor, letterboxParams };
 }
 
-/************************************************************
- * 4) ציור תיבות זיהוי על קנבס
- *    results: מערך תיבות [x1, y1, x2, y2, score, classId]
- *    origWidth, origHeight: גודל התמונה/וידאו המקורי
- ************************************************************/
-function drawDetections(ctx, results, origWidth, origHeight) {
-  // מנקים את הקנבס לפני הציור
+/**
+ * מריץ היסק על טנסור באמצעות מודל נתון
+ * @param {ort.InferenceSession} session - מופע המודל הטעון
+ * @param {ort.Tensor} tensor - טנסור קלט מעובד
+ * @returns {Promise<Array>} - מערך של תיבות זיהוי גולמיות
+ */
+export async function runInference(session, tensor) {
+  try {
+    // הכנת קלט למודל
+    const feeds = { images: tensor };
+    
+    // הרצת המודל
+    const results = await session.run(feeds);
+    
+    // חילוץ פלט - מניח שיש מפתח פלט אחד
+    const outputKey = Object.keys(results)[0];
+    const outputData = results[outputKey].data;
+    
+    // המרה למערך של מערכים [x1, y1, x2, y2, score, classId]
+    const boxes = [];
+    for (let i = 0; i < outputData.length; i += 6) {
+      boxes.push(Array.from(outputData.slice(i, i + 6)));
+    }
+    
+    return boxes;
+  } catch (err) {
+    console.error("❌ Error running ONNX model:", err);
+    throw err;
+  }
+}
+
+/**
+ * מפענח ומסנן את הקופסאות מפלט המודל
+ * @param {Array} boxes - מערך של תיבות זיהוי גולמיות
+ * @param {number} confidenceThreshold - סף ביטחון לסינון תיבות
+ * @returns {Array} - מערך של אובייקטים ParsedBox
+ */
+export function parseBoxes(boxes, confidenceThreshold = 0.5) {
+  const parsedBoxes = [];
+  
+  for (const box of boxes) {
+    const [x1, y1, x2, y2, score, classId] = box;
+    
+    // סינון לפי סף ביטחון וגודל תיבה הגיוני
+    if (score < confidenceThreshold) continue;
+    const boxW = x2 - x1;
+    const boxH = y2 - y1;
+    if (boxW <= 1 || boxH <= 1) continue;
+    
+    parsedBoxes.push({
+      x1, y1, x2, y2,
+      score,
+      classId: Math.floor(classId)
+    });
+  }
+  
+  return parsedBoxes;
+}
+
+/**
+ * מצייר זיהויים על קנבס
+ * @param {CanvasRenderingContext2D} ctx - הקשר הקנבס לציור
+ * @param {HTMLImageElement|HTMLVideoElement|HTMLCanvasElement} image - אלמנט המקור
+ * @param {Array} boxes - מערך של אובייקטי ParsedBox
+ * @param {Array} classNames - מערך שמות המחלקות
+ * @param {Object} letterboxParams - פרמטרי letterbox (אופציונלי עבור שימוש במצלמה)
+ */
+export function drawDetections(ctx, image, boxes, classNames, letterboxParams = null) {
+  // הגדרת ממדי קנבס
+  const displayWidth = image.naturalWidth || image.videoWidth || image.width;
+  const displayHeight = image.naturalHeight || image.videoHeight || image.height;
+  
+  // ניקוי קנבס וציור תמונת הרקע
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-
-  results.forEach(([x1, y1, x2, y2, score, classId]) => {
-    // פילטר סף זיהוי
-    if (score < 0.5) return;
-
-    // המרת קואורדינטות מ-FIXED_SIZE חזרה לגודל המקורי
-    const scaleX = origWidth  / FIXED_SIZE;
-    const scaleY = origHeight / FIXED_SIZE;
+  ctx.drawImage(image, 0, 0, ctx.canvas.width, ctx.canvas.height);
+  
+  // חישוב פקטורי קנה מידה
+  let scaleX = ctx.canvas.width / 640;
+  let scaleY = ctx.canvas.height / 640;
+  
+  // אם יש פרמטרי letterbox, השתמש בהם לחישוב מדויק יותר
+  if (letterboxParams) {
+    scaleX = displayWidth / 640;
+    scaleY = displayHeight / 640;
+  }
+  
+  // ציור תיבות
+  for (const box of boxes) {
+    const { x1, y1, x2, y2, score, classId } = box;
+    
+    // ממדי תיבה מותאמים למסך
     const boxW = (x2 - x1) * scaleX;
     const boxH = (y2 - y1) * scaleY;
     const left = x1 * scaleX;
-    const top  = y1 * scaleY;
-
-    // ציור מלבן
+    const top = y1 * scaleY;
+    
+    // ציור תיבה
     ctx.strokeStyle = "red";
     ctx.lineWidth = 2;
     ctx.strokeRect(left, top, boxW, boxH);
-
-    // כתיבת תווית
-    const label = classNames[Math.floor(classId)] || `Class ${classId}`;
+    
+    // ציור תווית
+    const label = classNames[classId] || `Class ${classId}`;
     const scorePerc = (score * 100).toFixed(1);
+    
     ctx.fillStyle = "red";
     ctx.font = "16px Arial";
     const textY = top > 10 ? top - 5 : 10;
     ctx.fillText(`${label} (${scorePerc}%)`, left, textY);
-  });
-}
-
-/**************************************************************
- * 5) זיהוי בתמונה (Image / HTMLImageElement)
- *    מקבל אלמנט <img>, אלמנט <canvas> ומצייר עליו את הזיהוי
- **************************************************************/
-async function detectFromImage(imgElement, canvasElement) {
-  if (!yoloModel) {
-    console.error("Model not loaded yet!");
-    return;
-  }
-
-  // מכינים טנסור
-  const inputTensor = preprocessImage(imgElement);
-  // מריצים המודל
-  const results = runInference(yoloModel, inputTensor);
-  inputTensor.dispose(); // משחררים את הטנסור של הקלט
-
-  // מציירים
-  // תחילה מגדירים את הקנבס לגודל התמונה
-  const ctx = canvasElement.getContext("2d");
-  canvasElement.width = imgElement.width;
-  canvasElement.height = imgElement.height;
-  
-  // מציירים את התמונה המקורית
-  ctx.drawImage(imgElement, 0, 0, imgElement.width, imgElement.height);
-  // מציירים תיבות
-  drawDetections(ctx, results, imgElement.width, imgElement.height);
-}
-
-/************************************************************
- * 6) זיהוי בפריים בודד של וידאו (videoElement.currentTime)
- *    כדי לזמן בלולאה, או באירוע timeupdate/seek
- ************************************************************/
-async function detectVideoFrame(videoElement, canvasElement) {
-  if (!yoloModel) {
-    console.error("Model not loaded yet!");
-    return;
-  }
-
-  const inputTensor = preprocessImage(videoElement);
-  const results = runInference(yoloModel, inputTensor);
-  inputTensor.dispose();
-
-  // ציור
-  const ctx = canvasElement.getContext("2d");
-  canvasElement.width = videoElement.videoWidth;
-  canvasElement.height = videoElement.videoHeight;
-
-  // מציירים את הווידאו עצמו (פריים נוכחי)
-  ctx.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
-  drawDetections(ctx, results, canvasElement.width, canvasElement.height);
-}
-
-/************************************************************
- * 7) לולאה רציפה לזיהוי על וידאו (בקובץ מקומי) 
- *    או הרצאה בזמן אמת על המצלמה
- ************************************************************/
-function startVideoLoop(videoElement, canvasElement) {
-  isDetecting = true;
-  async function loop() {
-    if (!isDetecting) return; 
-    await detectVideoFrame(videoElement, canvasElement);
-    requestAnimationFrame(loop);
-  }
-  loop(); // מפעיל לולאה
-}
-
-function stopVideoLoop() {
-  isDetecting = false;
-}
-
-/************************************************************
- * 8) הרצה על מצלמה חיה (Webcam)
- *    מקבלים videoElement, canvasElement ומפעילים getUserMedia.
- ************************************************************/
-async function startWebcam(videoElement, canvasElement) {
-  if (!yoloModel) {
-    await loadModel();
-  }
-  try {
-    cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
-    videoElement.srcObject = cameraStream;
-    await videoElement.play(); // כדי להמתין שהסטרים יתחיל
-
-    // מפעילים את לולאת הזיהוי
-    startVideoLoop(videoElement, canvasElement);
-  } catch (err) {
-    console.error("Cannot access webcam:", err);
   }
 }
-
-function stopWebcam(videoElement) {
-  if (cameraStream) {
-    cameraStream.getTracks().forEach(track => track.stop());
-    cameraStream = null;
-  }
-  videoElement.pause();
-  videoElement.srcObject = null;
-  stopVideoLoop();
-}
-
-

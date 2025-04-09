@@ -1,2 +1,3 @@
 .env
 /public/object_detecion_model/RDD2022-3
+server/serviceAccountKey.json
