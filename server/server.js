@@ -288,62 +288,25 @@ app.get('/api/reports', async (req, res) => {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { type, location, time, image, status, reportedBy } = req.body;
-
-    const reportId = new Date().getTime();
-    const reportKey = `report:${reportId}`;
-    const createdAt = Date.now();
-
     try {
-        // שלב 1: שמירת התמונה ב-Firebase Storage
-        let imageUrl = null;
+        // שליפת כל המפתחות של דיווחים
+        const keys = await client.keys('report:*');
+        const reports = [];
 
-        if (image && image.startsWith('data:image')) {
-            const matches = image.match(/^data:image\/(png|jpeg);base64,(.+)$/);
-            if (!matches) {
-                return res.status(400).json({ error: 'Invalid image format' });
+        for (const key of keys) {
+            const report = await client.json.get(key);
+            if (report) {
+                reports.push(report);
             }
-
-            const ext = matches[1];
-            const base64Data = matches[2];
-            const buffer = Buffer.from(base64Data, 'base64');
-
-            const filename = `detections/${reportId}_${uuidv4()}.${ext}`;
-            const file = bucket.file(filename);
-
-            await file.save(buffer, {
-                metadata: { contentType: `image/${ext}` },
-                public: true
-            });
-
-            imageUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
         }
 
-        // שלב 2: שמירה ב-Redis
-        const report = {
-            id: reportId,
-            type,
-            location,
-            time,
-            imageUrl,
-            status,
-            reportedBy,
-            createdAt
-        };
-
-        await client.json.set(reportKey, '$', report);
-
-        // שלב 3: שמירה בפיירבייס (Firestore)
-        await db.collection('detections').add(report);
-
-        console.log('✅ Report saved in Redis + Firebase + Storage');
-
-        res.status(200).json({ message: 'Report saved successfully' });
+        res.status(200).json(reports);
     } catch (err) {
-        console.error('🔥 Error saving report:', err);
-        res.status(500).json({ error: 'Error saving report' });
+        console.error('🔥 Error fetching reports:', err);
+        res.status(500).json({ error: 'Error fetching reports' });
     }
 });
+
 
 // הרצת השרת
 app.listen(port, () => {
