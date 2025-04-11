@@ -13,6 +13,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Buffer } from 'buffer';
 
 // 📦 Firebase & Cloudinary
+import { db, bucket } from './firebaseAdmin.js';
 import { v2 as cloudinary } from 'cloudinary';
 import multer from 'multer';
 import streamifier from 'streamifier';
@@ -48,7 +49,7 @@ app.use(session({
 }));
 
 // 📨 SendGrid API
-sgMail.setApiKey("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");
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 // 🔌 Redis client
 const client = createClient({
@@ -287,25 +288,62 @@ app.get('/api/reports', async (req, res) => {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    try {
-        // שליפת כל המפתחות של דיווחים
-        const keys = await client.keys('report:*');
-        const reports = [];
+    const { type, location, time, image, status, reportedBy } = req.body;
 
-        for (const key of keys) {
-            const report = await client.json.get(key);
-            if (report) {
-                reports.push(report);
+    const reportId = new Date().getTime();
+    const reportKey = `report:${reportId}`;
+    const createdAt = Date.now();
+
+    try {
+        // שלב 1: שמירת התמונה ב-Firebase Storage
+        let imageUrl = null;
+
+        if (image && image.startsWith('data:image')) {
+            const matches = image.match(/^data:image\/(png|jpeg);base64,(.+)$/);
+            if (!matches) {
+                return res.status(400).json({ error: 'Invalid image format' });
             }
+
+            const ext = matches[1];
+            const base64Data = matches[2];
+            const buffer = Buffer.from(base64Data, 'base64');
+
+            const filename = `detections/${reportId}_${uuidv4()}.${ext}`;
+            const file = bucket.file(filename);
+
+            await file.save(buffer, {
+                metadata: { contentType: `image/${ext}` },
+                public: true
+            });
+
+            imageUrl = `https://storage.googleapis.com/${bucket.name}/${filename}`;
         }
 
-        res.status(200).json(reports);
+        // שלב 2: שמירה ב-Redis
+        const report = {
+            id: reportId,
+            type,
+            location,
+            time,
+            imageUrl,
+            status,
+            reportedBy,
+            createdAt
+        };
+
+        await client.json.set(reportKey, '$', report);
+
+        // שלב 3: שמירה בפיירבייס (Firestore)
+        await db.collection('detections').add(report);
+
+        console.log('✅ Report saved in Redis + Firebase + Storage');
+
+        res.status(200).json({ message: 'Report saved successfully' });
     } catch (err) {
-        console.error('🔥 Error fetching reports:', err);
-        res.status(500).json({ error: 'Error fetching reports' });
+        console.error('🔥 Error saving report:', err);
+        res.status(500).json({ error: 'Error saving report' });
     }
 });
-
 
 // הרצת השרת
 app.listen(port, () => {
