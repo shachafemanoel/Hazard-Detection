@@ -490,7 +490,13 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'No file uploaded' });
     }
   
+    // אימות משתמש
+    if (!req.session.user && !req.isAuthenticated()) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+  
     try {
+      // העלאה ל-Cloudinary
       const streamUpload = (buffer) => {
         return new Promise((resolve, reject) => {
           const stream = cloudinary.uploader.upload_stream(
@@ -509,24 +515,54 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
   
       const result = await streamUpload(req.file.buffer);
   
-      // שמירה ב-Redis עם תאריך
-      const detectionId = `detection:${Date.now()}`;
-      const detectionData = {
-        imageUrl: result.secure_url,
-        timestamp: new Date().toISOString()
+      // נתוני הדיווח שנשלחים ב-form-data
+      const {
+        type,
+        location,
+        time,
+        status
+      } = req.body;
+  
+      const reportId = Date.now();
+      const reportKey = `report:${reportId}`;
+      const createdAt = new Date().toISOString();
+  
+      // נשלוף את שם המדווח מה-session או מה-user (אם נרשם עם גוגל)
+      const reportedBy =
+        req.session.user?.username ||
+        req.user?.username ||
+        req.user?.displayName || // למקרה של Google
+        'אנונימי';
+  
+      const report = {
+        id: reportId,
+        type: type || 'unknown',
+        location: location || 'unknown',
+        time: time || createdAt,
+        image: result.secure_url,
+        status: status || 'New',
+        reportedBy,
+        createdAt
       };
   
-      await client.json.set(detectionId, '$', detectionData);
-      console.log("💾 Detection saved to Redis:", detectionId);
+      // שמירה ב-Redis
+      await client.json.set(reportKey, '$', report);
+      console.log("💾 Report saved to Redis:", reportKey);
+  
+      // שמירה ב-Firestore
+      await db.collection('detections').add(report);
+      console.log("✅ Report saved to Firestore");
   
       res.status(200).json({
-        message: 'Image uploaded to Cloudinary',
-        url: result.secure_url
+        message: 'Report uploaded and saved successfully',
+        report
       });
+  
     } catch (e) {
       console.error('🔥 Upload error:', e);
-      res.status(500).json({ error: 'Failed to upload to Cloudinary' });
+      res.status(500).json({ error: 'Failed to upload report' });
     }
   });
+  
   
 
