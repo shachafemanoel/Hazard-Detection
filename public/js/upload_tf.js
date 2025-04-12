@@ -2,7 +2,6 @@
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js";
 import { storage } from "./firebaseConfig.js";
 
-
 document.addEventListener("DOMContentLoaded", () => {
   const startBtn = document.getElementById("start-camera");
   const stopBtn = document.getElementById("stop-camera");
@@ -15,7 +14,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let detecting = false;
   let session = null;
   let frameCount = 0;
-  const pendingDetections = [];
+  let lastSaveTime = 0;
+  let currentLocation = "Unknown";
 
   const offscreen = document.createElement("canvas");
   offscreen.width = FIXED_SIZE;
@@ -25,6 +25,61 @@ document.addEventListener("DOMContentLoaded", () => {
   let letterboxParams = null;
 
   const classNames = ['Alligator Crack', 'Block Crack', 'Construction Joint Crack', 'Crosswalk Blur', 'Lane Blur', 'Longitudinal Crack', 'Manhole', 'Patch Repair', 'Pothole', 'Transverse Crack', 'Wheel Mark Crack'];
+
+  // Try to get user's geolocation once on load
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition((pos) => {
+      const { latitude, longitude } = pos.coords;
+      currentLocation = `${latitude}, ${longitude}`;
+    }, (err) => {
+      console.warn("⚠️ Location not available:", err.message);
+    });
+  }
+
+  function showSuccessToast(message = "💾 זוהה ונשמר בהצלחה!") {
+    const toast = document.createElement("div");
+    toast.textContent = message;
+    toast.style.position = "fixed";
+    toast.style.bottom = "20px";
+    toast.style.right = "20px";
+    toast.style.backgroundColor = "#4caf50";
+    toast.style.color = "white";
+    toast.style.padding = "12px 20px";
+    toast.style.borderRadius = "8px";
+    toast.style.boxShadow = "0 0 10px rgba(0,0,0,0.2)";
+    toast.style.zIndex = 9999;
+    toast.style.fontSize = "14px";
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+  }
+
+  async function saveDetection(canvas, label = "Unknown") {
+    canvas.toBlob(async (blob) => {
+      if (!blob) return console.error("❌ Failed to get image blob");
+
+      const file = new File([blob], "detection.jpg", { type: "image/jpeg" });
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", label);
+      formData.append("location", currentLocation);
+      formData.append("time", new Date().toISOString());
+      formData.append("status", "unreviewed");
+      formData.append("reportedBy", "anonymous");
+
+      try {
+        const res = await fetch("/upload-detection", {
+          method: "POST",
+          body: formData,
+        });
+
+        const result = await res.json();
+        console.log("✅ Detection saved to server:", result.message);
+        showSuccessToast();
+      } catch (err) {
+        console.error("❌ Failed to save detection:", err);
+      }
+    }, "image/jpeg", 0.9);
+  }
 
   async function loadModel() {
     try {
@@ -47,42 +102,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const offsetX = Math.floor((FIXED_SIZE - newW) / 2);
     const offsetY = Math.floor((FIXED_SIZE - newH) / 2);
     letterboxParams = { scale, newW, newH, offsetX, offsetY };
-  }
-
-  async function uploadDetectionImage(canvas) {
-    return new Promise((resolve, reject) => {
-      canvas.toBlob(async (blob) => {
-        if (!blob) return reject("❌ No blob from canvas");
-
-        const timestamp = Date.now();
-        const imageRef = ref(storage, `detections/${timestamp}.jpg`);
-
-        await uploadBytes(imageRef, blob);
-        const url = await getDownloadURL(imageRef);
-
-        console.log("☁️ Uploaded image to Firebase Storage:", url);
-        resolve(url);
-      }, "image/jpeg", 0.9);
-    });
-  }
-
-  async function saveDetection(canvas, label, score) {
-    try {
-      const imageUrl = await uploadDetectionImage(canvas);
-      const report = {
-        type: label,
-        location: "Unknown",
-        time: new Date().toISOString(),
-        imageUrl,
-        status: "unreviewed",
-        reportedBy: "anonymous"
-      };
-
-      pendingDetections.push(report);
-      console.log("📝 Detection queued:", report);
-    } catch (err) {
-      console.error("❌ Error during image upload:", err);
-    }
   }
 
   async function detectLoop() {
@@ -158,10 +177,10 @@ document.addEventListener("DOMContentLoaded", () => {
         const textY = top > 10 ? top - 5 : 10;
         ctx.fillText(`${label} (${scorePerc}%)`, left, textY);
 
-        console.log("📦 Detected object:", label, scorePerc + "%");
-
-        if (frameCount % 60 === 0) {
-          await saveDetection(canvas, label, score);
+        const now = Date.now();
+        if (!lastSaveTime || now - lastSaveTime > 10000) {
+          lastSaveTime = now;
+          await saveDetection(canvas, label);
         }
       }
     } catch (err) {
@@ -200,22 +219,5 @@ document.addEventListener("DOMContentLoaded", () => {
     stopBtn.style.display = "none";
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     console.log("Camera stopped");
-
-    if (pendingDetections.length > 0) {
-      console.log(`📨 Sending ${pendingDetections.length} detections to server...`);
-      for (const detection of pendingDetections) {
-        try {
-          const res = await fetch("/api/reports", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(detection)
-          });
-          const result = await res.json();
-          console.log("✅ Detection saved:", result);
-        } catch (e) {
-          console.error("🔥 Failed to send detection:", e);
-        }
-      }
-    }
   });
 });
