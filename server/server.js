@@ -28,38 +28,46 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
 // ☁️ Cloudinary config
 cloudinary.config({
-  cloud_name: 'dgn5da9f8',
-  api_key: '239479697485235',
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dgn5da9f8',
+  api_key: process.env.CLOUDINARY_API_KEY || '239479697485235',
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
 const upload = multer();
 const app = express();
-app.listen(port, () => {
-    console.log(`🚀 Server is running on port ${port}`);
-  });
-  
+const port = process.env.PORT || 3000;
+
+// Middleware
 app.use(express.json());
 app.use(session({
-  secret: 'your-secret-key',
+  secret: process.env.SESSION_SECRET || 'your-secret-key',
   resave: false,
   saveUninitialized: true,
   cookie: { secure: false, httpOnly: true }
 }));
 
+// Serve static files from the "public" directory
+app.use(express.static(path.join(__dirname, '../public')));
+
+// SendGrid configuration
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
+// Initialize Redis client
 const client = createClient({
-  username: 'default',
-  password: 'e7uFJGU10TYEVhTJFoOkyPog0fBMhJMG',
-  socket: { host: 'redis-13437.c44.us-east-1-2.ec2.redns.redis-cloud.com', port: 13437 }
+  username: process.env.REDIS_USERNAME || 'default',
+  password: process.env.REDIS_PASSWORD || 'e7uFJGU10TYEVhTJFoOkyPog0fBMhJMG',
+  socket: { 
+    host: process.env.REDIS_HOST || 'redis-13437.c44.us-east-1-2.ec2.redns.redis-cloud.com', 
+    port: process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT) : 13437 
+  }
 });
-await client.connect();
 
+// Passport middleware – חייב להיות אחרי session
 app.use(passport.initialize());
 app.use(passport.session());
 
 passport.serializeUser((user, done) => done(null, user.email));
+
 passport.deserializeUser(async (email, done) => {
   try {
     const keys = await client.keys('user:*');
@@ -74,8 +82,8 @@ passport.deserializeUser(async (email, done) => {
 });
 
 passport.use(new GoogleStrategy({
-  clientID: "46375555882-rmivba20noas9slfskb3cfvugssladrr.apps.googleusercontent.com",
-  clientSecret: "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",
+  clientID: process.env.GOOGLE_CLIENT_ID || "46375555882-rmivba20noas9slfskb3cfvugssladrr.apps.googleusercontent.com",
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET || "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",
   callbackURL: `${BASE_URL}/auth/google/callback`
 }, async (accessToken, refreshToken, profile, done) => {
   try {
@@ -102,10 +110,15 @@ passport.use(new GoogleStrategy({
   }
 }));
 
+// Routes
+
+// Route for initiating Google authentication
 app.get('/auth/google', (req, res, next) => {
   req.session.authMode = req.query.mode || 'login';
   req.session.returnTo = req.headers.referer || `${BASE_URL}/upload.html`;
-  if (req.isAuthenticated()) {
+
+  // בדיקה אם המשתמש כבר מחובר
+  if (req.isAuthenticated && req.isAuthenticated()) {
     req.logout(err => {
       if (err) return res.redirect(`${BASE_URL}/login.html?error=LogoutFailed`);
       req.session.destroy(() => next());
@@ -118,15 +131,16 @@ app.get('/auth/google', (req, res, next) => {
   prompt: 'select_account'
 }));
 
+// Callback לאחר אימות ב-Google
 app.get('/auth/google/callback', (req, res, next) => {
   passport.authenticate('google', async (err, user, info) => {
-    const mode = req.session.authMode || 'login';
     const returnTo = req.session.returnTo || `${BASE_URL}/upload.html`;
     delete req.session.returnTo;
 
     if (err) return res.redirect(`${BASE_URL}/login.html?error=ServerError`);
     if (!user) {
-      if (info?.message === 'EmailExists') return res.redirect(`${BASE_URL}/login.html?error=EmailExists`);
+      if (info && info.message === 'EmailExists')
+        return res.redirect(`${BASE_URL}/login.html?error=EmailExists`);
       return res.redirect(`${BASE_URL}/login.html?error=AuthFailed`);
     }
 
@@ -138,25 +152,45 @@ app.get('/auth/google/callback', (req, res, next) => {
   })(req, res, next);
 });
 
-// 🔁 Update redirects in other endpoints
+// נתיב להעלאת קבצים
 app.get('/upload', (req, res) => {
   if (!req.session.user) return res.redirect(`${BASE_URL}/`);
   res.sendFile(path.join(__dirname, '../public/upload.html'));
 });
 
+// נתיב ליציאה (logout)
 app.get('/logout', (req, res) => {
-  req.logout(() => {
+  req.logout(err => {
+    if (err) {
+      return res.redirect(`${BASE_URL}/?error=LogoutError`);
+    }
     req.session.destroy(() => {
       res.redirect(`${BASE_URL}/`);
     });
   });
 });
 
+// נתיב לדף התחברות ראשי
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/login.html'));
 });
 
+// נתיב לדשבורד
 app.get('/dashboard', (req, res) => {
   if (!req.session.user) return res.redirect(`${BASE_URL}/`);
   res.sendFile(path.join(__dirname, '../public/dashboard.html'));
 });
+
+// הפעלת השרת לאחר חיבור ל־Redis
+const startServer = async () => {
+  try {
+    await client.connect();
+    app.listen(port, () => {
+      console.log(`🚀 Server is running on port ${port}`);
+    });
+  } catch (error) {
+    console.error('Error connecting to Redis:', error);
+  }
+};
+
+startServer();
