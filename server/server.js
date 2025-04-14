@@ -24,232 +24,161 @@ const __dirname = path.dirname(__filename);
 
 // 📁 Load environment variables
 dotenv.config();
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
 // ☁️ Cloudinary config
 cloudinary.config({
-  cloud_name: 'dgn5da9f8',
-  api_key: '239479697485235',
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'dgn5da9f8',
+  api_key: process.env.CLOUDINARY_API_KEY || '239479697485235',
   api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-// 🎛️ Setup multer (in-memory uploads)
 const upload = multer();
-
-// 🚀 Initialize Express app
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
-// 📦 Middleware
+// Middleware
 app.use(express.json());
 app.use(session({
-  secret: 'your-secret-key',
+  secret: process.env.SESSION_SECRET || 'your-secret-key',
   resave: false,
   saveUninitialized: true,
   cookie: { secure: false, httpOnly: true }
 }));
 
-// 📨 SendGrid API
+// Serve static files from the "public" directory
+app.use(express.static(path.join(__dirname, '../public')));
+
+// SendGrid configuration
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-// 🔌 Redis client
+// Initialize Redis client
 const client = createClient({
-  username: 'default',
-  password: 'e7uFJGU10TYEVhTJFoOkyPog0fBMhJMG',
-  socket: {
-    host: 'redis-13437.c44.us-east-1-2.ec2.redns.redis-cloud.com',
-    port: 13437
+  username: process.env.REDIS_USERNAME || 'default',
+  password: process.env.REDIS_PASSWORD || 'e7uFJGU10TYEVhTJFoOkyPog0fBMhJMG',
+  socket: { 
+    host: process.env.REDIS_HOST || 'redis-13437.c44.us-east-1-2.ec2.redns.redis-cloud.com', 
+    port: process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT) : 13437 
   }
 });
 
-async function connectRedis() {
-    await client.connect();
-    console.log('✅ Connected to Redis');
-  }
-  
-
-connectRedis();
-
-// הגדרת session
-app.use(session({
-    secret: 'your-secret-key',  // הוסף כאן מפתח ייחודי וסודי
-    resave: false,
-    saveUninitialized: true,
-    cookie: { 
-        secure: false,
-        httpOnly: true,
-     }   // הגדרה עבור סשנים לא מאובטחים ב-localhost
-}));
-
+// Passport middleware – חייב להיות אחרי session
 app.use(passport.initialize());
 app.use(passport.session());
 
-passport.serializeUser((user, done) => {
-    done(null, user.email); // מזהה יחיד
-  });
-  
-  passport.deserializeUser(async (email, done) => {
-    try {
-      const keys = await client.keys('user:*');
-      for (const key of keys) {
-        const user = JSON.parse(await client.get(key));
-        if (user.email === email) return done(null, user);
-      }
-      done(null, false);
-    } catch (err) {
-      done(err, null);
-    }
-  });
+passport.serializeUser((user, done) => done(null, user.email));
 
-// הגדרת האסטרטגיה של גוגל
+passport.deserializeUser(async (email, done) => {
+  try {
+    const keys = await client.keys('user:*');
+    for (const key of keys) {
+      const user = JSON.parse(await client.get(key));
+      if (user.email === email) return done(null, user);
+    }
+    done(null, false);
+  } catch (err) {
+    done(err, null);
+  }
+});
+
 passport.use(new GoogleStrategy({
-    clientID: "46375555882-rmivba20noas9slfskb3cfvugssladrr.apps.googleusercontent.com",
-    clientSecret: "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",
-    callbackURL: "http://localhost:3000/auth/google/callback"
-    },
-    async (accessToken, refreshToken, profile, done) => {
-        try {
-          const googleId = profile.id;
-          const email = profile.emails[0].value;
-          const username = profile.displayName;
-    
-          const googleKey = `user:${googleId}`;
-          const googleUser = await client.get(googleKey);
-    
-          if (googleUser) {
-            // קיים משתמש עם גוגל ID → התחברות
-            return done(null, JSON.parse(googleUser));
-          }
-    
-          // בדיקה אם מייל כבר קיים אצל משתמש עם timestamp (רישום רגיל)
-          const keys = await client.keys('user:*');
-          for (const key of keys) {
-            if (key === googleKey) continue; // דלג על מפתח הגוגל שכבר בדקנו
-            const user = JSON.parse(await client.get(key));
-            if (user.email === email) {
-              // מייל כבר קיים מרישום רגיל → אל תיצור
-              return done(null, false, { message: 'EmailExists' });
-            }
-          }
-    
-          // לא קיים בכלל → צור משתמש חדש עם גוגל
-          const newUser = {
-            email,
-            username,
-            type: 'user'
-          };
-          await client.set(googleKey, JSON.stringify(newUser));
-    
-          return done(null, newUser);
-    
-        } catch (err) {
-          console.error('Google Strategy Error:', err);
-          return done(err, null);
-        }
-      }
-    ));
+  clientID: process.env.GOOGLE_CLIENT_ID || "46375555882-rmivba20noas9slfskb3cfvugssladrr.apps.googleusercontent.com",
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET || "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",
+  callbackURL: `${BASE_URL}/auth/google/callback`
+}, async (accessToken, refreshToken, profile, done) => {
+  try {
+    const googleId = profile.id;
+    const email = profile.emails[0].value;
+    const username = profile.displayName;
+    const googleKey = `user:${googleId}`;
 
-// כפתור התחברות/הרשמה עם Google  
-app.get('/auth/google', async (req, res, next) => {  
-    const mode = req.query.mode || 'login';  
-    req.session.authMode = mode; // נשמור את המצב (login/signup) ב-session  
+    const googleUser = await client.get(googleKey);
+    if (googleUser) return done(null, JSON.parse(googleUser));
 
-    // אם המשתמש כבר מחובר, ננתק אותו כדי למנוע בלבול בהרשמה או התחברות חדשה  
-    if (req.isAuthenticated()) {  
-        req.logout(function(err) {  
-            if (err) {  
-                console.error('Error during logout:', err);  
-                return res.redirect('/login.html?error=LogoutFailed');  
-            }  
-            req.session.destroy(() => {  
-                next(); // נמשיך רק אחרי שה-session נוקתה  
-            });  
-        });  
-    } else {  
-        next(); // אם המשתמש לא מחובר, ממשיכים ישירות  
-    }  
-}, passport.authenticate('google', {  
-    scope: ['profile', 'email'],  
-    prompt: 'select_account' // מוודא שהמשתמש בוחר חשבון כל פעם  
-}));  
-
-// פונקציה לבדוק אם המייל קיים  
-async function emailExists(email) {  
-    const existingUserKeys = await client.keys('user:*');  
-    for (const key of existingUserKeys) {  
-        const userData = JSON.parse(await client.get(key));  
-        if (userData.email === email) {  
-            return true; // מייל קיים  
-        }  
-    }  
-    return false; // מייל לא קיים  
-}  
-
-// נקודת חזרה לאחר ההתחברות  
-app.get('/auth/google/callback', (req, res, next) => {
-    passport.authenticate('google', async (err, user, info) => {
-        const mode = req.session.authMode || 'login';
-
-        if (err) {
-            console.error('Google Auth Error:', err);
-            return res.redirect('/login.html?error=ServerError');
-        }
-
-        if (!user) {
-            // משתמש לא אותנטי → בדוק אם זה בגלל שהמייל כבר תפוס
-            if (info && info.message === 'EmailExists') {
-                return res.redirect('/login.html?error=EmailExists');
-            }
-            return res.redirect('/login.html?error=AuthFailed');
-        }
-
-        // התחברות או רישום מוצלחים
-        req.login(user, async (err) => {
-            if (err) {
-                console.error('Login Error:', err);
-                return res.redirect('/login.html?error=LoginFailed');
-            }
-
-            req.session.user = { email: user.email, username: user.username };
-
-            return res.redirect('/upload.html');
-        });
-    })(req, res, next);
-});
-
-
-
-// דף העלאת קבצים (Upload)
-app.get('/upload', async (req, res) => {
-    if (!req.session.user) {
-        return res.redirect('/'); // אם לא מחובר, מחזירים לדף הבית
+    const keys = await client.keys('user:*');
+    for (const key of keys) {
+      if (key === googleKey) continue;
+      const user = JSON.parse(await client.get(key));
+      if (user.email === email) return done(null, false, { message: 'EmailExists' });
     }
 
-    // הצגת דף ה-upload
-    res.sendFile(path.join(__dirname, '../public/upload.html'));
-});
+    const newUser = { email, username, type: 'user' };
+    await client.set(googleKey, JSON.stringify(newUser));
+    return done(null, newUser);
+  } catch (err) {
+    return done(err, null);
+  }
+}));
 
-// יציאה מהמערכת
-app.get('/logout', (req, res) => {
-    req.logout(() => {
-        req.session.destroy(() => {
-            res.redirect('/');
-        });
+// Routes
+
+// Route for initiating Google authentication
+app.get('/auth/google', (req, res, next) => {
+  req.session.authMode = req.query.mode || 'login';
+  req.session.returnTo = req.headers.referer || `${BASE_URL}/upload.html`;
+
+  // בדיקה אם המשתמש כבר מחובר
+  if (req.isAuthenticated && req.isAuthenticated()) {
+    req.logout(err => {
+      if (err) return res.redirect(`${BASE_URL}/login.html?error=LogoutFailed`);
+      req.session.destroy(() => next());
     });
-});
+  } else {
+    next();
+  }
+}, passport.authenticate('google', {
+  scope: ['profile', 'email'],
+  prompt: 'select_account'
+}));
 
-// הגדרת תקיית public
-app.use(express.static(path.join(__dirname, '../public')));
+// Callback לאחר אימות ב-Google
+app.get('/auth/google/callback', (req, res, next) => {
+  passport.authenticate('google', async (err, user, info) => {
+    const returnTo = req.session.returnTo || `${BASE_URL}/upload.html`;
+    delete req.session.returnTo;
 
-// דף ברירת מחדל
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, '../public/login.html'));
-});
-
-app.get('/dashboard', (req, res) => {
-    if (!req.session.user) {
-        return res.redirect('/');
+    if (err) return res.redirect(`${BASE_URL}/login.html?error=ServerError`);
+    if (!user) {
+      if (info && info.message === 'EmailExists')
+        return res.redirect(`${BASE_URL}/login.html?error=EmailExists`);
+      return res.redirect(`${BASE_URL}/login.html?error=AuthFailed`);
     }
-    res.sendFile(path.join(__dirname, '../public/dashboard.html'));
+
+    req.login(user, err => {
+      if (err) return res.redirect(`${BASE_URL}/login.html?error=LoginFailed`);
+      req.session.user = { email: user.email, username: user.username };
+      return res.redirect(returnTo);
+    });
+  })(req, res, next);
+});
+
+// נתיב להעלאת קבצים
+app.get('/upload', (req, res) => {
+  if (!req.session.user) return res.redirect(`${BASE_URL}/`);
+  res.sendFile(path.join(__dirname, '../public/upload.html'));
+});
+
+// נתיב ליציאה (logout)
+app.get('/logout', (req, res) => {
+  req.logout(err => {
+    if (err) {
+      return res.redirect(`${BASE_URL}/?error=LogoutError`);
+    }
+    req.session.destroy(() => {
+      res.redirect(`${BASE_URL}/`);
+    });
+  });
+});
+
+// נתיב לדף התחברות ראשי
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/login.html'));
+});
+
+// נתיב לדשבורד
+app.get('/dashboard', (req, res) => {
+  if (!req.session.user) return res.redirect(`${BASE_URL}/`);
+  res.sendFile(path.join(__dirname, '../public/dashboard.html'));
 });
 
 // יצירת דיווח חדש
