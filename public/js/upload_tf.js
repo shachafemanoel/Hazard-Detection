@@ -26,13 +26,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const classNames = ['Alligator Crack', 'Block Crack', 'Construction Joint Crack', 'Crosswalk Blur', 'Lane Blur', 'Longitudinal Crack', 'Manhole', 'Patch Repair', 'Pothole', 'Transverse Crack', 'Wheel Mark Crack'];
 
-  // Try to get user's geolocation once on load
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition((pos) => {
-      const { latitude, longitude } = pos.coords;
-      currentLocation = `${latitude}, ${longitude}`;
-    }, (err) => {
-      console.warn("⚠️ Location not available:", err.message);
+  // קבלת המיקום של המשתמש
+  function getLocation() {
+    return new Promise((resolve, reject) => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition((pos) => {
+          const { latitude, longitude } = pos.coords;
+          currentLocation = `${latitude}, ${longitude}`;
+          console.log("Location received:", currentLocation);  // הדפסת המיקום
+          resolve(currentLocation);
+        }, (err) => {
+          console.warn("⚠️ Location not available:", err.message);
+          reject("Location not available");
+        });
+      } else {
+        reject("Geolocation not supported");
+      }
     });
   }
 
@@ -54,6 +63,11 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function saveDetection(canvas, label = "Unknown") {
+    // אם המיקום לא נמצא, לא נשמור את הדימוי
+    if (currentLocation === "Unknown") {
+      console.warn("⚠️ No location detected. Detection not saved.");
+      return;
+    }
     canvas.toBlob(async (blob) => {
       if (!blob) return console.error("❌ Failed to get image blob");
 
@@ -191,8 +205,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   startBtn.addEventListener("click", async () => {
-    if (!session) await loadModel();
     try {
+      await getLocation(); // וודא שהמיקום התקבל לפני התחלת המצלמה
+      if (!session) await loadModel();
       stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 } } });
       video.srcObject = stream;
       startBtn.style.display = "none";
@@ -203,7 +218,7 @@ document.addEventListener("DOMContentLoaded", () => {
         detectLoop();
       }, { once: true });
     } catch (err) {
-      alert("לא ניתן לפתוח מצלמה");
+      alert("Location need to be enabled for detection.");
       console.error(err);
     }
   });

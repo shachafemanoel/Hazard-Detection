@@ -32,8 +32,6 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
-console.log("🔑 Cloudinary config:", cloudinary.config());
-
 // 🎛️ Setup multer (in-memory uploads)
 const upload = multer();
 
