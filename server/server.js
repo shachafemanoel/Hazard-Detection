@@ -27,10 +27,12 @@ dotenv.config();
 
 // ☁️ Cloudinary config
 cloudinary.config({
-  cloud_name: 'dgn5da9f8',
-  api_key: '239479697485235',
-  api_secret: process.env.CLOUDINARY_API_SECRET
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
 });
+
+console.log("🔑 Cloudinary config:", cloudinary.config());
 
 // 🎛️ Setup multer (in-memory uploads)
 const upload = multer();
