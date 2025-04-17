@@ -45,6 +45,33 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  function getAddressFromCoordinates(lat, lon) {
+    return new Promise((resolve, reject) => {
+      if (!lat || !lon) {
+        reject("Invalid coordinates");
+      }
+  
+      // Google Maps Geocoding API
+      const apiKey = "AIzaSyAXxZ7niDaxuyPEzt4j9P9U0kFzKHO9pZk"; // הכנס כאן את המפתח API שלך
+      const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lon}&key=${apiKey}`;
+  
+      fetch(url)
+        .then(response => response.json())
+        .then(data => {
+          if (data.status === "OK") {
+            const address = data.results[0].formatted_address;
+            resolve(address);
+          } else {
+            reject("Unable to retrieve address");
+          }
+        })
+        .catch(err => {
+          reject(err);
+        });
+    });
+  }
+
+
   function showSuccessToast(message = "💾 זוהה ונשמר בהצלחה!") {
     const toast = document.createElement("div");
     toast.textContent = message;
@@ -68,32 +95,44 @@ document.addEventListener("DOMContentLoaded", () => {
       console.warn("⚠️ No location detected. Detection not saved.");
       return;
     }
-    canvas.toBlob(async (blob) => {
-      if (!blob) return console.error("❌ Failed to get image blob");
-
-      const file = new File([blob], "detection.jpg", { type: "image/jpeg" });
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("type", label);
-      formData.append("location", currentLocation);
-      formData.append("time", new Date().toISOString());
-      formData.append("status", "unreviewed");
-      formData.append("reportedBy", "anonymous");
-
-      try {
-        const res = await fetch("/upload-detection", {
-          method: "POST",
-          body: formData,
-        });
-
-        const result = await res.json();
-        console.log("✅ Detection saved to server:", result.message);
-        showSuccessToast();
-      } catch (err) {
-        console.error("❌ Failed to save detection:", err);
-      }
-    }, "image/jpeg", 0.9);
+  
+    const [latitude, longitude] = currentLocation.split(',').map(coord => parseFloat(coord));
+  
+    try {
+      // המרת הקואורדינטות לכתובת
+      const address = await getAddressFromCoordinates(latitude, longitude);
+      
+      // עכשיו נשמור את הדימוי עם הכתובת
+      canvas.toBlob(async (blob) => {
+        if (!blob) return console.error("❌ Failed to get image blob");
+  
+        const file = new File([blob], "detection.jpg", { type: "image/jpeg" });
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("type", label);
+        formData.append("location", address); // כאן נשמור את הכתובת
+        formData.append("time", new Date().toISOString());
+        formData.append("status", "unreviewed");
+        formData.append("reportedBy", "anonymous");
+  
+        try {
+          const res = await fetch("/upload-detection", {
+            method: "POST",
+            body: formData,
+          });
+  
+          const result = await res.json();
+          console.log("✅ Detection saved to server:", result.message);
+          showSuccessToast();
+        } catch (err) {
+          console.error("❌ Failed to save detection:", err);
+        }
+      }, "image/jpeg", 0.9);
+    } catch (error) {
+      console.error("Error converting coordinates to address:", error);
+    }
   }
+  
 
   async function loadModel() {
     try {
