@@ -206,7 +206,48 @@ document.addEventListener("DOMContentLoaded", () => {
 
   startBtn.addEventListener("click", async () => {
     try {
-      await getLocation(); // וודא שהמיקום התקבל לפני התחלת המצלמה
+      await getLocation(); // Try to get location
+    } catch (err) {
+      const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+  
+      const errorBox = document.createElement("div");
+      errorBox.style.color = "red";
+      errorBox.style.marginTop = "15px";
+      errorBox.style.padding = "10px";
+      errorBox.style.border = "1px solid red";
+      errorBox.style.borderRadius = "8px";
+      errorBox.style.backgroundColor = "#ffe6e6";
+      errorBox.innerHTML = `
+        ❌ Location is required to start the camera.<br><br>
+        <strong>Please enable location services on your ${isMobile ? "device" : "browser"}.</strong><br><br>
+        <button id="enable-location-btn">How to enable location?</button>
+      `;
+      document.body.appendChild(errorBox);
+  
+      document.getElementById("enable-location-btn").addEventListener("click", () => {
+        if (isMobile) {
+          alert(
+            "To enable location on mobile:\n\n" +
+            "📍 Android:\n1. Open Settings > Location\n2. Make sure location is turned ON\n3. In Chrome: Menu > Site settings > Location > Allow\n\n" +
+            "📍 iPhone:\n1. Go to Settings > Privacy > Location Services\n2. Enable location for Safari or Chrome\n\n" +
+            "Then reload this page."
+          );
+        } else {
+          alert(
+            "To enable location in your browser:\n\n" +
+            "1. Click the lock icon next to the URL\n" +
+            "2. Go to 'Site settings'\n" +
+            "3. Set 'Location' permission to 'Allow'\n\n" +
+            "🔄 Then refresh the page."
+          );
+        }
+      });
+  
+      return; // Stop - location is required
+    }
+  
+    // Continue as normal if location is available
+    try {
       if (!session) await loadModel();
       stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 } } });
       video.srcObject = stream;
@@ -218,10 +259,11 @@ document.addEventListener("DOMContentLoaded", () => {
         detectLoop();
       }, { once: true });
     } catch (err) {
-      alert("Location need to be enabled for detection.");
+      alert("⚠️ Could not access camera. Please check permissions.");
       console.error(err);
     }
   });
+  
 
   stopBtn.addEventListener("click", async () => {
     detecting = false;
