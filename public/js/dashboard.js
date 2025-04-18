@@ -37,7 +37,7 @@ window.addEventListener("click", (event) => {
 });
 
 // ממיר כתובת לקואורדינטות ומוסיף סמן
-async function geocodeAddress(address) {
+async function geocodeAddress(address, report) {
     const apiKey = "AIzaSyAXxZ7niDaxuyPEzt4j9P9U0kFzKHO9pZk";
     const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
 
@@ -47,11 +47,18 @@ async function geocodeAddress(address) {
 
         if (data.status === "OK") {
             const location = data.results[0].geometry.location;
-            new google.maps.Marker({
+            const marker = new google.maps.Marker({
                 map: map,
                 position: location,
                 title: address,
             });
+
+            marker.addListener("click", () => {
+                showReportDetails(report);
+                map.setCenter(location);
+                map.setZoom(14); // משנה את הזום למיקום של הדיווח
+            });
+
         } else {
             console.error("Geocode error:", data.status);
         }
@@ -59,6 +66,7 @@ async function geocodeAddress(address) {
         console.error("Error with Geocoding API:", error);
     }
 }
+
 
 // טוען דיווחים מהשרת ומכניס לטבלה ולמפה
 async function loadReports() {
@@ -99,7 +107,7 @@ async function loadReports() {
             tbody.appendChild(row);
 
             if (report.location) {
-                geocodeAddress(report.location);
+                geocodeAddress(report.location, report);
             }
         });
 
@@ -146,3 +154,19 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 });
+
+function closeSidebar() {
+    const sidebar = document.getElementById("report-sidebar");
+    sidebar.style.display = "none";
+  }
+  
+function showReportDetails(report) {
+    document.getElementById("sidebar-hazard-id").textContent = report.id;
+    document.getElementById("sidebar-type").textContent = report.type;
+    document.getElementById("sidebar-location").textContent = report.location;
+    document.getElementById("sidebar-time").textContent = new Date(report.time).toLocaleString();
+    document.getElementById("sidebar-status").textContent = report.status;
+    document.getElementById("sidebar-user").textContent = report.reportedBy;
+    document.getElementById("sidebar-image").src = report.image;
+    document.getElementById("report-sidebar").style.display = "block";
+}

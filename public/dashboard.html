@@ -44,6 +44,20 @@
         </div>
     </div>
 
+    <!-- Sidebar for displaying selected report details -->
+    <div id="report-sidebar">
+        <h3>Report Details</h3>
+        <p><strong>Hazard ID:</strong> <span id="sidebar-hazard-id"></span></p>
+        <p><strong>Hazard Type:</strong> <span id="sidebar-type"></span></p>
+        <p><strong>Location:</strong> <span id="sidebar-location"></span></p>
+        <p><strong>Report Time:</strong> <span id="sidebar-time"></span></p>
+        <p><strong>Status:</strong> <span id="sidebar-status"></span></p>
+        <p><strong>Reported By:</strong> <span id="sidebar-user"></span></p>
+        <img id="sidebar-image" src="" alt="Hazard Image">
+        <button onclick="closeSidebar()">Close</button>
+    </div>
+
+
     <!-- Modal for displaying large image -->
     <div id="image-modal" style="display:none;">
         <div id="modal-content">
