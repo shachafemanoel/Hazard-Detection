@@ -9,6 +9,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import sgMail from '@sendgrid/mail';
 import crypto from 'crypto';
+import axios from 'axios';
+
 import { v4 as uuidv4 } from 'uuid';
 import { Buffer } from 'buffer';
 
@@ -41,6 +43,7 @@ const port = 3000;
 
 // 📦 Middleware
 app.use(express.json());
+
 app.use(session({
   secret: 'your-secret-key',
   resave: false,
@@ -66,14 +69,13 @@ async function connectRedis() {
     console.log('✅ Connected to Redis');
   }
   
-
 connectRedis();
 
 app.use(passport.initialize());
 app.use(passport.session());
 
 passport.serializeUser((user, done) => {
-    done(null, user.email); // מזהה יחיד
+    done(null, user.email);  // מזהה יחיד
   });
   
   passport.deserializeUser(async (email, done) => {
@@ -81,13 +83,17 @@ passport.serializeUser((user, done) => {
       const keys = await client.keys('user:*');
       for (const key of keys) {
         const user = JSON.parse(await client.get(key));
-        if (user.email === email) return done(null, user);
+        if (user.email === email) {
+          return done(null, user);
+        }
       }
       done(null, false);
     } catch (err) {
+      console.error("❌ Error in deserializeUser:", err);  // הוספת לוג
       done(err, null);
     }
   });
+  
 
 // הגדרת האסטרטגיה של גוגל
 passport.use(new GoogleStrategy({
@@ -361,8 +367,6 @@ app.post('/login', async (req, res) => {
                 // ✅ שמירה בסשן – כמו שעשית בהתחברות עם גוגל
                 req.session.user = {
                     email: user.email,
-
-
                     username: user.username
                 };
 
@@ -476,89 +480,86 @@ app.post('/reset-password', async (req, res) => {
 
 app.post('/upload-detection', upload.single('file'), async (req, res) => {
     if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
+        return res.status(400).json({ error: 'No file uploaded' });
     }
-  
+
     // אימות משתמש
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ error: 'Unauthorized' });
+    if (!(req.isAuthenticated?.() || req.session?.user)) { 
+        return res.status(401).json({ error: 'Unauthorized' });
     }
-  
-    // 🟡 שלב חדש: בדוק אם קיים מידע גיאוגרפי (geoData)
-    const geoData = req.body.geoData;
-    if (!geoData) {
-      return res.status(400).json({ error: 'Missing geolocation data in image metadata' });
+    
+    // שלב המרת קואורדינטות לכתובת
+    const jsonString = req.body.geoData;
+    if (!jsonString) {
+        return res.status(400).json({ error: 'Missing geolocation data in image metadata' });
     }
-  
+
     try {
-      // העלאה ל-Cloudinary
-      const streamUpload = (buffer) => {
-        return new Promise((resolve, reject) => {
-          const stream = cloudinary.uploader.upload_stream(
-            { folder: 'detections' },
-            (error, result) => {
-              if (result) {
-                resolve(result);
-              } else {
-                reject(error);
-              }
-            }
-          );
-          streamifier.createReadStream(buffer).pipe(stream);
+        // עיבוד המידע
+        const geoData = JSON.parse(jsonString);
+        const apiKey = "AIzaSyAXxZ7niDaxuyPEzt4j9P9U0kFzKHO9pZk";
+        const geoCodingUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${geoData.lat},${geoData.lng}&language=he&key=${apiKey}`;
+
+        const geoResponse = await axios.get(geoCodingUrl);
+        const address = geoResponse.data.results[0]?.formatted_address || 'כתובת לא זמינה';
+
+        // העלאה ל-Cloudinary
+        const streamUpload = (buffer) => {
+            return new Promise((resolve, reject) => {
+                const stream = cloudinary.uploader.upload_stream(
+                    { folder: 'detections' },
+                    (error, result) => {
+                        if (result) {
+                            resolve(result);
+                        } else {
+                            reject(error);
+                        }
+                    }
+                );
+                streamifier.createReadStream(buffer).pipe(stream);
+            });
+        };
+
+        const result = await streamUpload(req.file.buffer);
+        
+        // קבלת שם המדווח
+        let reportedBy;  
+
+        if (req.session?.user?.username) {  
+          reportedBy = req.session.user.username;  
+        } else if (req.user?.username) {  
+          reportedBy = req.user.username;  
+        } else {  
+          reportedBy = 'אנונימי';  
+        }  
+        
+        console.log("📋 reportedBy determined as:", reportedBy);  
+        
+        // שמירה ב-Redis
+        const reportId = Date.now();
+        const reportKey = `report:${reportId}`;
+        const createdAt = new Date().toISOString();
+        
+        const report = {
+            id: reportId,
+            type: req.body.type || 'unknown',
+            location: address,
+            time: req.body.time || createdAt,
+            image: result.secure_url,
+            status: req.body.status || 'New',
+            reportedBy,
+            createdAt
+        };
+        
+        await client.json.set(reportKey, '$', report);
+        console.log("💾 Report saved to Redis:", reportKey);
+
+        res.status(200).json({
+            message: 'Report uploaded and saved successfully',
+            report
         });
-      };
-  
-      const result = await streamUpload(req.file.buffer);
-  
-      const {
-        type,
-        location,
-        time,
-        status
-      } = req.body;
-  
-      const reportId = Date.now();
-      const reportKey = `report:${reportId}`;
-      const createdAt = new Date().toISOString();
-  
-      // נשלוף את שם המדווח מה-session או מה-user (אם נרשם עם גוגל)
-      const reportedBy =
-        req.session.user?.username ||
-        req.user?.username ||
-        req.user?.displayName ||
-        'אנונימי';
-  
-      // 💡 שילוב המיקום מהמטא-דאטה
-      const report = {
-        id: reportId,
-        type: type || 'unknown',
-        location: geoData, // כאן אתה שומר את המיקום מתוך המטא-דאטה
-        time: time || createdAt,
-        image: result.secure_url,
-        status: status || 'New',
-        reportedBy,
-        createdAt
-      };
-  
-      // שמירה ב-Redis
-      await client.json.set(reportKey, '$', report);
-      console.log("💾 Report saved to Redis:", reportKey);
-  
-      // שמירה ב-Firestore
-      await db.collection('detections').add(report);
-      console.log("✅ Report saved to Firestore");
-  
-      res.status(200).json({
-        message: 'Report uploaded and saved successfully',
-        report
-      });
-  
     } catch (e) {
-      console.error('🔥 Upload error:', e);
-      res.status(500).json({ error: 'Failed to upload report' });
+        console.error('🔥 Upload error:', e);
+        res.status(500).json({ error: 'Failed to upload report' });
     }
-  });
-  
-  
-  
- 
+});
