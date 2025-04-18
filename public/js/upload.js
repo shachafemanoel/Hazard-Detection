@@ -282,16 +282,16 @@ document.addEventListener("DOMContentLoaded", async function () {
     saveBtn.removeEventListener("mouseleave", hideTooltip);
   }
 
+}
 
-  function showTooltip(e) {
-    tooltip.style.left = e.pageX + 15 + "px";
-    tooltip.style.top = e.pageY + "px";
-    tooltip.style.display = "block";
-  }
+function showTooltip(e) {
+  tooltip.style.left = e.pageX + 15 + "px";
+  tooltip.style.top = e.pageY + "px";
+  tooltip.style.display = "block";
+}
 
-  function hideTooltip() {
-    tooltip.style.display = "none";
-  }
+function hideTooltip() {
+  tooltip.style.display = "none";
 }
 
 saveBtn.addEventListener("mousemove", (e) => {
