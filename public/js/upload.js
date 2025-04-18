@@ -93,8 +93,6 @@ document.addEventListener("DOMContentLoaded", async function () {
   }, "image/jpeg", 0.95);
 });
   
-  
-
   // המודל (YOLO באון-אן-אקס) מיוצא לגודל 640x640
   const FIXED_SIZE =640;
 
@@ -226,9 +224,13 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     ctx.fillStyle = "black";
     ctx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
+
     if (currentImage) {
       ctx.drawImage(currentImage, offsetX, offsetY, newW, newH);
     }
+
+    let hasHazard = false; // משתנה שמבצע את הבדיקה אם יש מפגע
+    const tooltip = document.getElementById("tooltip");
 
     boxes.forEach((box) => {
       let [x1, y1, x2, y2, score, classId] = box;
@@ -238,6 +240,9 @@ document.addEventListener("DOMContentLoaded", async function () {
       const boxH = y2 - y1;
 
       if (boxW <= 1 || boxH <= 1 || boxW > FIXED_SIZE || boxH > FIXED_SIZE) return;
+
+      // אם מצאנו לפחות קופסה שמאובחנת כמפגע, נעדכן את המשתנה
+      hasHazard = true;
 
       const labelName = classNames[Math.floor(classId)] || `Class ${classId}`;
       const scorePerc = (score * 100).toFixed(1);
@@ -250,7 +255,57 @@ document.addEventListener("DOMContentLoaded", async function () {
       ctx.font = "16px Arial";
       ctx.fillText(`${labelName} (${scorePerc}%)`, x1, y1 > 10 ? y1 - 5 : 10);
     });
+
+  // שליטה בכפתור השמירה לפי האם יש מפגעים
+  if (!saveBtn || !tooltip) return;
+
+  if (!hasHazard) {
+    saveBtn.disabled = true;
+    saveBtn.style.opacity = "0.5";
+    saveBtn.style.cursor = "not-allowed";
+
+    // מוסיפים את ההאזנה רק אם לא נוספה עדיין
+    saveBtn.addEventListener("mousemove", showTooltip);
+    saveBtn.addEventListener("mouseleave", hideTooltip);
+  } else {
+    saveBtn.disabled = false;
+    saveBtn.style.opacity = "1";
+    saveBtn.style.cursor = "pointer";
+
+    // מסתיר את הטולטיפ מיידית
+    tooltip.style.display = "none";
+    tooltip.style.left = "-9999px";  // אופציונלי — לוודא שהוא לא נשאר במקום
+    tooltip.style.top = "-9999px";
+
+    // מסיר את ההאזנה כדי למנוע חפיפות
+    saveBtn.removeEventListener("mousemove", showTooltip);
+    saveBtn.removeEventListener("mouseleave", hideTooltip);
   }
+
+
+  function showTooltip(e) {
+    tooltip.style.left = e.pageX + 15 + "px";
+    tooltip.style.top = e.pageY + "px";
+    tooltip.style.display = "block";
+  }
+
+  function hideTooltip() {
+    tooltip.style.display = "none";
+  }
+}
+
+saveBtn.addEventListener("mousemove", (e) => {
+  if (saveBtn.disabled && saveBtn.dataset.tooltip) {
+    tooltip.textContent = saveBtn.dataset.tooltip;
+    tooltip.style.left = `${e.pageX + 10}px`;
+    tooltip.style.top = `${e.pageY + 10}px`;
+    tooltip.style.display = "block";
+  }
+});
+
+saveBtn.addEventListener("mouseleave", () => {
+  tooltip.style.display = "none";
+});
 
   if (logoutBtn) {
     logoutBtn.addEventListener("click", async () => {

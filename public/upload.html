@@ -36,12 +36,14 @@
     <!-- Canvas להצגת תצוגת המקדימה עם תוצאות הזיהוי -->
     <canvas id="preview-canvas"></canvas>
     <button id="save-detection">💾 Save Detection</button>
-
+    <div id="tooltip" style="position: absolute; background: #ffdddd; color: #a00; border: 1px solid #a00; padding: 5px 10px; border-radius: 5px; font-size: 14px; pointer-events: none; display: none; z-index: 999;">
+      ⚠️ No Hazard Detected. Cannot save detection
+    </div>
   </div>
   
   <!-- אלמנט canvas נוסף (במקרה הצורך ל־live detection) -->
   <canvas id="overlay-canvas"></canvas>
-  
+
   <!-- אלמנט video להצגת הזרם מהמצלמה (במקרה של live detection) -->
   <video id="camera-stream" autoplay style="display: none;"></video>
   

@@ -87,3 +87,17 @@ input[type="file"]::file-selector-button {
         }
     }
 
+
+#tooltip {
+    position: absolute;
+    background: #ffdddd;
+    color: #a00;
+    border: 1px solid #a00;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 14px;
+    pointer-events: none;
+    display: none;
+    z-index: 999;
+    }
+          
