@@ -59,6 +59,15 @@ async function geocodeAddress(address, report) {
                 map.setZoom(14); // משנה את הזום למיקום של הדיווח
             });
 
+                        // הזזת המפה למיקום הנבחר אם נלחץ מיקום בטבלה
+            const locationLink = document.querySelector(`.location-link[data-location="${address}"]`);
+            if (locationLink) {
+                locationLink.addEventListener('click', () => {
+                    map.setCenter(location);
+                    map.setZoom(14); // זום־אין למיקום
+                });
+            }
+
         } else {
             console.error("Geocode error:", data.status);
         }
@@ -66,7 +75,6 @@ async function geocodeAddress(address, report) {
         console.error("Error with Geocoding API:", error);
     }
 }
-
 
 // טוען דיווחים מהשרת ומכניס לטבלה ולמפה
 async function loadReports() {
@@ -94,7 +102,7 @@ async function loadReports() {
             row.innerHTML = `
                 <td>${report.id}</td>
                 <td>${report.type}</td>
-                <td>${report.location}</td>
+                <td><span class="location-link" data-location="${report.location}">${report.location}</span></td>
                 <td>${new Date(report.time).toLocaleString()}</td>
                 <td><img src="${report.image}" alt="image" width="50" style="cursor:pointer;"></td>
                 <td>${report.status}</td>
@@ -103,6 +111,12 @@ async function loadReports() {
 
             const img = row.querySelector('img');
             img.addEventListener('click', () => openModal(report.image));
+
+            const locationLink = row.querySelector('.location-link');
+            locationLink.addEventListener('click', () => {
+                // על הלחיצה על הכתובת, נזיז את המפה לאותו מיקום
+                geocodeAddress(report.location, report);
+            });
 
             tbody.appendChild(row);
 
