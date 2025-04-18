@@ -8,20 +8,6 @@ document.addEventListener("DOMContentLoaded", async function () {
   const saveBtn = document.getElementById("save-detection");
 
   let geoData = null;
-  
-  async function reverseGeocode(latitude, longitude) {
-    const apiKey = "AIzaSyAXxZ7niDaxuyPEzt4j9P9U0kFzKHO9pZk";
-    const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${apiKey}`;
-  
-    const response = await fetch(url);
-    const data = await response.json();
-  
-    if (data.status === "OK") {
-      return data.results[0].formatted_address;  // מחזיר את הכתובת הראשונה שהתקבלה
-    } else {
-      throw new Error("Unable to get the address");
-    }
-  }
 
   function getGeoDataFromImage(file) {
     return new Promise((resolve, reject) => {
@@ -59,11 +45,8 @@ document.addEventListener("DOMContentLoaded", async function () {
       reader.readAsDataURL(file);
     });
   }
-  
-
 
   saveBtn.addEventListener("click", () => {
-    console.log("GeoData:", geoData);
     if (!geoData) return alert("❌ Cannot save report without geolocation data.");
   
     canvas.toBlob(async (blob) => {
@@ -87,8 +70,28 @@ document.addEventListener("DOMContentLoaded", async function () {
         alert("❌ Failed to save image");
         console.error(err);
       }
-    }, "image/jpeg", 0.95);
-  });
+
+    // נמחק את התמונה אחרי 5 שניות
+    setTimeout(() => {
+      const imageInput = document.getElementById('image-upload');
+      const imagePreview = document.getElementById('preview-canvas');
+
+      if (imageInput) {
+        // מנקה את שדה העלאת התמונה
+        imageInput.value = '';
+        console.log('Image input cleared after 5 seconds.');
+      }
+
+      // נמחק את התמונה המוצגת ב-canvas
+      if (imagePreview) {
+        const ctx = imagePreview.getContext('2d');
+        ctx.clearRect(0, 0, imagePreview.width, imagePreview.height);
+        console.log('Canvas cleared after 5 seconds.');
+      }
+
+    }, 2500);
+  }, "image/jpeg", 0.95);
+});
   
   
 
