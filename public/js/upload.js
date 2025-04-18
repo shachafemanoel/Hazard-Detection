@@ -7,18 +7,78 @@ document.addEventListener("DOMContentLoaded", async function () {
   const logoutBtn = document.getElementById("logout-btn");
   const saveBtn = document.getElementById("save-detection");
 
+  let geoData = null;
+  
+  async function reverseGeocode(latitude, longitude) {
+    const apiKey = "AIzaSyAXxZ7niDaxuyPEzt4j9P9U0kFzKHO9pZk";
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${apiKey}`;
+  
+    const response = await fetch(url);
+    const data = await response.json();
+  
+    if (data.status === "OK") {
+      return data.results[0].formatted_address;  // מחזיר את הכתובת הראשונה שהתקבלה
+    } else {
+      throw new Error("Unable to get the address");
+    }
+  }
+
+  function getGeoDataFromImage(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const imgData = e.target.result;
+  
+        const img = new Image();
+        img.onload = function () {
+          EXIF.getData(img, function () {
+            const lat = EXIF.getTag(this, "GPSLatitude");
+            const lon = EXIF.getTag(this, "GPSLongitude");
+            const latRef = EXIF.getTag(this, "GPSLatitudeRef") || "N";
+            const lonRef = EXIF.getTag(this, "GPSLongitudeRef") || "E";
+  
+            if (!lat || !lon) {
+              return resolve(null); // No geo data
+            }
+  
+            const toDecimal = (dms, ref) => {
+              const [deg, min, sec] = dms;
+              let decimal = deg + min / 60 + sec / 3600;
+              if (ref === "S" || ref === "W") decimal *= -1;
+              return decimal;
+            };
+  
+            const latitude = toDecimal(lat, latRef);
+            const longitude = toDecimal(lon, lonRef);
+  
+            resolve(JSON.stringify({ lat: latitude, lng: longitude }));
+          });
+        };
+        img.src = imgData;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  
+
+
   saveBtn.addEventListener("click", () => {
+    console.log("GeoData:", geoData);
+    if (!geoData) return alert("❌ Cannot save report without geolocation data.");
+  
     canvas.toBlob(async (blob) => {
       if (!blob) return alert("❌ Failed to get image blob");
   
       const file = new File([blob], "detection.jpg", { type: "image/jpeg" });
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("geoData", geoData);  // הוספת המיקום לפורם דאטה
   
       try {
         const res = await fetch("/upload-detection", {
           method: "POST",
           body: formData,
+          credentials: "include",
         });
   
         const result = await res.json();
@@ -29,6 +89,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       }
     }, "image/jpeg", 0.95);
   });
+  
   
 
   // המודל (YOLO באון-אן-אקס) מיוצא לגודל 640x640
@@ -63,19 +124,27 @@ document.addEventListener("DOMContentLoaded", async function () {
     imageUpload.addEventListener("change", async (event) => {
       const file = event.target.files[0];
       if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = function (e) {
-        const img = new Image();
-        img.onload = async function () {
-          currentImage = img;
-          canvas.width = FIXED_SIZE;
-          canvas.height = FIXED_SIZE;
-          await runInferenceOnImage(img);
+    
+      geoData = await getGeoDataFromImage(file);
+      
+      if (geoData) {
+        // אם יש מידע גיאוגרפי, נמשיך עם שמירת הדיווח
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          const img = new Image();
+          img.onload = async function () {
+            currentImage = img;
+            canvas.width = FIXED_SIZE;
+            canvas.height = FIXED_SIZE;
+            await runInferenceOnImage(img);
+          };
+          img.src = e.target.result;
         };
-        img.src = e.target.result;
-      };
-      reader.readAsDataURL(file);
+        reader.readAsDataURL(file);
+      } else {
+        // אם אין מידע גיאוגרפי, הצג הודעה למשתמש
+        alert("❌ No geolocation data found in the image MetaData. Please provide a valid location.");
+      }
     });
   }
 
@@ -193,3 +262,4 @@ document.addEventListener("DOMContentLoaded", async function () {
     });
   }
 });
+

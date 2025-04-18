@@ -69,17 +69,6 @@ async function connectRedis() {
 
 connectRedis();
 
-// הגדרת session
-app.use(session({
-    secret: 'your-secret-key',  // הוסף כאן מפתח ייחודי וסודי
-    resave: false,
-    saveUninitialized: true,
-    cookie: { 
-        secure: false,
-        httpOnly: true,
-     }   // הגדרה עבור סשנים לא מאובטחים ב-localhost
-}));
-
 app.use(passport.initialize());
 app.use(passport.session());
 
@@ -491,8 +480,14 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
     }
   
     // אימות משתמש
-    if (!req.session.user && !req.isAuthenticated()) {
+    if (!req.isAuthenticated()) {
       return res.status(401).json({ error: 'Unauthorized' });
+    }
+  
+    // 🟡 שלב חדש: בדוק אם קיים מידע גיאוגרפי (geoData)
+    const geoData = req.body.geoData;
+    if (!geoData) {
+      return res.status(400).json({ error: 'Missing geolocation data in image metadata' });
     }
   
     try {
@@ -515,7 +510,6 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
   
       const result = await streamUpload(req.file.buffer);
   
-      // נתוני הדיווח שנשלחים ב-form-data
       const {
         type,
         location,
@@ -531,13 +525,14 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
       const reportedBy =
         req.session.user?.username ||
         req.user?.username ||
-        req.user?.displayName || // למקרה של Google
+        req.user?.displayName ||
         'אנונימי';
   
+      // 💡 שילוב המיקום מהמטא-דאטה
       const report = {
         id: reportId,
         type: type || 'unknown',
-        location: location || 'unknown',
+        location: geoData, // כאן אתה שומר את המיקום מתוך המטא-דאטה
         time: time || createdAt,
         image: result.secure_url,
         status: status || 'New',
@@ -563,6 +558,7 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
       res.status(500).json({ error: 'Failed to upload report' });
     }
   });
+  
   
   
  
