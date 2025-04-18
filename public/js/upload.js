@@ -46,50 +46,48 @@ document.addEventListener("DOMContentLoaded", async function () {
     });
   }
 
-  saveBtn.addEventListener("click", () => {
-    if (!geoData) return alert("❌ Cannot save report without geolocation data.");
-  
-    canvas.toBlob(async (blob) => {
+
+// שמירת התמונה והנתונים
+saveBtn.addEventListener("click", () => {
+  if (!geoData) return alert("❌ Cannot save report without geolocation data.");
+
+  canvas.toBlob(async (blob) => {
       if (!blob) return alert("❌ Failed to get image blob");
   
       const file = new File([blob], "detection.jpg", { type: "image/jpeg" });
       const formData = new FormData();
       formData.append("file", file);
       formData.append("geoData", geoData);  // הוספת המיקום לפורם דאטה
+      formData.append("hazardTypes", hazardTypes.join(","));
   
       try {
-        const res = await fetch("/upload-detection", {
-          method: "POST",
-          body: formData,
-          credentials: "include",
-        });
+          const res = await fetch("/upload-detection", {
+              method: "POST",
+              body: formData,
+              credentials: "include",
+          });
   
-        const result = await res.json();
-        alert("✅ Saved to server: " + result.message + "\n📸 " + result.url);
+          const result = await res.json();
+          alert("✅ Saved to server: " + result.message + "\n📸 " + result.url);
       } catch (err) {
-        alert("❌ Failed to save image");
-        console.error(err);
+          alert("❌ Failed to save image");
+          console.error(err);
       }
 
-    // נמחק את התמונה אחרי 5 שניות
-    setTimeout(() => {
-      const imageInput = document.getElementById('image-upload');
-      const imagePreview = document.getElementById('preview-canvas');
+      // נמחק את התמונה אחרי 5 שניות
+      setTimeout(() => {
+          const imageInput = document.getElementById('image-upload');
+          const imagePreview = document.getElementById('preview-canvas');
 
-      if (imageInput) {
-        // מנקה את שדה העלאת התמונה
-        imageInput.value = '';
-        console.log('Image input cleared after 5 seconds.');
-      }
+          if (imageInput) {
+              imageInput.value = ''; // מנקה את שדה העלאת התמונה
+          }
 
-      // נמחק את התמונה המוצגת ב-canvas
-      if (imagePreview) {
-        const ctx = imagePreview.getContext('2d');
-        ctx.clearRect(0, 0, imagePreview.width, imagePreview.height);
-        console.log('Canvas cleared after 5 seconds.');
-      }
-
-    }, 2500);
+          if (imagePreview) {
+              const ctx = imagePreview.getContext('2d'); 
+              ctx.clearRect(0, 0, imagePreview.width, imagePreview.height);           // נמחק את התמונה המוצגת ב-canvas
+          }
+      }, 2500);
   }, "image/jpeg", 0.95);
 });
   
@@ -218,7 +216,11 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
   }
 
+  let hazardTypes = [];
+  let hasHazard = false;
+
   function drawResults(boxes) {
+    hazardTypes = []; // מאתחל את המערך של סוגי המפגעים
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const { offsetX, offsetY, newW, newH } = letterboxParams;
 
@@ -229,7 +231,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       ctx.drawImage(currentImage, offsetX, offsetY, newW, newH);
     }
 
-    let hasHazard = false; // משתנה שמבצע את הבדיקה אם יש מפגע
+    hasHazard = false; // משתנה שמבצע את הבדיקה אם יש מפגע
     const tooltip = document.getElementById("tooltip");
 
     boxes.forEach((box) => {
@@ -246,6 +248,12 @@ document.addEventListener("DOMContentLoaded", async function () {
 
       const labelName = classNames[Math.floor(classId)] || `Class ${classId}`;
       const scorePerc = (score * 100).toFixed(1);
+
+      // מוסיפים את סוג המפגע למערך אם הוא לא כבר שם
+      if (!hazardTypes.includes(labelName)) {
+      hazardTypes.push(labelName);
+      }
+      console.log("Hazard types:", hazardTypes);
 
       ctx.strokeStyle = "red";
       ctx.lineWidth = 2;
@@ -281,7 +289,6 @@ document.addEventListener("DOMContentLoaded", async function () {
     saveBtn.removeEventListener("mousemove", showTooltip);
     saveBtn.removeEventListener("mouseleave", hideTooltip);
   }
-
 }
 
 function showTooltip(e) {

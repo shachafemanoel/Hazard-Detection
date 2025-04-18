@@ -487,6 +487,9 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
     if (!(req.isAuthenticated?.() || req.session?.user)) { 
         return res.status(401).json({ error: 'Unauthorized' });
     }
+
+    const hazardTypes = req.body.hazardTypes;
+    console.log(hazardTypes);
     
     // שלב המרת קואורדינטות לכתובת
     const jsonString = req.body.geoData;
@@ -531,9 +534,7 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
           reportedBy = req.user.username;  
         } else {  
           reportedBy = 'אנונימי';  
-        }  
-        
-        console.log("📋 reportedBy determined as:", reportedBy);  
+        }
         
         // שמירה ב-Redis
         const reportId = Date.now();
@@ -542,7 +543,7 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
         
         const report = {
             id: reportId,
-            type: req.body.type || 'unknown',
+            type: hazardTypes,
             location: address,
             time: req.body.time || createdAt,
             image: result.secure_url,
