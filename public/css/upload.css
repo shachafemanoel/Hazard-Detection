@@ -100,4 +100,7 @@ input[type="file"]::file-selector-button {
     display: none;
     z-index: 999;
     }
-          
+    .toast {
+        transition: opacity 0.3s ease-in-out;
+      }
+      
