@@ -29,23 +29,33 @@ document.addEventListener("DOMContentLoaded", () => {
   // קבלת המיקום של המשתמש
   function getLocation() {
     return new Promise((resolve, reject) => {
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition((pos) => {
-          const { latitude, longitude } = pos.coords;
-          const geoData = JSON.stringify({ lat: latitude, lng: longitude });
-          currentLocation = geoData; // שמירת המיקום בפורמט JSON
-          resolve(geoData);  // מחזירים את geoData כ-JSON
-        }, (err) => {
-          console.warn("⚠️ Location not available:", err.message);
-          reject("Location not available");
-        });
-      } else {
-        reject("Geolocation not supported");
+      if (!navigator.geolocation) {
+        return reject("Geolocation not supported by this browser");
       }
+  
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const { latitude, longitude, accuracy } = pos.coords;
+          console.log("📍 Location received:", { latitude, longitude, accuracy });
+  
+          if (accuracy > 50) {
+            console.warn(`⚠️ Low location accuracy: ${accuracy}m`);
+          }
+  
+          const geoData = JSON.stringify({ lat: latitude, lng: longitude });
+          currentLocation = geoData; // ניתן גם לשמור כאובייקט אם עדיף
+          resolve(geoData);
+        },
+        (err) => {
+          console.error("❌ Failed to get location:", err.message);
+          reject(`Location error: ${err.message}`);
+        },
+      );
     });
   }
+  
 
-  function showSuccessToast(message = "💾 זוהה ונשמר בהצלחה!") {
+  function showSuccessToast(message = "💾 Detected and saved!") {
     const toast = document.createElement("div");
     toast.textContent = message;
     toast.style.position = "fixed";
