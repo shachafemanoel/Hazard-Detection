@@ -480,6 +480,7 @@ app.post('/reset-password', async (req, res) => {
 
 
 app.post('/upload-detection', upload.single('file'), async (req, res) => {
+    // בדוק אם הקובץ הועלה
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
     }
@@ -490,7 +491,6 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
     }
 
     const hazardTypes = req.body.hazardTypes;
-    console.log(hazardTypes);
     
     // שלב המרת קואורדינטות לכתובת
     const jsonString = req.body.geoData;
@@ -501,11 +501,19 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
     try {
         // עיבוד המידע
         const geoData = JSON.parse(jsonString);
+        if (!geoData || !geoData.lat || !geoData.lng) {
+            return res.status(400).json({ error: 'Invalid geolocation data' });
+        }
+
         const apiKey = "AIzaSyAXxZ7niDaxuyPEzt4j9P9U0kFzKHO9pZk";
         const geoCodingUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${geoData.lat},${geoData.lng}&language=he&key=${apiKey}`;
 
         const geoResponse = await axios.get(geoCodingUrl);
+        if (!geoResponse.data.results.length) {
+            return res.status(500).json({ error: 'Failed to get address from geolocation' });
+        }
         const address = geoResponse.data.results[0]?.formatted_address || 'כתובת לא זמינה';
+        
 
         // העלאה ל-Cloudinary
         const streamUpload = (buffer) => {
@@ -552,6 +560,7 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
             reportedBy,
             createdAt
         };
+        
         
         await client.json.set(reportKey, '$', report);
         console.log("💾 Report saved to Redis:", reportKey);
