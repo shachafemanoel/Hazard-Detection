@@ -55,6 +55,8 @@ app.use(session({
 }));
 
 // 📨 SendGrid API
+console.log("🔑 SendGrid Key Loaded:", process.env.SENDGRID_API_KEY);
+
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 // 🔌 Redis client
