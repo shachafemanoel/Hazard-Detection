@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 import sgMail from '@sendgrid/mail';
 import crypto from 'crypto';
 import axios from 'axios';
+import cors from 'cors';
 
 
 import { v4 as uuidv4 } from 'uuid';
@@ -44,6 +45,7 @@ const port = 3000;
 
 // 📦 Middleware
 app.use(express.json());
+app.use(cors());
 
 app.use(session({
   secret: 'your-secret-key',
@@ -560,7 +562,7 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
             reportedBy,
             createdAt
         };
-        
+
         
         await client.json.set(reportKey, '$', report);
         console.log("💾 Report saved to Redis:", reportKey);

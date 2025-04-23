@@ -1,3 +1,4 @@
+/* Login.css */
 /* כללי בסיס */
 * {
     box-sizing: border-box;
@@ -163,4 +164,53 @@ button.reset-password:hover {
 /* אם השגיאה מוסתרת, לא תוצג */
 .error-banner.hidden {
     display: none;
+}
+
+/* Mobile responsive */
+@media (max-width: 480px) {
+    body {
+        padding: 20px;
+        height: auto;
+        align-items: flex-start;
+    }
+
+    .container {
+        width: 100%;
+        padding: 20px;
+        margin-top: 20px;
+        border-radius: 0;
+        box-shadow: none;
+    }
+
+    h1 {
+        font-size: 20px;
+        margin: 20px 0;
+    }
+
+    button {
+        font-size: 14px;
+        padding: 10px;
+    }
+
+    input[type="email"],
+    input[type="text"],
+    input[type="password"] {
+        font-size: 14px;
+        padding: 10px;
+    }
+
+    #back-options {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        font-size: 14px;
+        color: white;
+        cursor: pointer;
+    }
+    
+
+    .error-banner {
+        font-size: 14px;
+        padding: 10px;
+    }
 }

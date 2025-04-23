@@ -31,6 +31,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 // הוספת אנימציה של fade-in לשגיאה
                 logoutMsg.classList.add('fade-in');
+                
+                // מחיקה אחרי 5 שניות עם fade-out
+                setTimeout(() => {
+                    logoutMsg.classList.add('fade-out');
+                    setTimeout(() => {
+                        logoutMsg.remove();
+                    }, 500); // מתן זמן לעזוב את האנימציה
+                }, 5000); // מחיקה אחרי 5 שניות
+                
                 break;
             default:
                 message = 'An unknown error occurred.';
@@ -250,3 +259,7 @@ function validatePassword(password) {
     return regex.test(password);
 }
 
+function toggleFormVisibility(formId, show) {
+    const form = document.getElementById(formId);
+    form.style.display = show ? 'block' : 'none';
+}
