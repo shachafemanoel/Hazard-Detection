@@ -563,7 +563,6 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
             createdAt
         };
 
-        
         await client.json.set(reportKey, '$', report);
         console.log("💾 Report saved to Redis:", reportKey);
 

@@ -59,9 +59,8 @@ saveBtn.addEventListener("click", () => {
       formData.append("file", file);
       formData.append("geoData", geoData);  // הוספת המיקום לפורם דאטה
       formData.append("hazardTypes", hazardTypes.join(","));
-  
+
       try {
-        console.log(hazardTypes);
           const res = await fetch("/upload-detection", {
               method: "POST",
               body: formData,
