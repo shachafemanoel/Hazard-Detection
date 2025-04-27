@@ -41,7 +41,7 @@ const upload = multer();
 
 // 🚀 Initialize Express app
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000;
 
 // 📦 Middleware
 app.use(express.json());
@@ -102,7 +102,8 @@ passport.serializeUser((user, done) => {
 passport.use(new GoogleStrategy({
     clientID: "46375555882-rmivba20noas9slfskb3cfvugssladrr.apps.googleusercontent.com",
     clientSecret: "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",
-    callbackURL: "http://localhost:3000/auth/google/callback"
+    callbackURL: process.env.GOOGLE_CALLBACK_URL || "http://localhost:3000/auth/google/callback"
+
     },
     async (accessToken, refreshToken, profile, done) => {
         try {
