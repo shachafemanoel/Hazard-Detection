@@ -2,58 +2,118 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Report a Hazard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- חשוב לרספונסיביות -->
+  <title>Report a Hazard (Bootstrap)</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+
+  <!-- Custom CSS (אופציונלי - אם יש צורך בסגנונות נוספים מעבר ל-Bootstrap) -->
   <link rel="stylesheet" href="../css/upload.css">
+
+  <!-- EXIF.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
 
+  <style>
+    /* סגנונות ספציפיים שעדיין נדרשים או שנוח להשאיר כאן */
+    #preview-canvas {
+      border: 1px solid #dee2e6; /* שימוש בצבע גבול של Bootstrap */
+      display: block; /* למנוע רווחים מיותרים */
+      margin: 1rem auto; /* מרווח מעל/מתחת ומרכוז */
+      max-width: 100%; /* להבטחת רספונסיביות */
+      height: auto;
+      background-color: #fff; /* רקע לבן */
+    }
+    .canvas-container {
+      max-width: 800px; /* דוגמה - להתאים לפי הצורך */
+      margin: 0 auto; /* מרכוז הקונטיינר */
+    }
+    #tooltip {
+      /* סגנונות ה-tooltip הקיימים - אפשר לשקול להחליף ברכיב tooltip של Bootstrap בהמשך */
+      position: absolute;
+      background: #f8d7da; /* צבע רקע אזהרה של Bootstrap */
+      color: #842029; /* צבע טקסט אזהרה של Bootstrap */
+      border: 1px solid #f5c2c7; /* צבע גבול אזהרה של Bootstrap */
+      padding: 0.375rem 0.75rem; /* ריפוד דומה לכפתורי Bootstrap */
+      border-radius: 0.375rem; /* רדיוס פינה דומה ל-Bootstrap */
+      font-size: 0.875rem; /* גודל פונט קטן יותר */
+      pointer-events: none;
+      display: none;
+      z-index: 1070; /* Z-index גבוה, דומה לרכיבי Bootstrap */
+    }
+    /* הסתרת אלמנטים שאינם רלוונטיים לדף זה */
+    #overlay-canvas, #camera-stream {
+        display: none;
+    }
+  </style>
 </head>
 <body>
   <!-- טעינת הספרייה של ONNX Runtime Web -->
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
 
-  <div class="header">
-    <h1>Report a Hazard</h1>
-  </div>
-  
-  <div id="upload-container">
-    <button onclick="location.href='/dashboard'">Dashboard</button>
-    <h2>Detection</h2>
-    <button onclick="location.href='camera.html'">Live Detection</button>
-    
-    <!-- קלט להעלאת תמונה ידנית לצפייה מקדימה -->
-    <h3>Upload Image for Preview</h3>
-    <input type="file" id="image-upload" accept="image/*">
-    
-    <!-- Slider לבחירת סף האמון -->
-    <div id="slider-container">
-      <label for="confidence-slider">
-        Confidence Threshold: <span id="conf-value">0.5</span>
-      </label>
-      <input type="range" id="confidence-slider" min="0" max="1" step="0.05" value="0.5">
-    </div>
-    
-    <!-- Canvas להצגת תצוגת המקדימה עם תוצאות הזיהוי -->
-    <canvas id="preview-canvas"></canvas>
-    <button id="save-detection">💾 Save Detection</button>
-    <div id="tooltip" style="position: absolute; background: #ffdddd; color: #a00; border: 1px solid #a00; padding: 5px 10px; border-radius: 5px; font-size: 14px; pointer-events: none; display: none; z-index: 999;">
-      ⚠️ No Hazard Detected. Cannot save detection
-    </div>
-  </div>
-  
-  <!-- אלמנט canvas נוסף (במקרה הצורך ל־live detection) -->
-  <canvas id="overlay-canvas"></canvas>
+  <div class="container mt-4"> <!-- קונטיינר ראשי של Bootstrap עם מרווח עליון -->
 
-  <!-- אלמנט video להצגת הזרם מהמצלמה (במקרה של live detection) -->
-  <video id="camera-stream" autoplay style="display: none;"></video>
-  
-  <!-- Logout Button -->
-  <div class="form-group">
-    <button type="button" id="logout-btn">Logout</button>
-  </div>
-  
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.6.0/dist/tf.min.js"></script>
-    
+    <header class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
+        <h1 class="mb-0">Report a Hazard</h1>
+        <div>
+            <button type="button" class="btn btn-secondary me-2" onclick="location.href='/dashboard'">Dashboard</button>
+            <button type="button" id="logout-btn" class="btn btn-outline-danger">Logout</button>
+        </div>
+    </header>
+
+    <div class="row justify-content-center"> <!-- שימוש במערכת ה-Grid של Bootstrap למרכוז -->
+        <div class="col-md-8 col-lg-6"> <!-- הגדרת רוחב התוכן המרכזי -->
+
+            <div class="text-center mb-4"> <!-- כותרת וקישור לזיהוי חי -->
+                <h2>Detection</h2>
+                <a href="camera.html" class="btn btn-success">Start Live Detection</a> <!-- שימוש ב-a במקום button -->
+            </div>
+
+            <div class="card p-4 shadow-sm"> <!-- שימוש ב-Card של Bootstrap לעיטוף התוכן -->
+                <h3 class="mb-3 text-center">Upload Image for Preview</h3>
+
+                <!-- קלט להעלאת תמונה -->
+                <div class="mb-3">
+                    <label for="image-upload" class="form-label">Select Image:</label>
+                    <input type="file" class="form-control" id="image-upload" accept="image/*">
+                </div>
+
+                <!-- Slider לבחירת סף האמון -->
+                <div class="mb-3">
+                    <label for="confidence-slider" class="form-label">
+                        Confidence Threshold: <span id="conf-value" class="badge bg-primary">0.5</span> <!-- שימוש ב-Badge להצגת הערך -->
+                    </label>
+                    <input type="range" class="form-range" id="confidence-slider" min="0" max="1" step="0.05" value="0.5">
+                </div>
+
+                <!-- Canvas להצגת תצוגת המקדימה -->
+                <div class="canvas-container mb-3"> <!-- קונטיינר לקנבס -->
+                    <canvas id="preview-canvas"></canvas>
+                </div>
+
+                <!-- כפתור שמירה ו-Tooltip -->
+                <div class="text-center">
+                    <button id="save-detection" class="btn btn-primary">💾 Save Detection</button>
+                    <div id="tooltip">
+                        ⚠️ No Hazard Detected. Cannot save detection
+                    </div>
+                </div>
+            </div> <!-- סוף ה-Card -->
+        </div> <!-- סוף ה-col -->
+    </div> <!-- סוף ה-row -->
+
+    <!-- אלמנטים מוסתרים (נראה שלא רלוונטיים לדף זה) -->
+    <canvas id="overlay-canvas"></canvas>
+    <video id="camera-stream" autoplay playsinline></video>
+
+  </div> <!-- סוף הקונטיינר -->
+
+  <!-- Bootstrap JS Bundle (כולל Popper) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+
+  <!-- TensorFlow.js -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.6.0/dist/tf.min.js"></script>
+
   <!-- סקריפט הראשי -->
   <script type="module" src="../js/upload.js" defer></script>
 </body>

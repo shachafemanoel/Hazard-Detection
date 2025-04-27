@@ -1,65 +1,25 @@
-body {
-    font-family: Arial, sans-serif;
-    background-color: #f3f5f7;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin: 0;
-    padding: 30px;
-  }
-  
-  h1 {
-    color: #333;
-    margin-bottom: 20px;
-    font-weight: bold;
-    font-size: 24px;
-  }
-  
-  button {
-    background-color: #007bff;
-    color: white;
-    padding: 10px 20px;
-    font-size: 16px;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-    margin: 5px;
-  }
-  
-  button:hover {
-    background-color: #0056b3;
-  }
-  
-  #overlay-canvas {
-    border: 1px solid #aaa;
-    border-radius: 8px;
-    margin-top: 20px;
-    width: 640px;
-    height: 480px;
-    background-color: #fff;
-  }
-  
-  .report-button-container {
-    display: flex;
-    justify-content: center;
-    width: 100%;
-    margin-top: 20px;
-  }
-  
-  .report-button-container button {
-    background-color: #007bff;
-    color: white;
-    padding: 10px 20px;
-    margin-top: 30px;
-    font-size: 16px;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-  }
-  
-  .report-button-container button:hover {
-    background-color: #0056b3;
-  }
-  
+/* camera.css - גרסה מותאמת ל-Bootstrap */
+
+/* אפשר להשאיר אם רוצים צבע רקע ספציפי שלא מגיע מ-Bootstrap */
+/* body {
+  background-color: #f3f5f7;
+} */
+
+/* סגנונות ספציפיים לקנבס שאולי נרצה לשמור או להתאים */
+#overlay-canvas {
+  /* border: 1px solid #dee2e6; /* אפשר להגדיר כאן במקום ב-inline style */
+  border-radius: 8px; /* אם רוצים פינות מעוגלות */
+  background-color: #fff; /* אם רוצים רקע לבן מובטח */
+  /* ודא שאין כאן הגדרות width/height קבועות */
+  /* max-width: 100% ו-height: auto מטופלים ב-inline style ב-HTML */
+  /* display: block ו-margin: 0 auto מטופלים ב-inline style ב-HTML */
+}
+
+
+/* אם יש צורך בסגנונות נוספים שאינם מכוסים על ידי Bootstrap,
+   ניתן להוסיף אותם כאן. */
+
+/* לדוגמה, אם רוצים שהכותרת תהיה בצבע אחר מברירת המחדל של Bootstrap: */
+/* h1 {
+  color: #2c3e50;
+} */

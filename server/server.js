@@ -103,7 +103,7 @@ passport.serializeUser((user, done) => {
 passport.use(new GoogleStrategy({
     clientID: "46375555882-rmivba20noas9slfskb3cfvugssladrr.apps.googleusercontent.com",
     clientSecret: "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",
-    callbackURL: process.env.GOOGLE_CALLBACK_URL || "http://localhost:3000/auth/google/callback"
+    callbackURL:  "http://localhost:3000/auth/google/callback"
 
     },
     async (accessToken, refreshToken, profile, done) => {

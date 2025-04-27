@@ -1,59 +1,120 @@
-<!-- login.html-->
-<!DOCTYPE html>  
-<html lang="en">  
-<head>  
-    <meta charset="UTF-8" />  
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>  
-    <title>Sign in to Hazard Reporter</title>  
-    <link rel="stylesheet" href="../css/login.css">  
-</head>  
-<body>  
-    <div class="container">  
-        <h1>Sign in to Hazard Reporter</h1>  
-        <div class="buttons" id="buttons">  
-            <button onclick="location.href='/auth/google'">Continue with Google</button>
-            <button onclick="toggleForm()">Continue with Email</button>  
-        </div>  
+<!-- login.html - מותאם ל-Bootstrap -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Sign in to Hazard Reporter (Bootstrap)</title>
 
-        <div id="email-options" style="display: none;">  
-            <button onclick="showSignupForm()">Sign Up</button>  
-            <button onclick="showLoginForm()">Log In</button>  
-            <button onclick="toggleForgotPassword()">Forgot Password</button>
-            <button id="back-options" onclick="backToMainScreen()" style="display: none;">Back</button>
-        </div>  
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
 
-        <div id="email-form" style="display: none;">  
-        <div id="signup-form" style="display: none;">  
-            <h2>Sign Up</h2>  
-            <form id="register-form">  
-                <input type="email" name="email" placeholder="Email" required id="email" />  
-                <input type="text" name="username" placeholder="Username" required minlength="3" id="username" />  
-                <input type="password" name="password" placeholder="Password" required minlength="8" id="password" />  
-                <button type="submit">Register</button>  
-            </form>  
-            <p id="email-error"></p>  
-        </div>  
+    <!-- Custom CSS (יש לנקות אותו בהמשך) -->
+    <link rel="stylesheet" href="../css/login.css">
 
-        <div id="login-form" style="display: none;">  
-            <h2>Log In</h2>  
-            <form id="login-form-inner">  
-                <input type="email" name="email" placeholder="Email" required id="login-email" />  
-                <input type="password" name="password" placeholder="Password" required minlength="8" id="login-password" />  
-                <button type="submit">Log In</button>  
-            </form>  
-            <p id="login-error"></p>
-        </div>     
+    <style>
+        /* ניתן להוסיף כאן סגנונות מינימליים או דריסות ספציפיות */
+        body {
+            background-color: #f8f9fa; /* צבע רקע בהיר של Bootstrap */
+        }
+        .login-container {
+            max-width: 450px; /* הגבלת רוחב תיבת ההתחברות */
+        }
+        /* הסתרת אלמנטים באמצעות קלאס במקום inline style */
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body class="d-flex align-items-center py-4 bg-body-tertiary min-vh-100">
 
-        <div id="forgot-password-form" style="display: none;">  
-            <h2>Reset Password</h2>  
-            <form id="reset-password-form">  
-                <input type="email" name="email" placeholder="Enter your email" required id="reset-email" />  
-                <button type="submit">Reset Password</button>  
-            </form>  
-            <p id="reset-password-error"></p>
-        </div>  
-    </div>  
+    <div class="container login-container">
+        <div class="card shadow-sm">
+            <div class="card-body p-4 p-md-5">
+                <h1 class="card-title text-center mb-4 h3">Sign in to Hazard Reporter</h1>
 
-    <script src="../js/login.js" defer></script>  
-</body>  
-</html>  
+                <!-- כפתורים ראשיים -->
+                <div id="buttons" class="d-grid gap-2 mb-4">
+                    <button class="btn btn-outline-primary btn-lg" onclick="location.href='/auth/google'">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-google me-2" viewBox="0 0 16 16">
+                          <path d="M15.545 6.558a9.4 9.4 0 0 1 .139 1.626c0 2.434-.87 4.492-2.384 5.885h.002C11.978 15.292 10.158 16 8 16A8 8 0 1 1 8 0a7.7 7.7 0 0 1 5.352 2.082l-2.284 2.284A4.35 4.35 0 0 0 8 3.166c-2.087 0-3.86 1.408-4.492 3.304a4.8 4.8 0 0 0 0 3.063h.003c.635 1.893 2.405 3.301 4.492 3.301 1.078 0 2.004-.276 2.722-.764h-.003a3.7 3.7 0 0 0 1.599-2.431H8v-3.08z"/>
+                        </svg>
+                        Continue with Google
+                    </button>
+                    <button class="btn btn-secondary btn-lg" onclick="toggleForm()">Continue with Email</button>
+                </div>
+
+                <!-- אפשרויות אימייל -->
+                <div id="email-options" class="d-grid gap-2 mb-4 hidden"> <!-- שימוש בקלאס hidden -->
+                    <button class="btn btn-primary" onclick="showSignupForm()">Sign Up</button>
+                    <button class="btn btn-success" onclick="showLoginForm()">Log In</button>
+                    <button class="btn btn-warning" onclick="toggleForgotPassword()">Forgot Password</button>
+                    <button id="back-options" class="btn btn-light border" onclick="backToMainScreen()">Back</button>
+                </div>
+
+                <!-- טופס אימייל (מכיל את כל הטפסים הפנימיים) -->
+                <div id="email-form" class="hidden"> <!-- שימוש בקלאס hidden -->
+
+                    <!-- טופס הרשמה -->
+                    <div id="signup-form" class="hidden"> <!-- שימוש בקלאס hidden -->
+                        <h2 class="text-center mb-3 h4">Sign Up</h2>
+                        <form id="register-form">
+                            <div class="form-floating mb-3">
+                                <input type="email" class="form-control" id="email" name="email" placeholder="name@example.com" required />
+                                <label for="email">Email address</label>
+                            </div>
+                            <div class="form-floating mb-3">
+                                <input type="text" class="form-control" id="username" name="username" placeholder="Username" required minlength="3" />
+                                <label for="username">Username</label>
+                            </div>
+                            <div class="form-floating mb-3">
+                                <input type="password" class="form-control" id="password" name="password" placeholder="Password" required minlength="8" />
+                                <label for="password">Password</label>
+                            </div>
+                            <button class="btn btn-primary w-100 py-2" type="submit">Register</button>
+                        </form>
+                        <div id="email-error" class="alert alert-danger mt-3 hidden" role="alert"></div> <!-- הודעת שגיאה מעוצבת ומוסתרת -->
+                    </div>
+
+                    <!-- טופס התחברות -->
+                    <div id="login-form" class="hidden"> <!-- שימוש בקלאס hidden -->
+                        <h2 class="text-center mb-3 h4">Log In</h2>
+                        <form id="login-form-inner">
+                             <div class="form-floating mb-3">
+                                <input type="email" class="form-control" id="login-email" name="email" placeholder="name@example.com" required />
+                                <label for="login-email">Email address</label>
+                            </div>
+                             <div class="form-floating mb-3">
+                                <input type="password" class="form-control" id="login-password" name="password" placeholder="Password" required minlength="8" />
+                                <label for="login-password">Password</label>
+                            </div>
+                            <button class="btn btn-success w-100 py-2" type="submit">Log In</button>
+                        </form>
+                        <div id="login-error" class="alert alert-danger mt-3 hidden" role="alert"></div> <!-- הודעת שגיאה מעוצבת ומוסתרת -->
+                    </div>
+
+                    <!-- טופס איפוס סיסמה -->
+                    <div id="forgot-password-form" class="hidden"> <!-- שימוש בקלאס hidden -->
+                        <h2 class="text-center mb-3 h4">Reset Password</h2>
+                        <form id="reset-password-form">
+                            <div class="form-floating mb-3">
+                                <input type="email" class="form-control" id="reset-email" name="email" placeholder="name@example.com" required />
+                                <label for="reset-email">Enter your email</label>
+                            </div>
+                            <button class="btn btn-warning w-100 py-2" type="submit">Reset Password</button>
+                        </form>
+                         <div id="reset-password-error" class="alert alert-danger mt-3 hidden" role="alert"></div> <!-- הודעת שגיאה מעוצבת ומוסתרת -->
+                    </div>
+                </div> <!-- סוף email-form -->
+
+            </div> <!-- סוף card-body -->
+        </div> <!-- סוף card -->
+    </div> <!-- סוף container -->
+
+    <!-- Bootstrap JS Bundle (כולל Popper) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+
+    <!-- סקריפט הלוגין שלך -->
+    <script src="../js/login.js" defer></script>
+</body>
+</html>

@@ -2,39 +2,78 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Live Detection with ONNX (Letterbox Logic)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- חשוב לרספונסיביות -->
+  <title>Live Detection with ONNX (Bootstrap)</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+   <!-- Bootstrap Icons (אופציונלי, עבור אייקון החלפת מצלמה) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+  <!-- Custom CSS (אופציונלי - אם יש צורך בסגנונות נוספים מעבר ל-Bootstrap) -->
   <link rel="stylesheet" href="../css/camera.css">
+
   <!-- טעינת הספרייה onnxruntime-web (CDN) -->
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
-  
+
   <style>
+    /* סגנונות ספציפיים או דריסות */
     #camera-stream {
-      display: none; /* לא חייבים להציג את הוידאו עצמו אם מציירים על canvas */
+      /* הסתרת אלמנט הוידאו המקורי, כי אנו מציירים על הקנבס */
+      display: none;
+      /* סגנונות רספונסיביות נשארים רלוונטיים אם נחליט להציג אותו */
+      max-width: 100%;
+      height: auto;
     }
     #overlay-canvas {
-      border: 1px solid #aaa;
+      border: 1px solid #dee2e6; /* שימוש בצבע גבול של Bootstrap */
+      display: block; /* למנוע רווחים מיותרים */
+      margin: 0 auto; /* מרכוז הקנבס */
+      max-width: 100%; /* להבטחת רספונסיביות */
+      height: auto;
+      background-color: #fff; /* רקע לבן אם הוידאו לא ממלא לגמרי */
+      border-radius: 0.375rem; /* התאמה לרדיוס ברירת המחדל של Bootstrap */
+    }
+    .canvas-container {
+      /* קונטיינר לקנבס כדי לשלוט ברוחב המקסימלי אם רוצים */
+      max-width: 800px; /* דוגמה - להתאים לפי הצורך */
+      margin: 0 auto; /* מרכוז הקונטיינר */
     }
   </style>
 </head>
 <body>
-  <h1>Live Detection (Single-Image Logic, ONNX)</h1>
+  <div class="container mt-4"> <!-- קונטיינר ראשי של Bootstrap עם מרווח עליון -->
+    <h1 class="mb-3 text-center">Live Detection</h1> <!-- כותרת עם מרווח תחתון וממורכזת -->
 
-  <!-- כפתורים לפתיחה וסגירה של המצלמה -->
-  <button id="start-camera">Start Camera</button>
-  <button id="stop-camera" style="display:none;">Stop Camera</button>
+    <!-- כפתורים לפתיחה, החלפה וסגירה של המצלמה -->
+    <div class="text-center mb-3"> <!-- מרכוז הכפתורים ומרווח תחתון -->
+      <button id="start-camera" class="btn btn-success me-2">Start Camera</button>
+      <!-- כפתור החלפת מצלמה - מעוצב ומוסתר בהתחלה -->
+      <button id="switch-camera" class="btn btn-info me-2" style="display:none;">
+          <i class="bi bi-arrow-repeat"></i> <!-- אייקון של Bootstrap -->
+          Switch Camera
+      </button>
+      <button id="stop-camera" class="btn btn-danger" style="display:none;">Stop Camera</button>
+    </div>
 
-  <br/><br/>
+    <!-- וידאו וקנבס לציור התוצאות -->
+    <div class="canvas-container mb-3"> <!-- קונטיינר לקנבס עם מרווח תחתון -->
+      <!-- ה-inline style הוסר מכאן -->
+      <video id="camera-stream" autoplay playsinline></video>
+      <canvas id="overlay-canvas"></canvas>
+    </div>
 
-  <!-- וידאו וקנבס לציור התוצאות -->
-  <video id="camera-stream" autoplay playsinline></video>
-  <canvas id="overlay-canvas"></canvas>
+    <!-- כפתור דיווח -->
+    <div class="text-center mt-4"> <!-- מרכוז הכפתור ומרווח עליון -->
+      <a href="/upload" class="btn btn-primary">Report a Hazard</a> <!-- כפתור Bootstrap כחול -->
+    </div>
+  </div> <!-- סוף הקונטיינר -->
 
-  <!-- כפתור דיווח -->
-  <div class="report-button-container">
-    <button onclick="location.href='/upload'">Report a Hazard</button>
-  </div>
+  <!-- Bootstrap JS Bundle (כולל Popper) - נדרש עבור רכיבים אינטראקטיביים של Bootstrap -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 
   <!-- הפניה לסקריפט שמכיל את כל הלוגיקה -->
+  <!-- ודא שהסקריפט שלך לא מתנגש עם Bootstrap או משנה קלאסים ש-Bootstrap משתמש בהם -->
   <script type="module" src="../js/upload_tf.js"></script>
 </body>
 </html>
