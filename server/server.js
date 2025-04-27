@@ -171,28 +171,18 @@ app.get('/auth/google', async (req, res, next) => {
     prompt: 'select_account' // מוודא שהמשתמש בוחר חשבון כל פעם  
 }));  
 
-// פונקציה לבדוק אם המייל קיים  
-async function emailExists(email) {  
-    const existingUserKeys = await client.keys('user:*');  
-    for (const key of existingUserKeys) {  
-        const userData = JSON.parse(await client.get(key));  
-        if (userData.email === email) {  
-            return true; // מייל קיים  
-        }  
-    }  
-    return false; // מייל לא קיים  
-}  
+
 
 // נקודת חזרה לאחר ההתחברות  
 app.get('/auth/google/callback', (req, res, next) => {
     passport.authenticate('google', async (err, user, info) => {
         const mode = req.session.authMode || 'login';
-
+        
         if (err) {
             console.error('Google Auth Error:', err);
             return res.redirect('/login.html?error=ServerError');
         }
-
+        
         if (!user) {
             // משתמש לא אותנטי → בדוק אם זה בגלל שהמייל כבר תפוס
             if (info && info.message === 'EmailExists') {
@@ -200,16 +190,16 @@ app.get('/auth/google/callback', (req, res, next) => {
             }
             return res.redirect('/login.html?error=AuthFailed');
         }
-
+        
         // התחברות או רישום מוצלחים
         req.login(user, async (err) => {
             if (err) {
                 console.error('Login Error:', err);
                 return res.redirect('/login.html?error=LoginFailed');
             }
-
+            
             req.session.user = { email: user.email, username: user.username };
-
+            
             return res.redirect('/upload.html');
         });
     })(req, res, next);
@@ -222,7 +212,7 @@ app.get('/upload', async (req, res) => {
     if (!req.session.user) {
         return res.redirect('/'); // אם לא מחובר, מחזירים לדף הבית
     }
-
+    
     // הצגת דף ה-upload
     res.sendFile(path.join(__dirname, '../public/upload.html'));
 });
@@ -256,9 +246,9 @@ app.post('/api/reports', async (req, res) => {
     if (!req.session.user && !req.isAuthenticated()) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
-
+    
     const { type, location, time, image, status, reportedBy } = req.body;
-
+    
     const report = {
         id: new Date().getTime(), // מזהה ייחודי לדיווח (מזמן היצירה)
         type,
@@ -268,13 +258,13 @@ app.post('/api/reports', async (req, res) => {
         status,
         reportedBy,
     };
-
+    
     const reportKey = `report:${report.id}`;  // יצירת המפתח הייחודי לכל דיווח
-
+    
     try {
         // שמירה ב-Redis תחת המפתח הייחודי
         await client.json.set(reportKey, '$', report);  // משתמשים ב-JSON.SET כדי לשמור את הדיווח
-
+        
         res.status(200).json({ message: 'Report saved successfully' });
     } catch (err) {
         res.status(500).json({ error: 'Error saving report' });
@@ -286,19 +276,19 @@ app.get('/api/reports', async (req, res) => {
     if (!req.session.user && !req.isAuthenticated()) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
-
+    
     try {
         // שליפת כל המפתחות של דיווחים
         const keys = await client.keys('report:*');
         const reports = [];
-
+        
         for (const key of keys) {
             const report = await client.json.get(key);
             if (report) {
                 reports.push(report);
             }
         }
-
+        
         res.status(200).json(reports);
     } catch (err) {
         console.error('🔥 Error fetching reports:', err);
@@ -306,11 +296,22 @@ app.get('/api/reports', async (req, res) => {
     }
 });
 
-
 // הרצת השרת
 app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
 });
+
+// פונקציה לבדוק אם המייל קיים ב-Redis
+async function emailExists(email) {  
+    const existingUserKeys = await client.keys('user:*');  
+    for (const key of existingUserKeys) {  
+        const userData = JSON.parse(await client.get(key));  // קבלת המידע כ-string
+        if (userData.email === email) {  
+            return true; // מייל קיים  
+        }  
+    }  
+    return false; // מייל לא קיים  
+}  
 
 // רישום משתמש רגיל (לא Google)
 app.post('/register', async (req, res) => {  
@@ -320,18 +321,13 @@ app.post('/register', async (req, res) => {
         return res.status(400).json({ error: 'Missing required fields' });  
     }  
 
-    const existingUserKey = await client.keys(`user:*`).then(keys => {  
-        return keys.find(async (key) => {  
-            const user = JSON.parse(await client.get(key));  
-            return user.email === email; // בדיקה אם המייל קיים  
-        });  
-    });  
-
-    if (existingUserKey) {  
+    // בדוק אם המייל קיים בעזרת פונקציה שנבנתה קודם
+    const existingUser = await emailExists(email);  
+    if (existingUser) {  
         return res.status(400).json({ error: 'User already registered with this email.' }); // הודעת שגיאה  
     }  
 
-    const userId = `user:${Date.now()}`;  
+    const userId = `user:${Date.now()}`;  // יצירת מזהה ייחודי למשתמש
     const newUser = {  
         email,  
         username,  
@@ -339,7 +335,13 @@ app.post('/register', async (req, res) => {
         type: 'user'  
     };  
 
-    await client.set(userId, JSON.stringify(newUser));  
+    // שמירה ב-Redis כ-string
+    try {
+        await client.set(userId, JSON.stringify(newUser));  // שמירה כ-string
+    } catch (err) {
+        console.error('Error saving user to Redis:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
 
     req.session.user = {  
         email,  
@@ -350,7 +352,8 @@ app.post('/register', async (req, res) => {
         message: 'User registered successfully',   
         user: { email, username }   
     });  
-});  
+});
+
 
 
 app.post('/login', async (req, res) => {
