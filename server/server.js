@@ -11,6 +11,7 @@ import sgMail from '@sendgrid/mail';
 import crypto from 'crypto';
 import axios from 'axios';
 import cors from 'cors';
+import os from 'os'; // מייבאים את המודול os
 
 
 import { v4 as uuidv4 } from 'uuid';
@@ -297,9 +298,22 @@ app.get('/api/reports', async (req, res) => {
 });
 
 // הרצת השרת
-app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
-});
+app.listen(port, '0.0.0.0', () => {
+    const networkInterfaces = os.networkInterfaces();
+    let localIp = 'localhost';
+    
+    for (const interfaceKey of Object.keys(networkInterfaces)) {
+      for (const net of networkInterfaces[interfaceKey]) {
+        if (net.family === 'IPv4' && !net.internal) {
+          localIp = net.address;
+        }
+      }
+    }
+  
+    console.log(`✅ Server running locally: http://localhost:${port}`);
+    console.log(`✅ Server running on your network: http://${localIp}:${port}`);
+  });
+
 
 // פונקציה לבדוק אם המייל קיים ב-Redis
 async function emailExists(email) {  
