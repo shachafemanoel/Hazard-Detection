@@ -1,10 +1,11 @@
-// upload_tf.js
+// upload_tf_fixed.js
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js";
 import { storage } from "./firebaseConfig.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   const startBtn = document.getElementById("start-camera");
   const stopBtn = document.getElementById("stop-camera");
+  const switchBtn = document.getElementById("switch-camera");
   const video = document.getElementById("camera-stream");
   const canvas = document.getElementById("overlay-canvas");
   const ctx = canvas.getContext("2d");
@@ -16,6 +17,23 @@ document.addEventListener("DOMContentLoaded", () => {
   let frameCount = 0;
   let lastSaveTime = 0;
   let currentLocation = "Unknown";
+  let videoDevices = [];
+  let currentCamIndex = 0;
+
+  // ────────────────────────────────────────────────────────────────────────────────
+  //  📸  Enumerate devices once on load
+  // ────────────────────────────────────────────────────────────────────────────────
+  (async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      videoDevices = devices.filter((d) => d.kind === "videoinput");
+      if (videoDevices.length > 1) {
+        switchBtn.style.display = "inline-block";
+      }
+    } catch (err) {
+      console.warn("⚠️ Could not enumerate video devices:", err);
+    }
+  })();
 
   const offscreen = document.createElement("canvas");
   offscreen.width = FIXED_SIZE;
@@ -24,7 +42,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let letterboxParams = null;
 
-  const classNames = ['Alligator Crack', 'Block Crack', 'Construction Joint Crack', 'Crosswalk Blur', 'Lane Blur', 'Longitudinal Crack', 'Manhole', 'Patch Repair', 'Pothole', 'Transverse Crack', 'Wheel Mark Crack'];
+  const classNames = [
+    "Alligator Crack",
+    "Block Crack",
+    "Construction Joint Crack",
+    "Crosswalk Blur",
+    "Lane Blur",
+    "Longitudinal Crack",
+    "Manhole",
+    "Patch Repair",
+    "Pothole",
+    "Transverse Crack",
+    "Wheel Mark Crack",
+  ];
 
   // קבלת המיקום של המשתמש
   function getLocation() {
@@ -222,66 +252,62 @@ document.addEventListener("DOMContentLoaded", () => {
 
   startBtn.addEventListener("click", async () => {
     try {
-      await getLocation(); // Try to get location
-    } catch (err) {
-      const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-  
-      const errorBox = document.createElement("div");
-      errorBox.style.color = "red";
-      errorBox.style.marginTop = "15px";
-      errorBox.style.padding = "10px";
-      errorBox.style.border = "1px solid red";
-      errorBox.style.borderRadius = "8px";
-      errorBox.style.backgroundColor = "#ffe6e6";
-      errorBox.innerHTML = `
-        ❌ Location is required to start the camera.<br><br>
-        <strong>Please enable location services on your ${isMobile ? "device" : "browser"}.</strong><br><br>
-        <button id="enable-location-btn">How to enable location?</button>
-      `;
-      document.body.appendChild(errorBox);
-  
-      document.getElementById("enable-location-btn").addEventListener("click", () => {
-        if (isMobile) {
-          alert(
-            "To enable location on mobile:\n\n" +
-            "📍 Android:\n1. Open Settings > Location\n2. Make sure location is turned ON\n3. In Chrome: Menu > Site settings > Location > Allow\n\n" +
-            "📍 iPhone:\n1. Go to Settings > Privacy > Location Services\n2. Enable location for Safari or Chrome\n\n" +
-            "Then reload this page."
-          );
-        } else {
-          alert(
-            "To enable location in your browser:\n\n" +
-            "1. Click the lock icon next to the URL\n" +
-            "2. Go to 'Site settings'\n" +
-            "3. Set 'Location' permission to 'Allow'\n\n" +
-            "🔄 Then refresh the page."
-          );
-        }
-      });
-  
-      return; // Stop - location is required
-    }
-  
-    // Continue as normal if location is available
+      await getLocation();
+    } catch (_) {}
+
     try {
       if (!session) await loadModel();
-      stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 } } });
+
+      // אם לא הצלחנו לזהות מצלמות קודם – ננסה שוב עכשיו
+      if (videoDevices.length === 0) {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        videoDevices = devices.filter((d) => d.kind === "videoinput");
+      }
+
+      const deviceId = videoDevices[currentCamIndex]?.deviceId;
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: deviceId ? { deviceId: { exact: deviceId } } : true,
+      });
+
       video.srcObject = stream;
       startBtn.style.display = "none";
       stopBtn.style.display = "inline-block";
-      video.addEventListener("loadeddata", () => {
-        computeLetterboxParams();
-        detecting = true;
-        detectLoop();
-      }, { once: true });
+      switchBtn.style.display = videoDevices.length > 1 ? "inline-block" : "none";
+
+      video.addEventListener(
+        "loadeddata",
+        () => {
+          computeLetterboxParams();
+          detecting = true;
+          detectLoop();
+        },
+        { once: true }
+      );
     } catch (err) {
       alert("⚠️ Could not access camera. Please check permissions.");
       console.error(err);
     }
   });
   
+  switchBtn.addEventListener("click", async () => {
+    try {
+      if (!stream || videoDevices.length < 2) return;
+      stream.getTracks().forEach((t) => t.stop());
 
-  stopBtn.addEventListener("click", async () => {
+      currentCamIndex = (currentCamIndex + 1) % videoDevices.length;
+      const newDeviceId = videoDevices[currentCamIndex].deviceId;
+
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: { exact: newDeviceId } },
+      });
+
+      video.srcObject = stream;
+      letterboxParams = null; // יגרום לחישוב מחדש בפריים הבא
+    } catch (err) {
+      console.error("❌ Failed to switch camera:", err);
+    }
+  });
+  stopBtn.addEventListener("click", () => {
     detecting = false;
     if (stream) {
       stream.getTracks().forEach((track) => track.stop());
@@ -290,6 +316,7 @@ document.addEventListener("DOMContentLoaded", () => {
     video.srcObject = null;
     startBtn.style.display = "inline-block";
     stopBtn.style.display = "none";
+    switchBtn.style.display = "none";
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     console.log("Camera stopped");
   });
