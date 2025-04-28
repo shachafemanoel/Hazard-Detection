@@ -142,18 +142,24 @@ document.addEventListener("DOMContentLoaded", () => {
   
 
   async function loadModel() {
-    try {
-      try {
-        session = await ort.InferenceSession.create("/object_detecion_model/road_damage_detection_last_version.onnx", { executionProviders: ['webgl'] });
-      } catch (err) {
-        console.warn("WebGL backend failed, falling back:", err);
-        session = await ort.InferenceSession.create("/object_detecion_model/road_damage_detection_last_version.onnx");
-      }
-      console.log("✅ YOLO model loaded (live camera)!");
-    } catch (err) {
-      console.error("❌ Failed to load ONNX model:", err);
+    const modelUrl = "/object_detecion_model/road_damage_detection_last_version.onnx";
+    
+    // ראשית — ננסה WebGL, ואם Safari יחרוג או WebGL לא נתמך — ניפול ל-WASM
+    const EPs = [];
+    if (ort.env.webgl?.isSupported) {
+      EPs.push("webgl");
     }
+    EPs.push("wasm");               // בטוח תמיד יעבוד
+    console.log("🔄 Trying to load ONNX model with EPs:", EPs);
+  
+    session = await ort.InferenceSession.create(modelUrl, {
+      executionProviders: EPs,
+      graphOptimizationLevel: "all",
+    });
+  
+    console.log("✅ Model loaded using", EPs[0], "fallback:", EPs.slice(1));
   }
+  
 
   function computeLetterboxParams() {
     const scale = Math.min(FIXED_SIZE / video.videoWidth, FIXED_SIZE / video.videoHeight);

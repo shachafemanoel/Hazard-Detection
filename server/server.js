@@ -41,12 +41,24 @@ cloudinary.config({
 const upload = multer();
 
 // 🚀 Initialize Express app
+// 🚀 Initialize Express app
 const app = express();
 const port = process.env.PORT || 3000;
+
+// ─── Cross-Origin isolation for WASM-SIMD ─────────────────────────────────────────
+app.use((req, res, next) => {
+  res.set({
+    'Cross-Origin-Opener-Policy': 'same-origin',
+    'Cross-Origin-Embedder-Policy': 'require-corp'
+  });
+  next();
+});
+// ───────────────────────────────────────────────────────────────────────────────────
 
 // 📦 Middleware
 app.use(express.json());
 app.use(cors());
+
 
 app.use(session({
   secret: 'your-secret-key',
