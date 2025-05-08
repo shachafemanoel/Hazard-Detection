@@ -47,12 +47,11 @@ const port = process.env.PORT || 3000;
 
 // ─── Cross-Origin isolation for WASM-SIMD ─────────────────────────────────────────
 app.use((req, res, next) => {
-  res.set({
-    'Cross-Origin-Opener-Policy': 'same-origin',
-    'Cross-Origin-Embedder-Policy': 'require-corp'
+    res.set({
+      'Cross-Origin-Embedder-Policy': 'unsafe-none'
+    });
+    next();
   });
-  next();
-});
 // ───────────────────────────────────────────────────────────────────────────────────
 
 // 📦 Middleware
@@ -517,6 +516,9 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
         return res.status(400).json({ error: 'No file uploaded' });
     }
 
+    // הדפס פרטי הקובץ לצורך בדיקה
+    console.log('Uploaded file:', req.file);
+
     // אימות משתמש
     if (!(req.isAuthenticated?.() || req.session?.user)) { 
         return res.status(401).json({ error: 'Unauthorized' });
@@ -546,7 +548,6 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
         }
         const address = geoResponse.data.results[0]?.formatted_address || 'כתובת לא זמינה';
         
-
         // העלאה ל-Cloudinary
         const streamUpload = (buffer) => {
             return new Promise((resolve, reject) => {
@@ -565,7 +566,15 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
         };
 
         const result = await streamUpload(req.file.buffer);
-        
+
+        // אם העלאה לא הצליחה
+        if (!result || !result.secure_url) {
+            return res.status(500).json({ error: 'Failed to upload image to Cloudinary' });
+        }
+
+        // הדפסת התוצאה מהעלאה
+        console.log('Cloudinary upload result:', result);
+
         // קבלת שם המדווח
         let reportedBy;  
 
@@ -605,3 +614,4 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
         res.status(500).json({ error: 'Failed to upload report' });
     }
 });
+

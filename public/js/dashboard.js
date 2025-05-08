@@ -56,6 +56,7 @@ async function geocodeAddress(address, report) {
             marker.addListener("click", () => {
                 showReportDetails(report);
                 map.setCenter(location);
+                map.panTo(location);
                 map.setZoom(14); // משנה את הזום למיקום של הדיווח
             });
 
@@ -104,7 +105,7 @@ async function loadReports() {
                 <td>${report.type}</td>
                 <td><span class="location-link" data-location="${report.location}">${report.location}</span></td>
                 <td>${new Date(report.time).toLocaleString()}</td>
-                <td><img src="${report.image}" alt="image" width="50" style="cursor:pointer;"></td>
+                <td><img src="${report.image}" alt="image" width="50" style="cursor:pointer;" loading="lazy"></td>
                 <td>${report.status}</td>
                 <td>${report.reportedBy}</td>
             `;
