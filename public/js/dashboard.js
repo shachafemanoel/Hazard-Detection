@@ -1,4 +1,5 @@
 let map;
+let markers = [];
 
 const hazardTypes = [
     'Alligator Crack', 'Block Crack', 'Construction Joint Crack', 'Crosswalk Blur',
@@ -21,6 +22,11 @@ function initMap() {
 
     // נטען דיווחים רק אחרי שהמפה מוכנה
     loadReports();
+}
+
+function clearMarkers() {
+    markers.forEach(marker => marker.setMap(null));
+    markers = [];
 }
 
 // יצירת תיבות סימון לסוגי מפגעים
@@ -81,6 +87,8 @@ async function geocodeAddress(address, report) {
                 title: address,
             });
 
+            markers.push(marker);
+
             marker.addListener("click", () => {
                 showReportDetails(report);
                 map.setCenter(location);
@@ -109,6 +117,8 @@ async function geocodeAddress(address, report) {
 async function loadReports(filters = {}) {
     try {
         // הוספת הפילטרים לשאילתה
+        clearMarkers();
+        
         const queryParams = new URLSearchParams(filters).toString();
         const response = await fetch(`/api/reports?${queryParams}`, {
             method: 'GET',
