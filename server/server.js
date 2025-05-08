@@ -13,12 +13,7 @@ import axios from 'axios';
 import cors from 'cors';
 import os from 'os'; // מייבאים את המודול os
 
-
-import { v4 as uuidv4 } from 'uuid';
-import { Buffer } from 'buffer';
-
 // 📦 Firebase & Cloudinary
-import { db, bucket } from './firebaseAdmin.js';
 import { v2 as cloudinary } from 'cloudinary';
 import multer from 'multer';
 import streamifier from 'streamifier';
@@ -288,25 +283,69 @@ app.get('/api/reports', async (req, res) => {
     if (!req.session.user && !req.isAuthenticated()) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
-    
+
+    const filters = req.query;
+
+    // המרת מחרוזת hazardType למערך
+    if (filters.hazardType && typeof filters.hazardType === 'string') {
+        filters.hazardType = filters.hazardType.split(',').map(type => type.trim());
+    }
+
     try {
-        // שליפת כל המפתחות של דיווחים
         const keys = await client.keys('report:*');
         const reports = [];
-        
+
         for (const key of keys) {
             const report = await client.json.get(key);
-            if (report) {
+            if (!report) continue;
+
+            let match = true;
+
+            // סוגי מפגעים: לפחות אחד מתוך הרשימה
+            if (filters.hazardType && filters.hazardType.length > 0) {
+                const reportTypes = Array.isArray(report.type) ? report.type : [report.type];
+                const hasAtLeastOne = filters.hazardType.some(type => reportTypes.includes(type));
+                if (!hasAtLeastOne) match = false;
+            }
+
+            // מיקום
+            if (filters.location) {
+                const reportLoc = (report.location || '').toLowerCase();
+                const pattern = filters.location.trim().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp(pattern, 'i');
+                if (!regex.test(reportLoc)) match = false;
+            }
+
+            // תאריך
+            if (filters.startDate && new Date(report.time) < new Date(filters.startDate)) match = false;
+            if (filters.endDate && new Date(report.time) > new Date(filters.endDate)) match = false;
+
+            // סטטוס
+            if (filters.status) {
+                const reportStatus = report.status.toLowerCase();
+                const filterStatus = filters.status.toLowerCase();
+                if (reportStatus !== filterStatus) match = false;
+            }
+
+            // מחפש לפי מדווח
+            if (filters.reportedBy) {
+                const reporter = (report.reportedBy || '').toLowerCase();
+                const search = filters.reportedBy.toLowerCase();
+                if (!reporter.includes(search)) match = false;
+            }
+
+            if (match) {
                 reports.push(report);
             }
         }
-        
+
         res.status(200).json(reports);
     } catch (err) {
         console.error('🔥 Error fetching reports:', err);
         res.status(500).json({ error: 'Error fetching reports' });
     }
 });
+
 
 // הרצת השרת
 app.listen(port, '0.0.0.0', () => {
@@ -515,9 +554,6 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
     }
-
-    // הדפס פרטי הקובץ לצורך בדיקה
-    console.log('Uploaded file:', req.file);
 
     // אימות משתמש
     if (!(req.isAuthenticated?.() || req.session?.user)) { 

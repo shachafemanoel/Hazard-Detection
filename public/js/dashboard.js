@@ -1,5 +1,11 @@
 let map;
 
+const hazardTypes = [
+    'Alligator Crack', 'Block Crack', 'Construction Joint Crack', 'Crosswalk Blur',
+    'Lane Blur', 'Longitudinal Crack', 'Manhole', 'Patch Repair', 'Pothole',
+    'Transverse Crack', 'Wheel Mark Crack'
+];
+
 function initMap() {
     const israel = { lat: 31.7683, lng: 35.2137 };
     map = new google.maps.Map(document.getElementById("map"), {
@@ -16,6 +22,28 @@ function initMap() {
     // נטען דיווחים רק אחרי שהמפה מוכנה
     loadReports();
 }
+
+// יצירת תיבות סימון לסוגי מפגעים
+function generateHazardCheckboxes() {
+    const container = document.getElementById('hazard-types-container');
+    hazardTypes.forEach(hazard => {
+        const checkboxDiv = document.createElement('div');
+        checkboxDiv.innerHTML = `
+            <input type="checkbox" id="hazard-${hazard.toLowerCase().replace(/ /g, '-')}" value="${hazard}">
+            <label for="hazard-${hazard.toLowerCase().replace(/ /g, '-')}" class="hazard-label">${hazard}</label>
+        `;
+        container.appendChild(checkboxDiv);
+    });
+}
+
+// יצירת כפתור להעלאת סוגי המפגעים
+document.getElementById('toggle-hazard-types-btn').addEventListener('click', () => {
+    const container = document.getElementById('hazard-types-container');
+    container.style.display = (container.style.display === 'none') ? 'block' : 'none';
+});
+
+// הפעלת יצירת תיבות סימון עם טעינת העמוד
+window.onload = generateHazardCheckboxes;
 
 // פותח את מודל התמונה
 function openModal(imageUrl) {
@@ -78,17 +106,19 @@ async function geocodeAddress(address, report) {
 }
 
 // טוען דיווחים מהשרת ומכניס לטבלה ולמפה
-async function loadReports() {
+async function loadReports(filters = {}) {
     try {
-        const response = await fetch('/api/reports', {
+        // הוספת הפילטרים לשאילתה
+        const queryParams = new URLSearchParams(filters).toString();
+        const response = await fetch(`/api/reports?${queryParams}`, {
             method: 'GET',
             credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
             }
-          });
-          
+        });
+
         if (!response.ok) {
             console.error("Error fetching reports:", response.statusText);
             return;
@@ -125,56 +155,99 @@ async function loadReports() {
                 geocodeAddress(report.location, report);
             }
         });
-
     } catch (error) {
         console.error("Error loading reports:", error);
         alert("שגיאה בטעינת הדיווחים: " + error.message);
     }
 }
 
+
 // מאזין לטעינת המסמך - רק בשביל לחצנים
 document.addEventListener("DOMContentLoaded", () => {
+    const filters = {};
+
+    const searchBtn = document.getElementById('search-btn');
+    const toggleFiltersBtn = document.getElementById('toggle-filters-btn');
     const toggleReportsBtn = document.getElementById('toggleBtn');
     const toggleMapBtn = document.getElementById('toggleMapBtn');
     const reportsContainer = document.getElementById('reports');
     const mapContainer = document.getElementById('map');
+    const filtersPanel = document.getElementById('filters');
 
-    toggleMapBtn.addEventListener('click', () => {
-        if (mapContainer.style.height !== '100vh') {
-            mapContainer.style.height = '100vh';
-            mapContainer.style.display = 'block';
-            reportsContainer.style.display = 'none';
-            toggleMapBtn.textContent = 'Minimize Map';
-            toggleReportsBtn.style.display = 'none';
-        } else {
-            mapContainer.style.height = '60vh';
-            reportsContainer.style.display = 'block';
-            toggleMapBtn.textContent = 'Maximize Map';
-            toggleReportsBtn.style.display = 'inline';
+    // מאזין לחיפוש
+    searchBtn.addEventListener('click', () => {
+        // איפוס
+        Object.keys(filters).forEach(key => delete filters[key]);
+
+        // סוגי מפגעים
+        const hazardTypes = Array.from(document.querySelectorAll('#hazard-types-container input:checked'))
+            .map(cb => cb.value);
+        if (hazardTypes.length > 0) {
+            filters.hazardType = hazardTypes;
         }
+
+        // מיקום
+        const locationVal = document.getElementById('location').value.trim();
+        if (locationVal) filters.location = locationVal;
+
+        // תאריכים
+        const startDateVal = document.getElementById('start-date').value;
+        const endDateVal = document.getElementById('end-date').value;
+        if (startDateVal) filters.startDate = startDateVal;
+        if (endDateVal) filters.endDate = endDateVal;
+
+        // סטטוס
+        const statusVal = document.getElementById('status').value;
+        if (statusVal) filters.status = statusVal;
+
+        // מדווח
+        const reporterVal = document.getElementById('reported-by').value.trim();
+        if (reporterVal) filters.reportedBy = reporterVal;
+
+        // שליחת בקשה
+        loadReports(filters);
+    });
+
+    // פתיחה/סגירה של הפאנל
+    toggleFiltersBtn.addEventListener('click', () => {
+        const isHidden = getComputedStyle(filtersPanel).display === 'none';
+        filtersPanel.style.display = isHidden ? 'block' : 'none';
+    });
+
+    // מפת / דיווחים - תצוגה מתחלפת
+    toggleMapBtn.addEventListener('click', () => {
+        const isFull = mapContainer.style.height === '100vh';
+        mapContainer.style.height = isFull ? '60vh' : '100vh';
+        mapContainer.style.display = 'block';
+        reportsContainer.style.display = isFull ? 'block' : 'none';
+        toggleMapBtn.textContent = isFull ? 'Maximize Map' : 'Minimize Map';
+        toggleReportsBtn.style.display = isFull ? 'inline' : 'none';
     });
 
     toggleReportsBtn.addEventListener('click', () => {
-        if (reportsContainer.style.height !== '100vh') {
-            reportsContainer.style.height = '100vh';
-            reportsContainer.style.display = 'block';
-            mapContainer.style.display = 'none';
-            toggleReportsBtn.textContent = 'Minimize Reports';
-            toggleMapBtn.style.display = 'none';
-        } else {
-            reportsContainer.style.height = '40vh';
-            mapContainer.style.display = 'block';
-            toggleReportsBtn.textContent = 'Maximize Reports';
-            toggleMapBtn.style.display = 'inline';
-        }
+        const isFull = reportsContainer.style.height === '100vh';
+        reportsContainer.style.height = isFull ? '40vh' : '100vh';
+        reportsContainer.style.display = 'block';
+        mapContainer.style.display = isFull ? 'block' : 'none';
+        toggleReportsBtn.textContent = isFull ? 'Maximize Reports' : 'Minimize Reports';
+        toggleMapBtn.style.display = isFull ? 'inline' : 'none';
+    });
+
+    // הגבלת תאריך סיום לפי תאריך התחלה והפוך
+    document.getElementById('start-date').addEventListener('change', (e) => {
+        const startDate = e.target.value;
+        const endDateInput = document.getElementById('end-date');
+        endDateInput.min = startDate;
+    });
+
+    document.getElementById('end-date').addEventListener('change', (e) => {
+        const endDate = e.target.value;
+        const startDateInput = document.getElementById('start-date');
+        startDateInput.max = endDate;
     });
 });
 
-function closeSidebar() {
-    const sidebar = document.getElementById("report-sidebar");
-    sidebar.style.display = "none";
-  }
-  
+
 function showReportDetails(report) {
     document.getElementById("sidebar-hazard-id").textContent = report.id;
     document.getElementById("sidebar-type").textContent = report.type;
@@ -185,3 +258,8 @@ function showReportDetails(report) {
     document.getElementById("sidebar-image").src = report.image;
     document.getElementById("report-sidebar").style.display = "block";
 }
+
+function closeSidebar() {
+    const sidebar = document.getElementById("report-sidebar");
+    sidebar.style.display = "none";
+  }
