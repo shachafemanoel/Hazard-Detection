@@ -166,6 +166,7 @@ async function loadReports(filters = {}) {
 document.addEventListener("DOMContentLoaded", () => {
     const filters = {};
 
+    const clearBtn = document.getElementById('clear-filters-btn');
     const searchBtn = document.getElementById('search-btn');
     const toggleFiltersBtn = document.getElementById('toggle-filters-btn');
     const toggleReportsBtn = document.getElementById('toggleBtn');
@@ -174,6 +175,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const mapContainer = document.getElementById('map');
     const filtersPanel = document.getElementById('filters');
 
+    
+    // פתיחה/סגירה של הפאנל
+    toggleFiltersBtn.addEventListener('click', () => {
+        const isHidden = getComputedStyle(filtersPanel).display === 'none';
+        filtersPanel.style.display = isHidden ? 'block' : 'none';
+    });
+    
     // מאזין לחיפוש
     searchBtn.addEventListener('click', () => {
         // איפוס
@@ -208,10 +216,23 @@ document.addEventListener("DOMContentLoaded", () => {
         loadReports(filters);
     });
 
-    // פתיחה/סגירה של הפאנל
-    toggleFiltersBtn.addEventListener('click', () => {
-        const isHidden = getComputedStyle(filtersPanel).display === 'none';
-        filtersPanel.style.display = isHidden ? 'block' : 'none';
+    clearBtn.addEventListener('click', () => {
+        // איפוס
+        document.getElementById('location').value = '';
+        document.getElementById('start-date').value = '';
+        document.getElementById('end-date').value = '';
+        document.getElementById('status').value = '';
+        document.getElementById('reported-by').value = '';
+
+        // איפוס תיבות סימון
+        const checkboxes = document.querySelectorAll('#hazard-types-container input');
+        checkboxes.forEach(cb => cb.checked = false);
+
+        // איפוס פילטרים
+        Object.keys(filters).forEach(key => delete filters[key]);
+
+        // טוען מחדש את הדיווחים
+        loadReports();
     });
 
     // מפת / דיווחים - תצוגה מתחלפת

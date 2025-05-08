@@ -302,11 +302,15 @@ app.get('/api/reports', async (req, res) => {
             let match = true;
 
             // סוגי מפגעים: לפחות אחד מתוך הרשימה
-            if (filters.hazardType && filters.hazardType.length > 0) {
-                const reportTypes = Array.isArray(report.type) ? report.type : [report.type];
-                const hasAtLeastOne = filters.hazardType.some(type => reportTypes.includes(type));
-                if (!hasAtLeastOne) match = false;
+            if (filters.hazardType) {
+                const hazardArray = Array.isArray(filters.hazardType) ? filters.hazardType : [filters.hazardType];
+            
+                const reportTypes = (report.type || '').split(',').map(t => t.trim().toLowerCase());
+                const hasMatch = hazardArray.some(type => reportTypes.includes(type.toLowerCase()));
+                
+                if (!hasMatch) match = false;
             }
+                     
 
             // מיקום
             if (filters.location) {
