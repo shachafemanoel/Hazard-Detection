@@ -158,7 +158,6 @@ document.addEventListener('DOMContentLoaded', function () {
             errorElement.textContent = 'Server error. Please try again.';
         }
     });
-    
 
     // אירוע שליחת טופס "שכחתי סיסמא"
     document.getElementById('reset-password-form')?.addEventListener('submit', async function(event) {
@@ -201,7 +200,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 });
-
 
 function toggleForm() {
     document.getElementById('buttons').style.display = 'none';
