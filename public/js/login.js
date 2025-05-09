@@ -237,7 +237,6 @@ function showLoginForm() {
     document.getElementById('back-options').style.display = 'block'; // הצגת כפתור back בטופס התחברות
 }
 
-
 // פונקציה שתציג את טופס שחזור הסיסמה
 function toggleForgotPassword() {
     document.getElementById('forgot-password-form').style.display = 'block';

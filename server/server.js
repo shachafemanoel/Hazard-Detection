@@ -612,9 +612,6 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
             return res.status(500).json({ error: 'Failed to upload image to Cloudinary' });
         }
 
-        // הדפסת התוצאה מהעלאה
-        console.log('Cloudinary upload result:', result);
-
         // קבלת שם המדווח
         let reportedBy;  
 
@@ -643,7 +640,7 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
         };
 
         await client.json.set(reportKey, '$', report);
-        console.log("💾 Report saved to Redis:", reportKey);
+        console.log("💾 Report saved to Redis: ", reportKey);
 
         res.status(200).json({
             message: 'Report uploaded and saved successfully',
