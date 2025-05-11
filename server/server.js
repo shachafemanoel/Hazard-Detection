@@ -40,36 +40,36 @@ const upload = multer();
 const app = express();
 const port = process.env.PORT || 3000;
 
+// במקום הבלוק הקודם, תשתמש ב־middleware הבא:
 app.use((req, res, next) => {
-    res.set({
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp'
-    });
+    // אם זה קריאה ל־upload או ל־camera.html
+    if (req.path === '/upload' || req.path === '/camera.html') {
+      res.set({
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'require-corp'
+      });
+    }
     next();
   });
+  
   /* ───── Core middleware (סדר חשוב!) ───── */
-app.use(cors());            // 1. CORS
-app.use(express.json());    // 2. Body‑parser
-app.use(session({           // 3. Session
-  secret: 'your-secret-key',
-  resave: false,
-  saveUninitialized: true,
-  cookie: { secure: false, httpOnly: true }
-}));
+  app.use(cors());
+  app.use(express.json());
+  app.use(session({
+    secret: 'your-secret-key',
+    resave: false,
+    saveUninitialized: true,
+    cookie: { secure: false, httpOnly: true }
+  }));
+  app.use(passport.initialize());
+  app.use(passport.session());
+  
+  // רק עכשיו
+  app.use(express.static(path.join(__dirname, '../public')));
+  
 
-app.use(passport.initialize());
-app.use(passport.session());
-
-/* ───── Static files (אחרי COEP/COOP) ───── */
-app.use(express.static(path.join(__dirname, '../public')));
 
 
-app.use(session({
-  secret: 'your-secret-key',
-  resave: false,
-  saveUninitialized: true,
-  cookie: { secure: false, httpOnly: true }
-}));
 
 // 📨 SendGrid API
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
@@ -85,14 +85,17 @@ const client = createClient({
 });
 
 async function connectRedis() {
-    await client.connect();
-    console.log('✅ Connected to Redis');
+    try {
+      await client.connect();
+      console.log('✅ Connected to Redis');
+    } catch (err) {
+      console.error('🔥 Failed to connect to Redis:', err);
+      // אולי תחליט להמתין ולטעון מחדש, או להריץ fallback
+    }
   }
+  connectRedis();
   
-connectRedis();
 
-app.use(passport.initialize());
-app.use(passport.session());
 
 passport.serializeUser((user, done) => {
     done(null, user.email);  // מזהה יחיד
