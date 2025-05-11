@@ -98,10 +98,16 @@ saveBtn.addEventListener("click", () => {
   const classNames = ['Alligator Crack', 'Block Crack', 'Construction Joint Crack', 'Crosswalk Blur', 'Lane Blur', 'Longitudinal Crack', 'Manhole', 'Patch Repair', 'Pothole', 'Transverse Crack', 'Wheel Mark Crack'];
 
   let session = null;
+  
+  ort.env.wasm.wasmPaths = '/ort/';  
+
+
   try {
     session = await ort.InferenceSession.create(
-      "/object_detecion_model/road_damage_detection_last_version.onnx"
+      '/object_detecion_model/road_damage_detection_last_version.onnx',
+      { executionProviders: ['cpu'] }
     );
+    
     console.log("✅ YOLO model loaded!");
   } catch (err) {
     console.error("❌ Failed to load model:", err);

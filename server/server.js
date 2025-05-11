@@ -40,18 +40,28 @@ const upload = multer();
 const app = express();
 const port = process.env.PORT || 3000;
 
-// ─── Cross-Origin isolation for WASM-SIMD ─────────────────────────────────────────
 app.use((req, res, next) => {
     res.set({
-      'Cross-Origin-Embedder-Policy': 'unsafe-none'
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp'
     });
     next();
   });
-// ───────────────────────────────────────────────────────────────────────────────────
+  /* ───── Core middleware (סדר חשוב!) ───── */
+app.use(cors());            // 1. CORS
+app.use(express.json());    // 2. Body‑parser
+app.use(session({           // 3. Session
+  secret: 'your-secret-key',
+  resave: false,
+  saveUninitialized: true,
+  cookie: { secure: false, httpOnly: true }
+}));
 
-// 📦 Middleware
-app.use(express.json());
-app.use(cors());
+app.use(passport.initialize());
+app.use(passport.session());
+
+/* ───── Static files (אחרי COEP/COOP) ───── */
+app.use(express.static(path.join(__dirname, '../public')));
 
 
 app.use(session({
@@ -233,8 +243,6 @@ app.get('/logout', (req, res) => {
     });
 });
 
-// הגדרת תקיית public
-app.use(express.static(path.join(__dirname, '../public')));
 
 // דף ברירת מחדל
 app.get('/', (req, res) => {

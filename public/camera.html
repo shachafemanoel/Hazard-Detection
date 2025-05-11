@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -16,8 +17,21 @@
   <!-- Custom CSS (optional) -->
   <link rel="stylesheet" href="../css/camera.css" />
 
-  <!-- onnxruntime‑web CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+  <!-- onnxruntime‑web snippet: configure wasm paths before loading ort.min.js -->
+<script>
+  const base = '/ort/';
+  window.ort = window.ort || {};
+  ort.env = ort.env || {};
+  ort.env.wasm = {
+    wasmPaths: {
+      'ort-wasm.wasm':           base + 'ort-wasm.wasm',
+      'ort-simd.wasm':           base + 'ort-simd.wasm',
+      'ort-wasm-threaded.wasm':  base + 'ort-wasm-threaded.wasm'
+    }
+  };
+</script>
+<!-- onnxruntime‑web CDN -->
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
 
   <style>
     /* Responsive helpers */
