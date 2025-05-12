@@ -249,13 +249,15 @@ async function loadModel() {
 
   // 📌 מביאים את ה־ort מתוך window
   const ort = window.ort;
+  ort.env.wasm.wasmPaths = '/ort/';
+  ort.env.wasm.numThreads = 4;
+
 
   // 📌 נסיון לספק WebGL ואז threaded-WASM
   const EPs = [];
-  if (ort.env.webgl?.isSupported) {
-    EPs.push("webgl");
-  }
-  EPs.push("wasm"); // כאן #threads כבר הוגדר ב־camera.html
+  if (ort.env.webgl?.isSupported) EPs.push("webgl");
+  EPs.push("wasm");            // גרסת WASM רגילה
+  EPs.push("wasm-threaded");   // SIMD-threaded רק בתנאי
 
   console.log("🔄 Trying to load ONNX model with EPs:", EPs);
   try {
