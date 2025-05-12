@@ -16,8 +16,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let session = null;
   let frameCount = 0;
   let lastSaveTime = 0;
-  let currentLocation = "Unknown";
-  let videoDevices = [];
+  let _lastCoords = null;
+  let _watchId    = null;  let videoDevices = [];
   let currentCamIndex = 0;
 
   // ────────────────────────────────────────────────────────────────────────────────
@@ -56,33 +56,120 @@ document.addEventListener("DOMContentLoaded", () => {
     "Wheel Mark Crack",
   ];
 
-  // קבלת המיקום של המשתמש
-  function getLocation() {
-    return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) {
-        return reject("Geolocation not supported by this browser");
-      }
   
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const { latitude, longitude, accuracy } = pos.coords;
-          console.log("📍 Location received:", { latitude, longitude, accuracy });
-  
-          if (accuracy > 50) {
-            console.warn(`⚠️ Low location accuracy: ${accuracy}m`);
-          }
-  
-          const geoData = JSON.stringify({ lat: latitude, lng: longitude });
-          currentLocation = geoData; // ניתן גם לשמור כאובייקט אם עדיף
-          resolve(geoData);
-        },
-        (err) => {
-          console.error("❌ Failed to get location:", err.message);
-          reject(`Location error: ${err.message}`);
-        },
-      );
-    });
+
+/**
+ * מנסה ראשית לקבל פוזיציה אחת מדוייקת (GPS), עם תזמון קצר.
+ * אם הצליח – שומר אותה; אם קיבל DENIED – מודיע למשתמש.
+ * לאחר מכן מריץ watchPosition כדי לעדכן ברצף את _lastCoords.
+ */
+function initLocationTracking() {
+  return new Promise(resolve => {
+    if (!navigator.geolocation) {
+      alert("מצטערים, הדפדפן שלך לא תומך בגיאולוקציה.");
+      return resolve(null);
+    }
+
+    // פונקציית עזר לרישום המיקום הראשון
+    let done = false;
+    function handleCoords(coords) {
+      if (done) return;
+      done = true;
+      _lastCoords = coords;
+      console.log("📍 initial location:", coords);
+      resolve(coords);
+    }
+
+    // 1️⃣ ניסיון High-Accuracy
+    navigator.geolocation.getCurrentPosition(
+      pos => handleCoords(pos.coords),
+      err => {
+        console.warn("High-Accuracy failed:", err.code, err.message);
+        if (err.code === err.PERMISSION_DENIED) {
+          alert("אנא אפשר גישה למיקום כדי להשתמש ב-Live Detection.");
+          return resolve(null);
+        }
+        // 2️⃣ ניסיון Low-Accuracy
+        navigator.geolocation.getCurrentPosition(
+          pos2 => handleCoords(pos2.coords),
+          err2 => {
+            console.warn("Low-Accuracy failed:", err2.code, err2.message);
+            // 3️⃣ fallback IP
+            fetch("https://ipapi.co/json/")
+              .then(r => r.json())
+              .then(data => handleCoords({ latitude: data.latitude, longitude: data.longitude }))
+              .catch(() => resolve(null));
+          },
+          { enableHighAccuracy: false, timeout: 5000, maximumAge: 0 }
+        );
+      },
+      { enableHighAccuracy: true,  timeout: 5000, maximumAge: 0 }
+    );
+
+    // 4️⃣ watchPosition לעדכונים רציפים
+    _watchId = navigator.geolocation.watchPosition(
+      pos => {
+        _lastCoords = pos.coords;
+      },
+      err => {
+        console.warn("watchPosition error:", err.code, err.message);
+        if (err.code === err.PERMISSION_DENIED) {
+          alert("אנא אפשר גישה למיקום כדי להשתמש ב-Live Detection.");
+          navigator.geolocation.clearWatch(_watchId);
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  });
+}
+
+/**
+ * מחזיר Promise עם המיקום האחרון (או נדחית אם אין עדיין)
+ */
+function getLatestLocation() {
+  return new Promise((resolve, reject) => {
+    if (_lastCoords) {
+      resolve(JSON.stringify({ lat: _lastCoords.latitude, lng: _lastCoords.longitude }));
+    } else {
+      reject("No location available yet");
+    }
+  });
+}
+
+/**
+ * מפסיק את ה־watchPosition
+ */
+function stopLocationTracking() {
+  if (_watchId !== null) {
+    navigator.geolocation.clearWatch(_watchId);
+    _watchId = null;
   }
+}
+
+/**
+ * משתמש בשירות IP-based לצורך מיקום גס
+ */
+async function fallbackIpLocation() {
+  try {
+    const res = await fetch("https://ipapi.co/json/");
+    if (!res.ok) throw new Error(res.statusText);
+    const data = await res.json();
+    _lastCoords = {
+      latitude:  data.latitude,
+      longitude: data.longitude
+    };
+    console.log("📍 IP-fallback location:", _lastCoords);
+  } catch (e) {
+    console.warn("IP fallback failed:", e);
+  }
+}
+
+/**
+ * מחזירה את המיקום האחרון (או נדחתת אם אין עדיין)
+ */
+
+
+  
   
 
   function showSuccessToast(message = "💾 Detected and saved!") {
@@ -103,62 +190,88 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function saveDetection(canvas, label = "Unknown") {
-    // אם המיקום לא נמצא, לא נשמור את הדימוי
-    if (currentLocation === "Unknown") {
-      console.warn("⚠️ No location detected. Detection not saved.");
-      return;
-    }
+    let geoData;
+    let locationNote;
   
+    // 1️⃣ נסיון ראשון: GPS
     try {
-      const geoData = await getLocation(); 
-      // המיקום בפורמט JSON
-      canvas.toBlob(async (blob) => {
-        if (!blob) return console.error("❌ Failed to get image blob");
+      geoData = await getLatestLocation();
+      locationNote = "GPS";
+    } catch (gpsErr) {
+      console.warn("GPS failed:", gpsErr);
   
-        const file = new File([blob], "detection.jpg", { type: "image/jpeg" });
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("geoData", geoData); // כאן נשמור את הכתובת
-        formData.append("hazardTypes", label);
-  
-        try {
-          const res = await fetch("/upload-detection", {
-            method: "POST",
-            body: formData,
-            credentials: "include",
-          });
-  
-          const result = await res.json();
-          console.log("✅ Detection saved to server:", result.message);
-          showSuccessToast();
-        } catch (err) {
-          console.error("❌ Failed to save detection:", err);
-        }
-      }, "image/jpeg", 0.9);
-    } catch (error) {
-      console.error("Error converting coordinates to address:", error);
+      // 2️⃣ נסיון שני: IP fallback
+      try {
+        const ipRes  = await fetch("https://ipapi.co/json/");
+        const ipJson = await ipRes.json();
+        geoData = JSON.stringify({ lat: ipJson.latitude, lng: ipJson.longitude });
+        locationNote = "Approximate (IP)";
+      } catch (ipErr) {
+        console.error("IP fallback failed:", ipErr);
+        alert("אנא אפשר גישה למיקום כדי לבצע Live Detection.");
+        return;  // בלי מיקום – לא שומרים
+      }
     }
+  
+    // 3️⃣ אם הצלחנו להשיג מיקום (GPS או IP), נשמור
+    canvas.toBlob(async blob => {
+      if (!blob) return console.error("❌ Failed to get image blob");
+  
+      const file = new File([blob], "detection.jpg", { type: "image/jpeg" });
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("geoData", geoData);
+      formData.append("hazardTypes", label);
+      formData.append("locationNote", locationNote);  // ⇐ כעת תמיד תישלח
+  
+      try {
+        const res = await fetch("/upload-detection", {
+          method: "POST",
+          body: formData,
+          credentials: "include",
+        });
+        if (!res.ok) throw new Error(await res.text());
+        console.log("✅ Detection saved:", (await res.json()).message);
+        showSuccessToast();
+      } catch (err) {
+        console.error("❌ Failed to save detection:", err);
+      }
+    }, "image/jpeg", 0.9);
   }
   
-
-  async function loadModel() {
-    const modelUrl = "/object_detecion_model/road_damage_detection_last_version.onnx";
-    
-    // ראשית — ננסה WebGL, ואם Safari יחרוג או WebGL לא נתמך — ניפול ל-WASM
-    const EPs = [];
-    if (ort.env.webgl?.isSupported) {
-      EPs.push("webgl");
-    }
-    EPs.push("wasm");               // בטוח תמיד יעבוד
-    console.log("🔄 Trying to load ONNX model with EPs:", EPs);
   
+  
+
+  
+  // במקום כל import של ort.min.js — מניחים window.ort כבר קיים
+async function loadModel() {
+  const modelUrl = "/object_detecion_model/road_damage_detection_last_version.onnx";
+
+  // 📌 מביאים את ה־ort מתוך window
+  const ort = window.ort;
+
+  // 📌 נסיון לספק WebGL ואז threaded-WASM
+  const EPs = [];
+  if (ort.env.webgl?.isSupported) {
+    EPs.push("webgl");
+  }
+  EPs.push("wasm"); // כאן #threads כבר הוגדר ב־camera.html
+
+  console.log("🔄 Trying to load ONNX model with EPs:", EPs);
+  try {
     session = await ort.InferenceSession.create(modelUrl, {
       executionProviders: EPs,
       graphOptimizationLevel: "all",
     });
-  
     console.log("✅ Model loaded using", EPs[0], "fallback:", EPs.slice(1));
+  } catch (e) {
+    console.error("❌ Model load error:", e);
+    throw e;
   }
+}
+
+  
+  
   
 
   function computeLetterboxParams() {
@@ -257,29 +370,29 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   startBtn.addEventListener("click", async () => {
+    initLocationTracking();               // ① הפעלת המעקב
     try {
-      await getLocation();
-    } catch (_) {}
-
+      await loadModel();
+      console.log("✅ מודל נטען בהצלחה");
+    } catch (err) {
+      console.error("❌ שגיאה בטעינת המודל:", err);
+      alert("⚠️ שגיאה בטעינת המודל, בדוק את הקונסול לפרטים");
+      return;  // לא ממשיכים אם המודל לא נטען
+    }
     try {
-      if (!session) await loadModel();
-
-      // אם לא הצלחנו לזהות מצלמות קודם – ננסה שוב עכשיו
-      if (videoDevices.length === 0) {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        videoDevices = devices.filter((d) => d.kind === "videoinput");
-      }
-
-      const deviceId = videoDevices[currentCamIndex]?.deviceId;
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: deviceId ? { deviceId: { exact: deviceId } } : true,
-      });
-
+         await getLatestLocation();
+         console.log("📍 Location preloaded:", _lastCoords);
+       } catch (err) {
+         console.warn("⚠️ Could not preload location:", err);
+       }
+    
+    // 2. אחר כך מבקשים הרשאה למצלמה
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: true });
       video.srcObject = stream;
       startBtn.style.display = "none";
       stopBtn.style.display = "inline-block";
       switchBtn.style.display = videoDevices.length > 1 ? "inline-block" : "none";
-
       video.addEventListener(
         "loadeddata",
         () => {
@@ -290,10 +403,12 @@ document.addEventListener("DOMContentLoaded", () => {
         { once: true }
       );
     } catch (err) {
-      alert("⚠️ Could not access camera. Please check permissions.");
-      console.error(err);
+      console.error("❌ שגיאה בגישה למצלמה:", err);
+      alert("⚠️ לא ניתן לגשת למצלמה. יש לבדוק הרשאות בדפדפן.");
+      return;
     }
   });
+  
   
   switchBtn.addEventListener("click", async () => {
     try {
@@ -324,6 +439,7 @@ document.addEventListener("DOMContentLoaded", () => {
     stopBtn.style.display = "none";
     switchBtn.style.display = "none";
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    stopLocationTracking();
     console.log("Camera stopped");
   });
 });

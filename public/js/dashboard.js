@@ -147,7 +147,9 @@ async function loadReports(filters = {}) {
                 <td>${new Date(report.time).toLocaleString()}</td>
                 <td><img src="${report.image}" alt="image" width="50" style="cursor:pointer;" loading="lazy"></td>
                 <td>${report.status}</td>
+                <td>${report.locationNote || 'Unknown'}</td>  <!-- ← new precision cell -->
                 <td>${report.reportedBy}</td>
+
             `;
 
             const img = row.querySelector('img');
@@ -285,6 +287,7 @@ function showReportDetails(report) {
     document.getElementById("sidebar-location").textContent = report.location;
     document.getElementById("sidebar-time").textContent = new Date(report.time).toLocaleString();
     document.getElementById("sidebar-status").textContent = report.status;
+    document.getElementById("sidebar-precision").textContent    = report.locationNote || 'Unknown';
     document.getElementById("sidebar-user").textContent = report.reportedBy;
     document.getElementById("sidebar-image").src = report.image;
     document.getElementById("report-sidebar").style.display = "block";

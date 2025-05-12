@@ -42,30 +42,40 @@ const port = process.env.PORT || 3000;
 
 // במקום הבלוק הקודם, תשתמש ב־middleware הבא:
 app.use((req, res, next) => {
-    // אם זה קריאה ל־upload או ל־camera.html
     if (req.path === '/upload' || req.path === '/camera.html') {
       res.set({
-        'Cross-Origin-Opener-Policy': 'same-origin',
-        'Cross-Origin-Embedder-Policy': 'require-corp'
+        'Cross-Origin-Embedder-Policy': 'require-corp',
+        'Cross-Origin-Opener-Policy':  'same-origin'
       });
     }
     next();
   });
   
   /* ───── Core middleware (סדר חשוב!) ───── */
+  app.use(
+    '/ort',
+    (req, res, next) => {
+      res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+      next();
+    },
+    express.static(path.join(__dirname, '../public/ort'))
+  );
+  
+  /* ───── Core middleware ───── */
   app.use(cors());
   app.use(express.json());
   app.use(session({
-    secret: 'your-secret-key',
+    secret: process.env.SESSION_SECRET || 'your-secret-key',
     resave: false,
     saveUninitialized: true,
     cookie: { secure: false, httpOnly: true }
-  }));
-  app.use(passport.initialize());
+  }));  app.use(passport.initialize());
   app.use(passport.session());
   
-  // רק עכשיו
+  /* ───── שאר הנתיבים ───── */
+  // static files
   app.use(express.static(path.join(__dirname, '../public')));
+  
   
 
 
@@ -236,7 +246,14 @@ app.get('/upload', async (req, res) => {
     // הצגת דף ה-upload
     res.sendFile(path.join(__dirname, '../public/upload.html'));
 });
-
+app.get('/camera.html', (req, res) => {
+    // אם לא מחובר, נחזיר אותו לדף ההתחברות
+    if (!req.session.user) {
+      return res.redirect('/login.html');
+    }
+    // אחרת נחזיר את הקובץ
+    res.sendFile(path.join(__dirname, '../public/camera.html'));
+  });
 // יציאה מהמערכת
 app.get('/logout', (req, res) => {
     req.logout(() => {
@@ -275,6 +292,8 @@ app.post('/api/reports', async (req, res) => {
         image,
         status,
         reportedBy,
+        locationNote: req.body.locationNote || 'GPS'
+
     };
     
     const reportKey = `report:${report.id}`;  // יצירת המפתח הייחודי לכל דיווח
@@ -622,6 +641,7 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
         if (!result || !result.secure_url) {
             return res.status(500).json({ error: 'Failed to upload image to Cloudinary' });
         }
+        let locationNote = req.body.locationNote || "GPS";
 
         // קבלת שם המדווח
         let reportedBy;  
@@ -645,7 +665,8 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
             location: address,
             time: req.body.time || createdAt,
             image: result.secure_url,
-            status: req.body.status || 'New',
+            status:'New',
+            locationNote,
             reportedBy,
             createdAt
         };
