@@ -129,30 +129,32 @@ saveBtn.addEventListener("click", () => {
 
   if (imageUpload) {
     imageUpload.addEventListener("change", async (event) => {
-      const file = event.target.files[0];
-      if (!file) return;
-    
-      geoData = await getGeoDataFromImage(file);
-      
-      if (geoData) {
-        // אם יש מידע גיאוגרפי, נמשיך עם שמירת הדיווח
-        const reader = new FileReader();
-        reader.onload = function (e) {
-          const img = new Image();
-          img.onload = async function () {
-            currentImage = img;
-            canvas.width = FIXED_SIZE;
-            canvas.height = FIXED_SIZE;
-            await runInferenceOnImage(img);
-          };
-          img.src = e.target.result;
-        };
-        reader.readAsDataURL(file);
-      } else {
-        // אם אין מידע גיאוגרפי, הצג הודעה למשתמש
-        alert("❌ No geolocation data found in the image MetaData. Please provide a valid location.");
-      }
-    });
+  const file = event.target.files[0];
+  if (!file) return;
+
+  // 1. נתחיל קריאת EXIF ברקע (לא חוסם את התצוגה)
+  getGeoDataFromImage(file).then(data => {
+    if (data) {
+      geoData = data;      // שומר מיקום אם קיים
+    } else {
+      console.warn("אין נתוני EXIF גיאו בתמונה הזאת");
+    }
+  });
+
+  // 2. תמיד תציג תצוגה ותריץ את המודל
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = async () => {
+      currentImage = img;
+      canvas.width  = FIXED_SIZE;
+      canvas.height = FIXED_SIZE;
+      await runInferenceOnImage(img);  // כאן מציירים את המסגרות
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+});
   }
 
   async function runInferenceOnImage(imageElement) {
