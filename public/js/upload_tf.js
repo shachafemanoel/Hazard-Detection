@@ -10,7 +10,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const canvas = document.getElementById("overlay-canvas");
   const ctx = canvas.getContext("2d");
 
-  const FIXED_SIZE = 320;
+  const FIXED_SIZE = 416;
   let stream = null;
   let detecting = false;
   let session = null;
@@ -19,7 +19,12 @@ document.addEventListener("DOMContentLoaded", () => {
   let _lastCoords = null;
   let _watchId    = null;  let videoDevices = [];
   let currentCamIndex = 0;
-
+  let prevImageData = null;
+  const DIFF_THRESHOLD = 500000;
+  let skipFrames = 4;                       // ברירת מחדל
+  const targetFps = 15;                     // יעד: 15 פריימים לשנייה
+  const frameTimes = [];                    // היסטוריית זמנים
+  const maxHistory = 10;        
   // ────────────────────────────────────────────────────────────────────────────────
   //  📸  Enumerate devices once on load
   // ────────────────────────────────────────────────────────────────────────────────
@@ -244,33 +249,17 @@ async function fallbackIpLocation() {
 
   
   // במקום כל import של ort.min.js — מניחים window.ort כבר קיים
-async function loadModel() {
-  const modelUrl = "/object_detecion_model/road_damage_detection_last_version.onnx";
-
-  // 📌 מביאים את ה־ort מתוך window
-  const ort = window.ort;
-  ort.env.wasm.wasmPaths = '/ort/';
-  ort.env.wasm.numThreads = 4;
-
-
-  // 📌 נסיון לספק WebGL ואז threaded-WASM
-  const EPs = [];
-  if (ort.env.webgl?.isSupported) EPs.push("webgl");
-  EPs.push("wasm");            // גרסת WASM רגילה
-  EPs.push("wasm-threaded");   // SIMD-threaded רק בתנאי
-
-  console.log("🔄 Trying to load ONNX model with EPs:", EPs);
-  try {
-    session = await ort.InferenceSession.create(modelUrl, {
-      executionProviders: EPs,
-      graphOptimizationLevel: "all",
-    });
-    console.log("✅ Model loaded using", EPs[0], "fallback:", EPs.slice(1));
-  } catch (e) {
-    console.error("❌ Model load error:", e);
-    throw e;
+  async function loadModel() {
+    const ort = window.ort;
+    ort.env.wasm.simd = false;              // ← הוספה כאן
+    ort.env.wasm.wasmPaths = '/ort/';
+    ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
+    const EPs = ort.env.webgl?.isSupported ? ['webgl','wasm'] : ['wasm','webgl'];
+    session = await ort.InferenceSession.create(
+      '/object_detecion_model/road_damage_detection_last_version.onnx',
+      { executionProviders: EPs, graphOptimizationLevel: 'all' }
+    );
   }
-}
 
   
   
@@ -287,88 +276,91 @@ async function loadModel() {
 
   async function detectLoop() {
     if (!detecting || !session) return;
-
+    const t0 = performance.now();
     frameCount++;
-    if (frameCount % 4 !== 0) {
-      requestAnimationFrame(() => detectLoop());
-      return;
+    if (frameCount % skipFrames !== 0) {
+      return requestAnimationFrame(detectLoop);
     }
-
+    
+    // --- draw video frame to offscreen with letterbox ---
     if (!letterboxParams) computeLetterboxParams();
-
-    offCtx.fillStyle = "black";
+    offCtx.fillStyle = 'black';
     offCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
-    offCtx.drawImage(video, letterboxParams.offsetX, letterboxParams.offsetY, letterboxParams.newW, letterboxParams.newH);
+    offCtx.drawImage(
+      video,
+      letterboxParams.offsetX, letterboxParams.offsetY,
+      letterboxParams.newW, letterboxParams.newH
+    );
 
-    const imageData = offCtx.getImageData(0, 0, FIXED_SIZE, FIXED_SIZE);
-    const { data, width, height } = imageData;
-    const tensorData = new Float32Array(width * height * 3);
-    for (let i = 0, j = 0; i < data.length; i += 4, j += 3) {
-      tensorData[j] = data[i] / 255;
-      tensorData[j + 1] = data[i + 1] / 255;
-      tensorData[j + 2] = data[i + 2] / 255;
-    }
-
-    const chwData = new Float32Array(3 * width * height);
-    for (let c = 0; c < 3; c++) {
-      for (let h = 0; h < height; h++) {
-        for (let w = 0; w < width; w++) {
-          chwData[c * width * height + h * width + w] = tensorData[h * width * 3 + w * 3 + c];
-        }
+    // --- frame differencing ---
+    const curr = offCtx.getImageData(0,0,FIXED_SIZE,FIXED_SIZE);
+    if (prevImageData) {
+      let sum=0;
+      const d1=curr.data, d2=prevImageData.data;
+      for (let i=0;i<d1.length;i+=4) {
+        sum += Math.abs(d1[i]-d2[i]) + Math.abs(d1[i+1]-d2[i+1]) + Math.abs(d1[i+2]-d2[i+2]);
+      }
+      if (sum < DIFF_THRESHOLD) {
+        prevImageData = curr;
+        return requestAnimationFrame(detectLoop);
       }
     }
+    prevImageData = curr;
 
-    const dims = [1, 3, height, width];
-    const tensor = new ort.Tensor("float32", chwData, dims);
-    const feeds = { images: tensor };
-
-    try {
-      const results = await session.run(feeds);
-      const outputKey = Object.keys(results)[0];
-      const output = results[outputKey];
-      const outputData = output.data;
-      const boxes = [];
-      for (let i = 0; i < outputData.length; i += 6) {
-        boxes.push(outputData.slice(i, i + 6));
-      }
-
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      for (const [x1, y1, x2, y2, score, classId] of boxes) {
-        if (score < 0.5) continue;
-        const scaleX = video.videoWidth / FIXED_SIZE;
-        const scaleY = video.videoHeight / FIXED_SIZE;
-        const boxW = (x2 - x1) * scaleX;
-        const boxH = (y2 - y1) * scaleY;
-        const left = x1 * scaleX;
-        const top = y1 * scaleY;
-        if (boxW < 1 || boxH < 1) continue;
-
-        ctx.strokeStyle = "red";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(left, top, boxW, boxH);
-
-        const label = classNames[Math.floor(classId)] || `Class ${classId}`;
-        const scorePerc = (score * 100).toFixed(1);
-        ctx.fillStyle = "red";
-        ctx.font = "16px Arial";
-        const textY = top > 10 ? top - 5 : 10;
-        ctx.fillText(`${label} (${scorePerc}%)`, left, textY);
-
-        const now = Date.now();
-        if (!lastSaveTime || now - lastSaveTime > 10000) {
-          lastSaveTime = now;
-          await saveDetection(canvas, label);
-        }
-      }
-    } catch (err) {
-      console.error("❌ Error running ONNX model:", err);
+    // --- prepare ONNX input tensor ---
+    const { data, width, height } = curr;
+    const floatData = new Float32Array(width*height*3);
+    for (let i=0,j=0;i<data.length;i+=4,j+=3) {
+      floatData[j]=data[i]/255;
+      floatData[j+1]=data[i+1]/255;
+      floatData[j+2]=data[i+2]/255;
     }
+    const chw = new Float32Array(3*width*height);
+    for (let c=0;c<3;c++) for (let y=0;y<height;y++) for (let x=0;x<width;x++) {
+      chw[c*width*height + y*width + x] = floatData[y*width*3 + x*3 + c];
+    }
+    const inputTensor = new ort.Tensor('float32', chw, [1,3,height,width]);
 
-    requestAnimationFrame(() => detectLoop());
+    // --- run inference ---
+    const results = await session.run({ images: inputTensor });
+    const outputData = results[Object.keys(results)[0]].data;
+
+    // --- draw detections ---
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(video,0,0,canvas.width,canvas.height);
+    for (let i=0;i<outputData.length;i+=6) {
+      const [x1,y1,x2,y2,score,cls] = outputData.slice(i,i+6);
+      if (score<0.5) continue;
+      const scaleX=video.videoWidth/FIXED_SIZE;
+      const scaleY=video.videoHeight/FIXED_SIZE;
+      const w=(x2-x1)*scaleX, h=(y2-y1)*scaleY;
+      const left=x1*scaleX, top=y1*scaleY;
+      ctx.strokeStyle='red'; ctx.lineWidth=2;
+      ctx.strokeRect(left,top,w,h);
+      const label = `${classNames[Math.floor(cls)]} (${(score*100).toFixed(1)}%)`;
+      ctx.fillStyle='red'; ctx.font='16px Arial';
+      ctx.fillText(label,left, top>10?top-5:10);
+      // save periodically
+      if (!lastSaveTime || Date.now()-lastSaveTime>10000) {
+        lastSaveTime=Date.now();
+        await saveDetection(canvas,label);
+      }
+    }
+    const t1 = performance.now();
+    const elapsed = t1 - t0;
+    
+    // שומרים במערך היסטוריה עגול
+    frameTimes.push(elapsed);
+    if (frameTimes.length > maxHistory) frameTimes.shift();
+
+    // מחשבים ממוצע זמן עיבוד
+    const avgTime = frameTimes.reduce((a,b) => a + b, 0) / frameTimes.length;
+    // חישוב כמה פריימים לדלג, כך ש־avgTime * (skipFrames+1) ≈ 1000/targetFps
+    const idealInterval = 1000 / targetFps;
+    skipFrames = Math.max(1, Math.round((avgTime) / idealInterval));
+    requestAnimationFrame(detectLoop);
   }
 
   startBtn.addEventListener("click", async () => {
@@ -376,6 +368,7 @@ async function loadModel() {
     try {
       await loadModel();
       console.log("✅ מודל נטען בהצלחה");
+      showSuccessToast("✅ מודל נטען בהצלחה");
     } catch (err) {
       console.error("❌ שגיאה בטעינת המודל:", err);
       alert("⚠️ שגיאה בטעינת המודל, בדוק את הקונסול לפרטים");

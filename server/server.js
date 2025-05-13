@@ -40,12 +40,12 @@ const upload = multer();
 const app = express();
 const port = process.env.PORT || 3000;
 
-// במקום הבלוק הקודם, תשתמש ב־middleware הבא:
 app.use((req, res, next) => {
-    if (req.path === '/upload' || req.path === '/camera.html') {
+    // כל דבר שמשרת JS/WebWorkers או שדורש גיאולוקציה
+    if (req.path.startsWith('/ort/') || req.path === '/camera.html' || req.path === '/upload') {
       res.set({
-        'Cross-Origin-Embedder-Policy': 'require-corp',
-        'Cross-Origin-Opener-Policy':  'same-origin'
+        'Cross-Origin-Embedder-Policy':  'require-corp',
+        'Cross-Origin-Opener-Policy':   'same-origin'
       });
     }
     next();
