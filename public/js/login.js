@@ -20,13 +20,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 message = 'Incorrect email or password.';
                 targetElement = document.getElementById('login-error');
                 break;
-            case 'LogoutFailed':
+            case 'LogoutFailed': {
                 message = 'Error logging out. Please refresh and try again.';
                 // הצגה כללית בראש הדף
                 const container = document.querySelector('.container');
                 const logoutMsg = document.createElement('div');
                 logoutMsg.textContent = message;
-                logoutMsg.classList.add('error-banner');
+                logoutMsg.classList.add('error-banner', 'alert', 'alert-danger'); // Added Bootstrap alert classes
                 container.insertBefore(logoutMsg, container.firstChild);
 
                 // הוספת אנימציה של fade-in לשגיאה
@@ -41,20 +41,23 @@ document.addEventListener('DOMContentLoaded', function () {
                 }, 5000); // מחיקה אחרי 5 שניות
                 
                 break;
+            }
             default:
                 message = 'An unknown error occurred.';
+                // Consider a generic error display location if no targetElement is found
         }
 
         if (targetElement) {
             targetElement.textContent = message;
-            targetElement.style.color = 'red';
+            targetElement.classList.remove('hidden'); // Make sure the element is visible
+            targetElement.classList.remove('alert-success'); // Ensure no conflicting classes
+            targetElement.classList.add('alert-danger'); // Ensure it's styled as an error
 
             // הוספת אנימציה של fade-in לשגיאות בטופס
             targetElement.classList.add('fade-in');
 
-            // מוודא שהתוכן יוצג
             if (targetElement.id === 'email-error') {
-                showSignupForm();
+                showSignupForm(); // Ensure the correct form is visible
                 toggleForm();
             } else if (targetElement.id === 'login-error') {
                 showLoginForm();
@@ -75,15 +78,21 @@ document.addEventListener('DOMContentLoaded', function () {
         const password = document.getElementById('password').value.trim();
         const errorElement = document.getElementById('email-error');
     
+        // Reset error message
         errorElement.textContent = '';
-        errorElement.style.color = 'red';
+        errorElement.classList.add('hidden');
+        errorElement.classList.remove('alert-success', 'alert-danger');
     
         if (!validateEmail(email)) {
             errorElement.textContent = 'Invalid email address.';
+            errorElement.classList.add('alert-danger');
+            errorElement.classList.remove('hidden');
             return;
         }
         if (!validatePassword(password)) {
             errorElement.textContent = 'Password must be at least 8 characters long and contain both letters and numbers.';
+            errorElement.classList.add('alert-danger');
+            errorElement.classList.remove('hidden');
             return;
         }
     
@@ -98,8 +107,10 @@ document.addEventListener('DOMContentLoaded', function () {
             const data = await res.json();
     
             if (res.ok) {
-                errorElement.style.color = 'green';
+                errorElement.classList.remove('alert-danger');
+                errorElement.classList.add('alert-success');
                 errorElement.textContent = 'Registration successful! Logging you in...';
+                errorElement.classList.remove('hidden');
     
                 // המתנה של 5 שניות ואז מעבר לדף upload
                 setTimeout(() => {
@@ -108,28 +119,39 @@ document.addEventListener('DOMContentLoaded', function () {
     
                 return;
             } else {
+                errorElement.classList.add('alert-danger');
+                errorElement.classList.remove('alert-success');
                 errorElement.textContent = data.error || 'Registration failed.';
+                errorElement.classList.remove('hidden');
             }
         } catch (err) {
             console.error('Error registering user:', err);
+            errorElement.classList.add('alert-danger');
+            errorElement.classList.remove('alert-success');
             errorElement.textContent = 'Server error. Please try again.';
+            errorElement.classList.remove('hidden');
         }
     });
     
 
     // התחברות
-    document.getElementById('login-form')?.addEventListener('submit', async function(event) {
+    // Corrected to target the actual form element 'login-form-inner' instead of the div 'login-form'
+    document.getElementById('login-form-inner')?.addEventListener('submit', async function(event) {
         event.preventDefault();
     
         const email = document.getElementById('login-email').value.trim();
         const password = document.getElementById('login-password').value.trim();
         const errorElement = document.getElementById('login-error');
     
+        // Reset error message
         errorElement.textContent = '';
-        errorElement.style.color = 'red';
+        errorElement.classList.add('hidden');
+        errorElement.classList.remove('alert-success', 'alert-danger');
     
         if (!validateEmail(email)) {
             errorElement.textContent = 'Invalid email format.';
+            errorElement.classList.add('alert-danger');
+            errorElement.classList.remove('hidden');
             return;
         }
     
@@ -144,18 +166,26 @@ document.addEventListener('DOMContentLoaded', function () {
             const data = await res.json();
     
             if (res.ok) {
-                errorElement.style.color = 'green';
+                errorElement.classList.remove('alert-danger');
+                errorElement.classList.add('alert-success');
                 errorElement.textContent = 'Login successful! Redirecting...';
+                errorElement.classList.remove('hidden');
     
                 setTimeout(() => {
                     window.location.href = '/upload.html';
                 }, 3000);
             } else {
+                errorElement.classList.add('alert-danger');
+                errorElement.classList.remove('alert-success');
                 errorElement.textContent = data.error || 'Login failed.';
+                errorElement.classList.remove('hidden');
             }
         } catch (err) {
             console.error('Login error:', err);
+            errorElement.classList.add('alert-danger');
+            errorElement.classList.remove('alert-success');
             errorElement.textContent = 'Server error. Please try again.';
+            errorElement.classList.remove('hidden');
         }
     });
 
@@ -166,12 +196,15 @@ document.addEventListener('DOMContentLoaded', function () {
         const email = document.getElementById('reset-email').value.trim();
         const errorElement = document.getElementById('reset-password-error');
 
+        // Reset error message
         errorElement.textContent = '';
-        errorElement.style.color = 'red';
+        errorElement.classList.add('hidden');
+        errorElement.classList.remove('alert-success', 'alert-danger');
 
-        // ולידציה בסיסית על האימייל
         if (!validateEmail(email)) {
             errorElement.textContent = 'Invalid email address.';
+            errorElement.classList.add('alert-danger');
+            errorElement.classList.remove('hidden');
             return;
         }
 
@@ -187,20 +220,27 @@ document.addEventListener('DOMContentLoaded', function () {
 
             if (res.ok) {
                 // הצגת הודעת הצלחה
-                errorElement.style.color = 'green';
+                errorElement.classList.remove('alert-danger');
+                errorElement.classList.add('alert-success');
                 errorElement.textContent = 'If the email is registered, you will receive a password reset link shortly.';
+                errorElement.classList.remove('hidden');
                 document.getElementById('reset-password-form').reset();
             } else {
                 // הצגת הודעת שגיאה
+                errorElement.classList.add('alert-danger');
+                errorElement.classList.remove('alert-success');
                 errorElement.textContent = data.error || 'Something went wrong. Please try again.';
+                errorElement.classList.remove('hidden');
             }
         } catch (err) {
             console.error('Error during password reset request:', err);
+            errorElement.classList.add('alert-danger');
+            errorElement.classList.remove('alert-success');
             errorElement.textContent = 'Server error. Please try again later.';
+            errorElement.classList.remove('hidden');
         }
     });
 });
-
 function toggleForm() {
     document.getElementById('buttons').style.display = 'none';
     document.getElementById('email-options').style.display = 'block';

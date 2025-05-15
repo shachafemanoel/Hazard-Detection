@@ -8,9 +8,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const switchBtn = document.getElementById("switch-camera");
   const video = document.getElementById("camera-stream");
   const canvas = document.getElementById("overlay-canvas");
-  const ctx = canvas.getContext("2d");
+  const roiCanvas = document.getElementById('roi-canvas');
+  const fpsEl = document.getElementById('fps');
+  const ctx    = canvas.getContext("2d");
+  const roiCtx    = roiCanvas.getContext('2d');
 
-  const FIXED_SIZE = 416;
+  let FIXED_SIZE = 416;
+  const screenW = window.innerWidth;
+  if (screenW < 600)       FIXED_SIZE = 320;  // מובייל קטן
+  else if (screenW > 1300) FIXED_SIZE = 512;  // דסקטופ רחב
   let stream = null;
   let detecting = false;
   let session = null;
@@ -24,7 +30,66 @@ document.addEventListener("DOMContentLoaded", () => {
   let skipFrames = 4;                       // ברירת מחדל
   const targetFps = 15;                     // יעד: 15 פריימים לשנייה
   const frameTimes = [];                    // היסטוריית זמנים
-  const maxHistory = 10;        
+  const maxHistory = 10;      
+  let dynamicFilter = 'none';
+  let roiRect = null;          // {x,y,w,h}  או null (כל הפריים)
+  let isDrawing = false, startX=0, startY=0;
+  let lastT = performance.now(), frames=0;
+ 
+  function updateFps(){
+  const now = performance.now();
+  frames++;
+  if (now - lastT >= 1000){
+    fpsEl.textContent = frames + ' fps';
+    frames = 0; lastT = now;
+  }
+}
+  roiCanvas.addEventListener('pointerdown', e=>{
+  isDrawing = true;
+  const r = roiCanvas.getBoundingClientRect();
+  startX = e.clientX - r.left;
+  startY = e.clientY - r.top;
+});
+roiCanvas.addEventListener('pointermove', e=>{
+  if (!isDrawing) return;
+  const r = roiCanvas.getBoundingClientRect();
+  const x = e.clientX - r.left, y = e.clientY - r.top;
+  const w = x - startX, h = y - startY;
+  roiCtx.clearRect(0,0,roiCanvas.width,roiCanvas.height);
+  roiCtx.strokeStyle = 'lime'; roiCtx.lineWidth = 2;
+  roiCtx.strokeRect(startX,startY,w,h);
+});
+roiCanvas.addEventListener('pointerup', e=>{
+  isDrawing = false;
+  const r = roiCanvas.getBoundingClientRect();
+  const endX = e.clientX - r.left, endY = e.clientY - r.top;
+  roiRect = {
+    x: Math.min(startX,endX),
+    y: Math.min(startY,endY),
+    w: Math.abs(endX-startX),
+    h: Math.abs(endY-startY)
+  };
+  // אם הגולש לחץ “באפס” -> נבטל ROI
+  if (roiRect.w < 20 || roiRect.h < 20) {
+    roiRect = null; roiCtx.clearRect(0,0,roiCanvas.width,roiCanvas.height);
+  }
+});
+ 
+  function setBrightnessFilterOnce() {
+    const hour = new Date().getHours();
+    if (hour >= 7 && hour <= 17) {          // יום
+      dynamicFilter = 'contrast(1.1) brightness(1.05)';
+    } else if (hour <= 6 || hour >= 19) {   // לילה
+      dynamicFilter = 'brightness(1.3) contrast(1.2)';
+    } else {                                // שקיעה/זריחה
+      dynamicFilter = 'brightness(1.15) contrast(1.1)';
+    }
+  }
+  setBrightnessFilterOnce();   // קריאה יחידה
+
+// …
+
+  
   // ────────────────────────────────────────────────────────────────────────────────
   //  📸  Enumerate devices once on load
   // ────────────────────────────────────────────────────────────────────────────────
@@ -39,10 +104,12 @@ document.addEventListener("DOMContentLoaded", () => {
       console.warn("⚠️ Could not enumerate video devices:", err);
     }
   })();
+  
 
   const offscreen = document.createElement("canvas");
   offscreen.width = FIXED_SIZE;
   offscreen.height = FIXED_SIZE;
+
   const offCtx = offscreen.getContext("2d", { willReadFrequently: true });
 
   let letterboxParams = null;
@@ -286,12 +353,17 @@ async function fallbackIpLocation() {
     if (!letterboxParams) computeLetterboxParams();
     offCtx.fillStyle = 'black';
     offCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
-    offCtx.drawImage(
-      video,
-      letterboxParams.offsetX, letterboxParams.offsetY,
-      letterboxParams.newW, letterboxParams.newH
-    );
-
+    offCtx.filter = dynamicFilter;
+     if (roiRect) {
+         // גוזרים את ROI מה-video ושמים במרכז ה-offscreen
+         const sx = roiRect.x, sy = roiRect.y, sw = roiRect.w, sh = roiRect.h;
+         offCtx.drawImage(video, sx, sy, sw, sh, 0, 0, FIXED_SIZE, FIXED_SIZE);
+       } else {
+         offCtx.drawImage(video,
+           letterboxParams.offsetX, letterboxParams.offsetY,
+           letterboxParams.newW,      letterboxParams.newH);
+       }
+    offCtx.filter = 'none';
     // --- frame differencing ---
     const curr = offCtx.getImageData(0,0,FIXED_SIZE,FIXED_SIZE);
     if (prevImageData) {
@@ -329,6 +401,8 @@ async function fallbackIpLocation() {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     ctx.clearRect(0,0,canvas.width,canvas.height);
+  
+
     ctx.drawImage(video,0,0,canvas.width,canvas.height);
     for (let i=0;i<outputData.length;i+=6) {
       const [x1,y1,x2,y2,score,cls] = outputData.slice(i,i+6);
@@ -360,6 +434,7 @@ async function fallbackIpLocation() {
     // חישוב כמה פריימים לדלג, כך ש־avgTime * (skipFrames+1) ≈ 1000/targetFps
     const idealInterval = 1000 / targetFps;
     skipFrames = Math.max(1, Math.round((avgTime) / idealInterval));
+    updateFps();
     requestAnimationFrame(detectLoop);
   }
 
@@ -388,15 +463,16 @@ async function fallbackIpLocation() {
       startBtn.style.display = "none";
       stopBtn.style.display = "inline-block";
       switchBtn.style.display = videoDevices.length > 1 ? "inline-block" : "none";
-      video.addEventListener(
-        "loadeddata",
-        () => {
-          computeLetterboxParams();
-          detecting = true;
-          detectLoop();
-        },
-        { once: true }
-      );
+      video.addEventListener("loadeddata", () => {
+        canvas.width    = video.videoWidth;
+        canvas.height   = video.videoHeight;
+        roiCanvas.width = video.videoWidth;
+        roiCanvas.height= video.videoHeight;
+        computeLetterboxParams();
+        detecting = true;
+        detectLoop();
+      }, { once: true });
+      
     } catch (err) {
       console.error("❌ שגיאה בגישה למצלמה:", err);
       alert("⚠️ לא ניתן לגשת למצלמה. יש לבדוק הרשאות בדפדפן.");
