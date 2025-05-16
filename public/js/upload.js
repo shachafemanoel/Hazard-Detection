@@ -265,13 +265,24 @@ saveBtn.addEventListener("click", () => {
       }
       console.log("Hazard types:", hazardTypes);
 
-      ctx.strokeStyle = "red";
-      ctx.lineWidth = 2;
+      // --- שינוי סגנון התיבות ---
+      const color = '#00FF00'; // ירוק בהיר
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3; // קו עבה יותר
       ctx.strokeRect(x1, y1, boxW, boxH);
 
-      ctx.fillStyle = "red";
-      ctx.font = "16px Arial";
-      ctx.fillText(`${labelName} (${scorePerc}%)`, x1, y1 > 10 ? y1 - 5 : 10);
+      // --- שינוי סגנון הטקסט והוספת רקע ---
+      ctx.fillStyle = color;
+      ctx.font='bold 16px Arial'; // פונט מודגש
+      const textWidth = ctx.measureText(`${labelName} (${scorePerc}%)`).width;
+      // מיקום הרקע מעל התיבה, עם התאמה אם התיבה קרובה לקצה העליון
+      const textBgX = x1;
+      const textBgY = y1 > 20 ? y1 - 20 : y1;
+      const textBgWidth = textWidth + 8; // רוחב הטקסט + ריווח קטן
+      const textBgHeight = 20; // גובה קבוע לרקע הטקסט
+      ctx.fillRect(textBgX, textBgY, textBgWidth, textBgHeight); // רקע לטקסט
+      ctx.fillStyle = 'black'; // צבע טקסט שחור על הרקע הבהיר
+      ctx.fillText(`${labelName} (${scorePerc}%)`, textBgX + 4, textBgY + 15); // מיקום הטקסט בתוך הרקע
     });
 
   // שליטה בכפתור השמירה לפי האם יש מפגעים

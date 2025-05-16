@@ -29,16 +29,15 @@
   <style>
     /* סגנונות ספציפיים שעדיין נדרשים או שנוח להשאיר כאן */
     #preview-canvas {
-      border: 1px solid #dee2e6; /* שימוש בצבע גבול של Bootstrap */
-      display: block; /* למנוע רווחים מיותרים */
-      margin: 1rem auto; /* מרווח מעל/מתחת ומרכוז */
+      border: 1px solid #dee2e6; /* Bootstrap border color */
+      display: block; /* Remove extra space below */
+      margin-top: 1rem; /* Add some space above the canvas */
       max-width: 100%; /* להבטחת רספונסיביות */
-      height: auto;
-      background-color: #fff; /* רקע לבן */
+      background-color: #fff; /* White background */
+      /* height: auto; is default for canvas if not set otherwise */
     }
     .canvas-container {
-      max-width: 800px; /* דוגמה - להתאים לפי הצורך */
-      margin: 0 auto; /* מרכוז הקונטיינר */
+      width: 100%; /* Let the Bootstrap column control the width */
     }
     #tooltip {
       /* סגנונות ה-tooltip הקיימים - אפשר לשקול להחליף ברכיב tooltip של Bootstrap בהמשך */
@@ -63,49 +62,60 @@
   <!-- טעינת הספרייה של ONNX Runtime Web -->
   <script src="/ort/ort.min.js"></script>
 
-  <div class="container mt-4"> <!-- קונטיינר ראשי של Bootstrap עם מרווח עליון -->
+  <div class="container mt-4 mb-5"> <!-- קונטיינר ראשי של Bootstrap עם מרווח עליון ותחתון -->
 
     <header class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
         <h1 class="mb-0">Report a Hazard</h1>
         <div>
-            <button type="button" class="btn btn-secondary me-2" onclick="location.href='/dashboard'">Dashboard</button>
+            <a href="/dashboard" class="btn btn-outline-secondary me-2">Dashboard</a> <!-- שימוש ב-a ו-outline -->
             <button type="button" id="logout-btn" class="btn btn-outline-danger">Logout</button>
         </div>
     </header>
 
-    <div class="row justify-content-center"> <!-- שימוש במערכת ה-Grid של Bootstrap למרכוז -->
-        <div class="col-md-8 col-lg-6"> <!-- הגדרת רוחב התוכן המרכזי -->
+    <div class="row">
+        <div class="col-lg-8 mx-auto"> <!-- מרכוז התוכן וקביעת רוחב מקסימלי למסכים גדולים -->
 
-            <div class="text-center mb-4"> <!-- כותרת וקישור לזיהוי חי -->
-                <h2>Detection</h2>
-                <a href="camera.html" class="btn btn-success">Start Live Detection</a> <!-- שימוש ב-a במקום button -->
+            <div class="text-center mb-4">
+                <h2 class="h4">Detection Options</h2> <!-- הקטנת כותרת המשנה -->
+                <a href="camera.html" class="btn btn-success btn-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-camera-video-fill me-2" viewBox="0 0 16 16">
+                        <path fill-rule="evenodd" d="M0 5a2 2 0 0 1 2-2h7.5a2 2 0 0 1 1.983 1.738l3.11-1.382A1 1 0 0 1 16 4.269v7.462a1 1 0 0 1-1.406.913l-3.11-1.382A2 2 0 0 1 9.5 13H2a2 2 0 0 1-2-2z"/>
+                    </svg>
+                    Start Live Detection
+                </a>
             </div>
 
             <div class="card p-4 shadow-sm"> <!-- שימוש ב-Card של Bootstrap לעיטוף התוכן -->
-                <h3 class="mb-3 text-center">Upload Image for Preview</h3>
+                <h3 class="mb-3 text-center h5">Upload Image for Detection</h3> <!-- הקטנת כותרת הקארד -->
 
                 <!-- קלט להעלאת תמונה -->
                 <div class="mb-3">
                     <label for="image-upload" class="form-label">Select Image:</label>
-                    <input type="file" class="form-control" id="image-upload" accept="image/*">
+                    <input type="file" class="form-control form-control-lg" id="image-upload" accept="image/*"> <!-- הגדלת שדה הקלט -->
                 </div>
 
                 <!-- Slider לבחירת סף האמון -->
                 <div class="mb-3">
                     <label for="confidence-slider" class="form-label">
-                        Confidence Threshold: <span id="conf-value" class="badge bg-primary">0.5</span> <!-- שימוש ב-Badge להצגת הערך -->
+                        Confidence Threshold: <span id="conf-value" class="badge bg-secondary">0.5</span> <!-- שינוי צבע ה-Badge -->
                     </label>
                     <input type="range" class="form-range" id="confidence-slider" min="0" max="1" step="0.05" value="0.5">
                 </div>
 
                 <!-- Canvas להצגת תצוגת המקדימה -->
-                <div class="canvas-container mb-3"> <!-- קונטיינר לקנבס -->
+                <div class="canvas-container mb-3 text-center"> <!-- קונטיינר לקנבס ומירכוז -->
                     <canvas id="preview-canvas"></canvas>
                 </div>
 
                 <!-- כפתור שמירה ו-Tooltip -->
-                <div class="text-center">
-                    <button id="save-detection" class="btn btn-primary">💾 Save Detection</button>
+                <div class="d-grid"> <!-- שימוש ב-d-grid כדי שהכפתור יתפוס רוחב מלא -->
+                    <button id="save-detection" class="btn btn-primary btn-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-save-fill me-2" viewBox="0 0 16 16">
+                            <path d="M8.5 1.5A1.5 1.5 0 0 1 10 0h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h6c-.314.418-.5.937-.5 1.5v7.793L6.354 6.646a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 9.293z"/>
+                            <path d="M-1 2.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5m0 2a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5m0 2a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5m0 2a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5m0 2a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5"/>
+                        </svg>
+                        Save Detection
+                    </button>
                     <div id="tooltip">
                         ⚠️ No Hazard Detected. Cannot save detection
                     </div>
@@ -114,8 +124,8 @@
         </div> <!-- סוף ה-col -->
     </div> <!-- סוף ה-row -->
 
-    <!-- אלמנטים מוסתרים (נראה שלא רלוונטיים לדף זה) -->
-    <canvas id="overlay-canvas"></canvas>
+    <!-- אלמנטים מוסתרים (נראה שלא רלוונטיים לדף זה, אך נשמרים למקרה הצורך) -->
+    <canvas id="overlay-canvas" class="d-none"></canvas>
     <video id="camera-stream" autoplay playsinline></video>
 
   </div> <!-- סוף הקונטיינר -->
