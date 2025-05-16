@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Get reference to the hazard types overlay element
   const hazardTypesOverlay = document.getElementById('hazard-types-overlay');
   
-  const FIXED_SIZE = 520;
+  const FIXED_SIZE = 416;
   let stream = null;
   let detecting = false;
   let session = null;
