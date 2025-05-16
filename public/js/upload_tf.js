@@ -11,6 +11,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const ctx = canvas.getContext("2d");
   const objectCountOverlay = document.getElementById('object-count-overlay');
   // Get reference to the hazard types overlay element
+  const loadingOverlay = document.getElementById('loading-overlay'); // הפניה לאלמנט הטעינה
   const hazardTypesOverlay = document.getElementById('hazard-types-overlay');
   
   const FIXED_SIZE = 416;
@@ -24,7 +25,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentCamIndex = 0;
   let prevImageData = null;
   const DIFF_THRESHOLD = 200000; // הורדת הערך כדי להגביר רגישות לשינויים
-  let skipFrames = 4;                       // ברירת מחדל
+  let skipFrames = 3;                       // ברירת מחדל
   const targetFps = 10;                     // יעד: 15 פריימים לשנייה
   const frameTimes = [];                    // היסטוריית זמנים
   const maxHistory = 10;    
@@ -43,6 +44,26 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (err) {
       console.warn("⚠️ Could not enumerate video devices:", err);
     }
+
+    // --- טעינת המודל מיד עם טעינת הדף ---
+    (async () => {
+      if (loadingOverlay) loadingOverlay.style.display = 'flex'; // הצג את ה-overlay
+      try {
+        await loadModel();
+        console.log("✅ מודל נטען בהצלחה (בטעינת הדף)");
+        // אין צורך ב-toast כאן, המשתמש עוד לא התחיל אינטראקציה
+      } catch (err) {
+        console.error("❌ שגיאה בטעינת המודל (בטעינת הדף):", err);
+        if (loadingOverlay) loadingOverlay.innerHTML = `<p class="text-danger">Error loading model. Please check console.</p>`; // הצג הודעת שגיאה ב-overlay
+        // alert("⚠️ שגיאה קריטית בטעינת מודל הזיהוי. ייתכן שהאפליקציה לא תעבוד כראוי. בדוק את הקונסול לפרטים.");
+        // אפשר לשקול להשבית את כפתור ה-start אם המודל לא נטען
+        if (startBtn) startBtn.disabled = true;
+        return; // עצור כאן אם הטעינה נכשלה
+      } finally {
+        // הסתר את ה-overlay רק אם לא הייתה שגיאה קריטית שהשאירה הודעה
+        if (loadingOverlay && !startBtn.disabled) loadingOverlay.style.display = 'none';
+      }
+    })();
   })();
 
   const offscreen = document.createElement("canvas");
@@ -312,8 +333,14 @@ async function fallbackIpLocation() {
     }
     prevImageData = curr;
 
+    // --- Pre-processing Stage ---
+    let processedImageData = curr; 
+    // const currentHour = new Date().getHours();
+    // if (currentHour >= 19 || currentHour < 6) { 
+    //     adjustBrightness(processedImageData, 30); 
+    // }
     // --- prepare ONNX input tensor ---
-    const { data, width, height } = curr;
+    const { data, width, height } = processedImageData; // שימוש ב-processedImageData
     const floatData = new Float32Array(width*height*3);
     for (let i=0,j=0;i<data.length;i+=4,j+=3) {
       floatData[j]=data[i]/255;
@@ -346,18 +373,28 @@ async function fallbackIpLocation() {
       const w=(x2-x1)*scaleX, h=(y2-y1)*scaleY;
 
       detectedObjectCount++; // Increment count for each detected object above threshold
-
       const left=x1*scaleX, top=y1*scaleY;
-      ctx.strokeStyle='red'; ctx.lineWidth=2;
+
+      // --- שינוי סגנון התיבות ---
+      const color = '#00FF00'; // ירוק בהיר
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3; // קו עבה יותר
       ctx.strokeRect(left,top,w,h);
+
       const label = `${classNames[Math.floor(cls)]} (${(score*100).toFixed(1)}%)`;
       // Add hazard type to the unique list if not already present
       const hazardName = classNames[Math.floor(cls)];
       if (hazardName && !uniqueHazardTypes.includes(hazardName)) {
           uniqueHazardTypes.push(hazardName);
       }
-      ctx.fillStyle='red'; ctx.font='16px Arial';
-      ctx.fillText(label,left, top>10?top-5:10);
+
+      // --- שינוי סגנון הטקסט והוספת רקע ---
+      ctx.fillStyle = color;
+      ctx.font='bold 16px Arial'; // פונט מודגש
+      const textWidth = ctx.measureText(label).width;
+      ctx.fillRect(left, top > 20 ? top - 20 : top, textWidth + 8, 20); // רקע לטקסט
+      ctx.fillStyle = 'black'; // צבע טקסט שחור על הרקע הבהיר
+      ctx.fillText(label, left + 4, top > 20 ? top - 5 : top + 15);
       // save periodically
       if (!lastSaveTime || Date.now()-lastSaveTime>10000) {
         lastSaveTime=Date.now();
@@ -393,15 +430,7 @@ async function fallbackIpLocation() {
 
   startBtn.addEventListener("click", async () => {
     initLocationTracking();               // ① הפעלת המעקב
-    try {
-      await loadModel();
-      console.log("✅ מודל נטען בהצלחה");
-      showSuccessToast("✅ מודל נטען בהצלחה");
-    } catch (err) {
-      console.error("❌ שגיאה בטעינת המודל:", err);
-      alert("⚠️ שגיאה בטעינת המודל, בדוק את הקונסול לפרטים");
-      return;  // לא ממשיכים אם המודל לא נטען
-    }
+    // המודל כבר אמור להיות טעון או בתהליך טעינה
     try {
          await getLatestLocation();
          console.log("📍 Location preloaded:", _lastCoords);

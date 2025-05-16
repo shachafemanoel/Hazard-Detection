@@ -123,6 +123,21 @@
       font-size: 1.25rem; /* Equivalent to Bootstrap's h4 */
       z-index: 10; /* Ensure it's above the video/canvas */
     }
+    /* Style for the loading overlay */
+    #loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.75); /* Darker semi-transparent background */
+      color: white;
+      display: flex; /* For centering content */
+      flex-direction: column; /* Stack spinner and text */
+      align-items: center;
+      justify-content: center;
+      z-index: 20; /* Ensure it's above everything else */
+    }
   </style>
 </head>
 <body style="background-color: #f8f9fa;"> <!-- Original background can be kept or managed by CSS -->
@@ -133,6 +148,12 @@
       </div>
       <div id="object-count-overlay">Objects: 0</div> <!-- Element for object count -->
       <div id="hazard-types-overlay">Hazards: None</div> <!-- Element for hazard types -->
+      <div id="loading-overlay" style="display: none;"> <!-- Initially hidden -->
+        <div class="spinner-border text-light" role="status"> <!-- Bootstrap spinner -->
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-2">Loading Model...</p>
+      </div>
       <video id="camera-stream" autoplay playsinline muted></video>
       <canvas id="overlay-canvas"></canvas>
       <div class="controls-wrapper py-3 text-center"> <!-- Controls panel, py-3 for padding -->
