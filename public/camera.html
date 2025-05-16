@@ -25,21 +25,38 @@
   </script>
 
   <style>
-    body {
-      background: #f8f9fa;
+    html, body {
+      height: 100vh; /* Full viewport height */
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      background-color: #f8f9fa; /* Default body background */
     }
-    /* … (מה שקיים) … */
-  .canvas-container {      /* ה-וידאו + קנבס ״דבוקים״ תמיד לרוחב */
-    position: relative;
-    width: 100%;
-    aspect-ratio: 16/9;    /* או 4/3 – מה שמתאים לך */
-    max-height: 80vh;      /* שלא יגלוש מחוץ למסך */
-  }
-  #camera-stream,
-  #overlay-canvas {
-    width: 100%;
-    height: 100%;
-  }
+    /* .header-wrapper was removed in previous steps, keeping this note for context if it's re-added elsewhere */
+    /* .header-wrapper {
+         flex-shrink: 0;
+       } */
+    .canvas-container {
+      flex-grow: 1; /* Allow this container to take up available vertical space */
+      position: relative;
+      margin: 0; /* Remove previous margin */
+      display: flex; /* For centering content (video) */
+      align-items: center;
+      justify-content: center;
+      overflow: hidden; /* Hide anything that might overflow */
+      background-color: #000; /* Black background for the video area */
+      width: 100%; /* Take full width in the flex column */
+    }
+    /* ensure video shows (no black box) */
+    #camera-stream {
+      display: block;
+      /* width: 100%; */ /* Replaced by max-width/max-height for object-fit */
+      /* height: auto; */ /* Replaced by max-width/max-height for object-fit */
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain; /* Maintain aspect ratio, letterbox/pillarbox as needed */
+      /* background: #000; */ /* Moved to .canvas-container */
+    }
     /* overlay canvas sits on top of video */
     #overlay-canvas {
       position: absolute;
@@ -49,31 +66,83 @@
       height: 100%;
       pointer-events: none;
     }
+    .controls-wrapper {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%; /* Ensure it takes full width of its parent (.canvas-container) */
+      background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent black background */
+      /* py-3 class from Bootstrap already provides vertical padding */
+      display: flex; /* Use Flexbox */
+      align-items: center; /* Vertically center items */
+      justify-content: center; /* Horizontally center items */
+      z-index: 10; /* Ensure it's above the video/canvas */
+      /* border-top: 1px solid #ced4da; */ /* Removed border for floating style */
+      /* box-shadow: 0 -5px 10px rgba(0, 0, 0, 0.1); */ /* Removed shadow for floating style */
+      padding: 10px; /* Add some padding inside the panel */
+      box-sizing: border-box; /* Include padding in the element's total width */
+      /* Adjust justify-content if you want items spread out */
+      /* justify-content: space-around; */
+      /* justify-content: space-between; */
+    }
+    /* Style for the object count overlay */
+    #object-count-overlay {
+      position: absolute;
+      top: 10px; /* Position below the title */
+      right: 10px;
+      background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent black */
+      color: white;
+      padding: 5px 10px;
+      border-radius: 5px;
+      z-index: 10;
+      font-size: 1rem;
+    }
+    /* Style for the hazard types overlay */
+    #hazard-types-overlay {
+      /* This will be positioned and styled in JS or added here if needed */
+      /* For now, let's add a basic style */
+      position: absolute;
+      bottom: 80px; /* Position above the controls panel */
+      left: 10px;
+      background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent black */
+      color: white;
+      padding: 5px 10px;
+      border-radius: 5px;
+      z-index: 10;
+      font-size: 1rem;
+    }
+    .live-title-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent black background */
+      color: white;
+      text-align: center;
+      padding: 10px 0;
+      font-size: 1.25rem; /* Equivalent to Bootstrap's h4 */
+      z-index: 10; /* Ensure it's above the video/canvas */
+    }
   </style>
 </head>
-<body>
-  <div class="container mt-4 text-center">
-    <h1>Live Hazard Detection</h1>
-    <div class="mb-3">
-      <button type="button" class="btn btn-secondary" onclick="history.back()">
-        ← חזור
-      </button>
-    </div>
-    
-    <div class="canvas-container mb-3">
-      <video id="camera-stream" autoplay playsinline></video>
-      <canvas id="overlay-canvas" style="position:absolute;top:0;left:0;z-index:10;"></canvas>
-      <canvas id="roi-canvas"     style="position:absolute;top:0;left:0;z-index:11;"></canvas>
-      <div id="fps" style="position:absolute;top:10px;left:10px;right:10px;color:white;z-index:12;"></div>
+<body style="background-color: #f8f9fa;"> <!-- Original background can be kept or managed by CSS -->
 
-        </div>
-
-    </div>
-    <div class="mb-4">
-      <button id="start-camera" class="btn btn-primary">Start Camera</button>
-      <button id="stop-camera" class="btn btn-secondary" style="display:none;">Stop Camera</button>
-      <button id="switch-camera" class="btn btn-info" style="display:none;">Switch Camera</button>
-    </div>
+  <div class="canvas-container"> <!-- This div will grow -->
+      <div class="live-title-overlay">
+        Live Detection
+      </div>
+      <div id="object-count-overlay">Objects: 0</div> <!-- Element for object count -->
+      <div id="hazard-types-overlay">Hazards: None</div> <!-- Element for hazard types -->
+      <video id="camera-stream" autoplay playsinline muted></video>
+      <canvas id="overlay-canvas"></canvas>
+      <div class="controls-wrapper py-3 text-center"> <!-- Controls panel, py-3 for padding -->
+          <button id="start-camera" class="btn btn-primary mx-1">Start Camera</button>
+          <button id="stop-camera" class="btn btn-secondary mx-1" style="display:none;">Stop Camera</button>
+          <button id="switch-camera" class="btn btn-info mx-1" style="display:none;">Switch Camera</button>
+          <button type="button" class="btn btn-light mx-1" onclick="history.back()"> <!-- Changed to btn-light for better contrast -->
+            ← חזור
+        </button>
+      </div>
   </div>
 
   <!-- Bootstrap JS Bundle (optional) -->
