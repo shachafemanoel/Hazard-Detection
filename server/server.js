@@ -248,10 +248,11 @@ app.get('/auth/google/callback', (req, res, next) => {
         // התחברות או רישום מוצלחים
         req.login(user, async (err) => {
             if (err) {
-                console.error('Login Error:', err);
+                    console.error('Login Error after Google Auth:', err);
                 return res.redirect('/login.html?error=LoginFailed');
             }
-            
+                console.log('User logged in successfully via Google. Session:', JSON.stringify(req.session, null, 2));
+                console.log('req.user after login:', JSON.stringify(req.user, null, 2));
             // req.session.user נשמר אוטומטית על ידי passport.serializeUser ו-deserializeUser
             
             return res.redirect('/upload.html');
@@ -334,7 +335,13 @@ app.post('/api/reports', async (req, res) => {
 
 // שליפת כל הדיווחים
 app.get('/api/reports', async (req, res) => {
-    if (!req.session.user && !req.isAuthenticated()) {
+        console.log('--- Request to /api/reports ---');
+        console.log('Session object:', JSON.stringify(req.session, null, 2));
+        console.log('req.user (from Passport):', JSON.stringify(req.user, null, 2));
+        console.log('req.isAuthenticated():', req.isAuthenticated ? req.isAuthenticated() : 'N/A');
+
+       if (!req.session.user && !(req.isAuthenticated && req.isAuthenticated())) {
+            console.log('Unauthorized access to /api/reports. Redirecting or sending 401.');
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
