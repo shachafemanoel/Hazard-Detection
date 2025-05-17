@@ -14,8 +14,9 @@ import cors from 'cors';
 import os from 'os'; // מייבאים את המודול os
 
 // 📦 Firebase & Cloudinary
-import { v2 as cloudinary } from 'cloudinary';
-import multer from 'multer';
+// import { initializeApp, cert } from 'firebase-admin/app'; //  הסרת ייבוא Firebase Admin
+// import { getFirestore } from 'firebase-admin/firestore'; //  הסרת ייבוא Firestore
+import { v2 as cloudinary } from 'cloudinary';import multer from 'multer';
 import streamifier from 'streamifier';
 
 // 🌍 ES Modules __dirname polyfill
@@ -23,7 +24,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // 📁 Load environment variables
-dotenv.config();
+// ודא שאתה טוען את משתני הסביבה לפני כל שימוש בהם
+// טעינת קובץ .env מהתיקייה הנוכחית של server.js
+dotenv.config({ path: path.join(__dirname, '.env') });
+
+// הדפסה לבדיקת טעינת משתני סביבה
+console.log("Attempting to load environment variables...");
+console.log("CLOUDINARY_CLOUD_NAME from env:", process.env.CLOUDINARY_CLOUD_NAME);
+console.log("GOOGLE_CALLBACK_URL from env:", process.env.GOOGLE_CALLBACK_URL);
+console.log("SESSION_SECRET from env:", process.env.SESSION_SECRET ? "Loaded" : "NOT LOADED");
 
 // ☁️ Cloudinary config
 cloudinary.config({
@@ -31,6 +40,17 @@ cloudinary.config({
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
+
+// // 🌲 Firebase Admin SDK Initialization -  הסרת כל הבלוק הזה
+// try {
+//   const serviceAccount = JSON.parse(fs.readFileSync(path.join(__dirname, './serviceAccountKey.json'), 'utf8'));
+//   initializeApp({
+//     credential: cert(serviceAccount)
+//   });
+//   console.log('✅ Firebase Admin initialized');
+// } catch (error) {
+//   console.error('🔥 Firebase Admin initialization error:', error);
+// }
 
 // 🎛️ Setup multer (in-memory uploads)
 const upload = multer();
@@ -68,7 +88,11 @@ app.use((req, res, next) => {
     secret: process.env.SESSION_SECRET || 'your-secret-key',
     resave: false,
     saveUninitialized: true,
-    cookie: { secure: false, httpOnly: true }
+    cookie: { 
+      secure: process.env.NODE_ENV === 'production', // true ב-production (HTTPS), false בפיתוח (HTTP)
+      httpOnly: true,
+      sameSite: process.env.NODE_ENV === 'production' ? 'lax' : undefined // 'lax' מומלץ ל-production
+    }
   }));  app.use(passport.initialize());
   app.use(passport.session());
   
@@ -132,7 +156,7 @@ passport.serializeUser((user, done) => {
 passport.use(new GoogleStrategy({
     clientID: "46375555882-rmivba20noas9slfskb3cfvugssladrr.apps.googleusercontent.com",
     clientSecret: "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",
-    callbackURL:  "http://localhost:3000/auth/google/callback"
+    callbackURL: process.env.GOOGLE_CALLBACK_URL || "http://localhost:3000/auth/google/callback"
 
     },
     async (accessToken, refreshToken, profile, done) => {
@@ -206,7 +230,7 @@ app.get('/auth/google', async (req, res, next) => {
 // נקודת חזרה לאחר ההתחברות  
 app.get('/auth/google/callback', (req, res, next) => {
     passport.authenticate('google', async (err, user, info) => {
-        const mode = req.session.authMode || 'login';
+        // const mode = req.session.authMode || 'login'; // נראה שלא משתמשים ב-mode כאן
         
         if (err) {
             console.error('Google Auth Error:', err);
@@ -228,7 +252,7 @@ app.get('/auth/google/callback', (req, res, next) => {
                 return res.redirect('/login.html?error=LoginFailed');
             }
             
-            req.session.user = { email: user.email, username: user.username };
+            // req.session.user נשמר אוטומטית על ידי passport.serializeUser ו-deserializeUser
             
             return res.redirect('/upload.html');
         });
@@ -683,4 +707,3 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
         res.status(500).json({ error: 'Failed to upload report' });
     }
 });
-
