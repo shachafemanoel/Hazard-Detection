@@ -444,6 +444,8 @@ async function fallbackIpLocation() {
       video.srcObject = stream;
       startBtn.style.display = "none";
       stopBtn.style.display = "inline-block";
+      detectedObjectCount = 0; // Initialize object count
+      uniqueHazardTypes = []; // Initialize array for unique hazard types 
       switchBtn.style.display = videoDevices.length > 1 ? "inline-block" : "none";
       video.addEventListener(
         "loadeddata",
