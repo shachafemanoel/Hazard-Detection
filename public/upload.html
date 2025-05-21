@@ -1,143 +1,115 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- חשוב לרספונסיביות -->
-  <title>Report a Hazard (Bootstrap)</title>
-  <!-- טעינת ONNX Runtime Web כמודול -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="icon.png" type="image/png">
+  <title>Hazard Detection - Modern UI</title>
+
+  <!-- TailwindCSS CDN with dark mode -->
+  <script>
+    tailwind.config = { darkMode: 'class' };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Modern UI Theme CSS -->
+  <link rel="stylesheet" href="css/modern-ui-theme.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
   <script type="module">
     import * as ort from '/ort/ort.min.mjs';
-
-    // 📌 מצביע לתיקיית /ort כדי למצוא את ה־.wasm וה־.jsep.mjs
     ort.env.wasm.wasmPaths = '/ort/';
-
-    // 📌 מספר התהליכים לשיטת threaded
     ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
-
-    // 📌 נחשוף גלובלית
     window.ort = ort;
   </script>
-  <!-- Bootstrap CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-
-  <!-- Custom CSS (אופציונלי - אם יש צורך בסגנונות נוספים מעבר ל-Bootstrap) -->
-  <link rel="stylesheet" href="../css/upload.css">
-
-  <!-- EXIF.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
 
   <style>
-    /* סגנונות ספציפיים שעדיין נדרשים או שנוח להשאיר כאן */
-    #preview-canvas {
-      border: 1px solid #dee2e6; /* Bootstrap border color */
-      display: block; /* Remove extra space below */
-      margin-top: 1rem; /* Add some space above the canvas */
-      max-width: 100%; /* להבטחת רספונסיביות */
-      background-color: #fff; /* White background */
-      /* height: auto; is default for canvas if not set otherwise */
+    body.modal-open {
+      overflow: hidden;
     }
-    .canvas-container {
-      width: 100%; /* Let the Bootstrap column control the width */
+    #detection-section {
+      animation: fadeIn 0.3s ease-in-out;
     }
-    #tooltip {
-      /* סגנונות ה-tooltip הקיימים - אפשר לשקול להחליף ברכיב tooltip של Bootstrap בהמשך */
-      position: absolute;
-      background: #f8d7da; /* צבע רקע אזהרה של Bootstrap */
-      color: #842029; /* צבע טקסט אזהרה של Bootstrap */
-      border: 1px solid #f5c2c7; /* צבע גבול אזהרה של Bootstrap */
-      padding: 0.375rem 0.75rem; /* ריפוד דומה לכפתורי Bootstrap */
-      border-radius: 0.375rem; /* רדיוס פינה דומה ל-Bootstrap */
-      font-size: 0.875rem; /* גודל פונט קטן יותר */
-      pointer-events: none;
-      display: none;
-      z-index: 1070; /* Z-index גבוה, דומה לרכיבי Bootstrap */
-    }
-    /* הסתרת אלמנטים שאינם רלוונטיים לדף זה */
-    #overlay-canvas, #camera-stream {
-        display: none;
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
   </style>
 </head>
-<body>
-  <!-- טעינת הספרייה של ONNX Runtime Web -->
-  <script src="/ort/ort.min.js"></script>
+<body class="bg-gray-100 dark:bg-gray-900 dark:text-white">
+  <div class="relative h-screen w-full overflow-hidden">
+    <button id="logout-btn" class="absolute top-4 left-4 bg-red-500 hover:bg-red-600 text-white text-sm px-4 py-2 rounded shadow z-50">Logout</button>
 
-  <div class="container mt-4 mb-5"> <!-- קונטיינר ראשי של Bootstrap עם מרווח עליון ותחתון -->
+    <!-- מסך הבית -->
+    <div id="home-screen-content" class="flex flex-col items-center justify-center h-full px-4 transition-all duration-300">
+      <img src="icon.png" alt="Hazard Detection Logo" class="w-full max-w-xs aspect-square mb-6 rounded-lg shadow-md">
+      <h1 class="text-3xl font-bold text-gray-700 dark:text-white mb-8">Hazard Detection</h1>
+      <div class="space-y-3 w-full max-w-xs">
+        <a href="/dashboard.html" class="block w-full text-center bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-lg shadow-md transition duration-150">View Dashboard</a>
+        <a href="/camera.html" class="block w-full text-center bg-green-500 hover:bg-green-600 text-white py-3 rounded-lg shadow-md transition duration-150">Start Live Detection</a>
+        <button id="show-upload-section-btn" class="block w-full text-center bg-indigo-500 hover:bg-indigo-600 text-white py-3 rounded-lg shadow-md transition duration-150">Upload Image for Detection</button>
+      </div>
+    </div>
 
-    <header class="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
-        <h1 class="mb-0">Report a Hazard</h1>
-        <div>
-            <a href="/dashboard.html" class="btn btn-outline-secondary me-2">Dashboard</a> <!-- הוספת .html לקישור -->
-            <button type="button" id="logout-btn" class="btn btn-outline-danger">Logout</button>
+    <!-- חלון צף ברווח 4 פיקסלים -->
+    <div id="detection-section" style="display: none;" class="fixed top-1 left-1 right-1 bottom-1 bg-gray-100 dark:bg-gray-800 p-4 sm:p-8 flex flex-col items-center justify-center z-50">
+      <div class="bg-white dark:bg-gray-900 p-6 rounded-xl shadow-2xl w-full max-w-lg">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-2xl font-semibold text-gray-700 dark:text-white">Upload Image for Detection</h2>
+          <button id="close-upload-section-btn" class="text-gray-500 hover:text-gray-300 text-2xl">&times;</button>
         </div>
-    </header>
+        <div class="space-y-4">
+          <div>
+            <label for="image-upload" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select Image:</label>
+            <input type="file" id="image-upload" accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+          </div>
+          <div>
+            <label for="confidence-slider" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Confidence Threshold: <span id="conf-value" class="font-semibold text-indigo-600">0.5</span>
+            </label>
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.05" value="0.5" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+          </div>
+          <div class="canvas-container border border-gray-300 rounded-md overflow-hidden bg-gray-50 flex items-center justify-center" style="min-height: 200px;">
+            <canvas id="preview-canvas" class="max-w-full max-h-96"></canvas>
+          </div>
+          <button id="save-detection" class="w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-lg shadow-md transition duration-150 disabled:opacity-50 disabled:cursor-not-allowed">Save Detection</button>
+          <div id="tooltip" class="hidden absolute bg-gray-800 text-white text-xs rounded py-1 px-2 z-50 pointer-events-none">
+            ⚠️ No Hazard Detected. Cannot save detection
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-    <div class="row">
-        <div class="col-lg-8 mx-auto"> <!-- מרכוז התוכן וקביעת רוחב מקסימלי למסכים גדולים -->
+  <div id="toast-notification" class="fixed top-5 right-5 p-4 rounded-md shadow-lg text-white z-[1100] hidden">
+    <div class="flex items-center">
+      <div id="toast-body" class="mr-2"></div>
+      <button type="button" class="ml-auto text-white hover:text-gray-200 rounded-lg p-1.5 inline-flex h-8 w-8" aria-label="Close" onclick="document.getElementById('toast-notification').style.display = 'none';">&times;</button>
+    </div>
+  </div>
 
-            <div class="text-center mb-4">
-                <h2 class="h4">Detection Options</h2> <!-- הקטנת כותרת המשנה -->
-                <a href="camera.html" class="btn btn-success btn-lg">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-camera-video-fill me-2" viewBox="0 0 16 16">
-                        <path fill-rule="evenodd" d="M0 5a2 2 0 0 1 2-2h7.5a2 2 0 0 1 1.983 1.738l3.11-1.382A1 1 0 0 1 16 4.269v7.462a1 1 0 0 1-1.406.913l-3.11-1.382A2 2 0 0 1 9.5 13H2a2 2 0 0 1-2-2z"/>
-                    </svg>
-                    Start Live Detection
-                </a>
-            </div>
-
-            <div class="card p-4 shadow-sm"> <!-- שימוש ב-Card של Bootstrap לעיטוף התוכן -->
-                <h3 class="mb-3 text-center h5">Upload Image for Detection</h3> <!-- הקטנת כותרת הקארד -->
-
-                <!-- קלט להעלאת תמונה -->
-                <div class="mb-3">
-                    <label for="image-upload" class="form-label">Select Image:</label>
-                    <input type="file" class="form-control form-control-lg" id="image-upload" accept="image/*"> <!-- הגדלת שדה הקלט -->
-                </div>
-
-                <!-- Slider לבחירת סף האמון -->
-                <div class="mb-3">
-                    <label for="confidence-slider" class="form-label">
-                        Confidence Threshold: <span id="conf-value" class="badge bg-secondary">0.5</span> <!-- שינוי צבע ה-Badge -->
-                    </label>
-                    <input type="range" class="form-range" id="confidence-slider" min="0" max="1" step="0.05" value="0.5">
-                </div>
-
-                <!-- Canvas להצגת תצוגת המקדימה -->
-                <div class="canvas-container mb-3 text-center"> <!-- קונטיינר לקנבס ומירכוז -->
-                    <canvas id="preview-canvas"></canvas>
-                </div>
-
-                <!-- כפתור שמירה ו-Tooltip -->
-                <div class="d-grid"> <!-- שימוש ב-d-grid כדי שהכפתור יתפוס רוחב מלא -->
-                    <button id="save-detection" class="btn btn-primary btn-lg">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-save-fill me-2" viewBox="0 0 16 16">
-                            <path d="M8.5 1.5A1.5 1.5 0 0 1 10 0h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h6c-.314.418-.5.937-.5 1.5v7.793L6.354 6.646a.5.5 0 1 0-.708.708l3 3a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 9.293z"/>
-                            <path d="M-1 2.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1-.5-.5m0 2a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5m0 2a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5m0 2a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5m0 2a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5"/>
-                        </svg>
-                        Save Detection
-                    </button>
-                    <div id="tooltip">
-                        ⚠️ No Hazard Detected. Cannot save detection
-                    </div>
-                </div>
-            </div> <!-- סוף ה-Card -->
-        </div> <!-- סוף ה-col -->
-    </div> <!-- סוף ה-row -->
-
-    <!-- אלמנטים מוסתרים (נראה שלא רלוונטיים לדף זה, אך נשמרים למקרה הצורך) -->
-    <canvas id="overlay-canvas" class="d-none"></canvas>
-    <video id="camera-stream" autoplay playsinline></video>
-
-  </div> <!-- סוף הקונטיינר -->
-
-  <!-- Bootstrap JS Bundle (כולל Popper) -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-
-  <!-- TensorFlow.js -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.6.0/dist/tf.min.js"></script>
-
-  <!-- סקריפט הראשי -->
-  <script src="/ort/ort.min.js" defer></script>
   <script type="module" src="../js/upload.js" defer></script>
+  <script>
+    const detectionSection = document.getElementById('detection-section');
+    const showUploadSectionBtn = document.getElementById('show-upload-section-btn');
+    const closeUploadSectionBtn = document.getElementById('close-upload-section-btn');
+    const body = document.body;
+
+    if (showUploadSectionBtn && closeUploadSectionBtn && detectionSection) {
+      showUploadSectionBtn.addEventListener('click', () => {
+        detectionSection.style.display = 'flex';
+        body.classList.add('modal-open');
+      });
+      closeUploadSectionBtn.addEventListener('click', () => {
+        detectionSection.style.display = 'none';
+        body.classList.remove('modal-open');
+      });
+    }
+  </script>
 </body>
 </html>

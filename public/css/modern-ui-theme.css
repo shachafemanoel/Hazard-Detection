@@ -1,0 +1,299 @@
+/* --- Global Modern UI Theme for Hazard Reporter --- */
+
+:root {
+  /* Replace these with colors from your icon.png logo */
+  --primary: #007bff; /* Example Primary Color (e.g., a main color from your logo) */
+  --secondary: #6c757d; /* Keep or adjust secondary color */
+  --accent: #28a745; /* Example Accent Color (e.g., a secondary color from your logo) */
+  --danger: #dc3545; /* Keep or adjust danger color */
+  --warning: #ffc107;
+  --light: #f8f9fa; /* For text on dark primary/accent backgrounds */
+  --dark-text: #212529; /* For text on light warning/light backgrounds */
+
+  /* Dark Theme Defaults */
+  --bg: #1a1a1a; /* Slightly lighter dark background */
+  --text: #e0e0e0; /* Light grey text */
+  --card-bg: #2c2c2c; /* Darker card background */
+  --input-bg: #333333; /* Input background */
+  --border-color: #555555; /* Border color for inputs and other elements */
+  --sidebar-bg: #212529; /* Sidebar background, same as Bootstrap's dark */
+  --sidebar-text: #cccccc; /* Lighter text for dark sidebar */
+  --sidebar-hover-bg: #3a3a3a; /* Slightly lighter hover for dark sidebar */
+  --sidebar-hover-text: white;
+
+  --radius: 10px; /* Slightly smaller radius for a sleeker look */
+  --shadow: 0 5px 15px rgba(0, 0, 0, 0.2); /* Softer, more diffused shadow */
+  --transition: 0.25s ease-in-out;
+}
+
+body {
+  /* Background image has been removed as per request */
+
+  /* Fallback background color if the image fails to load or for transparency effects */
+  background-color: var(--bg); 
+
+  color: var(--text);
+  font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  transition: margin-left var(--transition); /* For sidebar push effect */ 
+}
+
+button, .btn {
+  border-radius: var(--radius);
+  padding: 0.7rem 1.4rem; /* Slightly larger padding */
+  transition: background-color var(--transition), transform var(--transition), box-shadow var(--transition);
+  font-weight: 500;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.15); /* Subtle shadow for buttons */
+  border: none; /* Remove default browser borders if any */
+}
+
+button:hover, .btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2); /* Enhanced shadow on hover */
+  opacity: 0.9;
+}
+
+.card {
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  border: none;
+  background-color: var(--card-bg);
+}
+
+input, select, textarea {
+  border-radius: var(--radius);
+  border: 1px solid var(--border-color);
+  padding: 0.6rem 0.8rem; /* Adjusted padding */
+  transition: border-color var(--transition), box-shadow var(--transition);
+  background-color: var(--input-bg);
+  color: var(--text);
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 0.2rem rgba(var(--primary), 0.25); /* Use primary color for focus ring */
+}
+
+/* Toast Style */
+.toast {
+  border-radius: var(--radius);
+  padding: 1rem;
+  background-color: var(--primary);
+  color: white;
+  font-weight: 500;
+  box-shadow: var(--shadow);
+}
+
+/* Glassmorphism Overlay */
+.glass {
+  backdrop-filter: blur(10px);
+  background: rgba(44, 44, 44, 0.3); /* Darker glass effect for dark theme */
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1rem;
+  border: 1px solid rgba(var(--border-color), 0.5);
+}
+
+/* Floating Action Button */
+.fab {
+  position: fixed;
+  bottom: 25px;
+  right: 25px;
+  width: 60px; /* Slightly larger FAB */
+  height: 60px;
+  border-radius: 50%;
+  background-color: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  z-index: 1030; /* Ensure it's above most elements, but below modals if any */
+  transition: background-color var(--transition), transform var(--transition);
+}
+
+.fab:hover {
+  background-color: var(--accent);
+  transform: scale(1.05); /* Slight scale effect on hover */
+}
+
+/* Animations */
+.fade-in {
+  animation: fadeIn 0.4s ease-in-out;
+}
+
+.fade-out {
+  animation: fadeOut 0.4s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(10px); }
+}
+
+/* --- Sidebar Styles --- */
+.sidebar {
+  height: 100%;
+  width: 260px;
+  position: fixed;
+  z-index: 1040; /* Higher than FAB, adjust as needed */
+  top: 0;
+  left: -260px; /* Hidden by default */
+  background-color: var(--sidebar-bg);
+  overflow-x: hidden;
+  transition: left var(--transition);
+  padding-top: 20px; /* Space for a logo or title if needed */
+  box-shadow: 3px 0 10px rgba(0,0,0,0.3);
+}
+
+.sidebar.open {
+  left: 0;
+}
+
+.sidebar-header {
+  padding: 10px 20px;
+  margin-bottom: 10px;
+  font-size: 1.5rem;
+  color: var(--sidebar-text);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar a, .sidebar .nav-link {
+  padding: 12px 20px;
+  text-decoration: none;
+  font-size: 1.05rem;
+  color: var(--sidebar-text);
+  display: block;
+  transition: background-color var(--transition), color var(--transition), padding-left var(--transition);
+}
+
+.sidebar a:hover, .sidebar .nav-link:hover,
+.sidebar a.active, .sidebar .nav-link.active {
+  background-color: var(--sidebar-hover-bg); /* Use the new hover background */
+  color: var(--sidebar-hover-text);
+  padding-left: 25px; /* Indent on hover/active */
+}
+
+.sidebar .close-btn {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  font-size: 2rem;
+  color: var(--sidebar-text);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.sidebar .close-btn:hover {
+    color: var(--danger);
+}
+
+/* Content area that shifts when sidebar opens */
+.main-content.shifted {
+  margin-left: 260px;
+  transition: margin-left var(--transition);
+}
+
+/* Hamburger menu button */
+.sidebar-toggle-btn {
+  position: fixed; /* Or absolute within a header */
+  top: 15px;
+  left: 15px;
+  z-index: 1041; /* Above sidebar when closed */
+  font-size: 1.8rem;
+  background-color: transparent;
+  color: var(--text);
+  border: none;
+  padding: 5px 10px;
+  cursor: pointer;
+  border-radius: var(--radius);
+  transition: color var(--transition), background-color var(--transition);
+}
+
+.sidebar-toggle-btn:hover {
+  color: var(--primary);
+  background-color: rgba(var(--primary-rgb, 0, 123, 255), 0.1); /* Use new primary-rgb for hover effect */
+}
+/* Define --primary-rgb if not already defined, or use a fixed rgba value */
+:root {
+    --primary-rgb: 44, 123, 229; /* Example for --primary: #2c7be5; */
+}
+
+
+/* Responsive Utility */
+@media (max-width: 992px) { /* Adjust breakpoint if sidebar overlaps content too early */
+  .main-content.shifted {
+    margin-left: 0; /* Don't push content on smaller screens if sidebar overlays */
+  }
+  /* On smaller screens, sidebar might overlay content instead of pushing it.
+     If you want it to always push, remove the margin-left: 0 above. */
+}
+
+@media (max-width: 768px) {
+  .container, .card {
+    padding: 0.8rem; /* Slightly smaller padding on mobile */
+  }
+  .sidebar {
+    width: 220px; /* Narrower sidebar on tablets/mobile */
+    left: -220px;
+  }
+  .main-content.shifted {
+    margin-left: 220px; /* Adjust push for narrower sidebar */
+  }
+  .sidebar-toggle-btn {
+    font-size: 1.6rem;
+    top: 12px;
+    left: 12px;
+  }
+   .fab {
+    width: 50px;
+    height: 50px;
+    bottom: 15px;
+    right: 15px;
+  }
+}
+
+@media (max-width: 576px) {
+    .sidebar {
+        width: 100%; /* Full width sidebar on very small screens */
+        left: -100%;
+        padding-top: 50px; /* More space for close button if header is hidden */
+    }
+    .sidebar.open {
+        left: 0;
+    }
+    .main-content.shifted {
+        margin-left: 0; /* Sidebar will overlay */
+    }
+    .sidebar .close-btn { /* Make close button more prominent on full-width sidebar */
+        top: 15px;
+        right: 20px;
+        font-size: 2.2rem;
+    }
+    .sidebar-toggle-btn {
+        /* Ensure toggle button is visible even if sidebar is open, or handle its visibility with JS */
+    }
+}
+
+/* Tooltip for detection overlays */
+#tooltip {
+  position: absolute;
+  background: var(--warning); /* Keep warning color for hazard detection tooltip */
+  color: var(--dark-text); /* Use dark text on warning background */
+  padding: 0.5rem 0.8rem;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  z-index: 9999;
+  display: none;
+  box-shadow: var(--shadow);
+  pointer-events: none; /* Ensure tooltip doesn't interfere with mouse events */
+}

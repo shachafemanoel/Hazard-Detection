@@ -3,7 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="icon.png" type="image/png">
   <title>Live Hazard Detection</title>
+
+  <!-- Modern UI Theme CSS -->
+  <link rel="stylesheet" href="css/modern-ui-theme.css">
 
   <!-- Bootstrap CSS (optional) -->
   <link
@@ -13,13 +17,12 @@
     crossorigin="anonymous"
   />
 
-  <!-- 1. Load ONNX Runtime Web once as module -->
+  <!-- Load ONNX Runtime Web once as module -->
   <script type="module">
     import * as ort from '/ort/ort.min.mjs';
-    // tell ORT where to find its .wasm and .jsep.mjs files:
+    // Tell ORT where to find its .wasm and .jsep.mjs files:
     ort.env.wasm.wasmPaths = '/ort/';
-    // enable threaded‐WASM
-    ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
+    ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4; // Enable threaded‐WASM
     // expose globally for your detection script:
     window.ort = ort;
   </script>
@@ -140,40 +143,83 @@
       z-index: 20; /* Ensure it's above everything else */
     }
   </style>
+
 </head>
 <body style="background-color: #f8f9fa;"> <!-- Original background can be kept or managed by CSS -->
+    <!-- כפתור פתיחת/סגירת התפריט -->
+    <button class="sidebar-toggle-btn" id="sidebarToggle">☰</button>
 
-  <div class="canvas-container"> <!-- This div will grow -->
-      <div class="live-title-overlay">
-        Live Detection
-      </div>
-      <div id="object-count-overlay">Objects: 0</div> <!-- Element for object count -->
-      <div id="hazard-types-overlay">Hazards: None</div> <!-- Element for hazard types -->
-      <div id="loading-overlay" style="display: none;"> <!-- Initially hidden -->
-        <div class="spinner-border text-light" role="status"> <!-- Bootstrap spinner -->
-          <span class="visually-hidden">Loading...</span>
+    <!-- תפריט הצד -->
+    <nav id="mySidebar" class="sidebar">
+        <div class="sidebar-header">
+            <a href="javascript:void(0)" class="close-btn" id="sidebarCloseBtn">×</a>
+            <h3>תפריט</h3>
         </div>
-        <p class="mt-2">Loading Model...</p>
-      </div>
-      <video id="camera-stream" autoplay playsinline muted></video>
-      <canvas id="overlay-canvas"></canvas>
-      <div class="controls-wrapper py-3 text-center"> <!-- Controls panel, py-3 for padding -->
-          <button id="start-camera" class="btn btn-primary mx-1">Start Camera</button>
-          <button id="stop-camera" class="btn btn-secondary mx-1" style="display:none;">Stop Camera</button>
-          <button id="switch-camera" class="btn btn-info mx-1" style="display:none;">Switch Camera</button>
-          <button type="button" class="btn btn-light mx-1" onclick="history.back()"> <!-- Changed to btn-light for better contrast -->
-            ← חזור
-        </button>
-      </div>
-  </div>
+        <a href="/dashboard.html" class="nav-link">Dashboard</a>
+        <a href="/upload.html" class="nav-link">Upload Image</a>
+        <a href="/camera.html" class="nav-link active">Live Detection</a> <!-- הוספת active לקלאס -->
+        <!-- עוד קישורים -->
+    </nav>
+
+    <!-- תוכן ראשי של הדף -->
+    <div id="mainContent" class="main-content">
+        <div class="canvas-container"> <!-- This div will grow -->
+            <div class="live-title-overlay">
+                Live Detection
+            </div>
+            <div id="object-count-overlay">Objects: 0</div> <!-- Element for object count -->
+            <div id="hazard-types-overlay">Hazards: None</div> <!-- Element for hazard types -->
+            <div id="loading-overlay" style="display: none;"> <!-- Initially hidden -->
+                <div class="spinner-border text-light" role="status"> <!-- Bootstrap spinner -->
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading Model...</p>
+            </div>
+            <video id="camera-stream" autoplay playsinline muted></video>
+            <canvas id="overlay-canvas"></canvas>
+            <div class="controls-wrapper py-3 text-center"> <!-- Controls panel, py-3 for padding -->
+                <button id="start-camera" class="btn btn-primary mx-1">Start Camera</button>
+                <button id="stop-camera" class="btn btn-secondary mx-1" style="display:none;">Stop Camera</button>
+                <button id="switch-camera" class="btn btn-info mx-1" style="display:none;">Switch Camera</button>
+                <button type="button" class="btn btn-light mx-1" onclick="history.back()"> <!-- Changed to btn-light for better contrast -->
+                    ← חזור
+                </button>
+            </div>
+        </div>
+    </div> <!-- סוף ה-main-content -->
 
   <!-- Bootstrap JS Bundle (optional) -->
   <script
     src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
     integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
     crossorigin="anonymous"
-  ></script>
+  >
+  </script>
 
+  <!-- סקריפט הראשי (משתמש ב-window.ort) -->
   <script type="module" src="../js/upload_tf.js" defer></script>
+
+  <!-- JavaScript לשליטה בתפריט הצד -->
+  <script>
+    const sidebar = document.getElementById('mySidebar');
+    const sidebarToggleBtn = document.getElementById('sidebarToggle');
+    const sidebarCloseBtn = document.getElementById('sidebarCloseBtn');
+    const mainContent = document.getElementById('mainContent');
+
+    function toggleSidebar() {
+      sidebar.classList.toggle('open');
+      mainContent.classList.toggle('shifted'); // בטל הערה אם רוצים לדחוף תוכן
+    }
+
+    sidebarToggleBtn.addEventListener('click', toggleSidebar);
+    sidebarCloseBtn.addEventListener('click', toggleSidebar);
+
+    // אופציונלי: סגירת התפריט בלחיצה מחוץ לו
+    document.addEventListener('click', function(event) {
+      if (sidebar.classList.contains('open') && !sidebar.contains(event.target) && event.target !== sidebarToggleBtn) {
+        toggleSidebar();
+      }
+    });
+  </script>
 </body>
 </html>

@@ -307,18 +307,29 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 
-
+// Updated function to show report details in a modal
 function showReportDetails(report) {
-    document.getElementById("sidebar-hazard-id").textContent = report.id;
-    document.getElementById("sidebar-type").textContent = report.type;
-    document.getElementById("sidebar-location").textContent = report.location;
-    document.getElementById("sidebar-time").textContent = new Date(report.time).toLocaleString();
-    document.getElementById("sidebar-status").textContent = report.status;
-    document.getElementById("sidebar-user").textContent = report.reportedBy;
-    document.getElementById("sidebar-image").src = report.image;
-    document.getElementById("report-sidebar").style.display = "block";
+    document.getElementById("modal-hazard-id").textContent = report.id;
+    document.getElementById("modal-type").textContent = report.type;
+    document.getElementById("modal-location").textContent = report.location;
+    document.getElementById("modal-time").textContent = new Date(report.time).toLocaleString();
+    document.getElementById("modal-status").textContent = report.status;
+    document.getElementById("modal-user").textContent = report.reportedBy;
+    
+    const modalImageElement = document.getElementById("modal-report-image");
+    if (report.image) {
+        modalImageElement.src = report.image;
+        modalImageElement.style.display = "block";
+    } else {
+        modalImageElement.src = "";
+        modalImageElement.style.display = "none";
+    }
+
+    const reportModal = new bootstrap.Modal(document.getElementById('reportDetailsModal'));
+    reportModal.show();
 }
 
+// Function to close the old sidebar (can be removed if sidebar HTML is removed)
 function closeSidebar() {
     const sidebar = document.getElementById("report-sidebar");
     sidebar.style.display = "none";

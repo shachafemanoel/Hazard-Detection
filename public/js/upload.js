@@ -1,15 +1,44 @@
 document.addEventListener("DOMContentLoaded", async function () {
+  // אלמנטים של מסך הבית וממשק ההעלאה
+  const homeScreenContent = document.getElementById('home-screen-content');
+  const detectionSection = document.getElementById('detection-section');
+  const showUploadSectionBtn = document.getElementById('show-upload-section-btn');
+  const closeUploadSectionBtn = document.getElementById('close-upload-section-btn');
+
   const imageUpload = document.getElementById("image-upload");
   const confidenceSlider = document.getElementById("confidence-slider");
   const confValueSpan = document.getElementById("conf-value");
   const canvas = document.getElementById("preview-canvas");
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas ? canvas.getContext("2d") : null; // Check if canvas exists
   const logoutBtn = document.getElementById("logout-btn");
   const saveBtn = document.getElementById("save-detection");
+
+  // Toast Notification Elements
+  const toastElement = document.getElementById('toast-notification');
+  const toastBody = document.getElementById('toast-body');
+
+  function showToast(message, type = 'success') {
+    if (!toastElement || !toastBody) return;
+
+    toastBody.textContent = message;
+    toastElement.classList.remove('bg-success', 'bg-danger', 'bg-warning'); // Remove previous classes
+
+    if (type === 'success') {
+      toastElement.classList.add('bg-success');
+    } else if (type === 'error') {
+      toastElement.classList.add('bg-danger');
+    } // Add more types like 'warning' if needed
+
+    toastElement.style.display = 'block';
+    setTimeout(() => {
+      toastElement.style.display = 'none';
+    }, 5000); // Hide after 5 seconds
+  }
 
   let geoData = null;
 
   function getGeoDataFromImage(file) {
+    // ... (קוד פונקציה זהה)
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = function (e) {
@@ -46,10 +75,48 @@ document.addEventListener("DOMContentLoaded", async function () {
     });
   }
 
+  // ניהול תצוגת מסך הבית וממשק ההעלאה
+  if (showUploadSectionBtn && homeScreenContent && detectionSection) {
+    showUploadSectionBtn.addEventListener('click', () => {
+      homeScreenContent.style.display = 'none';
+      detectionSection.style.display = 'block';
+    });
+  }
+
+  if (closeUploadSectionBtn && homeScreenContent && detectionSection) {
+    closeUploadSectionBtn.addEventListener('click', () => {
+      detectionSection.style.display = 'none';
+      homeScreenContent.style.display = 'block';
+      // איפוס אופציונלי של שדות וקנבס בעת סגירה
+      if (imageUpload) {
+        imageUpload.value = ''; // מנקה את שדה העלאת התמונה
+      }
+      if (ctx && canvas) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height); // נמחק את התמונה המוצגת ב-canvas
+      }
+      if (confValueSpan && confidenceSlider) {
+        confValueSpan.textContent = confidenceSlider.value; // מאפס את תצוגת הסף
+      }
+      currentImage = null; // מאפס את התמונה הנוכחית
+      geoData = null; // מאפס נתוני מיקום
+      if (saveBtn) saveBtn.disabled = true; // מנטרל כפתור שמירה
+      const tooltip = document.getElementById("tooltip");
+      if (tooltip) tooltip.style.display = "none";
+    });
+  }
+
 
 // שמירת התמונה והנתונים
 saveBtn.addEventListener("click", () => {
-  if (!geoData) return alert("❌ Cannot save report without geolocation data.");
+  if (!canvas) {
+    showToast("❌ Canvas element not found.", "error");
+    return;
+  }
+
+  if (!geoData) {
+    showToast("❌ Cannot save report without geolocation data.", "error");
+    return;
+  }
 
   canvas.toBlob(async (blob) => {
       if (!blob) return alert("❌ Failed to get image blob");
@@ -70,9 +137,9 @@ saveBtn.addEventListener("click", () => {
           });
   
           const result = await res.json();
-          alert("✅ Saved to server: " + result.message + "\n📸 " + result.url);
+          showToast("✅ Saved to server: " + result.message + "\n📸 " + result.url, "success");
       } catch (err) {
-          alert("❌ Failed to save image");
+          showToast("❌ Failed to save image to server.", "error");
           console.error(err);
       }
 
@@ -130,7 +197,7 @@ saveBtn.addEventListener("click", () => {
   if (imageUpload) {
     imageUpload.addEventListener("change", async (event) => {
   const file = event.target.files[0];
-  if (!file) return;
+  if (!file || !canvas) return; // Add check for canvas
 
   // 1. נתחיל קריאת EXIF ברקע (לא חוסם את התצוגה)
   getGeoDataFromImage(file).then(data => {
@@ -159,7 +226,7 @@ saveBtn.addEventListener("click", () => {
 
   async function runInferenceOnImage(imageElement) {
     if (!session) {
-      console.warn("Model not loaded yet.");
+      console.warn("Model not loaded yet or canvas not found.");
       return;
     }
 
@@ -230,6 +297,8 @@ saveBtn.addEventListener("click", () => {
   let hasHazard = false;
 
   function drawResults(boxes) {
+    if (!ctx) return; // Check if context exists
+
     hazardTypes = []; // מאתחל את המערך של סוגי המפגעים
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const { offsetX, offsetY, newW, newH } = letterboxParams;
@@ -322,21 +391,25 @@ function hideTooltip() {
   tooltip.style.display = "none";
 }
 
-saveBtn.addEventListener("mousemove", (e) => {
-  if (saveBtn.disabled && saveBtn.dataset.tooltip) {
-    tooltip.textContent = saveBtn.dataset.tooltip;
-    tooltip.style.left = `${e.pageX + 10}px`;
-    tooltip.style.top = `${e.pageY + 10}px`;
-    tooltip.style.display = "block";
-  }
-});
+if (saveBtn && tooltip) { // Ensure elements exist before adding listeners
+  saveBtn.addEventListener("mousemove", (e) => {
+    if (saveBtn.disabled) { // Simplified tooltip logic, text is static in HTML/CSS
+      tooltip.style.left = `${e.pageX + 10}px`;
+      tooltip.style.top = `${e.pageY + 10}px`;
+      tooltip.style.display = "block";
+    }
+  });
 
-saveBtn.addEventListener("mouseleave", () => {
-  tooltip.style.display = "none";
-});
+  saveBtn.addEventListener("mouseleave", () => {
+    tooltip.style.display = "none";
+  });
+}
 
   if (logoutBtn) {
     logoutBtn.addEventListener("click", async () => {
+      // This button is removed from upload.html.
+      // If logout is needed, it should be handled by a button in the sidebar
+      // or another shared component.
       try {
         const response = await fetch("/logout", { method: "GET" });
         if (response.redirected) {
@@ -346,5 +419,20 @@ saveBtn.addEventListener("mouseleave", () => {
         console.error("Logout failed:", error);
       }
     });
+  } else {
+    // Optional: Add logout functionality to a sidebar button if it exists
+    const sidebarLogoutBtn = document.getElementById('sidebar-logout-btn');
+    if (sidebarLogoutBtn) {
+      sidebarLogoutBtn.addEventListener("click", async () => {
+        try {
+          const response = await fetch("/logout", { method: "GET" });
+          if (response.redirected) {
+            window.location.href = response.url;
+          }
+        } catch (error) {
+          console.error("Logout failed:", error);
+        }
+      });
+    }
   }
 });
