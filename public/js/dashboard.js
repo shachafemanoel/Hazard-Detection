@@ -113,6 +113,22 @@ async function geocodeAddress(address, report) {
     }
 }
 
+// פונקציה לבדיקת תקינות תמונה באמצעות fetch
+async function isValidImage(url) {
+    if (!url) {
+        return false; // אם אין URL, התמונה לא תקינה
+    }
+    try {
+        const response = await fetch(url, { method: 'HEAD' });
+        // בדוק אם הבקשה הצליחה (סטטוס 2xx) והאם ה-Content-Type הוא של תמונה
+        return response.ok && response.headers.get('Content-Type')?.startsWith('image/');
+    } catch (error) {
+        // שגיאת רשת או בעיה אחרת (למשל CORS אם התמונה מדומיין אחר ללא הגדרות מתאימות)
+        console.warn(`Could not validate image ${url}:`, error);
+        return false;
+    }
+}
+
 // טוען דיווחים מהשרת ומכניס לטבלה ולמפה
 async function loadReports(filters = {}) {
     try {
@@ -138,7 +154,20 @@ async function loadReports(filters = {}) {
         const tbody = document.getElementById('reports-body');
         tbody.innerHTML = '';
 
-        reports.forEach(report => {
+        // שלב 1: בדיקת תקינות כל התמונות במקביל
+        const imageValidationPromises = reports.map(report => 
+            isValidImage(report.image).then(isValid => ({ report, isValid }))
+        );
+        
+        const validationResults = await Promise.all(imageValidationPromises);
+
+        // שלב 2: סינון הדוחות כך שרק אלו עם תמונות תקינות יישארו
+        const validReports = validationResults.filter(result => result.isValid).map(result => result.report);
+
+        // מיון הדוחות לפי תאריך מהאחרון לראשון
+        validReports.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+        validReports.forEach(report => {
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${report.id}</td>
