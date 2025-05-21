@@ -14,9 +14,8 @@ import cors from 'cors';
 import os from 'os'; // מייבאים את המודול os
 
 // 📦 Firebase & Cloudinary
-// import { initializeApp, cert } from 'firebase-admin/app'; //  הסרת ייבוא Firebase Admin
-// import { getFirestore } from 'firebase-admin/firestore'; //  הסרת ייבוא Firestore
-import { v2 as cloudinary } from 'cloudinary';import multer from 'multer';
+import { v2 as cloudinary } from 'cloudinary';
+import multer from 'multer';
 import streamifier from 'streamifier';
 
 // 🌍 ES Modules __dirname polyfill
@@ -40,17 +39,6 @@ cloudinary.config({
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
-
-// // 🌲 Firebase Admin SDK Initialization -  הסרת כל הבלוק הזה
-// try {
-//   const serviceAccount = JSON.parse(fs.readFileSync(path.join(__dirname, './serviceAccountKey.json'), 'utf8'));
-//   initializeApp({
-//     credential: cert(serviceAccount)
-//   });
-//   console.log('✅ Firebase Admin initialized');
-// } catch (error) {
-//   console.error('🔥 Firebase Admin initialization error:', error);
-// }
 
 // 🎛️ Setup multer (in-memory uploads)
 const upload = multer();
@@ -88,11 +76,7 @@ app.use((req, res, next) => {
     secret: process.env.SESSION_SECRET || 'your-secret-key',
     resave: false,
     saveUninitialized: true,
-    cookie: { 
-      secure: process.env.NODE_ENV === 'production', // true ב-production (HTTPS), false בפיתוח (HTTP)
-      httpOnly: true,
-      sameSite: process.env.NODE_ENV === 'production' ? 'lax' : undefined // 'lax' מומלץ ל-production
-    }
+    cookie: { secure: false, httpOnly: true }
   }));  app.use(passport.initialize());
   app.use(passport.session());
   
@@ -230,7 +214,7 @@ app.get('/auth/google', async (req, res, next) => {
 // נקודת חזרה לאחר ההתחברות  
 app.get('/auth/google/callback', (req, res, next) => {
     passport.authenticate('google', async (err, user, info) => {
-        // const mode = req.session.authMode || 'login'; // נראה שלא משתמשים ב-mode כאן
+        const mode = req.session.authMode || 'login';
         
         if (err) {
             console.error('Google Auth Error:', err);
@@ -248,12 +232,11 @@ app.get('/auth/google/callback', (req, res, next) => {
         // התחברות או רישום מוצלחים
         req.login(user, async (err) => {
             if (err) {
-                    console.error('Login Error after Google Auth:', err);
+                console.error('Login Error:', err);
                 return res.redirect('/login.html?error=LoginFailed');
             }
-                console.log('User logged in successfully via Google. Session:', JSON.stringify(req.session, null, 2));
-                console.log('req.user after login:', JSON.stringify(req.user, null, 2));
-            // req.session.user נשמר אוטומטית על ידי passport.serializeUser ו-deserializeUser
+            
+            req.session.user = { email: user.email, username: user.username };
             
             return res.redirect('/upload.html');
         });
@@ -335,13 +318,7 @@ app.post('/api/reports', async (req, res) => {
 
 // שליפת כל הדיווחים
 app.get('/api/reports', async (req, res) => {
-        console.log('--- Request to /api/reports ---');
-        console.log('Session object:', JSON.stringify(req.session, null, 2));
-        console.log('req.user (from Passport):', JSON.stringify(req.user, null, 2));
-        console.log('req.isAuthenticated():', req.isAuthenticated ? req.isAuthenticated() : 'N/A');
-
-       if (!req.session.user && !(req.isAuthenticated && req.isAuthenticated())) {
-            console.log('Unauthorized access to /api/reports. Redirecting or sending 401.');
+    if (!req.session.user && !req.isAuthenticated()) {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 

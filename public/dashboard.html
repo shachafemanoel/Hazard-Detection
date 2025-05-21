@@ -8,7 +8,7 @@
 </head>
 <body>
     <div id="dashboard-container">
-        <button onclick="location.href='/upload.html'">Report a Hazard</button>
+        <button onclick="location.href='/upload'">Report a Hazard</button>
         <h1>Dashboard</h1>
 
         <!-- Google Map -->
@@ -73,7 +73,6 @@
                         <th>Report Time</th>
                         <th>Image</th>
                         <th>Status</th>
-                        <th>Precision</th>
                         <th>Reported By</th>
                     </tr>
                 </thead>
@@ -92,7 +91,6 @@
         <p><strong>Location:</strong> <span id="sidebar-location"></span></p>
         <p><strong>Report Time:</strong> <span id="sidebar-time"></span></p>
         <p><strong>Status:</strong> <span id="sidebar-status"></span></p>
-        <p><strong>Location Precision:</strong> <span id="sidebar-precision"></span></p>
         <p><strong>Reported By:</strong> <span id="sidebar-user"></span></p>
         <img id="sidebar-image" src="" alt="Hazard Image">
         <button onclick="closeSidebar()">Close</button>
