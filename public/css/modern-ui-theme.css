@@ -297,3 +297,12 @@ input:focus, select:focus, textarea:focus {
   box-shadow: var(--shadow);
   pointer-events: none; /* Ensure tooltip doesn't interfere with mouse events */
 }
+/* /Users/shachafemanoel/Documents/Hazard-Detection/public/css/modern-ui-theme.css */
+:root {
+    --primary: #3b82f6; /* Tailwind blue-500 */
+    --secondary: #6c757d; /* Keep or adjust */
+    --accent: #22c55e; /* Tailwind green-500 */
+    /* ... שאר המשתנים ... */
+    --indigo: #6366f1; /* Tailwind indigo-500 - אפשר להוסיף משתנה חדש אם רוצים */
+  }
+  

@@ -307,7 +307,11 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 
-// Updated function to show report details in a modal
+// Modal elements for report details
+const reportDetailsModalElement = document.getElementById('reportDetailsModal');
+const closeReportModalBtn = document.getElementById('closeReportModalBtn');
+const closeReportModalFooterBtn = document.getElementById('closeReportModalFooterBtn');
+
 function showReportDetails(report) {
     document.getElementById("modal-hazard-id").textContent = report.id;
     document.getElementById("modal-type").textContent = report.type;
@@ -325,12 +329,26 @@ function showReportDetails(report) {
         modalImageElement.style.display = "none";
     }
 
-    const reportModal = new bootstrap.Modal(document.getElementById('reportDetailsModal'));
-    reportModal.show();
+    if (reportDetailsModalElement) {
+        reportDetailsModalElement.classList.remove('hidden');
+        reportDetailsModalElement.classList.add('flex'); // Use flex to enable centering
+        document.body.classList.add('modal-open'); // Optional: to prevent body scroll
+    }
 }
 
-// Function to close the old sidebar (can be removed if sidebar HTML is removed)
-function closeSidebar() {
-    const sidebar = document.getElementById("report-sidebar");
-    sidebar.style.display = "none";
-  }
+function hideReportDetailsModal() {
+    if (reportDetailsModalElement) {
+        reportDetailsModalElement.classList.add('hidden');
+        reportDetailsModalElement.classList.remove('flex');
+        document.body.classList.remove('modal-open');
+    }
+}
+
+// Event listeners for closing the new modal
+closeReportModalBtn?.addEventListener('click', hideReportDetailsModal);
+closeReportModalFooterBtn?.addEventListener('click', hideReportDetailsModal);
+reportDetailsModalElement?.addEventListener('click', (event) => { // Close on backdrop click
+    if (event.target === reportDetailsModalElement) {
+        hideReportDetailsModal();
+    }
+});

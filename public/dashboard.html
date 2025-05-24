@@ -1,205 +1,171 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark"> <!-- Apply dark class for Tailwind dark mode -->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="icon.png" type="image/png">
     <title>Dashboard</title>
 
-    <!-- Modern UI Theme CSS -->
+    <!-- TailwindCSS CDN -->
+    <script>
+      tailwind.config = { darkMode: 'class' };
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Modern UI Theme CSS (for base dark mode variables if needed) -->
     <link rel="stylesheet" href="css/modern-ui-theme.css">
 
-    <!-- Bootstrap CSS (optional, if you want to use Bootstrap components/grid) -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
-
-    <link rel="stylesheet" href="../css/dashboard.css">
-
     <style>
-        /* Move inline styles here or to dashboard.css */
-        #map { height: 60vh; }
-        #reports { height: 40vh; overflow-y: auto; }
-        #filters { margin-top: 10px; }
-        #hazard-types-container { display:none; }
-        #report-sidebar {
-            position: fixed;
-            top: 0;
-            right: -300px; /* Hidden by default */
-            width: 300px;
-            height: 100%;
-            background-color: var(--card-bg); /* Use theme background */
-            color: var(--text); /* Use theme text color */
-            padding: 20px;
-            box-shadow: -3px 0 10px rgba(0,0,0,0.3);
-            transition: right 0.3s ease-in-out;
-            z-index: 1050; /* Higher than navigation sidebar */
+        /* Custom styles if needed, or can be moved to dashboard.css */
+        #map {
+            height: 60vh; /* Default height */
+            border-radius: 0.5rem; /* rounded-lg */
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); /* shadow-md */
+        }
+        .table-container {
+            max-height: 45vh; /* Max height for scrollable table */
             overflow-y: auto;
         }
+        /* Styling for Google Maps InfoWindow in dark mode */
+        .gm-style .gm-style-iw-c {
+            background-color: #2d3748 !important; /* dark:bg-gray-700 */
+            color: #e2e8f0 !important; /* dark:text-gray-200 */
+            border-radius: 0.5rem !important;
+            padding: 0.75rem !important;
+        }
+        .gm-style .gm-style-iw-t::after {
+            background: #2d3748 !important;
+        }
+        .gm-style .gm-style-iw-d {
+            color: #e2e8f0 !important;
+            overflow: auto !important; /* Ensure content scrolls if too long */
+        }
+        .gm-style .gm-style-iw-close-button {
+            /* Optional: Style the close button if needed */
+        }
     </style>
+    <!-- <link rel="stylesheet" href="../css/dashboard.css"> Custom dashboard CSS if needed -->
 </head>
-<body>
-    <!-- כפתור פתיחת/סגירת התפריט -->
-    <button class="sidebar-toggle-btn" id="sidebarToggle">☰</button>
+<body class="bg-gray-100 dark:bg-gray-900 dark:text-gray-200">
+    <div class="relative min-h-screen flex flex-col">
+        <!-- Sidebar Toggle Button (Optional, if you re-implement a sidebar) -->
+        <!-- <button class="sidebar-toggle-btn fixed top-4 left-4 z-50 p-2 bg-gray-700 text-white rounded-md" id="sidebarToggle">☰</button> -->
+        <a href="/upload.html" class="fixed top-4 left-4 z-50 bg-blue-500 hover:bg-blue-600 text-white text-sm px-4 py-2 rounded-md shadow">Home</a>
 
-    <!-- תפריט הצד -->
-    <nav id="mySidebar" class="sidebar">
-        <div class="sidebar-header">
-            <a href="javascript:void(0)" class="close-btn" id="sidebarCloseBtn">×</a>
-            <h3>תפריט</h3>
-        </div>
-        <a href="/dashboard.html" class="nav-link active">Dashboard</a> <!-- הוספת active לקלאס -->
-        <a href="/upload.html" class="nav-link">Upload Image</a>
-        <a href="/camera.html" class="nav-link">Live Detection</a>
-        <!-- עוד קישורים -->
-    </nav>
+        <!-- Main Content Area -->
+        <main id="mainContent" class="flex-grow p-4 sm:p-6 lg:p-8">
+            <div id="dashboard-container" class="max-w-7xl mx-auto">
+                <h1 class="text-3xl font-bold text-gray-800 dark:text-white mb-6">Dashboard</h1>
 
-    <!-- תוכן ראשי של הדף -->
-    <div id="mainContent" class="main-content">
-        <div id="dashboard-container" class="container mt-4 mb-5"> <!-- Added Bootstrap container classes -->
-            <h1>Dashboard</h1>
-
-            <!-- Google Map -->
-            <div id="map"></div>
-
-
-        <div id="top-buttons">
-            <!-- Toggle Buttons in the same row -->
-            <button id="toggleMapBtn">Maximize Map</button>
-            <button id="toggleBtn">Maximize Reports</button>
-            <button id="toggle-filters-btn">Show Filters</button>
-        </div>
-
-        <!-- Filters Section (Initially Hidden) -->
-        <div id="filters">
-            <h3 class="mt-3 mb-2">Search Filters</h3> <!-- Added margin classes -->
-
-            <!-- Hazard Type Filter -->
-            <button id="toggle-hazard-types-btn">Select Hazard Types</button>
-            <div id="hazard-types-container" style="display:none;">
-                <!-- Dynamically populated hazard types will go here -->
-            </div>
-
-            <!-- Location Filter -->
-            <label for="location" class="form-label">Location:</label> <!-- Added form-label -->
-            <input type="text" id="location" placeholder="Enter Location (e.g., Haifa)">
-
-            <!-- Report Time Filter -->
-            <label for="start-date" class="form-label">Date Range:</label> <!-- Added form-label -->
-            <input type="date" id="start-date">
-            <input type="date" id="end-date">
-            
-            <!-- Status Filter -->
-            <label for="status">Status:</label>
-            <select id="status">
-                <option value="">All Statuses</option>
-                <option value="new">New</option>
-                <option value="in progress">In Progress</option>
-                <option value="resolved">Resolved</option>
-            </select>
-
-            <!-- Reported By Filter -->
-            <label for="reported-by" class="form-label">Username:</label> <!-- Added form-label -->
-            <input type="text" id="reported-by" placeholder="Enter username">
-
-            <!-- Search Button -->
-            <button id="search-btn" class="btn btn-primary me-2">Search</button> <!-- Added Bootstrap button classes -->
-            
-            <!-- Clear Filters Button -->
-            <button id="clear-filters-btn">Clear Filters</button>
-        </div>
-
-        <!-- Reports Table -->
-        <div id="reports" style="height: 40vh; overflow-y: auto;">
-            <h2 class="mt-4 mb-2">Reports Log</h2> <!-- Added margin classes -->
-            <table>
-                <thead>
-                    <tr>
-                        <th>Hazard ID</th>
-                        <th>Hazard Type</th>
-                        <th>Location</th>
-                        <th>Report Time</th>
-                        <th>Image</th>
-                        <th>Status</th>
-                        <th>Reported By</th>
-                    </tr>
-                </thead>
-                <tbody id="reports-body">
-                    <!-- Reports will be dynamically populated here -->
-                </tbody>
-            </table>
-        </div>
-        </div> <!-- סוף ה-dashboard-container -->
-    </div>
-
-    <!-- Sidebar for displaying selected report details - (Will be replaced by a modal) -->
-    <div id="report-sidebar">
-        <h3>Report Details</h3>
-        <p><strong>Hazard ID:</strong> <span id="sidebar-hazard-id"></span></p>
-        <p><strong>Hazard Type:</strong> <span id="sidebar-type"></span></p>
-        <p><strong>Location:</strong> <span id="sidebar-location"></span></p>
-        <p><strong>Report Time:</strong> <span id="sidebar-time"></span></p>
-        <p><strong>Status:</strong> <span id="sidebar-status"></span></p>
-        <p><strong>Reported By:</strong> <span id="sidebar-user"></span></p>
-        <img id="sidebar-image" src="" alt="Hazard Image" class="img-fluid mt-3"> <!-- Added img-fluid for responsiveness -->
-        <button onclick="closeSidebar()" class="btn btn-secondary mt-3">Close</button> <!-- Added Bootstrap button classes -->
-    </div>
-
-    <!-- Modal for Report Details -->
-    <div class="modal fade" id="reportDetailsModal" tabindex="-1" aria-labelledby="reportDetailsModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="reportDetailsModalLabel">Report Details</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <!-- Map and Controls -->
+                <div class="mb-6">
+                    <div id="map" class="w-full bg-gray-200 dark:bg-gray-700"></div>
+                    <div id="top-buttons" class="mt-4 flex flex-wrap gap-2">
+                        <button id="toggleMapBtn" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md shadow">Maximize Map</button>
+                        <button id="toggleBtn" class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-md shadow">Maximize Reports</button>
+                        <button id="toggle-filters-btn" class="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded-md shadow">Show Filters</button>
+                    </div>
                 </div>
-                <div class="modal-body">
-                    <p><strong>Hazard ID:</strong> <span id="modal-hazard-id"></span></p>
+
+                <!-- Filters Section -->
+                <div id="filters" class="hidden bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg mb-6">
+                    <h3 class="text-xl font-semibold text-gray-700 dark:text-white mb-4">Search Filters</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div>
+                            <label for="location" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Location:</label>
+                            <input type="text" id="location" placeholder="Enter Location" class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="start-date" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Start Date:</label>
+                            <input type="date" id="start-date" class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="end-date" class="block text-sm font-medium text-gray-700 dark:text-gray-300">End Date:</label>
+                            <input type="date" id="end-date" class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="status" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Status:</label>
+                            <select id="status" class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                                <option value="">All Statuses</option>
+                                <option value="new">New</option>
+                                <option value="in progress">In Progress</option>
+                                <option value="resolved">Resolved</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="reported-by" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Username:</label>
+                            <input type="text" id="reported-by" placeholder="Enter username" class="mt-1 block w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        </div>
+                        <div class="md:col-span-2 lg:col-span-1">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Hazard Types:</label>
+                            <button id="toggle-hazard-types-btn" class="mt-1 w-full px-3 py-2 bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 text-gray-700 dark:text-gray-200 rounded-md shadow-sm">Select Hazard Types</button>
+                            <div id="hazard-types-container" class="hidden mt-2 p-2 border border-gray-300 dark:border-gray-600 rounded-md max-h-40 overflow-y-auto space-y-1">
+                                <!-- Dynamically populated -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-6 flex justify-end gap-3">
+                        <button id="clear-filters-btn" class="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md shadow">Clear Filters</button>
+                        <button id="search-btn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md shadow">Search</button>
+                    </div>
+                </div>
+
+                <!-- Reports Table -->
+                <div id="reports" class="bg-white dark:bg-gray-800 p-0 sm:p-6 rounded-lg shadow-lg table-container">
+                    <h2 class="text-xl font-semibold text-gray-700 dark:text-white mb-4 px-6 sm:px-0 pt-6 sm:pt-0">Reports Log</h2>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead class="bg-gray-50 dark:bg-gray-700">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">ID</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Type</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Location</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Time</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Image</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">By</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reports-body" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                <!-- Rows will be dynamically populated -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Modal for Report Details (Tailwind Styled) -->
+        <div id="reportDetailsModal" class="fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm hidden" aria-labelledby="reportDetailsModalLabel" role="dialog" aria-modal="true">
+            <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-2xl w-[90vw] max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+                <div class="flex justify-between items-center mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">
+                    <h5 class="text-xl font-semibold text-gray-700 dark:text-white" id="reportDetailsModalLabel">Report Details</h5>
+                    <button type="button" id="closeReportModalBtn" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-2xl">&times;</button>
+                </div>
+                <div class="modal-body flex-grow overflow-y-auto space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                    <p><strong>Hazard ID:</strong> <span id="modal-hazard-id" class="font-mono"></span></p>
                     <p><strong>Hazard Type:</strong> <span id="modal-type"></span></p>
                     <p><strong>Location:</strong> <span id="modal-location"></span></p>
                     <p><strong>Report Time:</strong> <span id="modal-time"></span></p>
                     <p><strong>Status:</strong> <span id="modal-status"></span></p>
                     <p><strong>Reported By:</strong> <span id="modal-user"></span></p>
-                    <img id="modal-report-image" src="" alt="Hazard Image" class="img-fluid mt-3 mb-3" style="max-height: 400px; display: block; margin: 0 auto;">
+                    <img id="modal-report-image" src="" alt="Hazard Image" class="w-full max-h-80 object-contain rounded-md mt-3 mb-3 border border-gray-200 dark:border-gray-700">
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <div class="mt-4 pt-2 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+                    <button type="button" id="closeReportModalFooterBtn" class="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md shadow">Close</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- Modal for displaying large image (Tailwind Styled) -->
+        <div id="image-modal" class="fixed inset-0 z-[80] flex items-center justify-center bg-black bg-opacity-75 backdrop-blur-md hidden">
+            <div class="relative p-4">
+                <span id="close-modal" class="absolute top-2 right-2 text-white text-3xl font-bold cursor-pointer hover:text-gray-300">&times;</span>
+                <img id="modal-image" src="" alt="Large Image" class="max-w-[90vw] max-h-[90vh] object-contain rounded-lg">
             </div>
         </div>
     </div>
 
-    <!-- Modal for displaying large image (Consider using Bootstrap Modal component instead) -->
-    <div id="image-modal" style="display:none;">
-        <div id="modal-content">
-            <span id="close-modal" style="cursor:pointer; position: absolute; top: 10px; right: 10px; font-size: 30px; color: white;">&times;</span>
-            <img id="modal-image" src="" alt="Large Image" style="max-width: 90%; max-height: 90vh; display: block; margin: 0 auto;">
-        </div>
-    </div>
-
-    <!-- Bootstrap JS Bundle (optional) -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-
-    <!-- JavaScript לשליטה בתפריט הצד -->
-    <script>
-        const sidebar = document.getElementById('mySidebar');
-        const sidebarToggleBtn = document.getElementById('sidebarToggle');
-        const sidebarCloseBtn = document.getElementById('sidebarCloseBtn');
-        const mainContent = document.getElementById('mainContent');
-
-        function toggleSidebar() {
-            sidebar.classList.toggle('open');
-            mainContent.classList.toggle('shifted'); // בטל הערה אם רוצים לדחוף תוכן
-        }
-
-        sidebarToggleBtn.addEventListener('click', toggleSidebar);
-        sidebarCloseBtn.addEventListener('click', toggleSidebar);
-
-        // אופציונלי: סגירת התפריט בלחיצה מחוץ לו
-        document.addEventListener('click', function(event) {
-            if (sidebar.classList.contains('open') && !sidebar.contains(event.target) && event.target !== sidebarToggleBtn) {
-                toggleSidebar();
-            }
-        });
-    </script>
     <script src="../js/dashboard.js" defer></script>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA9qkNEaiu9vpTB0bzqhw_Ei55Mt2UqN3A&callback=initMap&loading=async" defer></script>
 </body>
