@@ -41,12 +41,14 @@ yarn-error.log*
 /public/object_detecion_model/RDD2022-3/
 /public/object_detecion_model/dashcamera/
 calibration_image_sample_data*
-*.pt
-*.onnx
-*.tflite
-*.pb
-*.bin
 model_check.ipynb
+
+# Large files tracked by Git LFS
+# *.pt
+# *.onnx
+# *.tflite
+# *.pb
+# *.bin
 
 # Images and media files
 /public/object_detecion_model/**/*.jpg
