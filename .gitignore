@@ -3,24 +3,50 @@
 __pycache__/
 *.py[cod]
 *$py.class
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
 
 # Node
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.npm
+.env
+.env.*
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+.DS_Store
 
 # Model files and datasets
 /runs/
 /public/object_detecion_model/RDD2022-3/
 /public/object_detecion_model/dashcamera/
 calibration_image_sample_data*
+*.pt
+*.onnx
+*.tflite
+*.pb
+*.bin
+model_check.ipynb
 
 # Images and media files
 /public/object_detecion_model/**/*.jpg
@@ -28,10 +54,25 @@ calibration_image_sample_data*
 /public/object_detecion_model/**/*.png
 /public/object_detecion_model/**/*.webp
 /public/object_detecion_model/**/*.gif
+*.cache
+
+# Web build
+/build/
+/dist/
+/.next/
+/.nuxt/
+/out/
 
 # Certificates and sensitive files
 *.pem
 serviceAccountKey.json
+.env*
 
 # Large directories
 /patchs.v2i.yolov12/
+.DS_Store
+
+# Generated content
+/runs/
+*.log
+.cache/
