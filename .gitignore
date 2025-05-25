@@ -17,14 +17,6 @@ yarn-error.log*
 *.swo
 
 # Model files and datasets
-*.pt
-*.pb
-*.onnx
-*.npy
-*.h5
-*.tflite
-*.keras
-*.weights
 /runs/
 /public/object_detecion_model/RDD2022-3/
 /public/object_detecion_model/dashcamera/
@@ -43,4 +35,3 @@ serviceAccountKey.json
 
 # Large directories
 /patchs.v2i.yolov12/
-/public/object_detecion_model/public/object_detecion_model/dashcamera.zip
