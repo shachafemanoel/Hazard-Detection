@@ -43,4 +43,4 @@ serviceAccountKey.json
 
 # Large directories
 /patchs.v2i.yolov12/
-/public/object_detecion_model/
+/public/object_detecion_model/public/object_detecion_model/dashcamera.zip
