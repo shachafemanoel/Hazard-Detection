@@ -8,6 +8,7 @@ import { createClient } from 'redis';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import sgMail from '@sendgrid/mail';
+import fs from 'fs'; // 👈 הוספת ייבוא של מודול fs
 import crypto from 'crypto';
 import axios from 'axios';
 import cors from 'cors';
@@ -48,6 +49,14 @@ const upload = multer();
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Serving static files from the "public" directory
+// Make sure to set index: false to prevent serving index.html by default
+app.use(express.static(path.join(__dirname, '../public'), { 
+    index: false,
+    extensions: ['html'] // This will allow serving .html files without the extension
+}));
+
+
 app.use((req, res, next) => {
     // כל דבר שמשרת JS/WebWorkers או שדורש גיאולוקציה
     if (req.path.startsWith('/ort/') || req.path === '/camera.html' || req.path === '/upload') {
@@ -76,14 +85,10 @@ app.use((req, res, next) => {
     secret: process.env.SESSION_SECRET || 'your-secret-key',
     resave: false,
     saveUninitialized: true,
-    cookie: { secure: false, httpOnly: true }
-  }));  app.use(passport.initialize());
+    cookie: { secure: false, httpOnly: true } // In production, use secure: true with HTTPS
+  }));
+  app.use(passport.initialize());
   app.use(passport.session());
-  
-  /* ───── שאר הנתיבים ───── */
-  // static files
-  app.use(express.static(path.join(__dirname, '../public')));
-  
   
 
 
@@ -95,39 +100,57 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 // 🔌 Redis client
 const client = createClient({
   username: 'default',
-  password: 'e7uFJGU10TYEVhTJFoOkyPog0fBMhJMG',
+  password: process.env.REDIS_PASSWORD, // מומלץ לשמור סיסמאות במשתני סביבה
   socket: {
-    host: 'redis-13437.c44.us-east-1-2.ec2.redns.redis-cloud.com',
-    port: 13437
+    host: process.env.REDIS_HOST,
+    port: process.env.REDIS_PORT
   }
 });
+
+let redisConnected = false; // דגל למעקב אחר מצב החיבור
 
 async function connectRedis() {
     try {
       await client.connect();
+      redisConnected = true;
       console.log('✅ Connected to Redis');
     } catch (err) {
+      redisConnected = false;
       console.error('🔥 Failed to connect to Redis:', err);
       // אולי תחליט להמתין ולטעון מחדש, או להריץ fallback
     }
   }
-  connectRedis();
-  
+connectRedis(); // קריאה לפונקציה בעת עליית השרת
 
 
 passport.serializeUser((user, done) => {
+    console.log('[Passport] Serializing user:', user.email);
     done(null, user.email);  // מזהה יחיד
   });
   
   passport.deserializeUser(async (email, done) => {
+    console.log('[Passport] Attempting to deserialize user:', email);
+    if (!redisConnected || !client.isOpen) { // בדיקה אם הלקוח מחובר ופתוח
+        console.error("❌ Redis client not connected or not open in deserializeUser.");
+        // חשוב להחזיר שגיאה ברורה כאן
+        return done(new Error("Redis client not available for deserialization"), null);
+    }
     try {
       const keys = await client.keys('user:*');
+      console.log('[Passport] Found keys for deserialization:', keys.length);
       for (const key of keys) {
-        const user = JSON.parse(await client.get(key));
-        if (user.email === email) {
-          return done(null, user);
+        const userStr = await client.get(key);
+        if (userStr) {
+            const user = JSON.parse(userStr);
+            if (user.email === email) {
+              console.log('[Passport] User deserialized successfully:', user.email);
+              return done(null, user);
+            }
+        } else {
+            console.warn(`[Passport] No data found for key: ${key}`);
         }
       }
+      console.log('[Passport] User not found for deserialization:', email);
       done(null, false);
     } catch (err) {
       console.error("❌ Error in deserializeUser:", err);  // הוספת לוג
@@ -247,38 +270,47 @@ app.get('/auth/google/callback', (req, res, next) => {
 
 // דף העלאת קבצים (Upload)
 app.get('/upload', async (req, res) => {
-    if (!req.session.user) {
+    if (!req.isAuthenticated()) { // שימוש ב-req.isAuthenticated()
         return res.redirect('/'); // אם לא מחובר, מחזירים לדף הבית
     }
-    
     // הצגת דף ה-upload
     res.sendFile(path.join(__dirname, '../public/upload.html'));
 });
+
 app.get('/camera.html', (req, res) => {
-    // אם לא מחובר, נחזיר אותו לדף ההתחברות
-    if (!req.session.user) {
-      return res.redirect('/login.html');
+    if (!req.isAuthenticated()) { // שימוש ב-req.isAuthenticated()
+      return res.redirect('/'); // הפניה לדף הבית (login.html)
     }
-    // אחרת נחזיר את הקובץ
     res.sendFile(path.join(__dirname, '../public/camera.html'));
   });
+
 // יציאה מהמערכת
 app.get('/logout', (req, res) => {
-    req.logout(() => {
-        req.session.destroy(() => {
+    req.logout(function(err) { // Passport 0.6.0 דורש callback
+        if (err) { 
+            console.error('Logout error:', err);
+            // אפשר להוסיף טיפול בשגיאה, למשל להפנות לדף שגיאה
+            return res.redirect('/'); // או לדף אחר מתאים
+        }
+        req.session.destroy((err) => {
+            if (err) {
+                console.error('Session destruction error during logout:', err);
+            }
             res.redirect('/');
         });
     });
 });
 
-
 // דף ברירת מחדל
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, '../public/login.html'));
+    if (req.isAuthenticated()) {
+        return res.redirect('/upload');
+    }
+    res.redirect('/login.html');
 });
 
 app.get('/dashboard', (req, res) => {
-    if (!req.session.user) {
+    if (!req.isAuthenticated()) { // שימוש ב-req.isAuthenticated()
         return res.redirect('/');
     }
     res.sendFile(path.join(__dirname, '../public/dashboard.html'));
@@ -286,7 +318,7 @@ app.get('/dashboard', (req, res) => {
 
 // יצירת דיווח חדש
 app.post('/api/reports', async (req, res) => {
-    if (!req.session.user && !req.isAuthenticated()) {
+    if (!req.isAuthenticated()) { // מספיק לבדוק req.isAuthenticated()
         return res.status(401).json({ error: 'Unauthorized' });
     }
     
@@ -318,7 +350,7 @@ app.post('/api/reports', async (req, res) => {
 
 // שליפת כל הדיווחים
 app.get('/api/reports', async (req, res) => {
-    if (!req.session.user && !req.isAuthenticated()) {
+    if (!req.isAuthenticated()) { // מספיק לבדוק req.isAuthenticated()
         return res.status(401).json({ error: 'Unauthorized' });
     }
 

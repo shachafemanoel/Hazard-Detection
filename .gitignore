@@ -3,52 +3,32 @@
 __pycache__/
 *.py[cod]
 *$py.class
-.Python
-env/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-*.egg-info/
-.installed.cfg
-*.egg
 
 # Node
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-.npm
-.env
-.env.*
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
-.DS_Store
 
 # Model files and datasets
+*.pt
+*.pb
+*.onnx
+*.npy
+*.h5
+*.tflite
+*.keras
+*.weights
 /runs/
 /public/object_detecion_model/RDD2022-3/
 /public/object_detecion_model/dashcamera/
 calibration_image_sample_data*
-model_check.ipynb
-
-# Large files tracked by Git LFS
-# *.pt
-# *.onnx
-# *.tflite
-# *.pb
-# *.bin
 
 # Images and media files
 /public/object_detecion_model/**/*.jpg
@@ -56,25 +36,14 @@ model_check.ipynb
 /public/object_detecion_model/**/*.png
 /public/object_detecion_model/**/*.webp
 /public/object_detecion_model/**/*.gif
-*.cache
-
-# Web build
-/build/
-/dist/
-/.next/
-/.nuxt/
-/out/
 
 # Certificates and sensitive files
 *.pem
 serviceAccountKey.json
-.env*
 
 # Large directories
 /patchs.v2i.yolov12/
-.DS_Store
+/public/object_detecion_model/public/object_detecion_model/dashcamera.zip
 
-# Generated content
-/runs/
-*.log
-.cache/
+# macOS specific files
+*.DS_Store
