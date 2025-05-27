@@ -1,7 +1,133 @@
 :root {
-    --sidebar-width: 250px;
-    --transition-speed: 0.3s;
-    --shadow-color: rgba(0,0,0,0.1);
+  /* Dark Mode Palette */
+  --bg-main: #121212;
+  --bg-panel: #1E1E1E;
+  --text-main: #E0E0E0;
+  --text-muted: #AAAAAA;
+  --accent: #1E88E5;
+  --accent-hover: #1565C0;
+  --border-color: #2C2C2C;
+  /* Spacing & Typography */
+  --font-family-base: 'Poppins', sans-serif;
+  --font-size-base: 16px;
+  --font-size-heading: 2rem;
+  --transition-speed: 0.3s;
+  --sidebar-width: 250px;
+  --shadow-color: rgba(0,0,0,0.3);
+}
+
+/* Global Styles */
+body {
+  font-family: var(--font-family-base);
+  background: linear-gradient(135deg, #12141d 0%, #1f2235 100%), url('/images/cityscape-overlay.png');
+  background-blend-mode: multiply;
+  background-size: cover;
+  color: #cbd2d9;
+  direction: ltr; /* Force global left-to-right layout */
+}
+
+/* Ensure header and dropdown navigation are styled LTR */
+header {
+  direction: ltr;
+}
+
+.dropdown-menu {
+  direction: ltr;
+  text-align: left;
+}
+
+/* Utility Classes */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.5);
+}
+
+/* Accent Button */
+.btn-accent {
+  background-color: var(--accent);
+  color: #fff;
+}
+.btn-accent:hover {
+  background-color: var(--accent-hover);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+}
+
+/* Inputs & Selects */
+input,
+select {
+  background: var(--bg-panel);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 0.4rem 0.6rem;
+  transition: border-color 0.3s;
+}
+input:focus,
+select:focus {
+  border-color: var(--accent);
+}
+
+/* Dashboard Layout */
+.dashboard-main {
+  margin-left: var(--sidebar-width);
+  padding: 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+.dashboard__container {
+  /* New container class for toggling views */
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* Card Styles (BEM style) */
+.dashboard-modern-card {
+  background: rgba(31,34,53,0.92);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.8rem;
+  color: var(--text-main);
+  transition: box-shadow 0.3s, transform 0.3s;
+}
+.dashboard-modern-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 32px rgba(247,200,115,0.55);
+}
+
+/* Responsive Layouts */
+@media (max-width: 991px) {
+  .dashboard-main {
+    margin-left: 0;
+    padding: 1rem;
+  }
+  .dashboard-modern-card {
+    padding: 1rem;
+  }
+}
+
+/* Map / Reports Toggling */
+.normal-view #map {
+  height: 60vh;
+  display: block;
+}
+.map-maximized #map {
+  height: calc(100vh - 150px);
+}
+.reports-maximized #reports {
+  height: calc(100vh - 150px);
 }
 
 /* Add fallbacks for older browsers */
@@ -11,24 +137,18 @@
     }
 }
 
-body {
-    font-family: 'Poppins', sans-serif;
-    /* overflow-x: hidden; Prevent horizontal scroll if sidebar pushes content */
-}
-
-/* Sidebar Styles (assuming from your existing setup, adjust as needed) */
+/* Sidebar (BEM style) */
 .sidebar {
-    height: 100%;
-    width: var(--sidebar-width);
     position: fixed;
-    z-index: 1040; /* Below Bootstrap modals (1050+), above most content */
     top: 0;
-    left: calc(-1 * var(--sidebar-width)); /* Hidden by default */
-    background-color: var(--bs-dark); /* Or your theme's sidebar color */
+    left: 0; /* Always flush to the left */
+    width: var(--sidebar-width);
+    height: 100%;
+    background-color: var(--bs-dark); /* Use your desired sidebar color */
     color: var(--bs-light);
     padding-top: 20px;
-    transition: left var(--transition-speed) ease-in-out;
-    -webkit-transition: left var(--transition-speed) ease-in-out;
+    transition: none; /* Remove animation for a permanent navbar */
+    z-index: 1040;
     box-shadow: 2px 0 5px rgba(0,0,0,0.1);
 }
 
@@ -86,24 +206,13 @@ body {
 	transform: scale(1.05);
 }
 
+/* Main Content */
 .main-content {
-    transition: margin-left 0.3s ease-in-out;
-    padding-top: 60px; /* Adjust if you have a fixed top navbar */
+  transition: margin-left var(--transition-speed);
+  padding: var(--base-spacing);
 }
-
 .main-content.shifted {
-    margin-left: var(--sidebar-width); /* Same as sidebar width */
-}
-
-/* Add prefixed versions for older browsers */
-@media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
-    /* IE10+ specific styles */
-    .sidebar {
-        transition: none;
-    }
-    .main-content.shifted {
-        margin-left: 250px;
-    }
+  margin-left: var(--sidebar-width);
 }
 
 /* Dashboard specific styles */
@@ -179,11 +288,19 @@ body[data-bs-theme="dark"] .image-modal-content {
 
 /* Improved dashboard container styling */
 #dashboard-container {
-	background: linear-gradient(135deg, #1d1f21, #2b2e33);
+	background: var(--bg-panel);
 	border-radius: 12px;
 	padding: 2rem; /* increased padding */
 	box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
     margin-top: 1rem; /* Slight spacing adjustments for the dashboard container */
+}
+
+.dashboard__heading {
+  color: var(--text-main);
+}
+
+.dashboard__sublabel {
+  color: var(--text-muted);
 }
 
 /* Improved analytics panel styling */
@@ -213,6 +330,34 @@ body[data-bs-theme="dark"] .image-modal-content {
 /* Enhance table styling for a cleaner look */
 table.table {
 	background-color: transparent;
+}
+
+/* Updated Reports Table Dark Mode Styles */
+table.table {
+    background-color: var(--bg-panel) !important;
+    border-color: var(--border-color) !important;
+}
+table.table th,
+table.table td {
+    color: var(--text-main) !important;
+}
+
+/* Updated Reports Div Dark Mode Styles */
+#reports {
+  background-color: var(--bg-panel) !important; /* same dark panel background */
+  color: var(--text-main) !important;  /* same text color as other elements */
+}
+
+#reports table {
+  background-color: var(--bg-panel) !important;
+  color: var(--text-main) !important;
+  border-color: var(--border-color) !important;
+}
+
+#reports th,
+#reports td {
+  color: var(--text-main) !important;
+  border-color: var(--border-color) !important;
 }
 
 /* Optionally refine common control element styles */
@@ -267,7 +412,92 @@ table.table {
     box-shadow: 0 4px 8px var(--shadow-color);
 }
 
-/* Enhance focus styles for accessibility */
-.btn:focus {
-    box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.5);
+/* Button Styles */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s, box-shadow 0.2s;
+}
+/* Filled Accent Button */
+.btn-accent {
+  background-color: var(--accent);
+  color: #fff;
+  border: none;
+}
+.btn-accent:hover {
+  background-color: var(--accent-hover);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+/* Outline Button */
+.btn-outline {
+  background: none;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+.btn-outline:hover {
+  background-color: rgba(30, 136, 229, 0.1);
+}
+
+/* Inputs & Dropdowns */
+select, input {
+  background: var(--bg-panel);
+  color: var(--text-main);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.4rem 0.6rem;
+}
+select:focus, input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Google Map controls override (if needed) */
+.gmnoprint, .gm-style-cc {
+  filter: invert(1) brightness(0.8);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  #view-toggle-container > div {
+    margin-bottom: var(--base-spacing);
+  }
+}
+
+/* Modern Reports Table Style */
+#reports table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: var(--bg-panel) !important;
+  color: var(--text-main) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+  overflow: hidden;
+}
+#reports table th,
+#reports table td {
+  border: 1px solid var(--border-color) !important;
+  padding: 0.85rem 1.15rem;
+  text-align: left;
+}
+#reports table th {
+  background: linear-gradient(90deg, var(--bg-panel), #2b2b2b);
+  font-weight: 600;
+}
+#reports table tbody tr {
+  transition: background-color 0.3s ease;
+}
+#reports table tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Responsive adjustments for reports table */
+@media (max-width: 768px) {
+  #reports table th,
+  #reports table td {
+    padding: 0.5rem 0.75rem;
+  }
 }

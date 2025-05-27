@@ -43,13 +43,14 @@
 
     <!-- ראשי -->
     <div id="buttons" class="mt-6 space-y-4">
-      <button class="btn-modern w-full flex items-center justify-center bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 py-3 px-4 rounded-xl shadow-md transition-all" onclick="location.href='/auth/google'">
-        <i class="fab fa-google text-xl mr-3"></i>
-        <span class="text-sm font-medium">Continue with Google</span>
-      </button>
+      <!-- New order: Email button first, then Google button -->
       <button class="btn-modern w-full flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white py-3 px-4 rounded-xl shadow-md transition-all" onclick="toggleForm()">
         <i class="far fa-envelope text-xl mr-3"></i>
         <span class="text-sm font-medium">Continue with Email</span>
+      </button>
+      <button class="btn-modern w-full flex items-center justify-center bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 py-3 px-4 rounded-xl shadow-md transition-all" onclick="location.href='/auth/google'">
+        <i class="fab fa-google text-xl mr-3"></i>
+        <span class="text-sm font-medium">Continue with Google</span>
       </button>
     </div>
 

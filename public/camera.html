@@ -181,21 +181,21 @@
       <video id="camera-stream" autoplay playsinline muted></video>
       <canvas id="overlay-canvas"></canvas>
       <div class="controls-wrapper py-3 text-center"> <!-- Controls panel, py-3 for padding -->
-          <button id="start-camera" class="btn btn-primary mx-1">
-            <i class="fas fa-video"></i>
-            <span>Start Camera</span>
+          <!-- Reordered controls: Back button first -->
+          <button type="button" class="btn btn-light icon-only mx-1" onclick="history.back()">
+            <i class="fa fa-arrow-left fa-2x"></i>
           </button>
-          <button id="stop-camera" class="btn btn-secondary mx-1" style="display:none;">
-            <i class="fas fa-video-slash"></i>
-            <span>Stop Camera</span>
+          <!-- Start Camera button -->
+          <button id="start-camera" class="btn btn-primary icon-only mx-1">
+            <i class="fa fa-video fa-2x"></i>
           </button>
-          <button id="switch-camera" class="btn btn-info mx-1" style="display:none;">
-            <i class="fas fa-sync"></i>
-            <span>Switch Camera</span>
+          <!-- Stop Camera button -->
+          <button id="stop-camera" class="btn btn-secondary icon-only mx-1" style="display:none;">
+            <i class="fa fa-video-slash fa-2x"></i>
           </button>
-          <button type="button" class="btn btn-light mx-1" onclick="history.back()">
-            <i class="fas fa-arrow-left"></i>
-            <span>Back</span>
+          <!-- Switch Camera button -->
+          <button id="switch-camera" class="btn btn-info icon-only mx-1" style="display:none;">
+            <i class="fa fa-sync fa-2x"></i>
           </button>
       </div>
   </div>

@@ -424,6 +424,100 @@ app.get('/api/reports', async (req, res) => {
 });
 
 
+// מחיקת דיווח לפי ID
+app.delete('/api/reports/:id', async (req, res) => {
+    if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const reportId = req.params.id;
+    const reportKey = `report:${reportId}`;
+    try {
+        await client.del(reportKey);
+        res.status(200).json({ message: 'Report deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ error: 'Error deleting report' });
+    }
+});
+
+// עדכון סטטוס דיווח
+app.patch('/api/reports/:id/status', async (req, res) => {
+    if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const reportId = req.params.id;
+    const newStatus = req.body.status;
+    const reportKey = `report:${reportId}`;
+    try {
+        const report = await client.json.get(reportKey);
+        if (!report) return res.status(404).json({ error: 'Report not found' });
+        report.status = newStatus;
+        await client.json.set(reportKey, '$', report);
+        res.status(200).json({ message: 'Status updated', report });
+    } catch (err) {
+        res.status(500).json({ error: 'Error updating status' });
+    }
+});
+
+// עדכון דיווח (עריכה מלאה)
+app.patch('/api/reports/:id', async (req, res) => {
+    if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const reportId = req.params.id;
+    const reportKey = `report:${reportId}`;
+
+    try {
+        // Get existing report
+        const existingReport = await client.get(reportKey);
+        if (!existingReport) {
+            return res.status(404).json({ error: 'Report not found' });
+        }
+
+        const report = JSON.parse(existingReport);
+        
+        // Update only the fields that are provided
+        const updates = req.body;
+        Object.keys(updates).forEach(key => {
+            if (updates[key] !== undefined) {
+                report[key] = updates[key];
+            }
+        });
+
+        // Add audit information
+        report.lastModified = new Date().toISOString();
+        report.modifiedBy = req.user.email;
+
+        // Save back to Redis
+        await client.set(reportKey, JSON.stringify(report));
+
+        res.json({ message: 'Report updated successfully', report });
+    } catch (err) {
+        console.error('Error updating report:', err);
+        res.status(500).json({ error: 'Failed to update report' });
+    }
+});
+
+// NEW: GET a single report by ID (for editing)
+app.get('/api/reports/:id', async (req, res) => {
+    if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const reportId = req.params.id;
+    const reportKey = `report:${reportId}`;
+    try {
+        const report = await client.json.get(reportKey);
+        if (!report) {
+            return res.status(404).json({ error: 'Report not found' });
+        }
+        res.status(200).json(report);
+    } catch (err) {
+        console.error('🔥 Error fetching report:', err);
+        res.status(500).json({ error: 'Error fetching report' });
+    }
+});
+
+
 // הרצת השרת
 app.listen(port, '0.0.0.0', () => {
     const networkInterfaces = os.networkInterfaces();

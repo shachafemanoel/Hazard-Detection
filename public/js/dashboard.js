@@ -1,5 +1,6 @@
 let map;
 let markers = [];
+let heatmapLayer = null; // NEW: Global heatmap layer
 let reportDetailsBootstrapModal = null; // For Bootstrap modal instance
 
 const hazardTypes = [
@@ -68,6 +69,8 @@ const darkMapStyle = [
         elementType: "labels.text.stroke",
         stylers: [{ color: "#17263c" }],
     },
+    // New style: hide icons for a clean, modern look
+    { featureType: "all", elementType: "labels.icon", stylers: [{ visibility: "off" }] }
 ];
 
 // Hazard type to marker color mapping
@@ -171,58 +174,94 @@ window.addEventListener("click", (event) => {
 
 // ממיר כתובת לקואורדינטות ומוסיף סמן
 async function geocodeAddress(address, report) {
-    if (!address || !report) {
-        console.warn('Invalid address or report data');
-        return;
-    }
-    const apiKey = "AIzaSyAXxZ7niDaxuyPEzt4j9P9U0kFzKHO9pZk";
-    const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
+    if (!address) return;
+    
     try {
-        const response = await fetch(geocodeUrl);
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=AIzaSyA9qkNEaiu9vpTB0bzqhw_Ei55Mt2UqN3A`);
         const data = await response.json();
-        if (data.status === "OK" && data.results && data.results[0]) {
+        
+        if (data.status === "OK" && data.results[0]) {
             const location = data.results[0].geometry.location;
             const marker = new google.maps.Marker({
                 map: map,
                 position: location,
-                title: address,
-                icon: getMarkerIcon(report.type)
+                icon: getMarkerIcon(report.type),
+                animation: google.maps.Animation.DROP,
+                title: `${report.type} - ${address}`
             });
-            marker.report = report;
+            marker.reportId = report.id;  // Added for marker highlighting
+            
             markers.push(marker);
-            // Updated InfoWindow: now shows report type, id, time and status, plus a thumbnail
+            
             const infowindow = new google.maps.InfoWindow({
-                content: `<div>
-                    <strong>${report.type}</strong><br>
-                    ID: ${report.id}<br>
-                    Time: ${new Date(report.time).toLocaleString()}<br>
-                    Status: ${report.status}<br>
-                    <img src="${report.image}" alt="thumb" style="width:50px; height:50px; cursor:pointer;" onclick="openModal('${report.image}')"><br>
-                    <a href="javascript:openReportModal()">More info</a>
+                content: `
+                <div class="info-window">
+                    <h5>${report.type}</h5>
+                    <p><strong>Location:</strong> ${address}</p>
+                    <p><strong>Status:</strong> <span class="badge ${report.status === 'Resolved' ? 'bg-success' : 'bg-danger'}">${report.status}</span></p>
+                    <p><strong>Reported by:</strong> ${report.reportedBy}</p>
+                    <p><strong>Time:</strong> ${new Date(report.time).toLocaleString()}</p>
+                    ${report.image ? `<img src="${report.image}" alt="Hazard" style="width:200px;height:150px;object-fit:cover;margin:10px 0;">` : ''}
+                    <div class="mt-2">
+                        <button class="btn btn-sm btn-primary me-2" onclick="showReportDetails(${JSON.stringify(report)})">Details</button>
+                        <button class="btn btn-sm btn-warning" onclick="openEditReportModal(${JSON.stringify(report)})">Edit</button>
+                    </div>
                 </div>`
             });
+
             marker.addListener("click", () => {
-                currentMarker = marker;
+                // Close any open info windows
+                markers.forEach(m => m.infoWindow?.close());
+                
+                // Store reference to this info window
+                marker.infoWindow = infowindow;
+                
                 infowindow.open(map, marker);
-                map.setCenter(location);
-                map.setZoom(14);
+                map.panTo(location);
+                
+                // Smooth zoom if we're too far out
+                const currentZoom = map.getZoom();
+                if (currentZoom < 14) {
+                    map.animateToZoom(14);
+                }
             });
-            // הזזת המפה למיקום הנבחר אם נלחץ מיקום בטבלה
-            const locationLink = document.querySelector(`.location-link[data-location="${address}"]`);
-            if (locationLink) {
-                locationLink.addEventListener('click', () => {
-                    map.setCenter(location);
-                    map.setZoom(14); // זום־אין למיקום
-                });
-            }
+
+            // Highlight corresponding table row when marker is clicked
+            marker.addListener("click", () => {
+                const rows = document.querySelectorAll('#reports-table tbody tr');
+                rows.forEach(row => row.classList.remove('table-active'));
+                const targetRow = document.querySelector(`#reports-table tbody tr[data-report-id="${report.id}"]`);
+                if (targetRow) {
+                    targetRow.classList.add('table-active');
+                    targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            });
+
+            return marker;
         } else {
             console.error("Geocoding failed:", data.status, data.error_message);
+            return null;
         }
     } catch (error) {
         console.error("Geocoding error:", error);
+        return null;
+    }
+}
+
+// NEW: Function to fetch report by ID and open the Edit Report modal
+async function editMarkerReport(reportId) {
+    try {
+        const response = await fetch(`/api/reports/${reportId}`, {
+            credentials: 'include'
+        });
+        if (!response.ok) {
+            throw new Error(`Failed to fetch report with id ${reportId}`);
+        }
+        const report = await response.json();
+        openEditReportModal(report);
+    } catch (err) {
+        console.error("Error fetching report for edit:", err);
+        alert("Failed to load report for editing.");
     }
 }
 
@@ -249,6 +288,44 @@ async function isValidImage(url) {
     }
 }
 
+// Helper to create a report block element
+function createReportBlock(report) {
+    const block = document.createElement('div');
+    block.className = 'event-log-block d-flex gap-3 align-items-start p-3 rounded shadow-sm bg-white position-relative';
+    block.innerHTML = `
+        <img src="${report.image}" alt="Hazard image" class="event-block-image" style="width: 80px; height: 80px; object-fit: cover; border-radius: 12px; box-shadow: 0 2px 8px #23294622; border: 2px solid #e9f0fa; background: #f4f7fb;">
+        <div class="event-block-details">
+            <div class="event-block-title">
+                <i class="fas fa-exclamation-triangle"></i> ${report.type}
+            </div>
+            <div class="event-block-meta">
+                <span><i class="fas fa-map-marker-alt"></i> ${report.location}</span>
+                <span><i class="fas fa-calendar-alt"></i> ${new Date(report.time).toLocaleString()}</span>
+                <span><i class="fas fa-user"></i> ${report.reportedBy}</span>
+            </div>
+            <div class="event-block-status mt-1">
+                <span class="status-badge badge ${report.status === 'Resolved' ? 'bg-success' : report.status === 'Open' ? 'bg-danger' : 'bg-warning text-dark'}">${report.status}</span>
+            </div>
+            <div class="event-block-actions mt-2 d-flex gap-2 flex-wrap">
+                <button class="btn btn-outline-primary btn-sm view-details-btn"><i class="fas fa-info-circle"></i> Details</button>
+                <button class="btn btn-outline-secondary btn-sm view-image-btn"><i class="fas fa-image"></i> Image</button>
+                <button class="btn btn-outline-warning btn-sm edit-report-btn"><i class="fas fa-edit"></i> Edit</button>
+                <button class="btn btn-outline-danger btn-sm delete-report-btn"><i class="fas fa-trash"></i> Delete</button>
+                <button class="btn btn-outline-success btn-sm status-toggle-btn">${report.status === 'Resolved' ? 'Mark Open' : 'Mark Resolved'}</button>
+            </div>
+        </div>
+    `;
+    // Image modal
+    block.querySelector('.view-image-btn').addEventListener('click', () => openModal(report.image));
+    // Details modal
+    block.querySelector('.view-details-btn').addEventListener('click', () => showReportDetails(report));
+    // Admin actions
+    block.querySelector('.edit-report-btn').addEventListener('click', () => openEditReportModal(report));
+    block.querySelector('.delete-report-btn').addEventListener('click', () => deleteReport(report.id));
+    block.querySelector('.status-toggle-btn').addEventListener('click', () => toggleReportStatus(report));
+    return block;
+}
+
 // Utility for sorting
 function sortReports(reports, sortField, sortOrder) {
     return reports.slice().sort((a, b) => {
@@ -267,372 +344,258 @@ function sortReports(reports, sortField, sortOrder) {
 // טוען דיווחים מהשרת ומכניס לטבלה ולמפה
 async function loadReports(filters = {}) {
     try {
-        clearMarkers();
-        document.getElementById('reports-body').innerHTML = '<tr><td colspan="7" class="text-center">Loading reports...</td></tr>';
-        
-        const queryParams = new URLSearchParams(filters).toString();
-        const response = await fetch(`/api/reports?${queryParams}`, {
-            method: 'GET',
-            credentials: 'include',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            }
-        });
+        // Build query string from filters
+        const queryString = Object.entries(filters)
+            .filter(([_, value]) => value)
+            .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+            .join('&');
 
+        const response = await fetch(`/api/reports${queryString ? `?${queryString}` : ''}`);
         if (!response.ok) {
-            const errorText = await response.text();
-            document.getElementById('reports-body').innerHTML = `<tr><td colspan="7" class="text-danger text-center">Error loading reports: ${response.status} ${response.statusText}. ${errorText}</td></tr>`;
-            return;
+            throw new Error('Failed to fetch reports');
         }
 
         const reports = await response.json();
-        const tbody = document.getElementById('reports-body');
-        tbody.innerHTML = '';
+        lastReports = reports; // Save for filtering/sorting
 
-        // שלב 1: בדיקת תקינות כל התמונות במקביל
-        const imageValidationPromises = reports.map(report => 
-            isValidImage(report.image).then(isValid => ({ report, isValid }))
-        );
+        // Clear existing markers
+        clearMarkers();
+
+        // Create marker bounds to fit all markers
+        const bounds = new google.maps.LatLngBounds();
         
-        const validationResults = await Promise.all(imageValidationPromises);
-
-        // שלב 2: סינון הדוחות כך שרק אלו עם תמונות תקינות יישארו
-        let validReports = validationResults.filter(result => result.isValid).map(result => result.report);
-
-        // מיון לפי בחירת המשתמש
-        validReports = sortReports(validReports, currentSort.field, currentSort.order);
-
-        if (validReports.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center">No reports found matching your criteria.</td></tr>';
-            // Removed analytics update; only visual info remains.
-            return;
-        }
-
-        validReports.forEach(report => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${report.id}</td>
-                <td>${report.type}</td>
-                <td><span class="location-link" data-location="${report.location}">${report.location}</span></td>
-                <td>${new Date(report.time).toLocaleString()}</td>
-                <td><img src="${report.image}" alt="image" width="50" style="cursor:pointer;" loading="lazy"></td>
-                <td>${report.status}</td>
-                <td>${report.reportedBy}</td>
-            `;
-
-            const img = row.querySelector('img');
-            img.addEventListener('click', () => openModal(report.image));
-
-            const locationLink = row.querySelector('.location-link');
-            locationLink.addEventListener('click', () => {
-                geocodeAddress(report.location, report);
-            });
-
-            tbody.appendChild(row);
-
-            if (report.location) {
-                geocodeAddress(report.location, report);
+        // Process reports in parallel for better performance
+        const markerPromises = reports.map(async report => {
+            const marker = await geocodeAddress(report.location, report);
+            if (marker) {
+                bounds.extend(marker.getPosition());
             }
+            return marker;
         });
 
-        // Removed: updateAnalytics(validReports);
+        // Wait for all markers to be created
+        const newMarkers = (await Promise.all(markerPromises)).filter(Boolean);
+        
+        // If we have markers, fit the map to show all of them
+        if (newMarkers.length > 0) {
+            map.fitBounds(bounds);
+            const listener = google.maps.event.addListener(map, 'idle', function() {
+                if (map.getZoom() > 16) {
+                    map.setZoom(16);
+                }
+                google.maps.event.removeListener(listener);
+            });
+        }
+        // Update markers array
+        markers = newMarkers;
+        
+        // NEW: Update heatmap overlay on the map with the new marker positions
+        updateHeatmap();
+        
+        // Trigger the filter and render function
+        if (window.filterAndRenderReports) {
+            window.filterAndRenderReports();
+        }
+        updateDashboardInfo(reports);
+        return reports;
     } catch (error) {
-        console.error("Error loading reports:", error);
-        document.getElementById('reports-body').innerHTML = `<tr><td colspan="7" class="text-danger text-center">Failed to load reports: ${error.message}</td></tr>`;
+        console.error('Error loading reports:', error);
+        showToast('Failed to load reports', 'error');
+        return [];
     }
 }
 
-// מאזין לטעינת המסמך - רק בשביל לחצנים
-document.addEventListener("DOMContentLoaded", () => {
-    // Cache DOM elements and check existence
-    const elements = {
-        reportDetailsModal: document.getElementById('reportDetailsModal'),
-        filtersPanel: document.getElementById('filters'),
-        clearBtn: document.getElementById('clear-filters-btn'),
-        searchBtn: document.getElementById('search-btn'),
-        toggleFiltersBtn: document.getElementById('toggle-filters-btn'),
-        toggleReportsBtn: document.getElementById('toggleReportsBtn'),
-        toggleMapBtn: document.getElementById('toggleMapBtn'),
-        viewToggleContainer: document.getElementById('view-toggle-container'),
-        hazardTypesContainer: document.getElementById('hazard-types-container'),
-        toggleHazardTypesBtn: document.getElementById('toggle-hazard-types-btn'),
-        closeModalBtn: document.getElementById('close-modal'),
-        reportsDiv: document.getElementById('reports'),
-        dashboardContainer: document.getElementById('dashboard-container'),
-        topButtons: document.getElementById('top-buttons'),
-        imageModal: document.getElementById('image-modal'),
-        sortSelect: document.getElementById('sort-select')
+// Update general info blocks
+function updateDashboardInfo(reports) {
+    // New Reports: total count
+    const newReports = reports.length;
+    // Open Hazards: status 'Open' (case-insensitive)
+    const openHazards = reports.filter(r => (r.status || '').toLowerCase() === 'open').length;
+    // Resolved This Month: status 'Resolved' and time in current month
+    const now = new Date();
+    const thisMonth = now.getMonth();
+    const thisYear = now.getFullYear();
+    const resolvedThisMonth = reports.filter(r => {
+        if ((r.status || '').toLowerCase() !== 'resolved') return false;
+        const t = new Date(r.time);
+        return t.getMonth() === thisMonth && t.getFullYear() === thisYear;
+    }).length;
+    // Active Users: unique reportedBy
+    const users = new Set(reports.map(r => r.reportedBy).filter(Boolean));
+    const activeUsers = users.size;
+    // Update DOM
+    const setVal = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val;
     };
+    setVal('new-reports-count', newReports);
+    setVal('open-hazards-count', openHazards);
+    setVal('resolved-this-month', resolvedThisMonth);
+    setVal('active-users', activeUsers);
+}
 
-    // Check if all required elements exist
-    const missingElements = Object.entries(elements)
-        .filter(([key, element]) => !element)
-        .map(([key]) => key);
+// --- GLOBAL STATE ---
+let lastReports = [];
+let currentMarker = null;
 
-    if (missingElements.length > 0) {
-        console.error('Missing DOM elements:', missingElements);
-        return; // Exit if critical elements are missing
-    }
+// --- DOM ELEMENTS HOOKUP FOR NEW LAYOUT ---
+const dom = {
+  sidebar: document.querySelector('.dashboard-sidebar'),
+  mainContent: document.querySelector('.dashboard-main'),
+  dashboardContainer: document.body,
+  topButtons: document.getElementById('refresh-info-btn'),
+  reportsDiv: document.getElementById('reports-widget'),
+  sortSelect: document.getElementById('report-sort-select'),
+  toggleMapBtn: document.getElementById('map-maximize-btn'),
+  toggleReportsBtn: document.getElementById('reports-maximize-btn'),
+  imageModal: document.getElementById('image-modal'),
+  viewToggleContainer: document.getElementById('view-toggle-container'),
+};
 
-    // Initialize Bootstrap modal if element exists
-    if (elements.reportDetailsModal) {
-        reportDetailsBootstrapModal = new bootstrap.Modal(elements.reportDetailsModal);
-    }
-
-    // Generate hazard type checkboxes
-    generateHazardCheckboxes();
-
-    // Event Listeners
-    if (elements.closeModalBtn) {
-        elements.closeModalBtn.addEventListener('click', closeModal);
-    }
-
-    if (elements.toggleHazardTypesBtn && elements.hazardTypesContainer) {
-        elements.toggleHazardTypesBtn.addEventListener('click', () => {
-            elements.hazardTypesContainer.classList.toggle('d-none');
-        });
-    }
-
-    // Toggle filters panel with error handling
-    elements.toggleFiltersBtn.addEventListener('click', () => {
-        try {
-            elements.filtersPanel.classList.toggle('d-none');
-            const icon = elements.toggleFiltersBtn.querySelector('i');
-            const span = elements.toggleFiltersBtn.querySelector('span');
-            if (!span) return;
-            
-            span.textContent = elements.filtersPanel.classList.contains('d-none') 
-                ? 'Show Filters' 
-                : 'Hide Filters';
-        } catch (error) {
-            console.error('Error toggling filters:', error);
-        }
+// --- BUTTON LOGIC CONNECTIONS ---
+document.addEventListener("DOMContentLoaded", () => {
+  // Maximize/Minimize Map
+  if (dom.toggleMapBtn && dom.viewToggleContainer) {
+    dom.toggleMapBtn.addEventListener('click', () => {
+      if (dom.viewToggleContainer.classList.contains('map-maximized')) {
+        dom.viewToggleContainer.className = 'normal-view';
+        dom.toggleMapBtn.innerHTML = '<i class="fas fa-expand-arrows-alt"></i>';
+        if (dom.toggleReportsBtn) dom.toggleReportsBtn.style.display = '';
+        if (dom.reportsDiv) dom.reportsDiv.style.display = '';
+        if (document.getElementById('map')) document.getElementById('map').style.display = '';
+      } else {
+        dom.viewToggleContainer.className = 'map-maximized';
+        dom.toggleMapBtn.innerHTML = '<i class="fas fa-compress-alt"></i>';
+        if (dom.toggleReportsBtn) dom.toggleReportsBtn.style.display = 'none';
+        if (dom.reportsDiv) dom.reportsDiv.style.display = 'none';
+        if (document.getElementById('map')) document.getElementById('map').style.display = '';
+      }
+      if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
+        google.maps.event.trigger(map, 'resize');
+      }
     });
-    
-    // מאזין לחיפוש
-    elements.searchBtn.addEventListener('click', () => {
-        // איפוס
-        Object.keys(filters).forEach(key => delete filters[key]);
+  }
 
-        // סוגי מפגעים
-        const hazardTypes = Array.from(document.querySelectorAll('#hazard-types-container input:checked'))
-            .map(cb => cb.value);
-        if (hazardTypes.length > 0) {
-            filters.hazardType = hazardTypes;
-        }
-
-        // מיקום
-        const locationVal = document.getElementById('location').value.trim();
-        if (locationVal) filters.location = locationVal;
-
-        // מילות מפתח - פילטר חדש
-        const keywordsVal = document.getElementById('keywords').value.trim();
-        if (keywordsVal) filters.keywords = keywordsVal;
-
-        // תאריכים
-        const startDateVal = document.getElementById('start-date').value;
-        const endDateVal = document.getElementById('end-date').value;
-        if (startDateVal) filters.startDate = startDateVal;
-        if (endDateVal) filters.endDate = endDateVal;
-
-        // סטטוס
-        const statusVal = document.getElementById('status').value;
-        if (statusVal) filters.status = statusVal;
-
-        // מדווח
-        const reporterVal = document.getElementById('reported-by').value.trim();
-        if (reporterVal) filters.reportedBy = reporterVal;
-
-        // שליחת בקשה
-        loadReports(filters);
+  // Maximize/Minimize Reports
+  if (dom.toggleReportsBtn && dom.viewToggleContainer) {
+    dom.toggleReportsBtn.addEventListener('click', () => {
+      if (dom.viewToggleContainer.classList.contains('reports-maximized')) {
+        dom.viewToggleContainer.className = 'normal-view';
+        dom.toggleReportsBtn.innerHTML = '<i class="fas fa-expand-arrows-alt"></i>';
+        if (dom.toggleMapBtn) dom.toggleMapBtn.style.display = '';
+        if (dom.reportsDiv) dom.reportsDiv.style.display = '';
+        if (document.getElementById('map')) document.getElementById('map').style.display = '';
+      } else {
+        dom.viewToggleContainer.className = 'reports-maximized';
+        dom.toggleReportsBtn.innerHTML = '<i class="fas fa-compress-alt"></i>';
+        if (dom.toggleMapBtn) dom.toggleMapBtn.style.display = 'none';
+        if (dom.reportsDiv) dom.reportsDiv.style.display = '';
+        if (document.getElementById('map')) document.getElementById('map').style.display = 'none';
+      }
+      if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
+        google.maps.event.trigger(map, 'resize');
+      }
     });
+  }
 
-    elements.clearBtn.addEventListener('click', () => {
-        // איפוס
-        document.getElementById('location').value = '';
-        document.getElementById('start-date').value = '';
-        document.getElementById('end-date').value = '';
-        document.getElementById('status').value = '';
-        document.getElementById('reported-by').value = '';
-
-        // איפוס תיבות סימון
-        const checkboxes = document.querySelectorAll('#hazard-types-container input');
-        checkboxes.forEach(cb => cb.checked = false);
-
-        // איפוס פילטרים
-        Object.keys(filters).forEach(key => delete filters[key]);
-
-        // טוען מחדש את הדיווחים
-        loadReports();
-    });
-
-    // Map / Reports view toggle logic
-    elements.toggleMapBtn.addEventListener('click', () => {
-        if (elements.viewToggleContainer.classList.contains('map-maximized')) {
-            elements.viewToggleContainer.className = 'normal-view'; // Switch to normal view
-            elements.toggleMapBtn.innerHTML = '<i class="fas fa-expand-alt"></i> <span>Maximize Map</span>';
-            elements.toggleReportsBtn.style.display = 'inline-flex'; // Or 'block' or '' depending on original display
-        } else {
-            elements.viewToggleContainer.className = 'map-maximized'; // Maximize map
-            elements.toggleMapBtn.innerHTML = '<i class="fas fa-compress-alt"></i> <span>Show All</span>';
-            elements.toggleReportsBtn.style.display = 'none';
-        }
-        google.maps.event.trigger(map, 'resize'); // Ensure map resizes correctly
-    });
-
-    elements.toggleReportsBtn.addEventListener('click', () => {
-        if (elements.viewToggleContainer.classList.contains('reports-maximized')) {
-            elements.viewToggleContainer.className = 'normal-view'; // Switch to normal view
-            elements.toggleReportsBtn.innerHTML = '<i class="fas fa-table"></i> <span>Maximize Reports</span>';
-            elements.toggleMapBtn.style.display = 'inline-flex'; // Or 'block' or ''
-        } else {
-            elements.viewToggleContainer.className = 'reports-maximized'; // Maximize reports
-            elements.toggleReportsBtn.innerHTML = '<i class="fas fa-compress-alt"></i> <span>Show All</span>';
-            elements.toggleMapBtn.style.display = 'none';
-        }
-        // No need to resize map if it's hidden, but good practice if it might become visible
-        if (elements.viewToggleContainer.classList.contains('normal-view')) {
-            google.maps.event.trigger(map, 'resize');
-        }
-    });
-
-    // Initial button states based on view (if not normal-view by default)
-    if (elements.viewToggleContainer.classList.contains('normal-view')) {
-        elements.toggleMapBtn.innerHTML = '<i class="fas fa-expand-alt"></i> <span>Maximize Map</span>';
-        elements.toggleReportsBtn.innerHTML = '<i class="fas fa-table"></i> <span>Maximize Reports</span>';
-        elements.toggleReportsBtn.style.display = 'inline-flex';
-        elements.toggleMapBtn.style.display = 'inline-flex';
+  // Ensure initial button states
+  if (dom.viewToggleContainer && dom.toggleMapBtn && dom.toggleReportsBtn) {
+    if (dom.viewToggleContainer.classList.contains('normal-view')) {
+      dom.toggleMapBtn.innerHTML = '<i class="fas fa-expand-arrows-alt"></i>';
+      dom.toggleReportsBtn.innerHTML = '<i class="fas fa-expand-arrows-alt"></i>';
+      dom.toggleReportsBtn.style.display = '';
+      dom.toggleMapBtn.style.display = '';
     }
+  }
 
-    // Ensure filter button text is correct on load
-    elements.toggleFiltersBtn.querySelector('span').textContent = elements.filtersPanel.classList.contains('d-none') ? 'Show Filters' : 'Hide Filters';
-    
-    // הגבלת תאריך סיום לפי תאריך התחלה והפוך
-    document.getElementById('start-date').addEventListener('change', (e) => {
-        const startDate = e.target.value;
-        const endDateInput = document.getElementById('end-date');
-        endDateInput.min = startDate;
-    });
-
-    document.getElementById('end-date').addEventListener('change', (e) => {
-        const endDate = e.target.value;
-        const startDateInput = document.getElementById('start-date');
-        startDateInput.max = endDate;
-    });
-
-    // Remove duplicate sort-dropdown block if already created.
-    if (elements.reportsDiv && !document.getElementById('sort-select')) {
-        const sortDiv = document.createElement('div');
-        sortDiv.className = 'mb-2 d-flex align-items-center gap-2';
-        sortDiv.innerHTML = `
-            <label for="sort-select" class="form-label mb-0">Sort by:</label>
-            <select id="sort-select" class="form-select form-select-sm w-auto">
-                <option value="time-desc">Date: Newest First</option>
-                <option value="time-asc">Date: Oldest First</option>
-                <option value="type-asc">Hazard Type: A-Z</option>
-                <option value="type-desc">Hazard Type: Z-A</option>
-                <option value="status-asc">Status: A-Z</option>
-                <option value="status-desc">Status: Z-A</option>
-                <option value="location-asc">Location: A-Z</option>
-                <option value="location-desc">Location: Z-A</option>
-                <option value="reportedBy-asc">Reported By: A-Z</option>
-                <option value="reportedBy-desc">Reported By: Z-A</option>
-            </select>
-        `;
-        elements.reportsDiv.prepend(sortDiv);
-    }
-
-    // עיצוב דינמי - שדרוג כותרות, רקעים, כפתורים
-    // שדרוג כותרת ראשית
-    if (elements.dashboardContainer) {
-        elements.dashboardContainer.classList.add('shadow-lg', 'rounded', 'bg-dark', 'bg-gradient', 'p-4');
-        const h1 = elements.dashboardContainer.querySelector('h1');
-        if (h1) {
-            h1.classList.add('display-4', 'fw-bold', 'text-primary', 'mb-4', 'text-center', 'text-shadow');
-        }
-    }
-
-    // שדרוג כפתורי הטופ
-    if (elements.topButtons) {
-        elements.topButtons.classList.add('justify-content-center', 'mb-4');
-        elements.topButtons.querySelectorAll('button').forEach(btn => {
-            btn.classList.add('btn-lg', 'shadow', 'rounded-pill');
-        });
-    }
-
-    // שדרוג תיבת הפילטרים
-    const filtersPanel = document.getElementById('filters');
-    if (filtersPanel) {
-        filtersPanel.classList.add('bg-secondary', 'bg-opacity-75', 'shadow', 'rounded-4', 'border-0');
-        const h3 = filtersPanel.querySelector('h3');
-        if (h3) h3.classList.add('fw-bold', 'text-info', 'mb-4');
-        filtersPanel.querySelectorAll('label').forEach(label => label.classList.add('fw-semibold', 'text-light'));
-        filtersPanel.querySelectorAll('input,select').forEach(input => input.classList.add('shadow-sm'));
-    }
-
-    // שדרוג טבלת הדוחות
-    if (elements.reportsDiv) {
-        elements.reportsDiv.classList.add('bg-dark', 'bg-gradient', 'rounded-4', 'shadow', 'p-3');
-        const h2 = elements.reportsDiv.querySelector('h2');
-        if (h2) h2.classList.add('fw-bold', 'text-warning', 'mb-4', 'text-center');
-        const table = elements.reportsDiv.querySelector('table');
-        if (table) table.classList.add('table-dark', 'align-middle', 'rounded-4', 'overflow-hidden');
-    }
-
-    // שדרוג מודל תמונה
-    if (elements.imageModal) {
-        elements.imageModal.classList.add('bg-dark', 'bg-opacity-75', 'backdrop-blur');
-        const modalImg = document.getElementById('modal-image');
-        if (modalImg) modalImg.classList.add('rounded', 'shadow-lg', 'border', 'border-3', 'border-primary');
-    }
-
-    // שדרוג מודל פרטי דיווח
-    const reportDetailsModal = document.getElementById('reportDetailsModal');
-    if (reportDetailsModal) {
-        reportDetailsModal.querySelector('.modal-content').classList.add('bg-dark', 'text-light', 'rounded-4', 'shadow-lg');
-        reportDetailsModal.querySelector('.modal-header').classList.add('border-0', 'bg-primary', 'bg-gradient', 'text-light');
-        reportDetailsModal.querySelector('.modal-title').classList.add('fw-bold');
-        reportDetailsModal.querySelector('.modal-footer').classList.add('border-0', 'bg-secondary', 'bg-opacity-50');
-    }
-
-    // שדרוג dropdown של המיון
-    if (elements.sortSelect) {
-        elements.sortSelect.classList.add('shadow', 'rounded-pill', 'bg-dark', 'text-light', 'border-primary');
-    }
+  // Upgrade sort select style
+  if (dom.sortSelect) {
+    dom.sortSelect.classList.add('shadow', 'rounded-pill', 'bg-dark', 'text-light', 'border-primary');
+  }
 });
 
-
-function showReportDetails(report) {
-    document.getElementById("modal-hazard-id").textContent = report.id;
-    document.getElementById("modal-type").textContent = report.type;
-    document.getElementById("modal-location").textContent = report.location;
-    document.getElementById("modal-time").textContent = new Date(report.time).toLocaleString();
-    document.getElementById("modal-status").textContent = report.status;
-    document.getElementById("modal-user").textContent = report.reportedBy;
+// --- Search/Sort Logic ---
+document.addEventListener('DOMContentLoaded', () => {
+    // Initialize hazard type checkboxes
+    const hazardContainer = document.getElementById('hazard-types-container');
+    if (hazardContainer) {
+        generateHazardCheckboxes();
+        // Listen for changes on checkboxes to trigger filtering
+        hazardContainer.addEventListener('change', () => {
+            window.filterAndRenderReports();
+        });
+    }
     
-    const modalImageElement = document.getElementById("modal-report-image");
-    if (report.image) {
-        modalImageElement.src = report.image;
-        modalImageElement.style.display = "block";
-    } else {
-        modalImageElement.src = "";
-        modalImageElement.style.display = "none";
+    const searchInput = document.getElementById('report-search-input');
+    const sortSelect = document.getElementById('report-sort-select');
+    function filterAndRenderReports() {
+        let filtered = lastReports;
+        const q = (searchInput?.value || '').toLowerCase();
+        if (q) {
+            filtered = filtered.filter(r =>
+                (r.type && r.type.toLowerCase().includes(q)) ||
+                (r.location && r.location.toLowerCase().includes(q)) ||
+                (r.status && r.status.toLowerCase().includes(q)) ||
+                (r.reportedBy && r.reportedBy.toLowerCase().includes(q))
+            );
+        }
+        // Filter by selected hazard types (if any)
+        const checkedHazards = Array.from(document.querySelectorAll('#hazard-types-container input[type="checkbox"]:checked')).map(el => el.value);
+        if (checkedHazards.length > 0) {
+            filtered = filtered.filter(r => checkedHazards.includes(r.type));
+        }
+        // Sort
+        if (sortSelect) {
+            const [field, order] = sortSelect.value.split('-');
+            filtered = sortReports(filtered, field === 'reportedBy' ? 'reportedBy' : field, order);
+        }
+        filtered = mergeDuplicateReports(filtered);
+        renderReportBlocks(filtered);
+        updateDashboardInfo(filtered);
     }
+    if (searchInput) searchInput.addEventListener('input', filterAndRenderReports);
+    if (sortSelect) sortSelect.addEventListener('change', filterAndRenderReports);
+    window.filterAndRenderReports = filterAndRenderReports;
+});
 
-    if (reportDetailsBootstrapModal) {
-        reportDetailsBootstrapModal.show();
-    }
+// --- Report Details Modal Logic ---
+function showReportDetails(report) {
+  document.getElementById("modal-hazard-id").textContent = report.id;
+  document.getElementById("modal-type").textContent = report.type;
+  document.getElementById("modal-location").textContent = report.location;
+  document.getElementById("modal-time").textContent = new Date(report.time).toLocaleString();
+  document.getElementById("modal-status").textContent = report.status;
+  document.getElementById("modal-user").textContent = report.reportedBy;
+  const modalImageElement = document.getElementById("modal-report-image");
+  if (report.image) {
+    modalImageElement.src = report.image;
+    modalImageElement.style.display = "block";
+  } else {
+    modalImageElement.src = "";
+    modalImageElement.style.display = "none";
+  }
+  if (window.reportDetailsBootstrapModal) {
+    window.reportDetailsBootstrapModal.show();
+  }
 }
+// Expose globally for infowindow and HTML
+window.showReportDetails = showReportDetails;
+
+// Expose openModal globally for infowindow and HTML
+window.openModal = openModal;
+
 // Manual hideReportDetailsModal and its listeners are removed as Bootstrap handles dismissal.
 
 function toggleSidebar() {
-	sidebar.classList.toggle('open');
-	mainContent.classList.toggle('shifted');
+	dom.sidebar.classList.toggle('open');
+	dom.mainContent.classList.toggle('shifted');
 	// UI Enhancement: add smooth opacity transition to sidebar
-	sidebar.style.transition = 'left 0.3s ease, opacity 0.3s ease';
-	sidebar.style.opacity = sidebar.classList.contains('open') ? '1' : '0.9';
+	dom.sidebar.style.transition = 'left 0.3s ease, opacity 0.3s ease';
+	dom.sidebar.style.opacity = dom.sidebar.classList.contains('open') ? '1' : '0.9';
 }
+
+// Expose toggleSidebar globally
+window.toggleSidebar = toggleSidebar;
 
 // Add a function to create and return a map legend div
 function addMapLegend() {
@@ -644,7 +607,7 @@ function addMapLegend() {
     legend.style.fontSize = '14px';
     legend.style.fontFamily = 'Arial, sans-serif';
     legend.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
-    legend.innerHTML = '<h4 style="margin-top:0;">מקרא</h4>';
+    legend.innerHTML = '<h4 style="margin-top:0;">Key</h4>';
     // Loop through hazard types (excluding the default)
     for (const [hazard, color] of Object.entries(hazardMarkerColors)) {
         if (hazard === 'default') continue;
@@ -656,4 +619,381 @@ function addMapLegend() {
         legend.appendChild(item);
     }
     return legend;
+}
+
+// --- Maximize/Minimize Map/Reports Logic ---
+document.addEventListener('DOMContentLoaded', () => {
+  const mapMaxBtn = document.getElementById('map-maximize-btn');
+  const reportsMaxBtn = document.getElementById('reports-maximize-btn');
+  if (mapMaxBtn && dom.viewToggleContainer) {
+    mapMaxBtn.addEventListener('click', () => {
+      if (dom.viewToggleContainer.classList.contains('map-maximized')) {
+        dom.viewToggleContainer.className = 'normal-view';
+      } else {
+        dom.viewToggleContainer.className = 'map-maximized';
+      }
+      if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
+        google.maps.event.trigger(map, 'resize');
+      }
+    });
+  }
+  if (reportsMaxBtn && dom.viewToggleContainer) {
+    reportsMaxBtn.addEventListener('click', () => {
+      if (dom.viewToggleContainer.classList.contains('reports-maximized')) {
+        dom.viewToggleContainer.className = 'normal-view';
+      } else {
+        dom.viewToggleContainer.className = 'reports-maximized';
+      }
+      if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
+        google.maps.event.trigger(map, 'resize');
+      }
+    });
+  }
+});
+
+// --- Deduplication/Merge Logic ---
+function mergeDuplicateReports(reports) {
+  const merged = [];
+  const seenLoc = new Map();
+  const seenImg = new Map();
+  reports.forEach(r => {
+    // Key: type+location (case-insensitive, trimmed)
+    const locKey = `${(r.type||'').toLowerCase().trim()}|${(r.location||'').toLowerCase().trim()}`;
+    if (seenLoc.has(locKey)) {
+      const existing = seenLoc.get(locKey);
+      existing._mergedCount = (existing._mergedCount||1)+1;
+      existing._mergedIds = existing._mergedIds || [existing.id];
+      existing._mergedIds.push(r.id);
+      if (!existing._mergedReporters) existing._mergedReporters = new Set([existing.reportedBy]);
+      existing._mergedReporters.add(r.reportedBy);
+    } else {
+      seenLoc.set(locKey, { ...r });
+    }
+  });
+  // Now check for identical images
+  for (const rep of seenLoc.values()) {
+    if (rep.image) {
+      if (seenImg.has(rep.image)) {
+        // Mark as duplicate
+        const dupe = seenImg.get(rep.image);
+        dupe._duplicateImages = dupe._duplicateImages || [];
+        dupe._duplicateImages.push(rep);
+      } else {
+        seenImg.set(rep.image, rep);
+      }
+    }
+    merged.push(rep);
+  }
+  return merged;
+}
+
+// --- Render Report Blocks ---
+function renderReportBlocks(reports) {
+  renderReportTableRows(reports);
+}
+
+// --- Render Report Table Rows ---
+function renderReportTableRows(reports) {
+    let table = document.getElementById('reports-table');
+    let container = document.getElementById('reports-table-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'reports-table-container';
+        container.className = 'table-responsive';
+        const reportsWidget = document.getElementById('reports-widget');
+        if (reportsWidget) reportsWidget.appendChild(container);
+    }
+    
+    if (!table) {
+        table = document.createElement('table');
+        table.className = 'table table-dark table-hover table-bordered align-middle rounded shadow';
+        table.id = 'reports-table';
+        table.innerHTML = `
+            <thead class="table-accent">
+                <tr>
+                    <th scope="col">Image</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Location</th>
+                    <th scope="col">Time</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Reporter</th>
+                    <th scope="col" class="text-center">Actions</th>
+                </tr>
+            </thead>
+            <tbody id="reports-table-body"></tbody>
+        `;
+        container.appendChild(table);
+    }
+
+    const tbody = document.getElementById('reports-table-body');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    reports.forEach(report => {
+        const tr = document.createElement('tr');
+        tr.dataset.reportId = report.id; // Add data attribute for marker sync
+        tr.innerHTML = `
+            <td>
+                ${report.image ? 
+                    `<img src="${report.image}" alt="Hazard" class="hazard-thumbnail" 
+                     style="width:56px;height:56px;object-fit:cover;border-radius:10px;
+                     box-shadow:0 2px 8px #23294622;cursor:pointer"
+                     onclick="showImageModal('${report.image}')" title="View full image">`
+                    : '<span class="text-muted">No image</span>'}
+            </td>
+            <td>${report.type}</td>
+            <td>
+                <a href="#" class="text-info location-link" onclick="focusMapLocation('${report.location}')" title="Locate on map">
+                    ${report.location}
+                </a>
+                ${report._mergedCount ? 
+                    `<span class="badge bg-info ms-2" title="Multiple reports at this location">
+                        +${report._mergedCount - 1}
+                    </span>` 
+                    : ''}
+            </td>
+            <td>${new Date(report.time).toLocaleString()}</td>
+            <td>
+                <span class="badge ${getStatusBadgeClass(report.status)}">
+                    ${report.status}
+                </span>
+            </td>
+            <td>
+                ${report.reportedBy}
+                ${report._mergedReporters?.size > 1 ? 
+                    `<span class="badge bg-secondary ms-1" title="Multiple reporters">
+                        +${report._mergedReporters.size - 1}
+                    </span>` 
+                    : ''}
+            </td>
+            <td class="text-center">
+                <div class="btn-group" role="group">
+                    <button class="btn btn-outline-primary btn-sm" title="View Details" 
+                            onclick="showReportDetails(${JSON.stringify(report)})">
+                        <i class="fas fa-info-circle"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" title="View Image"
+                            onclick="showImageModal('${report.image}')"
+                            ${!report.image ? 'disabled' : ''}>
+                        <i class="fas fa-image"></i>
+                    </button>
+                    <button class="btn btn-outline-warning btn-sm" title="Edit Report"
+                            onclick="openEditReportModal(${JSON.stringify(report)})">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" title="Delete Report"
+                            onclick="confirmDeleteReport('${report.id}')">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    <button class="btn btn-outline-${report.status === 'Resolved' ? 'danger' : 'success'} btn-sm" 
+                            title="Toggle Status" onclick="toggleReportStatus('${report.id}', '${report.status}')">
+                        ${report.status === 'Resolved' ? 'Mark Open' : 'Mark Resolved'}
+                    </button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+
+        // Add hover effect to sync with map markers
+        tr.addEventListener('mouseenter', () => highlightMarker(report.id));
+        tr.addEventListener('mouseleave', () => unhighlightMarker(report.id));
+    });
+}
+
+// Helper function for status badge classes
+function getStatusBadgeClass(status) {
+    switch(status?.toLowerCase()) {
+        case 'resolved': return 'bg-success';
+        case 'open': return 'bg-danger';
+        case 'in progress': return 'bg-warning text-dark';
+        default: return 'bg-secondary';
+    }
+}
+
+// Helper function to focus map on location
+function focusMapLocation(location) {
+    const marker = markers.find(m => m.getTitle()?.includes(location));
+    if (marker) {
+        map.panTo(marker.getPosition());
+        map.setZoom(15);
+        marker.setAnimation(google.maps.Animation.BOUNCE);
+        setTimeout(() => marker.setAnimation(null), 2100);
+    }
+}
+
+// Helper functions for marker highlighting
+function highlightMarker(reportId) {
+    const marker = markers.find(m => m.reportId === reportId);
+    if (marker) {
+        marker.setAnimation(google.maps.Animation.BOUNCE);
+    }
+}
+
+function unhighlightMarker(reportId) {
+    const marker = markers.find(m => m.reportId === reportId);
+    if (marker) {
+        marker.setAnimation(null);
+    }
+}
+
+// Function to show full-size image modal
+function showImageModal(imageUrl) {
+    if (!imageUrl) return;
+    
+    const modalHtml = `
+        <div class="modal fade" id="imageModal" tabindex="-1">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content bg-dark">
+                    <div class="modal-header border-secondary">
+                        <h5 class="modal-title text-light">Hazard Image</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body text-center p-0">
+                        <img src="${imageUrl}" class="img-fluid" style="max-height:80vh">
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Remove existing modal if any
+    const existingModal = document.getElementById('imageModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+
+    // Add new modal
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('imageModal'));
+    modal.show();
+}
+
+// Toggle report status
+async function toggleReportStatus(reportId, currentStatus) {
+    const newStatus = currentStatus === 'Resolved' ? 'Open' : 'Resolved';
+    try {
+        const response = await fetch(`/api/reports/${reportId}/status`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ status: newStatus })
+        });
+
+        if (response.ok) {
+            await loadReports(); // Reload to update UI
+            showToast(`Report marked as ${newStatus}`, 'success');
+        } else {
+            throw new Error('Failed to update status');
+        }
+    } catch (error) {
+        console.error('Error updating status:', error);
+        showToast('Failed to update status', 'error');
+    }
+}
+
+// Confirm and delete report
+function confirmDeleteReport(reportId) {
+    const modalHtml = `
+        <div class="modal fade" id="deleteConfirmModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content bg-dark text-light">
+                    <div class="modal-header border-secondary">
+                        <h5 class="modal-title">Confirm Delete</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        Are you sure you want to delete this report? This action cannot be undone.
+                    </div>
+                    <div class="modal-footer border-secondary">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-danger" onclick="deleteReport('${reportId}')">Delete</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Remove existing modal if any
+    const existingModal = document.getElementById('deleteConfirmModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+
+    // Add new modal
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+    modal.show();
+}
+
+// Delete report
+async function deleteReport(reportId) {
+    try {
+        const response = await fetch(`/api/reports/${reportId}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            // Close the confirmation modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
+            modal.hide();
+
+            // Remove the marker from the map
+            const markerIndex = markers.findIndex(m => m.reportId === reportId);
+            if (markerIndex !== -1) {
+                markers[markerIndex].setMap(null);
+                markers.splice(markerIndex, 1);
+            }
+
+            // Reload reports to update UI
+            await loadReports();
+            showToast('Report deleted successfully', 'success');
+        } else {
+            throw new Error('Failed to delete report');
+        }
+    } catch (error) {
+        console.error('Error deleting report:', error);
+        showToast('Failed to delete report', 'error');
+    }
+}
+
+// Add missing openEditReportModal function
+function openEditReportModal(report) {
+    // Temporary stub – replace with modal integration as needed.
+    alert("Opening Edit Report modal for report: " + report.id);
+}
+
+// Add missing showToast function for notifications
+function showToast(message, type) {
+    // Minimal implementation; replace with preferred toast logic.
+    alert(message);
+}
+
+// NEW: Function to update the heatmap overlay on the map using marker positions
+function updateHeatmap() {
+    if (!map) return;
+    const heatData = markers.map(marker => marker.getPosition());
+    if (heatmapLayer) heatmapLayer.setMap(null);
+    heatmapLayer = new google.maps.visualization.HeatmapLayer({
+        data: heatData,
+        radius: 50,      // increased radius for broader heat zones
+        opacity: 0.7,
+        gradient: [
+            'rgba(0, 255, 255, 0)',
+            'rgba(0, 255, 255, 1)',
+            'rgba(0, 191, 255, 1)',
+            'rgba(0, 127, 255, 1)',
+            'rgba(0, 63, 255, 1)',
+            'rgba(0, 0, 255, 1)',
+            'rgba(63, 0, 255, 1)',
+            'rgba(127, 0, 255, 1)',
+            'rgba(191, 0, 255, 1)',
+            'rgba(255, 0, 255, 1)'
+        ]
+    });
+    heatmapLayer.setMap(map);
 }
