@@ -79,7 +79,10 @@ app.use((req, res, next) => {
   );
   
   /* ───── Core middleware ───── */
-  app.use(cors());
+  app.use(cors({
+    origin: 'http://localhost:3000', // שנה לכתובת ה-frontend שלך אם היא שונה
+    credentials: true
+  }));
   app.use(express.json());
   app.use(session({
     secret: process.env.SESSION_SECRET || 'your-secret-key',
