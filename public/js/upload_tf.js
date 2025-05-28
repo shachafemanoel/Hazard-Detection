@@ -528,26 +528,39 @@ async function fallbackIpLocation() {
   
   switchBtn.addEventListener("click", async () => {
     try {
-      if (!stream || videoDevices.length < 2) return;
-      stream.getTracks().forEach((t) => t.stop());
-
+      if (videoDevices.length < 2) return;
+      // Stop current stream if exists
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop());
+      }
+      // Advance to next camera
       currentCamIndex = (currentCamIndex + 1) % videoDevices.length;
       const newDeviceId = videoDevices[currentCamIndex].deviceId;
-
+      // Try to get new stream
       stream = await navigator.mediaDevices.getUserMedia({
         video: { deviceId: { exact: newDeviceId } },
+        audio: false
       });
-
       video.srcObject = stream;
-      letterboxParams = null; // יגרום לחישוב מחדש בפריים הבא
-      // איפוס overlays וספירות בעת החלפת מצלמה
+      letterboxParams = null; // Force recalc
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       detectedObjectCount = 0;
       uniqueHazardTypes = [];
       if (objectCountOverlay) objectCountOverlay.textContent = '';
       if (hazardTypesOverlay) hazardTypesOverlay.textContent = '';
+      // Wait for video to be ready before detection
+      video.addEventListener(
+        "loadeddata",
+        () => {
+          computeLetterboxParams();
+          detecting = true;
+          detectLoop();
+        },
+        { once: true }
+      );
     } catch (err) {
       console.error("❌ Failed to switch camera:", err);
+      alert("לא ניתן להחליף מצלמה. בדוק הרשאות או נסה דפדפן אחר.");
     }
   });
   stopBtn.addEventListener("click", () => {
