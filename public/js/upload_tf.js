@@ -396,6 +396,8 @@ async function fallbackIpLocation() {
     //     adjustBrightness(processedImageData, 30); 
     // }
     // --- prepare ONNX input tensor ---
+    // Ensure ort is defined from window.ort
+    const ort = window.ort;
     const { data, width, height } = processedImageData; // שימוש ב-processedImageData
     const floatData = new Float32Array(width*height*3);
     for (let i=0,j=0;i<data.length;i+=4,j+=3) {
@@ -404,10 +406,12 @@ async function fallbackIpLocation() {
       floatData[j+2]=data[i+2]/255;
     }
     const chw = new Float32Array(3*width*height);
-    for (let c=0;c<3;c++) for (let y=0;y<height;y++) for (let x=0;x<width;x++) {
-      chw[c*width*height + y*width + x] = floatData[y*width*3 + x*3 + c];
-    }
-    const inputTensor = new ort.Tensor('float32', chw, [1,3,height,width]);
+    for (let c = 0; c < 3; c++) 
+      for (let y = 0; y < height; y++) 
+        for (let x = 0; x < width; x++) {
+          chw[c*width*height + y*width + x] = floatData[y*width*3 + x*3 + c];
+        }
+    const inputTensor = new ort.Tensor('float32', chw, [1, 3, height, width]);
 
     // --- run inference ---
     const results = await session.run({ images: inputTensor });
@@ -528,40 +532,38 @@ async function fallbackIpLocation() {
   
   switchBtn.addEventListener("click", async () => {
     try {
-      if (videoDevices.length < 2) return;
-      // Stop current stream if exists
-      if (stream) {
-        stream.getTracks().forEach((t) => t.stop());
-      }
-      // Advance to next camera
-      currentCamIndex = (currentCamIndex + 1) % videoDevices.length;
-      const newDeviceId = videoDevices[currentCamIndex].deviceId;
-      // Try to get new stream
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: { exact: newDeviceId } },
-        audio: false
-      });
-      video.srcObject = stream;
-      letterboxParams = null; // Force recalc
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      detectedObjectCount = 0;
-      uniqueHazardTypes = [];
-      if (objectCountOverlay) objectCountOverlay.textContent = '';
-      if (hazardTypesOverlay) hazardTypesOverlay.textContent = '';
-      // Wait for video to be ready before detection
-      video.addEventListener(
-        "loadeddata",
-        () => {
-          computeLetterboxParams();
-          detecting = true;
-          detectLoop();
-        },
-        { once: true }
-      );
-    } catch (err) {
-      console.error("❌ Failed to switch camera:", err);
-      alert("לא ניתן להחליף מצלמה. בדוק הרשאות או נסה דפדפן אחר.");
+    if (videoDevices.length < 2) return;
+    detecting = false; // stop current detection loop
+    // Stop current stream if exists
+    if (stream) {
+      stream.getTracks().forEach((t) => t.stop());
     }
+    // Advance to next camera
+    currentCamIndex = (currentCamIndex + 1) % videoDevices.length;
+    const newDeviceId = videoDevices[currentCamIndex].deviceId;
+    // Try to get new stream
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { deviceId: { exact: newDeviceId } },
+      audio: false
+    });
+    video.srcObject = stream;
+    letterboxParams = null; // Force recalc
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    detectedObjectCount = 0;
+    uniqueHazardTypes = [];
+    if (objectCountOverlay) objectCountOverlay.textContent = '';
+    if (hazardTypesOverlay) hazardTypesOverlay.textContent = '';
+    // Wait for video to be ready before detection
+    await new Promise(resolve => {
+      video.onloadeddata = resolve;
+    });
+    computeLetterboxParams();
+    detecting = true;
+    detectLoop();
+  } catch (err) {
+    console.error("❌ Failed to switch camera:", err);
+    alert("לא ניתן להחליף מצלמה. בדוק הרשאות או נסה דפדפן אחר.");
+  }
   });
   stopBtn.addEventListener("click", () => {
     detecting = false;
