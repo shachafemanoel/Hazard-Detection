@@ -33,12 +33,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const maxHistory = 10;    
   let detectedObjectCount = 0; // Initialize object count
   let uniqueHazardTypes = []; // Initialize array for unique hazard types    
-
-  // New global variables for tracking GPS and diff threshold base value
-  let prevGPS = null;
-  const BASE_DIFF_THRESHOLD = DIFF_THRESHOLD; // original threshold
-  let currentSpeed = 0;
-
   // ────────────────────────────────────────────────────────────────────────────────
   //  📸  Enumerate devices once on load
   // ────────────────────────────────────────────────────────────────────────────────
@@ -117,14 +111,14 @@ function initLocationTracking() {
     function handleCoords(coords) {
       if (done) return;
       done = true;
-      _lastCoords = coords; // coords now includes timestamp!
+      _lastCoords = coords;
       console.log("📍 initial location:", coords);
       resolve(coords);
     }
 
     // 1️⃣ ניסיון High-Accuracy
     navigator.geolocation.getCurrentPosition(
-      pos => handleCoords({ ...pos.coords, timestamp: pos.timestamp }),
+      pos => handleCoords(pos.coords),
       err => {
         console.warn("High-Accuracy failed:", err.code, err.message);
         if (err.code === err.PERMISSION_DENIED) {
@@ -133,13 +127,13 @@ function initLocationTracking() {
         }
         // 2️⃣ ניסיון Low-Accuracy
         navigator.geolocation.getCurrentPosition(
-          pos2 => handleCoords({ ...pos2.coords, timestamp: pos2.timestamp }),
+          pos2 => handleCoords(pos2.coords),
           err2 => {
             console.warn("Low-Accuracy failed:", err2.code, err2.message);
             // 3️⃣ fallback IP
             fetch("https://ipapi.co/json/")
               .then(r => r.json())
-              .then(data => handleCoords({ latitude: data.latitude, longitude: data.longitude, timestamp: Date.now() }))
+              .then(data => handleCoords({ latitude: data.latitude, longitude: data.longitude }))
               .catch(() => resolve(null));
           },
           { enableHighAccuracy: false, timeout: 5000, maximumAge: 0 }
@@ -151,7 +145,7 @@ function initLocationTracking() {
     // 4️⃣ watchPosition לעדכונים רציפים
     _watchId = navigator.geolocation.watchPosition(
       pos => {
-        _lastCoords = { ...pos.coords, timestamp: pos.timestamp };
+        _lastCoords = pos.coords;
       },
       err => {
         console.warn("watchPosition error:", err.code, err.message);
@@ -355,44 +349,10 @@ async function fallbackIpLocation() {
     }, 2000);
   }
 
-  // New helper function to adjust brightness for images captured behind a dirty sun
-  function adjustForDirtySun(imageData) {
-    const data = imageData.data;
-    let sum = 0, count = data.length / 4;
-    for (let i = 0; i < data.length; i += 4) {
-      sum += (data[i] + data[i+1] + data[i+2]) / 3;
-    }
-    const avgBrightness = sum / count;
-    // אם בהירות נמוכה, משדרגים את הבהירות ב־20%
-    if (avgBrightness < 100) {
-      for (let i = 0; i < data.length; i += 4) {
-        data[i] = Math.min(255, data[i] * 1.2);
-        data[i+1] = Math.min(255, data[i+1] * 1.2);
-        data[i+2] = Math.min(255, data[i+2] * 1.2);
-      }
-    }
-    return imageData;
-  }
-
   async function detectLoop() {
     if (!detecting || !session) return;
     const t0 = performance.now();
     
-    // Update vehicle speed if GPS data is available
-    if (_lastCoords && _lastCoords.timestamp) {
-      if (prevGPS) {
-        const timeDiff = (_lastCoords.timestamp - prevGPS.timestamp) / 1000; // in seconds
-        if (timeDiff > 0) {
-          const dist = haversineDistance(prevGPS.latitude, prevGPS.longitude, _lastCoords.latitude, _lastCoords.longitude);
-          currentSpeed = dist / timeDiff; // meters per second
-        }
-      }
-      prevGPS = { ..._lastCoords }; // update previous GPS reading
-    }
-    
-    // Adjust DIFF_THRESHOLD dynamically based on speed (e.g., increase threshold by 10% per m/s)
-    const adjustedDiffThreshold = BASE_DIFF_THRESHOLD * (1 + currentSpeed / 10);
-  
     // מדלג על פריימים רק אם זמן העיבוד חורג מהסף
     if (frameTimes.length > 0) {
       const avgTime = frameTimes.reduce((a,b) => a + b, 0) / frameTimes.length;
@@ -417,12 +377,12 @@ async function fallbackIpLocation() {
     // --- frame differencing ---
     const curr = offCtx.getImageData(0,0,FIXED_SIZE,FIXED_SIZE);
     if (prevImageData) {
-      let sum = 0;
-      const d1 = curr.data, d2 = prevImageData.data;
-      for (let i = 0; i < d1.length; i += 4) {
-        sum += Math.abs(d1[i] - d2[i]) + Math.abs(d1[i+1] - d2[i+1]) + Math.abs(d1[i+2] - d2[i+2]);
+      let sum=0;
+      const d1=curr.data, d2=prevImageData.data;
+      for (let i=0;i<d1.length;i+=4) {
+        sum += Math.abs(d1[i]-d2[i]) + Math.abs(d1[i+1]-d2[i+1]) + Math.abs(d1[i+2]-d2[i+2]);
       }
-      if (sum < BASE_DIFF_THRESHOLD * (1 + currentSpeed / 10)) {
+      if (sum < DIFF_THRESHOLD) {
         prevImageData = curr;
         return requestAnimationFrame(detectLoop);
       }
@@ -430,10 +390,11 @@ async function fallbackIpLocation() {
     prevImageData = curr;
 
     // --- Pre-processing Stage ---
-    let processedImageData = curr;
-    // Enhance detection for objects behind dirty sun
-    processedImageData = adjustForDirtySun(processedImageData);
-
+    let processedImageData = curr; 
+    // const currentHour = new Date().getHours();
+    // if (currentHour >= 19 || currentHour < 6) { 
+    //     adjustBrightness(processedImageData, 30); 
+    // }
     // --- prepare ONNX input tensor ---
     const { data, width, height } = processedImageData; // שימוש ב-processedImageData
     const floatData = new Float32Array(width*height*3);
