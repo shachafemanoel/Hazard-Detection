@@ -528,18 +528,32 @@ async function fallbackIpLocation() {
   
   switchBtn.addEventListener("click", async () => {
     try {
-      if (!stream || videoDevices.length < 2) return;
-      stream.getTracks().forEach((t) => t.stop());
+      if (!stream) return;
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      // Mobile: if only one device detected, switch via facingMode
+      if (isMobile && videoDevices.length < 2) {
+        const currentFacingMode = stream.getVideoTracks()[0].getSettings().facingMode || "user";
+        const newFacingMode = currentFacingMode === "user" ? "environment" : "user";
+        stream.getTracks().forEach(track => track.stop());
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { exact: newFacingMode } }
+        });
+        video.srcObject = stream;
+        letterboxParams = null;
+        return;
+      }
+      // Desktop or multiple device case: switch using deviceId.
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      videoDevices = devices.filter((d) => d.kind === "videoinput");
+      if (videoDevices.length < 2) return; // no alternative available
 
+      stream.getTracks().forEach((t) => t.stop());
       currentCamIndex = (currentCamIndex + 1) % videoDevices.length;
       const newDeviceId = videoDevices[currentCamIndex].deviceId;
 
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: { exact: newDeviceId } },
-      });
-
+      stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: newDeviceId } } });
       video.srcObject = stream;
-      letterboxParams = null; // יגרום לחישוב מחדש בפריים הבא
+      letterboxParams = null; // force recalculation on next frame
     } catch (err) {
       console.error("❌ Failed to switch camera:", err);
     }
