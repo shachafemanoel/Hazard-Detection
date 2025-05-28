@@ -23,3 +23,334 @@
 /* h1 {
   color: #2c3e50;
 } */
+
+#camera-container {
+    width: 100%;
+    height: 100vh;
+    margin: 0;
+    padding: 0;
+    position: relative;
+    background: rgba(31, 34, 53, 0.95);
+}
+
+.camera-wrapper {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+#camera-stream {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+#overlay-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+}
+
+.camera-wrapper {
+    position: relative;
+    width: 100%;
+    margin: 0 auto;
+    overflow: hidden;
+    border-radius: 8px;
+}
+
+#camera-stream {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.camera-controls {
+    display: flex;
+    gap: 10px;
+    margin: 20px 0;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.camera-controls button {
+    flex: 1;
+    min-width: 120px;
+    max-width: 200px;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.camera-controls button:hover {
+    background: #e5b85f;
+    transform: translateY(-2px);
+}
+
+#object-count-overlay,
+#hazard-types-overlay {
+    position: fixed;
+    background: rgba(31, 34, 53, 0.9);
+    padding: 10px 15px;
+    border-radius: 6px;
+    color: #f7c873;
+    font-size: 14px;
+    z-index: 100;
+}
+
+#object-count-overlay {
+    top: 80px;
+    right: 20px;
+}
+
+#hazard-types-overlay {
+    bottom: 20px;
+    right: 20px;
+    max-width: 80%;
+}
+
+/* Hazard Detection Notifications */
+.hazard-notification {
+    position: fixed;
+    right: 15px;
+    top: 15px;
+    background: rgba(31, 34, 53, 0.95);
+    color: #f7c873;
+    padding: 8px 12px;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    animation: notificationSlide 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    max-width: 280px;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(247, 200, 115, 0.2);
+    transform-origin: top right;
+}
+
+.hazard-notification i {
+    font-size: 16px;
+    color: #f7c873;
+    animation: notificationPulse 2s infinite;
+}
+
+.hazard-notification-content {
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+.hazard-notification h3 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #f7c873;
+}
+
+.hazard-notification p {
+    margin: 2px 0 0;
+    font-size: 12px;
+    opacity: 0.9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Camera Controls */
+.camera-controls {
+    position: fixed;
+    bottom: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    z-index: 100;
+    background: rgba(20, 22, 33, 0.9);
+    padding: 8px;
+    border-radius: 8px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.camera-controls button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    background: rgba(31, 34, 53, 0.95);
+    color: #cbd2d9;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 40px;
+    justify-content: center;
+}
+
+.camera-controls button:hover {
+    background: rgba(47, 51, 73, 0.95);
+    transform: translateY(-1px);
+}
+
+.camera-controls button:active {
+    transform: translateY(0);
+}
+
+/* Status Overlays */
+#object-count-overlay,
+#hazard-types-overlay {
+    position: fixed;
+    background: rgba(31, 34, 53, 0.9);
+    padding: 12px 20px;
+    border-radius: 8px;
+    color: #f7c873;
+    font-size: 14px;
+    z-index: 100;
+    backdrop-filter: blur(5px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+#object-count-overlay {
+    top: 20px;
+    right: 20px;
+}
+
+#hazard-types-overlay {
+    bottom: 80px;
+    right: 20px;
+    max-width: 300px;
+}
+
+/* Loading Overlay */
+#loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(31, 34, 53, 0.95);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    color: #f7c873;
+}
+
+/* Animations */
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Notification Animations */
+@keyframes notificationSlide {
+    0% {
+        transform: translateX(100%) scale(0.8);
+        opacity: 0;
+    }
+    60% {
+        transform: translateX(-5%) scale(1.02);
+    }
+    100% {
+        transform: translateX(0) scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes notificationPulse {
+    0% {
+        box-shadow: 0 2px 8px rgba(247, 200, 115, 0);
+    }
+    50% {
+        box-shadow: 0 2px 12px rgba(247, 200, 115, 0.3);
+    }
+    100% {
+        box-shadow: 0 2px 8px rgba(247, 200, 115, 0);
+    }
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    #camera-container {
+        padding: 10px;
+        margin: 10px;
+        border-radius: 8px;
+    }
+
+    .camera-controls {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .camera-controls button {
+        max-width: 100%;
+    }
+
+    #object-count-overlay,
+    #hazard-types-overlay {
+        font-size: 12px;
+        padding: 8px 12px;
+    }
+
+    #object-count-overlay {
+        top: 70px;
+    }
+
+    .camera-controls {
+        width: calc(100% - 40px);
+        flex-direction: column;
+        bottom: 10px;
+    }
+
+    .hazard-notification {
+        right: 10px;
+        left: 10px;
+        max-width: calc(100% - 20px);
+    }
+
+    #object-count-overlay,
+    #hazard-types-overlay {
+        padding: 8px 12px;
+        font-size: 12px;
+    }
+
+    #hazard-types-overlay {
+        bottom: unset;
+        top: 70px;
+        max-width: calc(100% - 20px);
+    }
+}
+
+/* Tablet */
+@media (min-width: 769px) and (max-width: 1024px) {
+    #camera-container {
+        margin: 15px;
+        padding: 15px;
+    }
+
+    .camera-controls {
+        justify-content: center;
+    }
+}

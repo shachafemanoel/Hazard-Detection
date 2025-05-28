@@ -21,12 +21,14 @@ document.addEventListener("DOMContentLoaded", () => {
   let frameCount = 0;
   let lastSaveTime = 0;
   let _lastCoords = null;
-  let _watchId    = null;  let videoDevices = [];
+  let _watchId    = null;
+  let videoDevices = [];
   let currentCamIndex = 0;
   let prevImageData = null;
-  const DIFF_THRESHOLD = 200000; // הורדת הערך כדי להגביר רגישות לשינויים
-  let skipFrames = 3;                       // ברירת מחדל
-  const targetFps = 10;                     // יעד: 15 פריימים לשנייה
+  const DIFF_THRESHOLD = 150000;             // מגביר רגישות לשינויים
+  let skipFrames = 2;                        // פחות פריימים לדילוג
+  const targetFps = 20;                      // יעד FPS גבוה יותר
+  const processingThreshold = 50;            // מקסימום זמן עיבוד לפריים במילישניות
   const frameTimes = [];                    // היסטוריית זמנים
   const maxHistory = 10;    
   let detectedObjectCount = 0; // Initialize object count
@@ -38,8 +40,11 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       videoDevices = devices.filter((d) => d.kind === "videoinput");
-      if (videoDevices.length > 1) {
+      // Force display switch button on iOS devices even if only one device is reported
+      if (videoDevices.length > 1 || /iPhone|iPad|iPod/.test(navigator.userAgent)) {
         switchBtn.style.display = "inline-block";
+      } else {
+        switchBtn.style.display = "none";
       }
     } catch (err) {
       console.warn("⚠️ Could not enumerate video devices:", err);
@@ -300,14 +305,65 @@ async function fallbackIpLocation() {
     letterboxParams = { scale, newW, newH, offsetX, offsetY };
   }
 
+  let activeNotifications = [];
+  let lastNotificationTime = {};
+
+  function shouldShowNotification(hazardType) {
+    const now = Date.now();
+    const lastTime = lastNotificationTime[hazardType] || 0;
+    // מציג התראה רק אם עברו לפחות 5 שניות מההתראה האחרונה מאותו סוג
+    if (now - lastTime > 5000) {
+      lastNotificationTime[hazardType] = now;
+      return true;
+    }
+    return false;
+  }
+
+  function showHazardNotification(hazardType, confidence) {
+    if (!shouldShowNotification(hazardType)) return;
+    
+    const template = document.getElementById('hazard-notification-template');
+    if (!template) return;
+
+    const notification = template.content.cloneNode(true).querySelector('.hazard-notification');
+    notification.querySelector('p').textContent = `${hazardType} ${Math.round(confidence * 100)}%`;
+    
+    const offset = activeNotifications.length * 60; // מרווח קטן יותר בין ההודעות
+    notification.style.top = `${15 + offset}px`;
+    
+    document.body.appendChild(notification);
+    activeNotifications.push(notification);
+
+    // הסרה אחרי 2 שניות במקום 3
+    setTimeout(() => {
+      notification.style.transform = 'translateX(100%) scale(0.8)';
+      notification.style.opacity = '0';
+      setTimeout(() => {
+        document.body.removeChild(notification);
+        activeNotifications = activeNotifications.filter(n => n !== notification);
+        // עדכון מיקום שאר ההודעות
+        activeNotifications.forEach((n, i) => {
+          n.style.top = `${15 + i * 60}px`;
+        });
+      }, 200);
+    }, 2000);
+  }
+
   async function detectLoop() {
     if (!detecting || !session) return;
     const t0 = performance.now();
-    frameCount++;
-    if (frameCount % skipFrames !== 0) {
-      return requestAnimationFrame(detectLoop);
-    }
     
+    // מדלג על פריימים רק אם זמן העיבוד חורג מהסף
+    if (frameTimes.length > 0) {
+      const avgTime = frameTimes.reduce((a,b) => a + b, 0) / frameTimes.length;
+      if (avgTime > processingThreshold) {
+        frameCount++;
+        if (frameCount % skipFrames !== 0) {
+          return requestAnimationFrame(detectLoop);
+        }
+      }
+    }
+
     // --- draw video frame to offscreen with letterbox ---
     if (!letterboxParams) computeLetterboxParams();
     offCtx.fillStyle = 'black';
@@ -382,10 +438,12 @@ async function fallbackIpLocation() {
       ctx.strokeRect(left,top,w,h);
 
       const label = `${classNames[Math.floor(cls)]} (${(score*100).toFixed(1)}%)`;
-      // Add hazard type to the unique list if not already present
       const hazardName = classNames[Math.floor(cls)];
-      if (hazardName && !uniqueHazardTypes.includes(hazardName)) {
-          uniqueHazardTypes.push(hazardName);
+      
+      // Show notification for new hazards
+      if (!uniqueHazardTypes.includes(hazardName)) {
+        uniqueHazardTypes.push(hazardName);
+        showHazardNotification(hazardName, score);
       }
 
       // --- שינוי סגנון הטקסט והוספת רקע ---
@@ -419,12 +477,15 @@ async function fallbackIpLocation() {
     // שומרים במערך היסטוריה עגול
     frameTimes.push(elapsed);
     if (frameTimes.length > maxHistory) frameTimes.shift();
-
-    // מחשבים ממוצע זמן עיבוד
+    
+    // עדכון דינמי של skipFrames בהתאם לביצועים
     const avgTime = frameTimes.reduce((a,b) => a + b, 0) / frameTimes.length;
-    // חישוב כמה פריימים לדלג, כך ש־avgTime * (skipFrames+1) ≈ 1000/targetFps
-    const idealInterval = 1000 / targetFps;
-    skipFrames = Math.max(1, Math.round((avgTime) / idealInterval));
+    if (avgTime > processingThreshold) {
+      skipFrames = Math.min(5, skipFrames + 1);
+    } else if (avgTime < processingThreshold / 2 && skipFrames > 1) {
+      skipFrames = Math.max(1, skipFrames - 1);
+    }
+    
     requestAnimationFrame(detectLoop);
   }
 
@@ -444,9 +505,10 @@ async function fallbackIpLocation() {
       video.srcObject = stream;
       startBtn.style.display = "none";
       stopBtn.style.display = "inline-block";
-      detectedObjectCount = 0; // Initialize object count
-      uniqueHazardTypes = []; // Initialize array for unique hazard types 
-      switchBtn.style.display = videoDevices.length > 1 ? "inline-block" : "none";
+      detectedObjectCount = 0;
+      uniqueHazardTypes = [];
+      // Force switch button display on iOS devices even if single video input is reported
+      switchBtn.style.display = (videoDevices.length > 1 || /iPhone|iPad|iPod/.test(navigator.userAgent)) ? "inline-block" : "none";
       video.addEventListener(
         "loadeddata",
         () => {

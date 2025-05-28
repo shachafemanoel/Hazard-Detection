@@ -97,8 +97,20 @@ function getMarkerIcon(hazardType) {
         fillOpacity: 0.9,
         strokeColor: '#FFFFFF', // White border for better visibility
         strokeWeight: 2,
-        scale: 16 // Increased size for better visibility
+        scale: 10 // Reduced scale for smaller marker
     };
+}
+
+// NEW: Helper to create marker content for AdvancedMarkerElement
+function getMarkerContent(hazardType) {
+	const color = hazardMarkerColors[hazardType] || hazardMarkerColors['default'];
+	const div = document.createElement('div');
+	div.style.width = '20px';      // Reduced width
+	div.style.height = '20px';     // Reduced height
+	div.style.backgroundColor = color;
+	div.style.borderRadius = '50%';
+	div.style.border = '2px solid #FFFFFF';
+	return div;
 }
 
 // Global sort state
@@ -106,26 +118,109 @@ let currentSort = { field: 'time', order: 'desc' };
 
 // Always use dark mode for the map
 function initMap() {
-    const israel = { lat: 31.7683, lng: 35.2137 };
+    const defaultCenter = { lat: 31.7683, lng: 35.2137 };
     map = new google.maps.Map(document.getElementById("map"), {
         zoom: 8,
-        center: israel,
-        styles: darkMapStyle, // Always dark mode
+        center: defaultCenter,
+        styles: darkMapStyle,
     });
 
+    // Add a marker for the default center as a fallback
     new google.maps.Marker({
-        position: israel,
+        position: defaultCenter,
         map: map,
         title: "Israel",
     });
 
-    // Add the legend to the map (position: RIGHT_BOTTOM)
-    const legend = addMapLegend();
-    map.controls[google.maps.ControlPosition.RIGHT_BOTTOM].push(legend);
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const userLatLng = {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude
+                };
+                map.setCenter(userLatLng);
+                map.setZoom(12);
+                new google.maps.Marker({
+                    position: userLatLng,
+                    map: map,
+                    title: "Your Location",
+                    icon: {
+                        url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24"><path fill="#4285F4" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5" fill="#fff"/></svg>`),
+                        scaledSize: new google.maps.Size(40, 40)
+                    }
+                });
+                loadReports();
+            },
+            (error) => {
+                console.error("Error using geolocation:", error);
+                loadReports();
+            }
+        );
+    } else {
+        loadReports();
+    }
 
-    // נטען דיווחים רק אחרי שהמפה מוכנה
-    loadReports();
+    // NEW: Create the legend but do not add it to map controls.
+    window.mapLegend = addMapLegend();
+    window.mapLegend.style.display = "none";
+    // Position the legend as an overlay on the map container.
+    window.mapLegend.style.position = "absolute";
+    window.mapLegend.style.bottom = "20px";
+    window.mapLegend.style.left = "20px";
+    document.getElementById("map").appendChild(window.mapLegend);
 }
+
+// NEW: Function to toggle the display of the map legend.
+window.toggleLegend = function() {
+    if (!window.mapLegend) return;
+    if (window.mapLegend.style.display === "none") {
+        window.mapLegend.style.display = "block";
+    } else {
+        window.mapLegend.style.display = "none";
+    }
+};
+
+// NEW: If geolocation is available, recenter map and show user's location
+//     if (navigator.geolocation) {
+//         navigator.geolocation.getCurrentPosition(
+//             (position) => {
+//                 const userLatLng = {
+//                     lat: position.coords.latitude,
+//                     lng: position.coords.longitude
+//                 };
+//                 // Center and zoom the map on the user's location
+//                 map.setCenter(userLatLng);
+//                 map.setZoom(12);
+//                 // NEW: Place a distinct marker for the user's location using a custom SVG icon
+//                 new google.maps.Marker({
+//                     position: userLatLng,
+//                     map: map,
+//                     title: "Your Location",
+//                     icon: {
+//                         url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24"><path fill="#4285F4" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5" fill="#fff"/></svg>`),
+//                         scaledSize: new google.maps.Size(40, 40)
+//                     }
+//                 });
+//                 // Load reports after recentering the map
+//                 loadReports();
+//             },
+//             (error) => {
+//                 console.error("Error using geolocation:", error);
+//                 loadReports();
+//             }
+//         );
+//     } else {
+//         loadReports();
+//     }
+
+//     // Add the legend to the map
+//     const legend = addMapLegend();
+//     map.controls[google.maps.ControlPosition.RIGHT_BOTTOM].push(legend);
+
+//     // נטען דיווחים רק אחרי שהמפה מוכנה
+//     loadReports();
+// }
 
 // Make initMap available globally for Google Maps API
 window.initMap = initMap;
@@ -182,52 +277,53 @@ async function geocodeAddress(address, report) {
         
         if (data.status === "OK" && data.results[0]) {
             const location = data.results[0].geometry.location;
-            const marker = new google.maps.Marker({
-                map: map,
-                position: location,
-                icon: getMarkerIcon(report.type),
-                animation: google.maps.Animation.DROP,
-                title: `${report.type} - ${address}`
-            });
-            marker.reportId = report.id;  // Added for marker highlighting
+            let marker;
+            // NEW: Use AdvancedMarkerElement if available, otherwise fallback to standard Marker
+            if (google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
+                marker = new google.maps.marker.AdvancedMarkerElement({
+                    map: map,
+                    position: location,
+                    title: `${report.type} - ${address}`,
+                    content: getMarkerContent(report.type)
+                });
+            } else {
+                marker = new google.maps.Marker({
+                    map: map,
+                    position: location,
+                    title: `${report.type} - ${address}`,
+                    icon: getMarkerIcon(report.type)
+                });
+            }
+            marker.reportId = report.id;
             
-            markers.push(marker);
-            
-            const infowindow = new google.maps.InfoWindow({
-                content: `
-                <div class="info-window">
-                    <h5>${report.type}</h5>
-                    <p><strong>Location:</strong> ${address}</p>
-                    <p><strong>Status:</strong> <span class="badge ${report.status === 'Resolved' ? 'bg-success' : 'bg-danger'}">${report.status}</span></p>
-                    <p><strong>Reported by:</strong> ${report.reportedBy}</p>
-                    <p><strong>Time:</strong> ${new Date(report.time).toLocaleString()}</p>
-                    ${report.image ? `<img src="${report.image}" alt="Hazard" style="width:200px;height:150px;object-fit:cover;margin:10px 0;">` : ''}
-                    <div class="mt-2">
-                        <button class="btn btn-sm btn-primary me-2" onclick="showReportDetails(${JSON.stringify(report)})">Details</button>
-                        <button class="btn btn-sm btn-warning" onclick="openEditReportModal(${JSON.stringify(report)})">Edit</button>
-                    </div>
-                </div>`
-            });
-
-            marker.addListener("click", () => {
-                // Close any open info windows
+            // Register first "click" callback to open infowindow and pan/zoom map
+            registerMarkerClick(marker, () => {
                 markers.forEach(m => m.infoWindow?.close());
-                
-                // Store reference to this info window
+                const infowindow = new google.maps.InfoWindow({
+                    content: `
+                    <div class="info-window">
+                        <h5>${report.type}</h5>
+                        <p><strong>Location:</strong> ${address}</p>
+                        <p><strong>Status:</strong> <span class="badge ${report.status === 'Resolved' ? 'bg-success' : 'bg-danger'}">${report.status}</span></p>
+                        <p><strong>Reported by:</strong> ${report.reportedBy}</p>
+                        <p><strong>Time:</strong> ${new Date(report.time).toLocaleString()}</p>
+                        ${report.image ? `<img src="${report.image}" alt="Hazard" style="width:200px;height:150px;object-fit:cover;margin:10px 0;">` : ''}
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-primary me-2" onclick="showReportDetails(${JSON.stringify(report)})">Details</button>
+                            <button class="btn btn-sm btn-warning" onclick="openEditReportModal(${JSON.stringify(report)})">Edit</button>
+                        </div>
+                    </div>`
+                });
                 marker.infoWindow = infowindow;
-                
                 infowindow.open(map, marker);
                 map.panTo(location);
-                
-                // Smooth zoom if we're too far out
-                const currentZoom = map.getZoom();
-                if (currentZoom < 14) {
+                if (map.getZoom() < 14 && map.animateToZoom) {
                     map.animateToZoom(14);
                 }
             });
-
-            // Highlight corresponding table row when marker is clicked
-            marker.addListener("click", () => {
+            
+            // Register a second "click" callback to sync the table row highlighting
+            registerMarkerClick(marker, () => {
                 const rows = document.querySelectorAll('#reports-table tbody tr');
                 rows.forEach(row => row.classList.remove('table-active'));
                 const targetRow = document.querySelector(`#reports-table tbody tr[data-report-id="${report.id}"]`);
@@ -236,7 +332,6 @@ async function geocodeAddress(address, report) {
                     targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
             });
-
             return marker;
         } else {
             console.error("Geocoding failed:", data.status, data.error_message);
@@ -245,6 +340,47 @@ async function geocodeAddress(address, report) {
     } catch (error) {
         console.error("Geocoding error:", error);
         return null;
+    }
+}
+
+// NEW: Helper function to register click events for both marker types
+function registerMarkerClick(marker, callback) {
+    if (marker.addEventListener) {
+        marker.addEventListener("click", callback);
+    } else if (marker.addListener) {
+        marker.addListener("click", callback);
+    }
+}
+
+// NEW: Function to delete an image key from Redis if its link is not available
+async function deleteImageFromRedis(url) {
+    try {
+        await fetch('/api/redis/deleteImage', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+        });
+    } catch (error) {
+        console.error(`Failed to delete image ${url} from Redis:`, error);
+    }
+}
+
+// Modify isValidImage to call deleteImageFromRedis when validation fails
+async function isValidImage(url) {
+    if (!url) {
+        return false;
+    }
+    try {
+        const response = await fetch(url, { method: 'HEAD' });
+        const valid = response.ok && response.headers.get('Content-Type')?.startsWith('image/');
+        if (!valid) {
+            deleteImageFromRedis(url);
+        }
+        return valid;
+    } catch (error) {
+        deleteImageFromRedis(url);
+        console.warn(`Could not validate image ${url}:`, error);
+        return false;
     }
 }
 
@@ -269,22 +405,6 @@ async function editMarkerReport(reportId) {
 function openReportModal() {
     if (currentMarker && currentMarker.report) {
         showReportDetails(currentMarker.report);
-    }
-}
-
-// פונקציה לבדיקת תקינות תמונה באמצעות fetch
-async function isValidImage(url) {
-    if (!url) {
-        return false; // אם אין URL, התמונה לא תקינה
-    }
-    try {
-        const response = await fetch(url, { method: 'HEAD' });
-        // בדוק אם הבקשה הצליחה (סטטוס 2xx) והאם ה-Content-Type הוא של תמונה
-        return response.ok && response.headers.get('Content-Type')?.startsWith('image/');
-    } catch (error) {
-        // שגיאת רשת או בעיה אחרת (למשל CORS אם התמונה מדומיין אחר ללא הגדרות מתאימות)
-        console.warn(`Could not validate image ${url}:`, error);
-        return false;
     }
 }
 
@@ -355,7 +475,20 @@ async function loadReports(filters = {}) {
             throw new Error('Failed to fetch reports');
         }
 
-        const reports = await response.json();
+        let reports = await response.json();
+
+        // NEW: Filter out reports with missing or invalid image links
+        if (reports && reports.length) {
+            const validationResults = await Promise.all(
+                reports.map(async (r) => {
+                    if (r.image) {
+                        return await isValidImage(r.image) ? r : null;
+                    }
+                    return null;
+                })
+            );
+            reports = validationResults.filter(r => r !== null);
+        }
         lastReports = reports; // Save for filtering/sorting
 
         // Clear existing markers
@@ -997,3 +1130,9 @@ function updateHeatmap() {
     });
     heatmapLayer.setMap(map);
 }
+
+// NEW: Expose key functions so that they are accessible from HTML event handlers
+window.confirmDeleteReport = confirmDeleteReport;
+window.showImageModal = showImageModal;
+window.toggleReportStatus = toggleReportStatus;
+window.deleteReport = deleteReport;

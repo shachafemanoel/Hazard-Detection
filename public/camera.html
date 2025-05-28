@@ -1,212 +1,97 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Live Hazard Detection</title>
-
-  <!-- Bootstrap CSS -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  
-  <!-- Font Awesome -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  
-  <!-- Google Fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  
-  <style>
-    body {
-      font-family: 'Poppins', sans-serif;
-    }
-    .btn {
-      font-size: 0.9rem;
-      font-weight: 500;
-      padding: 0.6rem 1.2rem;
-      border-radius: 12px;
-      transition: all 0.2s;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    .btn i {
-      font-size: 1.1rem;
-    }
-    .btn:hover {
-      transform: translateY(-1px);
-    }
-  </style>
-
-  <!-- 1. Load ONNX Runtime Web once as module -->
-  <script type="module">
-    import * as ort from '/ort/ort.min.mjs';
-    // tell ORT where to find its .wasm and .jsep.mjs files:
-    ort.env.wasm.wasmPaths = '/ort/';
-    // enable threaded‐WASM
-    ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
-    // expose globally for your detection script:
-    window.ort = ort;
-  </script>
-
-  <style>
-    html, body {
-      height: 100vh; /* Full viewport height */
-      margin: 0;
-      display: flex;
-      flex-direction: column;
-      background-color: #f8f9fa; /* Default body background */
-    }
-    /* .header-wrapper was removed in previous steps, keeping this note for context if it's re-added elsewhere */
-    /* .header-wrapper {
-         flex-shrink: 0;
-       } */
-    .canvas-container {
-      flex-grow: 1; /* Allow this container to take up available vertical space */
-      position: relative;
-      margin: 0; /* Remove previous margin */
-      display: flex; /* For centering content (video) */
-      align-items: center;
-      justify-content: center;
-      overflow: hidden; /* Hide anything that might overflow */
-      background-color: #000; /* Black background for the video area */
-      width: 100%; /* Take full width in the flex column */
-    }
-    /* ensure video shows (no black box) */
-    #camera-stream {
-      display: block;
-      /* width: 100%; */ /* Replaced by max-width/max-height for object-fit */
-      /* height: auto; */ /* Replaced by max-width/max-height for object-fit */
-      max-width: 100%;
-      max-height: 100%;
-      object-fit: contain; /* Maintain aspect ratio, letterbox/pillarbox as needed */
-      /* background: #000; */ /* Moved to .canvas-container */
-    }
-    /* overlay canvas sits on top of video */
-    #overlay-canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-    }
-    .controls-wrapper {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      width: 100%; /* Ensure it takes full width of its parent (.canvas-container) */
-      background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent black background */
-      /* py-3 class from Bootstrap already provides vertical padding */
-      display: flex; /* Use Flexbox */
-      align-items: center; /* Vertically center items */
-      justify-content: center; /* Horizontally center items */
-      z-index: 10; /* Ensure it's above the video/canvas */
-      height: 80px; /* הגדרת גובה קבוע לפאנל הכפתורים */
-      /* border-top: 1px solid #ced4da; */ /* Removed border for floating style */
-      /* box-shadow: 0 -5px 10px rgba(0, 0, 0, 0.1); */ /* Removed shadow for floating style */
-      /* padding: 10px; */ /* Removed custom padding, relying on py-3 from Bootstrap */
-      /* box-sizing: border-box; */ /* No longer needed if custom padding is removed */
-      /* Adjust justify-content if you want items spread out */
-      /* justify-content: space-around; */
-      /* justify-content: space-between; */
-    }
-    /* Style for the object count overlay */
-    #object-count-overlay {
-      position: absolute;
-      top: 10px; /* Position below the title */
-      right: 10px;
-      background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent black */
-      color: white;
-      padding: 5px 10px;
-      border-radius: 5px;
-      z-index: 10;
-      font-size: 1rem;
-    }
-    /* Style for the hazard types overlay */
-    #hazard-types-overlay {
-      /* This will be positioned and styled in JS or added here if needed */
-      /* For now, let's add a basic style */
-      position: absolute;
-      bottom: 80px; /* Position above the controls panel */
-      left: 10px;
-      background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent black */
-      color: white;
-      padding: 5px 10px;
-      border-radius: 5px;
-      z-index: 10;
-      font-size: 1rem;
-    }
-    .live-title-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent black background */
-      color: white;
-      text-align: center;
-      padding: 10px 0;
-      font-size: 1.25rem; /* Equivalent to Bootstrap's h4 */
-      z-index: 10; /* Ensure it's above the video/canvas */
-    }
-    /* Style for the loading overlay */
-    #loading-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(0, 0, 0, 0.75); /* Darker semi-transparent background */
-      color: white;
-      display: flex; /* For centering content */
-      flex-direction: column; /* Stack spinner and text */
-      align-items: center;
-      justify-content: center;
-      z-index: 20; /* Ensure it's above everything else */
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera - Hazard Detection</title>
+    <link rel="stylesheet" href="css/camera.css">
+    <link rel="stylesheet" href="css/floating-menu.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
-<body style="background-color: #f8f9fa;"> <!-- Original background can be kept or managed by CSS -->
+<body>
+    <!-- Floating Menu Button -->
+    <button class="floating-menu-btn" id="menuBtn">
+        <i class="fas fa-bars"></i>
+    </button>
 
-  <div class="canvas-container"> <!-- This div will grow -->
-      <div class="live-title-overlay">
-        Live Detection
-      </div>
-      <div id="object-count-overlay">Objects: 0</div> <!-- Element for object count -->
-      <div id="hazard-types-overlay">Hazards: None</div> <!-- Element for hazard types -->
-      <div id="loading-overlay" style="display: none;"> <!-- Initially hidden -->
-        <div class="spinner-border text-light" role="status"> <!-- Bootstrap spinner -->
-          <span class="visually-hidden">Loading...</span>
+    <!-- Floating Menu -->
+    <div class="floating-menu" id="floatingMenu">
+        <a href="/dashboard.html"><i class="fas fa-chart-line"></i><span>Dashboard</span></a>
+        <a href="/camera.html"><i class="fas fa-camera"></i><span>Camera</span></a>
+        <a href="/upload.html"><i class="fas fa-upload"></i><span>Upload</span></a>
+        <a href="/logout"><i class="fas fa-sign-out-alt"></i><span>Logout</span></a>
+    </div>
+
+    <!-- Menu Overlay -->
+    <div class="menu-overlay" id="menuOverlay"></div>
+
+    <!-- Camera Container -->
+    <div id="camera-container">
+        <div class="camera-wrapper">
+            <video id="camera-stream" autoplay playsinline></video>
+            <canvas id="overlay-canvas"></canvas>
         </div>
-        <p class="mt-2">Loading Model...</p>
-      </div>
-      <video id="camera-stream" autoplay playsinline muted></video>
-      <canvas id="overlay-canvas"></canvas>
-      <div class="controls-wrapper py-3 text-center"> <!-- Controls panel, py-3 for padding -->
-          <!-- Reordered controls: Back button first -->
-          <button type="button" class="btn btn-light icon-only mx-1" onclick="history.back()">
-            <i class="fa fa-arrow-left fa-2x"></i>
-          </button>
-          <!-- Start Camera button -->
-          <button id="start-camera" class="btn btn-primary icon-only mx-1">
-            <i class="fa fa-video fa-2x"></i>
-          </button>
-          <!-- Stop Camera button -->
-          <button id="stop-camera" class="btn btn-secondary icon-only mx-1" style="display:none;">
-            <i class="fa fa-video-slash fa-2x"></i>
-          </button>
-          <!-- Switch Camera button -->
-          <button id="switch-camera" class="btn btn-info icon-only mx-1" style="display:none;">
-            <i class="fa fa-sync fa-2x"></i>
-          </button>
-      </div>
-  </div>
+        
+        <!-- Camera Controls -->
+        <div class="camera-controls">
+            <button id="start-camera">
+                <i class="fas fa-video"></i>
+                <span>Start Camera</span>
+            </button>
+            <button id="stop-camera">
+                <i class="fas fa-video-slash"></i>
+                <span>Stop Camera</span>
+            </button>
+            <button id="switch-camera">
+                <i class="fas fa-sync"></i>
+                <span>Switch Camera</span>
+            </button>
+        </div>
 
-  <!-- Bootstrap JS Bundle (optional) -->
-  <script
-    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
-    integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
-    crossorigin="anonymous"
-  ></script>
+        <!-- Status Overlays -->
+        <div id="object-count-overlay"></div>
+        <div id="hazard-types-overlay"></div>
 
-  <script type="module" src="../js/upload_tf.js" defer></script>
+        <!-- Loading Overlay -->
+        <div id="loading-overlay">
+            <div class="spinner-border text-light" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p>Loading model...</p>
+        </div>
+
+        <!-- Hazard Notification Template -->
+        <template id="hazard-notification-template">
+            <div class="hazard-notification">
+                <i class="fas fa-exclamation-triangle"></i>
+                <div class="hazard-notification-content">
+                    <h3>Hazard Detected!</h3>
+                    <p></p>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="ort/ort.min.js"></script>
+    <script src="js/upload_tf.js" type="module"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const menuBtn = document.getElementById('menuBtn');
+            const floatingMenu = document.getElementById('floatingMenu');
+            const menuOverlay = document.getElementById('menuOverlay');
+
+            menuBtn.addEventListener('click', () => {
+                floatingMenu.classList.toggle('active');
+                menuOverlay.classList.toggle('active');
+            });
+
+            menuOverlay.addEventListener('click', () => {
+                floatingMenu.classList.remove('active');
+                menuOverlay.classList.remove('active');
+            });
+        });
+    </script>
 </body>
 </html>
