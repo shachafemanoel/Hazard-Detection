@@ -395,3 +395,20 @@
         justify-content: center;
     }
 }
+
+.additional-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+.additional-controls label {
+    color: #cbd2d9;
+    font-size: 14px;
+}
+.additional-controls input[type="range"] {
+    -webkit-appearance: none;
+    width: 120px;
+    background: transparent;
+    cursor: pointer;
+}

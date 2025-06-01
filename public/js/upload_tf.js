@@ -10,9 +10,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const canvas = document.getElementById("overlay-canvas");
   const ctx = canvas.getContext("2d");
   const objectCountOverlay = document.getElementById('object-count-overlay');
-  // Get reference to the hazard types overlay element
-  const loadingOverlay = document.getElementById('loading-overlay'); // הפניה לאלמנט הטעינה
+  const loadingOverlay = document.getElementById('loading-overlay');
   const hazardTypesOverlay = document.getElementById('hazard-types-overlay');
+  // New brightness and zoom controls
+  const brightnessSlider = document.getElementById("brightness-slider");
+  const zoomSlider = document.getElementById("zoom-slider");
   
   const FIXED_SIZE = 416;
   let stream = null;
@@ -490,17 +492,15 @@ async function fallbackIpLocation() {
     requestAnimationFrame(detectLoop);
   }
 
+  // Event listener for Start Camera button
   startBtn.addEventListener("click", async () => {
-    initLocationTracking();               // ① הפעלת המעקב
-    // המודל כבר אמור להיות טעון או בתהליך טעינה
+    initLocationTracking();
     try {
-         await getLatestLocation();
-         console.log("📍 Location preloaded:", _lastCoords);
-       } catch (err) {
-         console.warn("⚠️ Could not preload location:", err);
-       }
-    
-    // 2. אחר כך מבקשים הרשאה למצלמה
+      await getLatestLocation();
+      console.log("📍 Location preloaded:", _lastCoords);
+    } catch (err) {
+      console.warn("⚠️ Could not preload location:", err);
+    }
     try {
       stream = await navigator.mediaDevices.getUserMedia({ video: true });
       video.srcObject = stream;
@@ -508,8 +508,33 @@ async function fallbackIpLocation() {
       stopBtn.style.display = "inline-block";
       detectedObjectCount = 0;
       uniqueHazardTypes = [];
-      // Force switch button display on iOS devices even if single video input is reported
-      switchBtn.style.display = (videoDevices.length > 1 || /iPhone|iPad|iPod/.test(navigator.userAgent)) ? "inline-block" : "none";
+      switchBtn.style.display =
+        (videoDevices.length > 1 || /iPhone|iPad|iPod/.test(navigator.userAgent))
+          ? "inline-block"
+          : "none";
+
+      // Attach brightness and zoom logic after obtaining camera stream
+      const videoTrack = stream.getVideoTracks()[0];
+      if (brightnessSlider) {
+        brightnessSlider.addEventListener("input", () => {
+          video.style.filter = `brightness(${brightnessSlider.value}%)`;
+        });
+      }
+      if (zoomSlider) {
+        const capabilities = videoTrack.getCapabilities();
+        if ("zoom" in capabilities) {
+          zoomSlider.min = capabilities.zoom.min;
+          zoomSlider.max = capabilities.zoom.max;
+          zoomSlider.step = capabilities.zoom.step;
+          zoomSlider.value = videoTrack.getSettings().zoom || capabilities.zoom.min;
+          zoomSlider.addEventListener("input", () => {
+            videoTrack.applyConstraints({ advanced: [{ zoom: Number(zoomSlider.value) }] });
+          });
+        } else {
+          zoomSlider.disabled = true;
+        }
+      }
+      
       video.addEventListener(
         "loadeddata",
         () => {
@@ -520,52 +545,48 @@ async function fallbackIpLocation() {
         { once: true }
       );
     } catch (err) {
-      console.error("❌ שגיאה בגישה למצלמה:", err);
-      alert("⚠️ לא ניתן לגשת למצלמה. יש לבדוק הרשאות בדפדפן.");
+      console.error("❌ Error accessing camera:", err);
+      alert("⚠️ Cannot access the camera. Please check browser permissions.");
       return;
     }
   });
-  
-  
+
+  // Event listener for Switch Camera button
   switchBtn.addEventListener("click", async () => {
     try {
-    if (videoDevices.length < 2) return;
-    detecting = false; // stop current detection loop
-    // Stop current stream if exists
-    if (stream) {
-      stream.getTracks().forEach((t) => t.stop());
+      if (videoDevices.length < 2) return;
+      detecting = false; // stop current detection loop
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+      }
+      currentCamIndex = (currentCamIndex + 1) % videoDevices.length;
+      const newDeviceId = videoDevices[currentCamIndex].deviceId;
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: { exact: newDeviceId } },
+        audio: false
+      });
+      video.srcObject = stream;
+      letterboxParams = null;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      detectedObjectCount = 0;
+      uniqueHazardTypes = [];
+      if (objectCountOverlay) objectCountOverlay.textContent = "";
+      if (hazardTypesOverlay) hazardTypesOverlay.textContent = "";
+      await new Promise(resolve => { video.onloadeddata = resolve; });
+      computeLetterboxParams();
+      detecting = true;
+      detectLoop();
+    } catch (err) {
+      console.error("❌ Failed to switch camera:", err);
+      alert("Cannot switch camera. Check permissions or try a different browser.");
     }
-    // Advance to next camera
-    currentCamIndex = (currentCamIndex + 1) % videoDevices.length;
-    const newDeviceId = videoDevices[currentCamIndex].deviceId;
-    // Try to get new stream
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { deviceId: { exact: newDeviceId } },
-      audio: false
-    });
-    video.srcObject = stream;
-    letterboxParams = null; // Force recalc
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    detectedObjectCount = 0;
-    uniqueHazardTypes = [];
-    if (objectCountOverlay) objectCountOverlay.textContent = '';
-    if (hazardTypesOverlay) hazardTypesOverlay.textContent = '';
-    // Wait for video to be ready before detection
-    await new Promise(resolve => {
-      video.onloadeddata = resolve;
-    });
-    computeLetterboxParams();
-    detecting = true;
-    detectLoop();
-  } catch (err) {
-    console.error("❌ Failed to switch camera:", err);
-    alert("לא ניתן להחליף מצלמה. בדוק הרשאות או נסה דפדפן אחר.");
-  }
   });
+
+  // Event listener for Stop Camera button
   stopBtn.addEventListener("click", () => {
     detecting = false;
     if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
+      stream.getTracks().forEach(track => track.stop());
       stream = null;
     }
     video.srcObject = null;
@@ -576,4 +597,7 @@ async function fallbackIpLocation() {
     stopLocationTracking();
     console.log("Camera stopped");
   });
+  
+  // ...existing code for detection loop and other functions...
 });
+// ...existing code...
