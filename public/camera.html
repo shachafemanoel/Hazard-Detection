@@ -49,8 +49,12 @@
                 <i class="fas fa-sync"></i>
                 <span>Switch Camera</span>
             </button>
-            <!-- NEW: Camera Brightness and Zoom Controls -->
+            <!-- NEW: Camera selection dropdown -->
             <div class="additional-controls">
+                <label for="camera-select">Camera</label>
+                <select id="camera-select">
+                    <!-- Options will be populated dynamically -->
+                </select>
                 <label for="brightness-slider">Brightness</label>
                 <input type="range" id="brightness-slider" min="50" max="150" value="100" step="1">
                 <label for="zoom-slider">Zoom</label>

@@ -12,9 +12,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const objectCountOverlay = document.getElementById('object-count-overlay');
   const loadingOverlay = document.getElementById('loading-overlay');
   const hazardTypesOverlay = document.getElementById('hazard-types-overlay');
-  // New brightness and zoom controls
+  // New brightness, zoom and camera selection controls
   const brightnessSlider = document.getElementById("brightness-slider");
   const zoomSlider = document.getElementById("zoom-slider");
+  const cameraSelect = document.getElementById("camera-select");
   
   const FIXED_SIZE = 416;
   let stream = null;
@@ -42,7 +43,17 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       videoDevices = devices.filter((d) => d.kind === "videoinput");
-      // Force display switch button on iOS devices even if only one device is reported
+      // Populate cameraSelect dropdown
+      if (cameraSelect) {
+        cameraSelect.innerHTML = "";
+        videoDevices.forEach((device, index) => {
+          const option = document.createElement("option");
+          option.value = device.deviceId;
+          option.text = device.label || `Camera ${index+1}`;
+          cameraSelect.appendChild(option);
+        });
+      }
+      // Display switch button on iOS or if multiple cameras available
       if (videoDevices.length > 1 || /iPhone|iPad|iPod/.test(navigator.userAgent)) {
         switchBtn.style.display = "inline-block";
       } else {
@@ -598,6 +609,62 @@ async function fallbackIpLocation() {
     console.log("Camera stopped");
   });
   
+  // NEW: When user changes camera selection, restart stream with the chosen device
+  if (cameraSelect) {
+    cameraSelect.addEventListener("change", async () => {
+      console.log("Camera selection changed:", cameraSelect.value); // Debug log
+      if (stream) {
+        stream.getTracks().forEach(t => t.stop());
+      }
+      const selectedDeviceId = cameraSelect.value;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { deviceId: { exact: selectedDeviceId } }
+        });
+        console.log("Stream restarted with device:", selectedDeviceId); // Debug
+        video.srcObject = stream;
+        letterboxParams = null;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        detectedObjectCount = 0;
+        uniqueHazardTypes = [];
+        await new Promise(resolve => {
+          video.onloadeddata = () => {
+            console.log("Video loaded after camera change"); // Debug log
+            resolve();
+          };
+        });
+        computeLetterboxParams();
+        detecting = true;
+        detectLoop();
+
+        // Reapply brightness and zoom listeners
+        const videoTrack = stream.getVideoTracks()[0];
+        if (brightnessSlider) {
+          brightnessSlider.addEventListener("input", () => {
+            video.style.filter = `brightness(${brightnessSlider.value}%)`;
+          });
+        }
+        if (zoomSlider) {
+          const capabilities = videoTrack.getCapabilities();
+          if ("zoom" in capabilities) {
+            zoomSlider.min = capabilities.zoom.min;
+            zoomSlider.max = capabilities.zoom.max;
+            zoomSlider.step = capabilities.zoom.step;
+            zoomSlider.value = videoTrack.getSettings().zoom || capabilities.zoom.min;
+            zoomSlider.addEventListener("input", () => {
+              videoTrack.applyConstraints({ advanced: [{ zoom: Number(zoomSlider.value) }] });
+            });
+          } else {
+            zoomSlider.disabled = true;
+          }
+        }
+      } catch (err) {
+        console.error("❌ Error switching to selected camera:", err);
+        alert("Cannot switch camera. Please check permissions or try a different camera.");
+      }
+    });
+  }
+
   // ...existing code for detection loop and other functions...
 });
 // ...existing code...
