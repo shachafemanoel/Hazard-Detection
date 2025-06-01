@@ -391,10 +391,7 @@ async function fallbackIpLocation() {
 
     // --- Pre-processing Stage ---
     let processedImageData = curr; 
-    // const currentHour = new Date().getHours();
-    // if (currentHour >= 19 || currentHour < 6) { 
-    //     adjustBrightness(processedImageData, 30); 
-    // }
+
     // --- prepare ONNX input tensor ---
     // Ensure ort is defined from window.ort
     const ort = window.ort;
