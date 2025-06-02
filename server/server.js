@@ -80,7 +80,7 @@ app.use((req, res, next) => {
   
   /* ───── Core middleware ───── */
   app.use(cors({
-    origin: 'http://localhost:3000', // שנה לכתובת ה-frontend שלך אם היא שונה
+    origin: 'https://hazard-detection.onrender.com', // שנה לכתובת ה-frontend שלך אם היא שונה
     credentials: true
   }));
   app.use(express.json());
@@ -88,7 +88,7 @@ app.use((req, res, next) => {
     secret: process.env.SESSION_SECRET || 'your-secret-key',
     resave: false,
     saveUninitialized: true,
-    cookie: { secure: false, httpOnly: true } // In production, use secure: true with HTTPS
+    cookie: { secure: true, httpOnly: true, sameSite: 'None' } // In production, use secure: true with HTTPS
   }));
   app.use(passport.initialize());
   app.use(passport.session());

@@ -470,7 +470,10 @@ async function loadReports(filters = {}) {
             .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
             .join('&');
 
-        const response = await fetch(`/api/reports${queryString ? `?${queryString}` : ''}`);
+        const response = await fetch(`/api/reports${queryString ? `?${queryString}` : ''}`, {
+            method: 'GET',
+            credentials: 'include', // 💥 חובה לשליחת העוגיות של session
+        });
         if (!response.ok) {
             throw new Error('Failed to fetch reports');
         }
