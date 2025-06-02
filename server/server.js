@@ -83,19 +83,18 @@ app.use((req, res, next) => {
     origin: 'https://hazard-detection.onrender.com', // שנה לכתובת ה-frontend שלך אם היא שונה
     credentials: true
   }));
+
   app.use(express.json());
+
   app.use(session({
     secret: process.env.SESSION_SECRET || 'your-secret-key',
     resave: false,
     saveUninitialized: true,
     cookie: { secure: true, httpOnly: true, sameSite: 'None' } // In production, use secure: true with HTTPS
   }));
+
   app.use(passport.initialize());
   app.use(passport.session());
-  
-
-
-
 
 // 📨 SendGrid API
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
@@ -633,17 +632,24 @@ app.post('/forgot-password', async (req, res) => {
 
     const userKeys = await client.keys('user:*');
     let userId = null;
+    let userData = null;
     for (const key of userKeys) {
-        const userData = JSON.parse(await client.get(key));
-        if (userData.email === email) {
+        const data = JSON.parse(await client.get(key));
+        if (data.email === email) {
             userId = key;
+            userData = data;
             break;
         }
     }
 
-    if (!userId) {
+    if (!userId || !userData) {
         return res.status(404).json({ error: 'Email not found' });
     }
+
+    if (!userData.password) {
+        return res.status(400).json({ error: 'This account uses Google login and cannot reset password.' });
+    }
+
 
     // ✅ מחיקת טוקנים קודמים של אותו משתמש אם קיימים
     const existingTokens = await client.keys('reset:*');
