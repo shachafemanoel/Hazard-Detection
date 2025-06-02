@@ -352,10 +352,6 @@ app.post('/api/reports', async (req, res) => {
 
 // שליפת כל הדיווחים
 app.get('/api/reports', async (req, res) => {
-    if (!req.isAuthenticated()) { // מספיק לבדוק req.isAuthenticated()
-        return res.status(401).json({ error: 'Unauthorized' });
-    }
-
     const filters = req.query;
 
     // המרת מחרוזת hazardType למערך

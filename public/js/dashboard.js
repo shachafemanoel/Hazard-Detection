@@ -464,7 +464,6 @@ function sortReports(reports, sortField, sortOrder) {
 // טוען דיווחים מהשרת ומכניס לטבלה ולמפה
 async function loadReports(filters = {}) {
     try {
-        // Build query string from filters
         const queryString = Object.entries(filters)
             .filter(([_, value]) => value)
             .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
@@ -472,63 +471,53 @@ async function loadReports(filters = {}) {
 
         const response = await fetch(`/api/reports${queryString ? `?${queryString}` : ''}`, {
             method: 'GET',
-            credentials: 'include', // 💥 חובה לשליחת העוגיות של session
+            credentials: 'include',
         });
+
         if (!response.ok) {
-            throw new Error('Failed to fetch reports');
+            const errorText = await response.text();
+            console.error('Fetch error details:', {
+                status: response.status,
+                message: errorText,
+            });
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
 
         let reports = await response.json();
+        console.log('Reports received:', reports.length);
 
-        // NEW: Filter out reports with missing or invalid image links
+        // סינון תמונות שגויות
         if (reports && reports.length) {
             const validationResults = await Promise.all(
                 reports.map(async (r) => {
-                    if (r.image) {
-                        return await isValidImage(r.image) ? r : null;
-                    }
+                    if (r.image) return await isValidImage(r.image) ? r : null;
                     return null;
                 })
             );
-            reports = validationResults.filter(r => r !== null);
+            reports = validationResults.filter(Boolean);
         }
-        lastReports = reports; // Save for filtering/sorting
 
-        // Clear existing markers
+        lastReports = reports;
         clearMarkers();
-
-        // Create marker bounds to fit all markers
         const bounds = new google.maps.LatLngBounds();
-        
-        // Process reports in parallel for better performance
+
         const markerPromises = reports.map(async report => {
             const marker = await geocodeAddress(report.location, report);
-            if (marker) {
-                bounds.extend(marker.getPosition());
-            }
+            if (marker) bounds.extend(marker.getPosition());
             return marker;
         });
 
-        // Wait for all markers to be created
         const newMarkers = (await Promise.all(markerPromises)).filter(Boolean);
-        
-        // If we have markers, fit the map to show all of them
         if (newMarkers.length > 0) {
             map.fitBounds(bounds);
-            const listener = google.maps.event.addListener(map, 'idle', function() {
-                if (map.getZoom() > 16) {
-                    map.setZoom(16);
-                }
+            const listener = google.maps.event.addListener(map, 'idle', function () {
+                if (map.getZoom() > 16) map.setZoom(16);
                 google.maps.event.removeListener(listener);
             });
         }
-        // Update markers array
+
         markers = newMarkers;
-        
-        // NEW: Update heatmap overlay on the map with the new marker positions
         updateHeatmap();
-        
-        // Trigger the filter and render function
         if (window.filterAndRenderReports) {
             window.filterAndRenderReports();
         }
@@ -540,6 +529,7 @@ async function loadReports(filters = {}) {
         return [];
     }
 }
+
 
 // Update general info blocks
 function updateDashboardInfo(reports) {
