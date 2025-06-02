@@ -43,6 +43,15 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       videoDevices = devices.filter((d) => d.kind === "videoinput");
+      // For mobile devices, if labels are missing, assign default names (Front/Rear)
+      if (/Android|iPhone|iPad|iPod/.test(navigator.userAgent)) {
+        videoDevices = videoDevices.map((device, index) => {
+          if (!device.label) {
+            device.label = index === 0 ? "Front Camera" : "Rear Camera";
+          }
+          return device;
+        });
+      }
       // Populate cameraSelect dropdown
       if (cameraSelect) {
         cameraSelect.innerHTML = "";
