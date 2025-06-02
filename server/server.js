@@ -661,7 +661,7 @@ app.post('/forgot-password', async (req, res) => {
     // שמירת הטוקן עם תוקף של 10 דקות
     await client.setEx(tokenKey, 600, userId); // 600 שניות = 10 דקות
 
-    const resetUrl = `http://localhost:3000/reset-password.html?token=${token}`;
+    const resetUrl = `https://hazard-detection.onrender.com/reset-password.html?token=${token}`;
 
     const message = {
         to: email,
