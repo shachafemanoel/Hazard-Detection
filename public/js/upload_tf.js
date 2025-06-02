@@ -527,7 +527,8 @@ async function fallbackIpLocation() {
       startBtn.style.display = "none";
       stopBtn.style.display = "inline-block";
       detectedObjectCount = 0;
-      uniqueHazardTypes = [];
+      // After stream is active, update camera devices.
+      await updateCameraDevices();
       switchBtn.style.display =
         (videoDevices.length > 1 || /iPhone|iPad|iPod/.test(navigator.userAgent))
           ? "inline-block"
@@ -579,6 +580,8 @@ async function fallbackIpLocation() {
       if (stream) {
         stream.getTracks().forEach(t => t.stop());
       }
+      // Update device list before choosing new camera.
+      await updateCameraDevices();
       currentCamIndex = (currentCamIndex + 1) % videoDevices.length;
       const newDeviceId = videoDevices[currentCamIndex].deviceId;
       stream = await navigator.mediaDevices.getUserMedia({
@@ -625,6 +628,8 @@ async function fallbackIpLocation() {
       if (stream) {
         stream.getTracks().forEach(t => t.stop());
       }
+      // Update devices to ensure latest info.
+      await updateCameraDevices();
       const selectedDeviceId = cameraSelect.value;
       try {
         stream = await navigator.mediaDevices.getUserMedia({
@@ -674,6 +679,41 @@ async function fallbackIpLocation() {
     });
   }
 
-  // ...existing code for detection loop and other functions...
+  // NEW: Update camera devices function
+  async function updateCameraDevices() {
+	// Re-enumerate devices; labels may now be available after permissions granted.
+	try {
+		const devices = await navigator.mediaDevices.enumerateDevices();
+		videoDevices = devices.filter(device => device.kind === "videoinput");
+		// For mobile devices, assign default names if missing.
+		if (/Android|iPhone|iPad|iPod/.test(navigator.userAgent)) {
+			videoDevices = videoDevices.map((device, index) => {
+				if (!device.label) {
+					device.label = index === 0 ? "Front Camera" : "Rear Camera";
+				}
+				return device;
+			});
+		}
+		// Update dropdown options for cameraSelect.
+		if (cameraSelect) {
+			cameraSelect.innerHTML = "";
+			videoDevices.forEach((device, index) => {
+				const option = document.createElement("option");
+				option.value = device.deviceId;
+				option.text = device.label || `Camera ${index+1}`;
+				cameraSelect.appendChild(option);
+			});
+		}
+		// Toggle display of switchBtn.
+		if (switchBtn) {
+			switchBtn.style.display = (videoDevices.length > 1 || /iPhone|iPad|iPod/.test(navigator.userAgent))
+				? "inline-block" : "none";
+		}
+	} catch(err) {
+		console.warn("Error updating camera devices:", err);
+	}
+}
+
+// ...existing code for detection loop and other functions...
 });
 // ...existing code...
