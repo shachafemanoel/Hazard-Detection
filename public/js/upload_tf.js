@@ -248,54 +248,41 @@ async function fallbackIpLocation() {
   }
 
   async function saveDetection(canvas, label = "Unknown") {
-    let geoData;
-    let locationNote;
-  
-    // 1️⃣ נסיון ראשון: GPS
-    try {
-      geoData = await getLatestLocation();
-      locationNote = "GPS";
-    } catch (gpsErr) {
-      console.warn("GPS failed:", gpsErr);
-  
-      // 2️⃣ נסיון שני: IP fallback
-      try {
-        const ipRes  = await fetch("https://ipapi.co/json/");
-        const ipJson = await ipRes.json();
-        geoData = JSON.stringify({ lat: ipJson.latitude, lng: ipJson.longitude });
-        locationNote = "Approximate (IP)";
-      } catch (ipErr) {
-        console.error("IP fallback failed:", ipErr);
-        alert("אנא אפשר גישה למיקום כדי לבצע Live Detection.");
-        return;  // בלי מיקום – לא שומרים
-      }
-    }
-  
-    // 3️⃣ אם הצלחנו להשיג מיקום (GPS או IP), נשמור
-    canvas.toBlob(async blob => {
-      if (!blob) return console.error("❌ Failed to get image blob");
-  
-      const file = new File([blob], "detection.jpg", { type: "image/jpeg" });
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("geoData", geoData);
-      formData.append("hazardTypes", label);
-      formData.append("locationNote", locationNote);  // ⇐ כעת תמיד תישלח
-  
-      try {
-        const res = await fetch("/upload-detection", {
-          method: "POST",
-          body: formData,
-          credentials: "include",
-        });
-        if (!res.ok) throw new Error(await res.text());
-        console.log("✅ Detection saved:", (await res.json()).message);
-        showSuccessToast();
-      } catch (err) {
-        console.error("❌ Failed to save detection:", err);
-      }
-    }, "image/jpeg", 0.9);
-  }
+	// Get geolocation once, similar to upload.js logic
+	let geoData;
+	try {
+		geoData = await getLatestLocation();
+	} catch (err) {
+		console.warn("❌ Failed to get geolocation data:", err);
+		alert("אנא אפשר גישה למיקום כדי לבצע Live Detection.");
+		return;
+	}
+	const locationNote = "GPS";
+	
+	canvas.toBlob(async blob => {
+		if (!blob) return console.error("❌ Failed to get image blob");
+		
+		const file = new File([blob], "detection.jpg", { type: "image/jpeg" });
+		const formData = new FormData();
+		formData.append("file", file);
+		formData.append("geoData", geoData);
+		formData.append("hazardTypes", label);
+		formData.append("locationNote", locationNote);  // Set to "GPS"
+		
+		try {
+			const res = await fetch("/upload-detection", {
+				method: "POST",
+				body: formData,
+				credentials: "include",
+			});
+			if (!res.ok) throw new Error(await res.text());
+			console.log("✅ Detection saved:", (await res.json()).message);
+			showSuccessToast();
+		} catch (err) {
+			console.error("❌ Failed to save detection:", err);
+		}
+	}, "image/jpeg", 0.7);
+}
   
   
   
