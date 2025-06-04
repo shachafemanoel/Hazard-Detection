@@ -154,7 +154,8 @@ function initMap() {
             },
             (error) => {
                 console.error("Error using geolocation:", error);
-                loadReports();
+                // Fallback to IP geolocation without displaying any message
+                getLocationByIP();
             }
         );
     } else {
@@ -1034,28 +1035,25 @@ async function deleteReport(reportId) {
         const response = await fetch(`/api/reports/${reportId}`, {
             method: 'DELETE'
         });
-
         if (response.ok) {
-            // Close the confirmation modal
+            // Close any open confirmation modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
-            modal.hide();
-
-            // Remove the marker from the map
+            if (modal) modal.hide();
+            // Remove marker, reload reports, and show success message
             const markerIndex = markers.findIndex(m => m.reportId === reportId);
             if (markerIndex !== -1) {
                 markers[markerIndex].setMap(null);
                 markers.splice(markerIndex, 1);
             }
-
-            // Reload reports to update UI
             await loadReports();
             showToast('Report deleted successfully', 'success');
         } else {
-            throw new Error('Failed to delete report');
+            const errMsg = await response.text();
+            throw new Error(`Failed to delete report: ${response.status} ${errMsg}`);
         }
     } catch (error) {
         console.error('Error deleting report:', error);
-        showToast('Failed to delete report', 'error');
+        showToast(`Failed to delete report: ${error.message}`, 'error');
     }
 }
 
@@ -1101,3 +1099,20 @@ window.confirmDeleteReport = confirmDeleteReport;
 window.showImageModal = showImageModal;
 window.toggleReportStatus = toggleReportStatus;
 window.deleteReport = deleteReport;
+
+// NEW: Fallback to use IP geolocation to center the map
+async function getLocationByIP() {
+    try {
+        const response = await fetch("https://ipapi.co/json/");
+        const data = await response.json();
+        if(data.latitude && data.longitude) {
+            const ipLatLng = { lat: parseFloat(data.latitude), lng: parseFloat(data.longitude) };
+            map.setCenter(ipLatLng);
+            map.setZoom(10); // Zoom level for region
+        }
+    } catch (err) {
+        console.error("IP geolocation error:", err);
+    } finally {
+        loadReports();
+    }
+}

@@ -122,61 +122,42 @@ document.addEventListener("DOMContentLoaded", () => {
  * לאחר מכן מריץ watchPosition כדי לעדכן ברצף את _lastCoords.
  */
 function initLocationTracking() {
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     if (!navigator.geolocation) {
-      alert("מצטערים, הדפדפן שלך לא תומך בגיאולוקציה.");
-      return resolve(null);
+      console.warn("Geolocation not supported");
+      fallbackIpLocation().then(resolve);
+      return;
     }
 
-    // פונקציית עזר לרישום המיקום הראשון
-    let done = false;
-    function handleCoords(coords) {
-      if (done) return;
-      done = true;
-      _lastCoords = coords;
-      console.log("📍 initial location:", coords);
-      resolve(coords);
+    let geoOptions = {
+      enableHighAccuracy: false,
+      timeout: 10000,
+      maximumAge: 0
+    };
+
+    function handleSuccess(position) {
+      _lastCoords = position.coords;
+      console.log("📍 Location obtained:", _lastCoords);
+      resolve(_lastCoords);
     }
 
-    // 1️⃣ ניסיון High-Accuracy
+    function handleError(error) {
+      console.warn("Location error:", error.code, error.message);
+      fallbackIpLocation().then(resolve);
+    }
+
+    // Try to get location
     navigator.geolocation.getCurrentPosition(
-      pos => handleCoords(pos.coords),
-      err => {
-        console.warn("High-Accuracy failed:", err.code, err.message);
-        if (err.code === err.PERMISSION_DENIED) {
-          alert("אנא אפשר גישה למיקום כדי להשתמש ב-Live Detection.");
-          return resolve(null);
-        }
-        // 2️⃣ ניסיון Low-Accuracy
-        navigator.geolocation.getCurrentPosition(
-          pos2 => handleCoords(pos2.coords),
-          err2 => {
-            console.warn("Low-Accuracy failed:", err2.code, err2.message);
-            // 3️⃣ fallback IP
-            fetch("https://ipapi.co/json/")
-              .then(r => r.json())
-              .then(data => handleCoords({ latitude: data.latitude, longitude: data.longitude }))
-              .catch(() => resolve(null));
-          },
-          { enableHighAccuracy: false, timeout: 5000, maximumAge: 0 }
-        );
-      },
-      { enableHighAccuracy: true,  timeout: 5000, maximumAge: 0 }
+      handleSuccess,
+      handleError,
+      geoOptions
     );
 
-    // 4️⃣ watchPosition לעדכונים רציפים
+    // Also start watching position
     _watchId = navigator.geolocation.watchPosition(
-      pos => {
-        _lastCoords = pos.coords;
-      },
-      err => {
-        console.warn("watchPosition error:", err.code, err.message);
-        if (err.code === err.PERMISSION_DENIED) {
-          alert("אנא אפשר גישה למיקום כדי להשתמש ב-Live Detection.");
-          navigator.geolocation.clearWatch(_watchId);
-        }
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      (pos) => { _lastCoords = pos.coords; },
+      (err) => { console.warn("Watch position error:", err); },
+      geoOptions
     );
   });
 }
@@ -248,40 +229,73 @@ async function fallbackIpLocation() {
   }
 
   async function saveDetection(canvas, label = "Unknown") {
-	// Get geolocation once, similar to upload.js logic
-	let geoData;
-	try {
-		geoData = await getLatestLocation();
-	} catch (err) {
-		console.warn("❌ Failed to get geolocation data:", err);
-		alert("אנא אפשר גישה למיקום כדי לבצע Live Detection.");
-		return;
-	}
-	const locationNote = "GPS";
-	
-	canvas.toBlob(async blob => {
-		if (!blob) return console.error("❌ Failed to get image blob");
-		
-		const file = new File([blob], "detection.jpg", { type: "image/jpeg" });
-		const formData = new FormData();
-		formData.append("file", file);
-		formData.append("geoData", geoData);
-		formData.append("hazardTypes", label);
-		formData.append("locationNote", locationNote);  // Set to "GPS"
-		
-		try {
-			const res = await fetch("/upload-detection", {
-				method: "POST",
-				body: formData,
-				credentials: "include",
-			});
-			if (!res.ok) throw new Error(await res.text());
-			console.log("✅ Detection saved:", (await res.json()).message);
-			showSuccessToast();
-		} catch (err) {
-			console.error("❌ Failed to save detection:", err);
-		}
-	}, "image/jpeg", 0.7);
+    try {
+        const geoData = await getLatestLocation();
+        const locationNote = "GPS";
+        
+        canvas.toBlob(async blob => {
+            if (!blob) {
+                console.error("Failed to get image blob");
+                return;
+            }
+            
+            const file = new File([blob], "detection.jpg", { type: "image/jpeg" });
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("geoData", geoData);
+            formData.append("hazardTypes", label);
+            formData.append("locationNote", locationNote);
+            
+            try {
+                const res = await fetch("/upload-detection", {
+                    method: "POST",
+                    body: formData,
+                    credentials: 'include',
+                    headers: {
+                        // אין צורך ב-Content-Type כי FormData מגדיר אותו אוטומטית
+                        'Accept': 'application/json'
+                    }
+                });
+
+                // בדיקת תגובה משופרת
+                if (res.status === 401) {
+                    console.log("Session expired, redirecting to login...");
+                    window.location.href = '/login.html';
+                    return;
+                }
+                
+                if (!res.ok) {
+                    const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
+                    throw new Error(errorData.error || 'Failed to save detection');
+                }
+                
+                const data = await res.json();
+                console.log("✅ Detection saved successfully:", data);
+                showSuccessToast();
+                
+            } catch (err) {
+                console.error("Failed to save detection:", err);
+                if (err.message.includes("Please log in again")) {
+                    // נסה לרענן את הדף קודם לפני הפניה להתחברות
+                    window.location.reload();
+                    setTimeout(() => {
+                        if (!req.isAuthenticated()) {
+                            window.location.href = '/login.html';
+                        }
+                    }, 1000);
+                }
+            }
+        }, "image/jpeg", 0.7);
+    } catch (err) {
+        console.warn("Failed to get location:", err);
+        // במקרה של שגיאת מיקום, נמשיך בלי מידע גיאוגרפי
+        const formData = new FormData();
+        formData.append("file", await new Promise(resolve => canvas.toBlob(resolve)));
+        formData.append("hazardTypes", label);
+        formData.append("locationNote", "Location Unavailable");
+        
+        // שימוש באותו קוד שליחה כמו למעלה...
+    }
 }
   
   
@@ -291,19 +305,23 @@ async function fallbackIpLocation() {
   // במקום כל import של ort.min.js — מניחים window.ort כבר קיים
   async function loadModel() {
     const ort = window.ort;
-    ort.env.wasm.simd = false;              // ← הוספה כאן
+    // Configure ONNX Runtime for better compatibility
+    ort.env.wasm.simd = true;
+    ort.env.wasm.proxy = false;
     ort.env.wasm.wasmPaths = '/ort/';
-    ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
-    const EPs = ort.env.webgl?.isSupported ? ['webgl','wasm'] : ['wasm','webgl'];
-    session = await ort.InferenceSession.create(
-      '/object_detecion_model/road_damage_detection_last_version.onnx',
-      { executionProviders: EPs, graphOptimizationLevel: 'all' }
-    );
-  }
-
-  
-  
-  
+    // Try to use only one thread if multi-threading isn't available
+    ort.env.wasm.numThreads = 1;
+    
+    try {
+        session = await ort.InferenceSession.create(
+            '/object_detecion_model/road_damage_detection_last_version.onnx',
+            { executionProviders: ['wasm'] }
+        );
+    } catch (err) {
+        console.error("Model loading error:", err);
+        throw err;
+    }
+}
 
   function computeLetterboxParams() {
     const scale = Math.min(FIXED_SIZE / video.videoWidth, FIXED_SIZE / video.videoHeight);

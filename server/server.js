@@ -58,18 +58,17 @@ app.use(express.static(path.join(__dirname, '../public'), {
 
 
 app.use((req, res, next) => {
-    // כל דבר שמשרת JS/WebWorkers או שדורש גיאולוקציה
-    if (req.path.startsWith('/ort/') || req.path === '/camera.html' || req.path === '/upload') {
-      res.set({
-        'Cross-Origin-Embedder-Policy':  'require-corp',
-        'Cross-Origin-Opener-Policy':   'same-origin'
-      });
-    }
+    // Enable COOP and COEP for all routes
+    res.set({
+        'Cross-Origin-Embedder-Policy': 'require-corp',
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Resource-Policy': 'cross-origin'
+    });
     next();
-  });
-  
-  /* ───── Core middleware (סדר חשוב!) ───── */
-  app.use(
+});
+
+/* ───── Core middleware (סדר חשוב!) ───── */
+app.use(
     '/ort',
     (req, res, next) => {
       res.set('Cross-Origin-Resource-Policy', 'cross-origin');
@@ -80,18 +79,26 @@ app.use((req, res, next) => {
   
   /* ───── Core middleware ───── */
   app.use(cors({
-    origin: 'https://hazard-detection.onrender.com', // שנה לכתובת ה-frontend שלך אם היא שונה
-    credentials: true
-  }));
+    origin: ['https://hazard-detection.onrender.com', 'http://localhost:3000'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with']
+}));
 
-  app.use(express.json());
+app.use(express.json());
 
-  app.use(session({
+app.use(session({
     secret: process.env.SESSION_SECRET || 'your-secret-key',
     resave: false,
-    saveUninitialized: true,
-    cookie: { secure: true, httpOnly: true, sameSite: 'None' } // In production, use secure: true with HTTPS
-  }));
+    saveUninitialized: false,
+    cookie: {
+        secure: process.env.NODE_ENV === 'production',
+        httpOnly: true,
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    },
+    proxy: process.env.NODE_ENV === 'production'
+}));
 
   app.use(passport.initialize());
   app.use(passport.session());
@@ -730,14 +737,19 @@ app.post('/reset-password', async (req, res) => {
 
 
 app.post('/upload-detection', upload.single('file'), async (req, res) => {
+    console.log("Session:", req.session); // Debug session
+    console.log("Is Authenticated:", req.isAuthenticated()); // Debug authentication
+    console.log("User:", req.user); // Debug user object
+
     // בדוק אם הקובץ הועלה
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // אימות משתמש
-    if (!(req.isAuthenticated?.() || req.session?.user)) { 
-        return res.status(401).json({ error: 'Unauthorized' });
+    // אימות משתמש - בדיקה משופרת
+    if (!req.isAuthenticated()) {
+        console.log("Authentication failed"); // Debug log
+        return res.status(401).json({ error: 'Please log in again' });
     }
 
     const hazardTypes = req.body.hazardTypes;
