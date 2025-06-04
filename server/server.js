@@ -354,7 +354,6 @@ app.post('/api/reports', async (req, res) => {
 app.get('/api/reports', async (req, res) => {
     const filters = req.query;
 
-    // המרת מחרוזת hazardType למערך
     if (filters.hazardType && typeof filters.hazardType === 'string') {
         filters.hazardType = filters.hazardType.split(',').map(type => type.trim());
     }
@@ -364,7 +363,13 @@ app.get('/api/reports', async (req, res) => {
         const reports = [];
 
         for (const key of keys) {
-            const report = await client.json.get(key);
+            let report;
+            try {
+                report = await client.json.get(key);
+            } catch (err) {
+                console.error(`Skipping key ${key} due to Redis type error:`, err.message);
+                continue;
+            }
             if (!report) continue;
 
             let match = true;
@@ -530,6 +535,8 @@ app.listen(port, '0.0.0.0', () => {
     console.log(`✅ Server running on your network: http://${localIp}:${port}`);
   });
 
+// To run the server in debug mode, execute in terminal:
+//   node --inspect server.js
 
 // פונקציה לבדוק אם המייל קיים ב-Redis
 async function emailExists(email) {  

@@ -820,44 +820,16 @@ function renderReportBlocks(reports) {
 
 // --- Render Report Table Rows ---
 function renderReportTableRows(reports) {
-    let table = document.getElementById('reports-table');
-    let container = document.getElementById('reports-table-container');
-    if (!container) {
-        container = document.createElement('div');
-        container.id = 'reports-table-container';
-        container.className = 'table-responsive';
-        const reportsWidget = document.getElementById('reports-widget');
-        if (reportsWidget) reportsWidget.appendChild(container);
-    }
-    
-    if (!table) {
-        table = document.createElement('table');
-        table.className = 'table table-dark table-hover table-bordered align-middle rounded shadow';
-        table.id = 'reports-table';
-        table.innerHTML = `
-            <thead class="table-accent">
-                <tr>
-                    <th scope="col">Image</th>
-                    <th scope="col">Type</th>
-                    <th scope="col">Location</th>
-                    <th scope="col">Time</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Reporter</th>
-                    <th scope="col" class="text-center">Actions</th>
-                </tr>
-            </thead>
-            <tbody id="reports-table-body"></tbody>
-        `;
-        container.appendChild(table);
-    }
-
     const tbody = document.getElementById('reports-table-body');
-    if (!tbody) return;
-    
+    if (!tbody) {
+        console.error("Element with id 'reports-table-body' not found.");
+        return;
+    }
     tbody.innerHTML = '';
+    console.log("Rendering", reports.length, "reports to the table body");
     reports.forEach(report => {
         const tr = document.createElement('tr');
-        tr.dataset.reportId = report.id; // Add data attribute for marker sync
+        tr.dataset.reportId = report.id; // For marker sync if needed
         tr.innerHTML = `
             <td>
                 ${report.image ? 
@@ -920,7 +892,7 @@ function renderReportTableRows(reports) {
         `;
         tbody.appendChild(tr);
 
-        // Add hover effect to sync with map markers
+        // Add hover events to sync with map markers
         tr.addEventListener('mouseenter', () => highlightMarker(report.id));
         tr.addEventListener('mouseleave', () => unhighlightMarker(report.id));
     });
