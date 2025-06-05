@@ -286,7 +286,7 @@ async function fallbackIpLocation() {
     ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
     const EPs = ort.env.webgl?.isSupported ? ['webgl','wasm'] : ['wasm','webgl'];
     session = await ort.InferenceSession.create(
-      '/object_detecion_model/last_model_train12052025.onnx',
+      '/object_detecion_model/road_damage_detection_simplified.onnx',
       { executionProviders: EPs, graphOptimizationLevel: 'all' }
     );
   }
