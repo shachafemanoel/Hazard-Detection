@@ -10,28 +10,23 @@ document.addEventListener("DOMContentLoaded", () => {
   const canvas = document.getElementById("overlay-canvas");
   const ctx = canvas.getContext("2d");
   const objectCountOverlay = document.getElementById('object-count-overlay');
-  const loadingOverlay = document.getElementById('loading-overlay');
+  // Get reference to the hazard types overlay element
+  const loadingOverlay = document.getElementById('loading-overlay'); // הפניה לאלמנט הטעינה
   const hazardTypesOverlay = document.getElementById('hazard-types-overlay');
-  // New brightness, zoom and camera selection controls
-  const brightnessSlider = document.getElementById("brightness-slider");
-  const zoomSlider = document.getElementById("zoom-slider");
-  const cameraSelect = document.getElementById("camera-select");
   
-  const FIXED_SIZE = 416;
+  const FIXED_SIZE = 512; // increased resolution for better accuracy
   let stream = null;
   let detecting = false;
   let session = null;
   let frameCount = 0;
   let lastSaveTime = 0;
   let _lastCoords = null;
-  let _watchId    = null;
-  let videoDevices = [];
+  let _watchId    = null;  let videoDevices = [];
   let currentCamIndex = 0;
   let prevImageData = null;
-  const DIFF_THRESHOLD = 150000;             // מגביר רגישות לשינויים
-  let skipFrames = 2;                        // פחות פריימים לדילוג
-  const targetFps = 20;                      // יעד FPS גבוה יותר
-  const processingThreshold = 50;            // מקסימום זמן עיבוד לפריים במילישניות
+  const DIFF_THRESHOLD = 200000; // הורדת הערך כדי להגביר רגישות לשינויים
+  let skipFrames = 3;                       // ברירת מחדל
+  const targetFps = 15;                     // יעד: 15 פריימים לשנייה
   const frameTimes = [];                    // היסטוריית זמנים
   const maxHistory = 10;    
   let detectedObjectCount = 0; // Initialize object count
@@ -43,30 +38,8 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       videoDevices = devices.filter((d) => d.kind === "videoinput");
-      // For mobile devices, if labels are missing, assign default names (Front/Rear)
-      if (/Android|iPhone|iPad|iPod/.test(navigator.userAgent)) {
-        videoDevices = videoDevices.map((device, index) => {
-          if (!device.label) {
-            device.label = index === 0 ? "Front Camera" : "Rear Camera";
-          }
-          return device;
-        });
-      }
-      // Populate cameraSelect dropdown
-      if (cameraSelect) {
-        cameraSelect.innerHTML = "";
-        videoDevices.forEach((device, index) => {
-          const option = document.createElement("option");
-          option.value = device.deviceId;
-          option.text = device.label || `Camera ${index+1}`;
-          cameraSelect.appendChild(option);
-        });
-      }
-      // Display switch button on iOS or if multiple cameras available
-      if (videoDevices.length > 1 || /iPhone|iPad|iPod/.test(navigator.userAgent)) {
+      if (videoDevices.length > 1) {
         switchBtn.style.display = "inline-block";
-      } else {
-        switchBtn.style.display = "none";
       }
     } catch (err) {
       console.warn("⚠️ Could not enumerate video devices:", err);
@@ -98,6 +71,10 @@ document.addEventListener("DOMContentLoaded", () => {
   offscreen.height = FIXED_SIZE;
   const offCtx = offscreen.getContext("2d", { willReadFrequently: true });
 
+  // allocate preprocessing buffers once to avoid per-frame allocations
+  const floatData = new Float32Array(FIXED_SIZE * FIXED_SIZE * 3);
+  const chwData   = new Float32Array(3 * FIXED_SIZE * FIXED_SIZE);
+
   let letterboxParams = null;
 
   const classNames = [
@@ -122,42 +99,61 @@ document.addEventListener("DOMContentLoaded", () => {
  * לאחר מכן מריץ watchPosition כדי לעדכן ברצף את _lastCoords.
  */
 function initLocationTracking() {
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     if (!navigator.geolocation) {
-      console.warn("Geolocation not supported");
-      fallbackIpLocation().then(resolve);
-      return;
+      alert("מצטערים, הדפדפן שלך לא תומך בגיאולוקציה.");
+      return resolve(null);
     }
 
-    let geoOptions = {
-      enableHighAccuracy: false,
-      timeout: 10000,
-      maximumAge: 0
-    };
-
-    function handleSuccess(position) {
-      _lastCoords = position.coords;
-      console.log("📍 Location obtained:", _lastCoords);
-      resolve(_lastCoords);
+    // פונקציית עזר לרישום המיקום הראשון
+    let done = false;
+    function handleCoords(coords) {
+      if (done) return;
+      done = true;
+      _lastCoords = coords;
+      console.log("📍 initial location:", coords);
+      resolve(coords);
     }
 
-    function handleError(error) {
-      console.warn("Location error:", error.code, error.message);
-      fallbackIpLocation().then(resolve);
-    }
-
-    // Try to get location
+    // 1️⃣ ניסיון High-Accuracy
     navigator.geolocation.getCurrentPosition(
-      handleSuccess,
-      handleError,
-      geoOptions
+      pos => handleCoords(pos.coords),
+      err => {
+        console.warn("High-Accuracy failed:", err.code, err.message);
+        if (err.code === err.PERMISSION_DENIED) {
+          alert("אנא אפשר גישה למיקום כדי להשתמש ב-Live Detection.");
+          return resolve(null);
+        }
+        // 2️⃣ ניסיון Low-Accuracy
+        navigator.geolocation.getCurrentPosition(
+          pos2 => handleCoords(pos2.coords),
+          err2 => {
+            console.warn("Low-Accuracy failed:", err2.code, err2.message);
+            // 3️⃣ fallback IP
+            fetch("https://ipapi.co/json/")
+              .then(r => r.json())
+              .then(data => handleCoords({ latitude: data.latitude, longitude: data.longitude }))
+              .catch(() => resolve(null));
+          },
+          { enableHighAccuracy: false, timeout: 5000, maximumAge: 0 }
+        );
+      },
+      { enableHighAccuracy: true,  timeout: 5000, maximumAge: 0 }
     );
 
-    // Also start watching position
+    // 4️⃣ watchPosition לעדכונים רציפים
     _watchId = navigator.geolocation.watchPosition(
-      (pos) => { _lastCoords = pos.coords; },
-      (err) => { console.warn("Watch position error:", err); },
-      geoOptions
+      pos => {
+        _lastCoords = pos.coords;
+      },
+      err => {
+        console.warn("watchPosition error:", err.code, err.message);
+        if (err.code === err.PERMISSION_DENIED) {
+          alert("אנא אפשר גישה למיקום כדי להשתמש ב-Live Detection.");
+          navigator.geolocation.clearWatch(_watchId);
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   });
 }
@@ -229,74 +225,54 @@ async function fallbackIpLocation() {
   }
 
   async function saveDetection(canvas, label = "Unknown") {
+    let geoData;
+    let locationNote;
+  
+    // 1️⃣ נסיון ראשון: GPS
     try {
-        const geoData = await getLatestLocation();
-        const locationNote = "GPS";
-        
-        canvas.toBlob(async blob => {
-            if (!blob) {
-                console.error("Failed to get image blob");
-                return;
-            }
-            
-            const file = new File([blob], "detection.jpg", { type: "image/jpeg" });
-            const formData = new FormData();
-            formData.append("file", file);
-            formData.append("geoData", geoData);
-            formData.append("hazardTypes", label);
-            formData.append("locationNote", locationNote);
-            
-            try {
-                const res = await fetch("/upload-detection", {
-                    method: "POST",
-                    body: formData,
-                    credentials: 'include',
-                    headers: {
-                        // אין צורך ב-Content-Type כי FormData מגדיר אותו אוטומטית
-                        'Accept': 'application/json'
-                    }
-                });
-
-                // בדיקת תגובה משופרת
-                if (res.status === 401) {
-                    console.log("Session expired, redirecting to login...");
-                    window.location.href = '/login.html';
-                    return;
-                }
-                
-                if (!res.ok) {
-                    const errorData = await res.json().catch(() => ({ error: 'Unknown error' }));
-                    throw new Error(errorData.error || 'Failed to save detection');
-                }
-                
-                const data = await res.json();
-                console.log("✅ Detection saved successfully:", data);
-                showSuccessToast();
-                
-            } catch (err) {
-                console.error("Failed to save detection:", err);
-                if (err.message.includes("Please log in again")) {
-                    // נסה לרענן את הדף קודם לפני הפניה להתחברות
-                    window.location.reload();
-                    setTimeout(() => {
-                        if (!req.isAuthenticated()) {
-                            window.location.href = '/login.html';
-                        }
-                    }, 1000);
-                }
-            }
-        }, "image/jpeg", 0.7);
-    } catch (err) {
-        console.warn("Failed to get location:", err);
-        // במקרה של שגיאת מיקום, נמשיך בלי מידע גיאוגרפי
-        const formData = new FormData();
-        formData.append("file", await new Promise(resolve => canvas.toBlob(resolve)));
-        formData.append("hazardTypes", label);
-        formData.append("locationNote", "Location Unavailable");
-        
-        // שימוש באותו קוד שליחה כמו למעלה...
+      geoData = await getLatestLocation();
+      locationNote = "GPS";
+    } catch (gpsErr) {
+      console.warn("GPS failed:", gpsErr);
+  
+      // 2️⃣ נסיון שני: IP fallback
+      try {
+        const ipRes  = await fetch("https://ipapi.co/json/");
+        const ipJson = await ipRes.json();
+        geoData = JSON.stringify({ lat: ipJson.latitude, lng: ipJson.longitude });
+        locationNote = "Approximate (IP)";
+      } catch (ipErr) {
+        console.error("IP fallback failed:", ipErr);
+        alert("אנא אפשר גישה למיקום כדי לבצע Live Detection.");
+        return;  // בלי מיקום – לא שומרים
+      }
     }
-}
+  
+    // 3️⃣ אם הצלחנו להשיג מיקום (GPS או IP), נשמור
+    canvas.toBlob(async blob => {
+      if (!blob) return console.error("❌ Failed to get image blob");
+  
+      const file = new File([blob], "detection.jpg", { type: "image/jpeg" });
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("geoData", geoData);
+      formData.append("hazardTypes", label);
+      formData.append("locationNote", locationNote);  // ⇐ כעת תמיד תישלח
+  
+      try {
+        const res = await fetch("/upload-detection", {
+          method: "POST",
+          body: formData,
+          credentials: "include",
+        });
+        if (!res.ok) throw new Error(await res.text());
+        console.log("✅ Detection saved:", (await res.json()).message);
+        showSuccessToast();
+      } catch (err) {
+        console.error("❌ Failed to save detection:", err);
+      }
+    }, "image/jpeg", 0.9);
+  }
   
   
   
@@ -305,23 +281,19 @@ async function fallbackIpLocation() {
   // במקום כל import של ort.min.js — מניחים window.ort כבר קיים
   async function loadModel() {
     const ort = window.ort;
-    // Configure ONNX Runtime for better compatibility
-    ort.env.wasm.simd = true;
-    ort.env.wasm.proxy = false;
+    ort.env.wasm.simd = true;               // enable SIMD when supported
     ort.env.wasm.wasmPaths = '/ort/';
-    // Try to use only one thread if multi-threading isn't available
-    ort.env.wasm.numThreads = 1;
-    
-    try {
-        session = await ort.InferenceSession.create(
-            '/object_detecion_model/road_damage_detection_last_version.onnx',
-            { executionProviders: ['wasm'] }
-        );
-    } catch (err) {
-        console.error("Model loading error:", err);
-        throw err;
-    }
-}
+    ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
+    const EPs = ort.env.webgl?.isSupported ? ['webgl','wasm'] : ['wasm','webgl'];
+    session = await ort.InferenceSession.create(
+      '/object_detecion_model/last_model_train12052025.onnx',
+      { executionProviders: EPs, graphOptimizationLevel: 'all' }
+    );
+  }
+
+  
+  
+  
 
   function computeLetterboxParams() {
     const scale = Math.min(FIXED_SIZE / video.videoWidth, FIXED_SIZE / video.videoHeight);
@@ -332,65 +304,14 @@ async function fallbackIpLocation() {
     letterboxParams = { scale, newW, newH, offsetX, offsetY };
   }
 
-  let activeNotifications = [];
-  let lastNotificationTime = {};
-
-  function shouldShowNotification(hazardType) {
-    const now = Date.now();
-    const lastTime = lastNotificationTime[hazardType] || 0;
-    // מציג התראה רק אם עברו לפחות 5 שניות מההתראה האחרונה מאותו סוג
-    if (now - lastTime > 5000) {
-      lastNotificationTime[hazardType] = now;
-      return true;
-    }
-    return false;
-  }
-
-  function showHazardNotification(hazardType, confidence) {
-    if (!shouldShowNotification(hazardType)) return;
-    
-    const template = document.getElementById('hazard-notification-template');
-    if (!template) return;
-
-    const notification = template.content.cloneNode(true).querySelector('.hazard-notification');
-    notification.querySelector('p').textContent = `${hazardType} ${Math.round(confidence * 100)}%`;
-    
-    const offset = activeNotifications.length * 60; // מרווח קטן יותר בין ההודעות
-    notification.style.top = `${15 + offset}px`;
-    
-    document.body.appendChild(notification);
-    activeNotifications.push(notification);
-
-    // הסרה אחרי 2 שניות במקום 3
-    setTimeout(() => {
-      notification.style.transform = 'translateX(100%) scale(0.8)';
-      notification.style.opacity = '0';
-      setTimeout(() => {
-        document.body.removeChild(notification);
-        activeNotifications = activeNotifications.filter(n => n !== notification);
-        // עדכון מיקום שאר ההודעות
-        activeNotifications.forEach((n, i) => {
-          n.style.top = `${15 + i * 60}px`;
-        });
-      }, 200);
-    }, 2000);
-  }
-
   async function detectLoop() {
     if (!detecting || !session) return;
     const t0 = performance.now();
-    
-    // מדלג על פריימים רק אם זמן העיבוד חורג מהסף
-    if (frameTimes.length > 0) {
-      const avgTime = frameTimes.reduce((a,b) => a + b, 0) / frameTimes.length;
-      if (avgTime > processingThreshold) {
-        frameCount++;
-        if (frameCount % skipFrames !== 0) {
-          return requestAnimationFrame(detectLoop);
-        }
-      }
+    frameCount++;
+    if (frameCount % skipFrames !== 0) {
+      return requestAnimationFrame(detectLoop);
     }
-
+    
     // --- draw video frame to offscreen with letterbox ---
     if (!letterboxParams) computeLetterboxParams();
     offCtx.fillStyle = 'black';
@@ -418,24 +339,23 @@ async function fallbackIpLocation() {
 
     // --- Pre-processing Stage ---
     let processedImageData = curr; 
-
+    // const currentHour = new Date().getHours();
+    // if (currentHour >= 19 || currentHour < 6) { 
+    //     adjustBrightness(processedImageData, 30); 
+    // }
     // --- prepare ONNX input tensor ---
-    // Ensure ort is defined from window.ort
-    const ort = window.ort;
     const { data, width, height } = processedImageData; // שימוש ב-processedImageData
-    const floatData = new Float32Array(width*height*3);
     for (let i=0,j=0;i<data.length;i+=4,j+=3) {
-      floatData[j]=data[i]/255;
-      floatData[j+1]=data[i+1]/255;
-      floatData[j+2]=data[i+2]/255;
+      floatData[j]   = data[i]   / 255;
+      floatData[j+1] = data[i+1] / 255;
+      floatData[j+2] = data[i+2] / 255;
     }
-    const chw = new Float32Array(3*width*height);
-    for (let c = 0; c < 3; c++) 
-      for (let y = 0; y < height; y++) 
-        for (let x = 0; x < width; x++) {
-          chw[c*width*height + y*width + x] = floatData[y*width*3 + x*3 + c];
+    for (let c=0;c<3;c++)
+      for (let y=0;y<height;y++)
+        for (let x=0;x<width;x++) {
+          chwData[c*width*height + y*width + x] = floatData[y*width*3 + x*3 + c];
         }
-    const inputTensor = new ort.Tensor('float32', chw, [1, 3, height, width]);
+    const inputTensor = new ort.Tensor('float32', chwData, [1,3,height,width]);
 
     // --- run inference ---
     const results = await session.run({ images: inputTensor });
@@ -466,12 +386,10 @@ async function fallbackIpLocation() {
       ctx.strokeRect(left,top,w,h);
 
       const label = `${classNames[Math.floor(cls)]} (${(score*100).toFixed(1)}%)`;
+      // Add hazard type to the unique list if not already present
       const hazardName = classNames[Math.floor(cls)];
-      
-      // Show notification for new hazards
-      if (!uniqueHazardTypes.includes(hazardName)) {
-        uniqueHazardTypes.push(hazardName);
-        showHazardNotification(hazardName, score);
+      if (hazardName && !uniqueHazardTypes.includes(hazardName)) {
+          uniqueHazardTypes.push(hazardName);
       }
 
       // --- שינוי סגנון הטקסט והוספת רקע ---
@@ -505,62 +423,34 @@ async function fallbackIpLocation() {
     // שומרים במערך היסטוריה עגול
     frameTimes.push(elapsed);
     if (frameTimes.length > maxHistory) frameTimes.shift();
-    
-    // עדכון דינמי של skipFrames בהתאם לביצועים
+
+    // מחשבים ממוצע זמן עיבוד
     const avgTime = frameTimes.reduce((a,b) => a + b, 0) / frameTimes.length;
-    if (avgTime > processingThreshold) {
-      skipFrames = Math.min(5, skipFrames + 1);
-    } else if (avgTime < processingThreshold / 2 && skipFrames > 1) {
-      skipFrames = Math.max(1, skipFrames - 1);
-    }
-    
+    // חישוב כמה פריימים לדלג, כך ש־avgTime * (skipFrames+1) ≈ 1000/targetFps
+    const idealInterval = 1000 / targetFps;
+    skipFrames = Math.max(1, Math.round((avgTime) / idealInterval));
     requestAnimationFrame(detectLoop);
   }
 
-  // Event listener for Start Camera button
   startBtn.addEventListener("click", async () => {
-    initLocationTracking();
+    initLocationTracking();               // ① הפעלת המעקב
+    // המודל כבר אמור להיות טעון או בתהליך טעינה
     try {
-      await getLatestLocation();
-      console.log("📍 Location preloaded:", _lastCoords);
-    } catch (err) {
-      console.warn("⚠️ Could not preload location:", err);
-    }
+         await getLatestLocation();
+         console.log("📍 Location preloaded:", _lastCoords);
+       } catch (err) {
+         console.warn("⚠️ Could not preload location:", err);
+       }
+    
+    // 2. אחר כך מבקשים הרשאה למצלמה
     try {
       stream = await navigator.mediaDevices.getUserMedia({ video: true });
       video.srcObject = stream;
       startBtn.style.display = "none";
       stopBtn.style.display = "inline-block";
-      detectedObjectCount = 0;
-      // After stream is active, update camera devices.
-      await updateCameraDevices();
-      switchBtn.style.display =
-        (videoDevices.length > 1 || /iPhone|iPad|iPod/.test(navigator.userAgent))
-          ? "inline-block"
-          : "none";
-
-      // Attach brightness and zoom logic after obtaining camera stream
-      const videoTrack = stream.getVideoTracks()[0];
-      if (brightnessSlider) {
-        brightnessSlider.addEventListener("input", () => {
-          video.style.filter = `brightness(${brightnessSlider.value}%)`;
-        });
-      }
-      if (zoomSlider) {
-        const capabilities = videoTrack.getCapabilities();
-        if ("zoom" in capabilities) {
-          zoomSlider.min = capabilities.zoom.min;
-          zoomSlider.max = capabilities.zoom.max;
-          zoomSlider.step = capabilities.zoom.step;
-          zoomSlider.value = videoTrack.getSettings().zoom || capabilities.zoom.min;
-          zoomSlider.addEventListener("input", () => {
-            videoTrack.applyConstraints({ advanced: [{ zoom: Number(zoomSlider.value) }] });
-          });
-        } else {
-          zoomSlider.disabled = true;
-        }
-      }
-      
+      detectedObjectCount = 0; // Initialize object count
+      uniqueHazardTypes = []; // Initialize array for unique hazard types 
+      switchBtn.style.display = videoDevices.length > 1 ? "inline-block" : "none";
       video.addEventListener(
         "loadeddata",
         () => {
@@ -571,50 +461,35 @@ async function fallbackIpLocation() {
         { once: true }
       );
     } catch (err) {
-      console.error("❌ Error accessing camera:", err);
-      alert("⚠️ Cannot access the camera. Please check browser permissions.");
+      console.error("❌ שגיאה בגישה למצלמה:", err);
+      alert("⚠️ לא ניתן לגשת למצלמה. יש לבדוק הרשאות בדפדפן.");
       return;
     }
   });
-
-  // Event listener for Switch Camera button
+  
+  
   switchBtn.addEventListener("click", async () => {
     try {
-      if (videoDevices.length < 2) return;
-      detecting = false; // stop current detection loop
-      if (stream) {
-        stream.getTracks().forEach(t => t.stop());
-      }
-      // Update device list before choosing new camera.
-      await updateCameraDevices();
+      if (!stream || videoDevices.length < 2) return;
+      stream.getTracks().forEach((t) => t.stop());
+
       currentCamIndex = (currentCamIndex + 1) % videoDevices.length;
       const newDeviceId = videoDevices[currentCamIndex].deviceId;
+
       stream = await navigator.mediaDevices.getUserMedia({
         video: { deviceId: { exact: newDeviceId } },
-        audio: false
       });
+
       video.srcObject = stream;
-      letterboxParams = null;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      detectedObjectCount = 0;
-      uniqueHazardTypes = [];
-      if (objectCountOverlay) objectCountOverlay.textContent = "";
-      if (hazardTypesOverlay) hazardTypesOverlay.textContent = "";
-      await new Promise(resolve => { video.onloadeddata = resolve; });
-      computeLetterboxParams();
-      detecting = true;
-      detectLoop();
+      letterboxParams = null; // יגרום לחישוב מחדש בפריים הבא
     } catch (err) {
       console.error("❌ Failed to switch camera:", err);
-      alert("Cannot switch camera. Check permissions or try a different browser.");
     }
   });
-
-  // Event listener for Stop Camera button
   stopBtn.addEventListener("click", () => {
     detecting = false;
     if (stream) {
-      stream.getTracks().forEach(track => track.stop());
+      stream.getTracks().forEach((track) => track.stop());
       stream = null;
     }
     video.srcObject = null;
@@ -625,100 +500,4 @@ async function fallbackIpLocation() {
     stopLocationTracking();
     console.log("Camera stopped");
   });
-  
-  // NEW: When user changes camera selection, restart stream with the chosen device
-  if (cameraSelect) {
-    cameraSelect.addEventListener("change", async () => {
-      console.log("Camera selection changed:", cameraSelect.value); // Debug log
-      if (stream) {
-        stream.getTracks().forEach(t => t.stop());
-      }
-      // Update devices to ensure latest info.
-      await updateCameraDevices();
-      const selectedDeviceId = cameraSelect.value;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: { exact: selectedDeviceId } }
-        });
-        console.log("Stream restarted with device:", selectedDeviceId); // Debug
-        video.srcObject = stream;
-        letterboxParams = null;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        detectedObjectCount = 0;
-        uniqueHazardTypes = [];
-        await new Promise(resolve => {
-          video.onloadeddata = () => {
-            console.log("Video loaded after camera change"); // Debug log
-            resolve();
-          };
-        });
-        computeLetterboxParams();
-        detecting = true;
-        detectLoop();
-
-        // Reapply brightness and zoom listeners
-        const videoTrack = stream.getVideoTracks()[0];
-        if (brightnessSlider) {
-          brightnessSlider.addEventListener("input", () => {
-            video.style.filter = `brightness(${brightnessSlider.value}%)`;
-          });
-        }
-        if (zoomSlider) {
-          const capabilities = videoTrack.getCapabilities();
-          if ("zoom" in capabilities) {
-            zoomSlider.min = capabilities.zoom.min;
-            zoomSlider.max = capabilities.zoom.max;
-            zoomSlider.step = capabilities.zoom.step;
-            zoomSlider.value = videoTrack.getSettings().zoom || capabilities.zoom.min;
-            zoomSlider.addEventListener("input", () => {
-              videoTrack.applyConstraints({ advanced: [{ zoom: Number(zoomSlider.value) }] });
-            });
-          } else {
-            zoomSlider.disabled = true;
-          }
-        }
-      } catch (err) {
-        console.error("❌ Error switching to selected camera:", err);
-        alert("Cannot switch camera. Please check permissions or try a different camera.");
-      }
-    });
-  }
-
-  // NEW: Update camera devices function
-  async function updateCameraDevices() {
-	// Re-enumerate devices; labels may now be available after permissions granted.
-	try {
-		const devices = await navigator.mediaDevices.enumerateDevices();
-		videoDevices = devices.filter(device => device.kind === "videoinput");
-		// For mobile devices, assign default names if missing.
-		if (/Android|iPhone|iPad|iPod/.test(navigator.userAgent)) {
-			videoDevices = videoDevices.map((device, index) => {
-				if (!device.label) {
-					device.label = index === 0 ? "Front Camera" : "Rear Camera";
-				}
-				return device;
-			});
-		}
-		// Update dropdown options for cameraSelect.
-		if (cameraSelect) {
-			cameraSelect.innerHTML = "";
-			videoDevices.forEach((device, index) => {
-				const option = document.createElement("option");
-				option.value = device.deviceId;
-				option.text = device.label || `Camera ${index+1}`;
-				cameraSelect.appendChild(option);
-			});
-		}
-		// Toggle display of switchBtn.
-		if (switchBtn) {
-			switchBtn.style.display = (videoDevices.length > 1 || /iPhone|iPad|iPod/.test(navigator.userAgent))
-				? "inline-block" : "none";
-		}
-	} catch(err) {
-		console.warn("Error updating camera devices:", err);
-	}
-}
-
-// ...existing code for detection loop and other functions...
 });
-// ...existing code...

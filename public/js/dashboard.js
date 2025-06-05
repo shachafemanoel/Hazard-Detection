@@ -476,39 +476,31 @@ async function loadReports(filters = {}) {
         });
 
         if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Fetch error details:', {
-                status: response.status,
-                message: errorText,
-            });
-            throw new Error(`HTTP error! status: ${response.status}`);
+            throw new Error('Failed to load reports');
         }
 
         let reports = await response.json();
-        console.log('Reports received:', reports.length);
 
-        // סינון תמונות שגויות
-        if (reports && reports.length) {
-            const validationResults = await Promise.all(
-                reports.map(async (r) => {
-                    if (r.image) return await isValidImage(r.image) ? r : null;
-                    return null;
-                })
-            );
-            reports = validationResults.filter(Boolean);
-        }
-
+        // בדיקה אם העמוד עדיין פעיל לפני המשך הטעינה
+        if (!document.body) return [];
+        
         lastReports = reports;
         clearMarkers();
         const bounds = new google.maps.LatLngBounds();
 
         const markerPromises = reports.map(async report => {
+            // בדיקה נוספת אם העמוד עדיין פעיל
+            if (!document.body) return null;
             const marker = await geocodeAddress(report.location, report);
             if (marker) bounds.extend(marker.getPosition());
             return marker;
         });
 
         const newMarkers = (await Promise.all(markerPromises)).filter(Boolean);
+        
+        // בדיקה אחרונה לפני עדכון המפה
+        if (!document.body) return [];
+        
         if (newMarkers.length > 0) {
             map.fitBounds(bounds);
             const listener = google.maps.event.addListener(map, 'idle', function () {
@@ -525,8 +517,10 @@ async function loadReports(filters = {}) {
         updateDashboardInfo(reports);
         return reports;
     } catch (error) {
-        console.error('Error loading reports:', error);
-        showToast('Failed to load reports', 'error');
+        // בודקים אם השגיאה נובעת מיציאה מהעמוד
+        if (document.body) {
+            showToast('Failed to load reports', 'error');
+        }
         return [];
     }
 }
