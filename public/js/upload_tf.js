@@ -14,7 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const loadingOverlay = document.getElementById('loading-overlay'); // הפניה לאלמנט הטעינה
   const hazardTypesOverlay = document.getElementById('hazard-types-overlay');
   
-  const FIXED_SIZE = 512; // increased resolution for better accuracy
+  const FIXED_SIZE = 416; // increased resolution for better accuracy
   let stream = null;
   let detecting = false;
   let session = null;
