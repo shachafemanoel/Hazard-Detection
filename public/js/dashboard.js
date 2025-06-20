@@ -296,6 +296,8 @@ async function geocodeAddress(address, report) {
                 });
             }
             marker.reportId = report.id;
+            marker.report = report;
+
             
             // Register first "click" callback to open infowindow and pan/zoom map
             registerMarkerClick(marker, () => {
@@ -907,12 +909,22 @@ function getStatusBadgeClass(status) {
 function focusMapLocation(location) {
     const marker = markers.find(m => m.getTitle()?.includes(location));
     if (marker) {
+        console.log('Found marker:', marker);
+        console.log('Marker report:', marker.report);
         map.panTo(marker.getPosition());
-        map.setZoom(15);
+        map.setZoom(30);
         marker.setAnimation(google.maps.Animation.BOUNCE);
         setTimeout(() => marker.setAnimation(null), 2100);
+        if(marker.report) {
+            showReportDetails(marker.report);
+        } else {
+            console.warn('No report found on marker');
+        }
+    } else {
+        console.warn('No marker found for location:', location);
     }
 }
+
 
 // Helper functions for marker highlighting
 function highlightMarker(reportId) {
