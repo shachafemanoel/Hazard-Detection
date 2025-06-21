@@ -14,7 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const loadingOverlay = document.getElementById('loading-overlay'); // הפניה לאלמנט הטעינה
   const hazardTypesOverlay = document.getElementById('hazard-types-overlay');
   
-  const FIXED_SIZE = 416; // increased resolution for better accuracy
+  const FIXED_SIZE = 480; // increased resolution for better accuracy
   let stream = null;
   let detecting = false;
   let session = null;
@@ -26,7 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let prevImageData = null;
   const DIFF_THRESHOLD = 200000; // הורדת הערך כדי להגביר רגישות לשינויים
   let skipFrames = 3;                       // ברירת מחדל
-  const targetFps = 15;                     // יעד: 15 פריימים לשנייה
+  const targetFps = 30;                     // יעד: 15 פריימים לשנייה
   const frameTimes = [];                    // היסטוריית זמנים
   const maxHistory = 10;    
   let detectedObjectCount = 0; // Initialize object count
@@ -304,133 +304,172 @@ async function fallbackIpLocation() {
     letterboxParams = { scale, newW, newH, offsetX, offsetY };
   }
 
-  async function detectLoop() {
-    if (!detecting || !session) return;
-    const t0 = performance.now();
-    frameCount++;
-    if (frameCount % skipFrames !== 0) {
-      return requestAnimationFrame(detectLoop);
-    }
-    
-    // --- draw video frame to offscreen with letterbox ---
-    if (!letterboxParams) computeLetterboxParams();
-    offCtx.fillStyle = 'black';
-    offCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
-    offCtx.drawImage(
-      video,
-      letterboxParams.offsetX, letterboxParams.offsetY,
-      letterboxParams.newW, letterboxParams.newH
-    );
+function computeIoU(boxA, boxB) {
+  const xA = Math.max(boxA[0], boxB[0]);
+  const yA = Math.max(boxA[1], boxB[1]);
+  const xB = Math.min(boxA[2], boxB[2]);
+  const yB = Math.min(boxA[3], boxB[3]);
+  const interArea = Math.max(0, xB - xA) * Math.max(0, yB - yA);
+  const boxAArea = (boxA[2] - boxA[0]) * (boxA[3] - boxA[1]);
+  const boxBArea = (boxB[2] - boxB[0]) * (boxB[3] - boxB[1]);
+  return interArea / (boxAArea + boxBArea - interArea);
+}
 
-    // --- frame differencing ---
-    const curr = offCtx.getImageData(0,0,FIXED_SIZE,FIXED_SIZE);
-    if (prevImageData) {
-      let sum=0;
-      const d1=curr.data, d2=prevImageData.data;
-      for (let i=0;i<d1.length;i+=4) {
-        sum += Math.abs(d1[i]-d2[i]) + Math.abs(d1[i+1]-d2[i+1]) + Math.abs(d1[i+2]-d2[i+2]);
-      }
-      if (sum < DIFF_THRESHOLD) {
-        prevImageData = curr;
-        return requestAnimationFrame(detectLoop);
+function nonMaxSuppression(boxes, scores, iouThreshold = 0.5) {
+  const indices = scores
+    .map((score, idx) => ({ idx, score }))
+    .sort((a, b) => b.score - a.score)
+    .map(obj => obj.idx);
+
+  const keep = [];
+  while (indices.length > 0) {
+    const current = indices.shift();
+    keep.push(current);
+    for (let i = indices.length - 1; i >= 0; i--) {
+      const iou = computeIoU(boxes[current], boxes[indices[i]]);
+      if (iou > iouThreshold) {
+        indices.splice(i, 1);
       }
     }
-    prevImageData = curr;
-
-    // --- Pre-processing Stage ---
-    let processedImageData = curr; 
-    // const currentHour = new Date().getHours();
-    // if (currentHour >= 19 || currentHour < 6) { 
-    //     adjustBrightness(processedImageData, 30); 
-    // }
-    // --- prepare ONNX input tensor ---
-    const { data, width, height } = processedImageData; // שימוש ב-processedImageData
-    for (let i=0,j=0;i<data.length;i+=4,j+=3) {
-      floatData[j]   = data[i]   / 255;
-      floatData[j+1] = data[i+1] / 255;
-      floatData[j+2] = data[i+2] / 255;
-    }
-    for (let c=0;c<3;c++)
-      for (let y=0;y<height;y++)
-        for (let x=0;x<width;x++) {
-          chwData[c*width*height + y*width + x] = floatData[y*width*3 + x*3 + c];
-        }
-    const inputTensor = new ort.Tensor('float32', chwData, [1,3,height,width]);
-
-    // --- run inference ---
-    const results = await session.run({ images: inputTensor });
-    const outputData = results[Object.keys(results)[0]].data;
-
-    // --- draw detections ---
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-
-    
-
-    ctx.drawImage(video,0,0,canvas.width,canvas.height);
-    for (let i=0;i<outputData.length;i+=6) {
-      const [x1,y1,x2,y2,score,cls] = outputData.slice(i,i+6);
-      if (score<0.5) continue;
-      const scaleX=video.videoWidth/FIXED_SIZE;
-      const scaleY=video.videoHeight/FIXED_SIZE;
-      const w=(x2-x1)*scaleX, h=(y2-y1)*scaleY;
-
-      detectedObjectCount++; // Increment count for each detected object above threshold
-      const left=x1*scaleX, top=y1*scaleY;
-
-      // --- שינוי סגנון התיבות ---
-      const color = '#00FF00'; // ירוק בהיר
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 3; // קו עבה יותר
-      ctx.strokeRect(left,top,w,h);
-
-      const label = `${classNames[Math.floor(cls)]} (${(score*100).toFixed(1)}%)`;
-      // Add hazard type to the unique list if not already present
-      const hazardName = classNames[Math.floor(cls)];
-      if (hazardName && !uniqueHazardTypes.includes(hazardName)) {
-          uniqueHazardTypes.push(hazardName);
-      }
-
-      // --- שינוי סגנון הטקסט והוספת רקע ---
-      ctx.fillStyle = color;
-      ctx.font='bold 16px Arial'; // פונט מודגש
-      const textWidth = ctx.measureText(label).width;
-      ctx.fillRect(left, top > 20 ? top - 20 : top, textWidth + 8, 20); // רקע לטקסט
-      ctx.fillStyle = 'black'; // צבע טקסט שחור על הרקע הבהיר
-      ctx.fillText(label, left + 4, top > 20 ? top - 5 : top + 15);
-      // save periodically
-      if (!lastSaveTime || Date.now()-lastSaveTime>10000) {
-        lastSaveTime=Date.now();
-        await saveDetection(canvas,label);
-      }
-    }
-
-    // Update the overlay elements with the counts and types
-    if (objectCountOverlay) {
-        objectCountOverlay.textContent = `Objects: ${detectedObjectCount}`;
-    }
-    if (hazardTypesOverlay) {
-        if (uniqueHazardTypes.length > 0) {
-            hazardTypesOverlay.textContent = `Hazards: ${uniqueHazardTypes.join(', ')}`;
-        } else {
-            hazardTypesOverlay.textContent = 'Hazards: None';
-        }
-    }
-    const t1 = performance.now();
-    const elapsed = t1 - t0;
-    
-    // שומרים במערך היסטוריה עגול
-    frameTimes.push(elapsed);
-    if (frameTimes.length > maxHistory) frameTimes.shift();
-
-    // מחשבים ממוצע זמן עיבוד
-    const avgTime = frameTimes.reduce((a,b) => a + b, 0) / frameTimes.length;
-    // חישוב כמה פריימים לדלג, כך ש־avgTime * (skipFrames+1) ≈ 1000/targetFps
-    const idealInterval = 1000 / targetFps;
-    skipFrames = Math.max(1, Math.round((avgTime) / idealInterval));
-    requestAnimationFrame(detectLoop);
   }
+  return keep;
+}
+
+
+async function detectLoop() {
+  if (!detecting || !session) return;
+
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  frameCount++;
+  const shouldRunDetection = frameCount % skipFrames === 0;
+  if (!shouldRunDetection) {
+    requestAnimationFrame(detectLoop);
+    return;
+  }
+
+  const t0 = performance.now();
+
+  if (!letterboxParams) computeLetterboxParams();
+  offCtx.fillStyle = 'black';
+  offCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
+  offCtx.drawImage(
+    video,
+    letterboxParams.offsetX, letterboxParams.offsetY,
+    letterboxParams.newW, letterboxParams.newH
+  );
+
+  const curr = offCtx.getImageData(0, 0, FIXED_SIZE, FIXED_SIZE);
+  if (prevImageData) {
+    let sum = 0;
+    const d1 = curr.data, d2 = prevImageData.data;
+    for (let i = 0; i < d1.length; i += 4) {
+      sum += Math.abs(d1[i] - d2[i]) + Math.abs(d1[i+1] - d2[i+1]) + Math.abs(d1[i+2] - d2[i+2]);
+    }
+    if (sum < DIFF_THRESHOLD) {
+      prevImageData = curr;
+      requestAnimationFrame(detectLoop);
+      return;
+    }
+  }
+  prevImageData = curr;
+
+  const { data, width, height } = curr;
+  for (let i = 0, j = 0; i < data.length; i += 4, j += 3) {
+    floatData[j]     = data[i]   / 255;
+    floatData[j + 1] = data[i+1] / 255;
+    floatData[j + 2] = data[i+2] / 255;
+  }
+
+  for (let c = 0; c < 3; c++) {
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        chwData[c*width*height + y*width + x] = floatData[y*width*3 + x*3 + c];
+      }
+    }
+  }
+
+  const inputTensor = new ort.Tensor('float32', chwData, [1, 3, height, width]);
+  const results = await session.run({ images: inputTensor });
+  const outputData = results[Object.keys(results)[0]].data;
+
+  const boxes = [];
+  const scores = [];
+  const classes = [];
+
+  for (let i = 0; i < outputData.length; i += 6) {
+    const [x1, y1, x2, y2, score, cls] = outputData.slice(i, i + 6);
+    if (score >= 0.5) {
+      boxes.push([x1, y1, x2, y2]);
+      scores.push(score);
+      classes.push(cls);
+    }
+  }
+
+  const keep = nonMaxSuppression(boxes, scores, 0.45);
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  for (let idx of keep) {
+    const [x1, y1, x2, y2] = boxes[idx];
+    const score = scores[idx];
+    const cls = classes[idx];
+
+    const scaleX = video.videoWidth / FIXED_SIZE;
+    const scaleY = video.videoHeight / FIXED_SIZE;
+    const w = (x2 - x1) * scaleX;
+    const h = (y2 - y1) * scaleY;
+    const left = x1 * scaleX;
+    const top  = y1 * scaleY;
+
+    detectedObjectCount++;
+    const hazardName = classNames[Math.floor(cls)];
+    if (hazardName && !uniqueHazardTypes.includes(hazardName)) {
+      uniqueHazardTypes.push(hazardName);
+    }
+
+    const label = `${hazardName} (${(score * 100).toFixed(1)}%)`;
+    ctx.strokeStyle = '#00FF00';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(left, top, w, h);
+
+    ctx.fillStyle = '#00FF00';
+    ctx.font = 'bold 16px Arial';
+    const textWidth = ctx.measureText(label).width;
+    ctx.fillRect(left, top > 20 ? top - 20 : top, textWidth + 8, 20);
+    ctx.fillStyle = 'black';
+    ctx.fillText(label, left + 4, top > 20 ? top - 5 : top + 15);
+
+    if (!lastSaveTime || Date.now() - lastSaveTime > 10000) {
+      lastSaveTime = Date.now();
+      await saveDetection(canvas, label);
+    }
+  }
+
+  if (objectCountOverlay) {
+    objectCountOverlay.textContent = `Objects: ${detectedObjectCount}`;
+  }
+  if (hazardTypesOverlay) {
+    hazardTypesOverlay.textContent = uniqueHazardTypes.length > 0
+      ? `Hazards: ${uniqueHazardTypes.join(', ')}`
+      : 'Hazards: None';
+  }
+
+  const t1 = performance.now();
+  const elapsed = t1 - t0;
+  frameTimes.push(elapsed);
+  if (frameTimes.length > maxHistory) frameTimes.shift();
+  const avgTime = frameTimes.reduce((a, b) => a + b, 0) / frameTimes.length;
+  const idealInterval = 1000 / targetFps;
+  skipFrames = Math.max(1, Math.round(avgTime / idealInterval));
+
+  requestAnimationFrame(detectLoop);
+}
+
+
 
   startBtn.addEventListener("click", async () => {
   initLocationTracking();
