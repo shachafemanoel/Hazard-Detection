@@ -26,7 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let prevImageData = null;
   const DIFF_THRESHOLD = 200000; // הורדת הערך כדי להגביר רגישות לשינויים
   let skipFrames = 3;                       // ברירת מחדל
-  const targetFps = 60;                     // יעד: 15 פריימים לשנייה
+  const targetFps = 30;                     // יעד: 15 פריימים לשנייה
   const frameTimes = [];                    // היסטוריית זמנים
   const maxHistory = 5;    
   let detectedObjectCount = 0; // Initialize object count
@@ -490,7 +490,7 @@ async function detectLoop() {
     stream = await navigator.mediaDevices.getUserMedia({
       video: {
         deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
-        frameRate: { ideal: 15, max: 20 },
+        frameRate: { ideal: 30, max: 60 },
         width: { ideal: 640 },
         height: { ideal: 480 }
       }
