@@ -14,7 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const loadingOverlay = document.getElementById('loading-overlay'); // הפניה לאלמנט הטעינה
   const hazardTypesOverlay = document.getElementById('hazard-types-overlay');
   
-  const FIXED_SIZE = 480; // increased resolution for better accuracy
+  const FIXED_SIZE = 416; // increased resolution for better accuracy
   let stream = null;
   let detecting = false;
   let session = null;
@@ -26,9 +26,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let prevImageData = null;
   const DIFF_THRESHOLD = 200000; // הורדת הערך כדי להגביר רגישות לשינויים
   let skipFrames = 3;                       // ברירת מחדל
-  const targetFps = 30;                     // יעד: 15 פריימים לשנייה
+  const targetFps = 60;                     // יעד: 15 פריימים לשנייה
   const frameTimes = [];                    // היסטוריית זמנים
-  const maxHistory = 10;    
+  const maxHistory = 5;    
   let detectedObjectCount = 0; // Initialize object count
   let uniqueHazardTypes = []; // Initialize array for unique hazard types    
   // ────────────────────────────────────────────────────────────────────────────────
@@ -488,8 +488,14 @@ async function detectLoop() {
 
     const selectedDeviceId = videoDevices[currentCamIndex]?.deviceId;
     stream = await navigator.mediaDevices.getUserMedia({
-      video: selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true,
+      video: {
+        deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
+        frameRate: { ideal: 15, max: 20 },
+        width: { ideal: 640 },
+        height: { ideal: 480 }
+      }
     });
+
 
     video.srcObject = stream;
     startBtn.style.display = "none";
