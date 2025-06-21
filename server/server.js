@@ -692,9 +692,6 @@ app.post('/forgot-password', async (req, res) => {
     };
 
     try {
-        console.log("About to send email with message:", message);
-        console.log("API key set:", !!process.env.SENDGRID_API_KEY);
-
         await sgMail.send(message); 
         console.log("Reset email sent successfully to", email);
         res.status(200).json({ message: 'Reset link sent to your email' });

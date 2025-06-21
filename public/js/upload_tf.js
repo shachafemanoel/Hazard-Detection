@@ -433,59 +433,79 @@ async function fallbackIpLocation() {
   }
 
   startBtn.addEventListener("click", async () => {
-    initLocationTracking();               // ① הפעלת המעקב
-    // המודל כבר אמור להיות טעון או בתהליך טעינה
-    try {
-         await getLatestLocation();
-         console.log("📍 Location preloaded:", _lastCoords);
-       } catch (err) {
-         console.warn("⚠️ Could not preload location:", err);
-       }
-    
-    // 2. אחר כך מבקשים הרשאה למצלמה
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      video.srcObject = stream;
-      startBtn.style.display = "none";
-      stopBtn.style.display = "inline-block";
-      detectedObjectCount = 0; // Initialize object count
-      uniqueHazardTypes = []; // Initialize array for unique hazard types 
-      switchBtn.style.display = videoDevices.length > 1 ? "inline-block" : "none";
-      video.addEventListener(
-        "loadeddata",
-        () => {
-          computeLetterboxParams();
-          detecting = true;
-          detectLoop();
-        },
-        { once: true }
-      );
-    } catch (err) {
-      console.error("❌ שגיאה בגישה למצלמה:", err);
-      alert("⚠️ לא ניתן לגשת למצלמה. יש לבדוק הרשאות בדפדפן.");
-      return;
-    }
-  });
+  initLocationTracking();
+
+  try {
+    await getLatestLocation();
+    console.log("📍 Location preloaded:", _lastCoords);
+  } catch (err) {
+    console.warn("⚠️ Could not preload location:", err);
+  }
+
+  try {
+    // בדיקה מחדש של המצלמות בכל התחלה
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    videoDevices = devices.filter((d) => d.kind === "videoinput");
+
+    const selectedDeviceId = videoDevices[currentCamIndex]?.deviceId;
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true,
+    });
+
+    video.srcObject = stream;
+    startBtn.style.display = "none";
+    stopBtn.style.display = "inline-block";
+    switchBtn.style.display = videoDevices.length > 1 ? "inline-block" : "none";
+
+    detectedObjectCount = 0;
+    uniqueHazardTypes = [];
+
+    video.addEventListener(
+      "loadeddata",
+      () => {
+        computeLetterboxParams();
+        detecting = true;
+        detectLoop();
+      },
+      { once: true }
+    );
+  } catch (err) {
+    console.error("❌ שגיאה בגישה למצלמה:", err);
+    alert("⚠️ לא ניתן לגשת למצלמה. יש לבדוק הרשאות בדפדפן.");
+  }
+});
+
   
   
-  switchBtn.addEventListener("click", async () => {
-    try {
-      if (!stream || videoDevices.length < 2) return;
+switchBtn.addEventListener("click", async () => {
+  try {
+    if (!videoDevices.length || videoDevices.length < 2) return;
+
+    // עצור את הזרם הנוכחי
+    if (stream) {
       stream.getTracks().forEach((t) => t.stop());
-
-      currentCamIndex = (currentCamIndex + 1) % videoDevices.length;
-      const newDeviceId = videoDevices[currentCamIndex].deviceId;
-
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: { exact: newDeviceId } },
-      });
-
-      video.srcObject = stream;
-      letterboxParams = null; // יגרום לחישוב מחדש בפריים הבא
-    } catch (err) {
-      console.error("❌ Failed to switch camera:", err);
     }
-  });
+
+    // עבור למצלמה הבאה
+    currentCamIndex = (currentCamIndex + 1) % videoDevices.length;
+    const newDeviceId = videoDevices[currentCamIndex].deviceId;
+
+    // בקש את המצלמה החדשה
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { deviceId: { exact: newDeviceId } },
+    });
+
+    // הצמד את הווידאו לזרם החדש
+    video.srcObject = stream;
+    letterboxParams = null; // כדי לחשב מחדש בפריים הבא
+
+    console.log(`📷 Switched to camera index ${currentCamIndex}`);
+  } catch (err) {
+    console.error("❌ Failed to switch camera:", err);
+    alert("⚠️ לא ניתן להחליף מצלמה. בדוק הרשאות.");
+  }
+});
+
   stopBtn.addEventListener("click", () => {
     detecting = false;
     if (stream) {
