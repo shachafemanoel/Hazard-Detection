@@ -24,7 +24,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let _watchId    = null;  let videoDevices = [];
   let currentCamIndex = 0;
   let prevImageData = null;
-  const DIFF_THRESHOLD = 200000; // הורדת הערך כדי להגביר רגישות לשינויים
+  const DIFF_THRESHOLD = 100000; // הורדת הערך כדי להגביר רגישות לשינויים
   let skipFrames = 3;                       // ברירת מחדל
   const targetFps = 30;                     // יעד: 15 פריימים לשנייה
   const frameTimes = [];                    // היסטוריית זמנים
@@ -291,10 +291,6 @@ async function fallbackIpLocation() {
     );
   }
 
-  
-  
-  
-
   function computeLetterboxParams() {
     const scale = Math.min(FIXED_SIZE / video.videoWidth, FIXED_SIZE / video.videoHeight);
     const newW = Math.round(video.videoWidth * scale);
@@ -355,6 +351,7 @@ async function detectLoop() {
   if (!letterboxParams) computeLetterboxParams();
   offCtx.fillStyle = 'black';
   offCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
+  offCtx.filter = 'contrast(120%) brightness(110%)';
   offCtx.drawImage(
     video,
     letterboxParams.offsetX, letterboxParams.offsetY,
@@ -368,12 +365,21 @@ async function detectLoop() {
     for (let i = 0; i < d1.length; i += 4) {
       sum += Math.abs(d1[i] - d2[i]) + Math.abs(d1[i+1] - d2[i+1]) + Math.abs(d1[i+2] - d2[i+2]);
     }
-    if (sum < DIFF_THRESHOLD) {
+    // ייצוב חכם – בדיקה אם יש שינוי דרסטי או חוסר תזוזה
+    if (sum < DIFF_THRESHOLD / 3) {
+      // כמעט אין שינוי → דלג
       prevImageData = curr;
       requestAnimationFrame(detectLoop);
       return;
+    } else if (sum > DIFF_THRESHOLD * 2) {
+      // תנועה חדה → אל תקפוץ פריימים
+      skipFrames = 1;
+    } else {
+      // תנועה רגילה → חזור לברירת מחדל
+      skipFrames = 3;
     }
   }
+
   prevImageData = curr;
 
   const { data, width, height } = curr;
@@ -466,7 +472,12 @@ async function detectLoop() {
   const idealInterval = 1000 / targetFps;
   skipFrames = Math.max(1, Math.round(avgTime / idealInterval));
 
+  if (video.requestVideoFrameCallback) {
+  video.requestVideoFrameCallback(() => detectLoop());
+} else {
   requestAnimationFrame(detectLoop);
+}
+
 }
 
 
@@ -489,10 +500,10 @@ async function detectLoop() {
     const selectedDeviceId = videoDevices[currentCamIndex]?.deviceId;
     stream = await navigator.mediaDevices.getUserMedia({
       video: {
-        deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
-        frameRate: { ideal: 30, max: 60 },
-        width: { ideal: 640 },
-        height: { ideal: 480 }
+        frameRate: { ideal: 60, max: 60 },
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        facingMode: "environment"
       }
     });
 
