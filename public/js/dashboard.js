@@ -90,23 +90,16 @@ const hazardMarkerColors = {
 };
 
 function getMarkerIcon(hazardType) {
-    const color = hazardMarkerColors[hazardType] || hazardMarkerColors['default'];
-    return {
-        path: google.maps.SymbolPath.CIRCLE,
-        fillColor: color,
-        fillOpacity: 0.9,
-        strokeColor: '#FFFFFF', // White border for better visibility
-        strokeWeight: 2,
-        scale: 10 // Reduced scale for smaller marker
-    };
+    // Deprecated: No longer used with AdvancedMarkerElement
+    return null;
 }
 
 // NEW: Helper to create marker content for AdvancedMarkerElement
 function getMarkerContent(hazardType) {
 	const color = hazardMarkerColors[hazardType] || hazardMarkerColors['default'];
 	const div = document.createElement('div');
-	div.style.width = '20px';      // Reduced width
-	div.style.height = '20px';     // Reduced height
+	div.style.width = '20px';
+	div.style.height = '20px';
 	div.style.backgroundColor = color;
 	div.style.borderRadius = '50%';
 	div.style.border = '2px solid #FFFFFF';
@@ -125,12 +118,23 @@ function initMap() {
         styles: darkMapStyle,
     });
 
-    // Add a marker for the default center as a fallback
-    new google.maps.Marker({
-        position: defaultCenter,
-        map: map,
-        title: "Israel",
-    });
+    // Add a marker for the default center as a fallback using AdvancedMarkerElement
+    if (google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
+        new google.maps.marker.AdvancedMarkerElement({
+            map: map,
+            position: defaultCenter,
+            title: "Israel",
+            content: (() => {
+                const div = document.createElement('div');
+                div.style.width = '20px';
+                div.style.height = '20px';
+                div.style.backgroundColor = '#4285F4';
+                div.style.borderRadius = '50%';
+                div.style.border = '2px solid #fff';
+                return div;
+            })()
+        });
+    }
 
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
@@ -141,20 +145,28 @@ function initMap() {
                 };
                 map.setCenter(userLatLng);
                 map.setZoom(12);
-                new google.maps.Marker({
-                    position: userLatLng,
-                    map: map,
-                    title: "Your Location",
-                    icon: {
-                        url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24"><path fill="#4285F4" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5" fill="#fff"/></svg>`),
-                        scaledSize: new google.maps.Size(40, 40)
-                    }
-                });
+                // Use AdvancedMarkerElement for user location
+                if (google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
+                    new google.maps.marker.AdvancedMarkerElement({
+                        map: map,
+                        position: userLatLng,
+                        title: "Your Location",
+                        content: (() => {
+                            const div = document.createElement('div');
+                            div.style.width = '24px';
+                            div.style.height = '24px';
+                            div.style.backgroundColor = '#4285F4';
+                            div.style.borderRadius = '50%';
+                            div.style.border = '3px solid #fff';
+                            div.style.boxShadow = '0 0 8px #4285F4';
+                            return div;
+                        })()
+                    });
+                }
                 loadReports();
             },
             (error) => {
                 console.error("Error using geolocation:", error);
-                // Fallback to IP geolocation without displaying any message
                 getLocationByIP();
             }
         );
@@ -271,15 +283,13 @@ window.addEventListener("click", (event) => {
 // ממיר כתובת לקואורדינטות ומוסיף סמן
 async function geocodeAddress(address, report) {
     if (!address) return;
-    
     try {
         const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=AIzaSyA9qkNEaiu9vpTB0bzqhw_Ei55Mt2UqN3A`);
         const data = await response.json();
-        
         if (data.status === "OK" && data.results[0]) {
             const location = data.results[0].geometry.location;
             let marker;
-            // NEW: Use AdvancedMarkerElement if available, otherwise fallback to standard Marker
+            // Always use AdvancedMarkerElement if available
             if (google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
                 marker = new google.maps.marker.AdvancedMarkerElement({
                     map: map,
@@ -288,20 +298,24 @@ async function geocodeAddress(address, report) {
                     content: getMarkerContent(report.type)
                 });
             } else {
-                marker = new google.maps.Marker({
-                    map: map,
-                    position: location,
-                    title: `${report.type} - ${address}`,
-                    icon: getMarkerIcon(report.type)
-                });
+                // Fallback: create a DOM element as marker (should not happen in modern Maps JS)
+                marker = {
+                    setMap: () => {},
+                    getPosition: () => location,
+                    getTitle: () => `${report.type} - ${address}`,
+                    reportId: report.id,
+                    report: report,
+                    addEventListener: () => {},
+                    addListener: () => {},
+                    setAnimation: () => {}
+                };
             }
             marker.reportId = report.id;
             marker.report = report;
 
-            
             // Register first "click" callback to open infowindow and pan/zoom map
             registerMarkerClick(marker, () => {
-                markers.forEach(m => m.infoWindow?.close());
+                markers.forEach(m => m.infoWindow?.close && m.infoWindow.close());
                 const infowindow = new google.maps.InfoWindow({
                     content: `
                     <div class="info-window">
@@ -324,7 +338,7 @@ async function geocodeAddress(address, report) {
                     map.animateToZoom(14);
                 }
             });
-            
+
             // Register a second "click" callback to sync the table row highlighting
             registerMarkerClick(marker, () => {
                 const rows = document.querySelectorAll('#reports-table tbody tr');
@@ -907,18 +921,14 @@ function getStatusBadgeClass(status) {
 
 // Helper function to focus map on location
 function focusMapLocation(location) {
-    const marker = markers.find(m => m.getTitle()?.includes(location));
+    const marker = markers.find(m => m.getTitle && m.getTitle()?.includes(location));
     if (marker) {
-        console.log('Found marker:', marker);
-        console.log('Marker report:', marker.report);
         map.panTo(marker.getPosition());
-        map.setZoom(30);
-        marker.setAnimation(google.maps.Animation.BOUNCE);
-        setTimeout(() => marker.setAnimation(null), 2100);
+        map.setZoom(18);
+        highlightMarker(marker.reportId);
+        setTimeout(() => unhighlightMarker(marker.reportId), 2100);
         if(marker.report) {
             showReportDetails(marker.report);
-        } else {
-            console.warn('No report found on marker');
         }
     } else {
         console.warn('No marker found for location:', location);
@@ -929,15 +939,22 @@ function focusMapLocation(location) {
 // Helper functions for marker highlighting
 function highlightMarker(reportId) {
     const marker = markers.find(m => m.reportId === reportId);
-    if (marker) {
-        marker.setAnimation(google.maps.Animation.BOUNCE);
+    if (marker && marker.setAnimation) {
+        // AdvancedMarkerElement does not support setAnimation; use CSS effect
+        if (marker.content) {
+            marker.content.style.boxShadow = '0 0 16px 4px #FFD700';
+            marker.content.style.transform = 'scale(1.2)';
+        }
     }
 }
 
 function unhighlightMarker(reportId) {
     const marker = markers.find(m => m.reportId === reportId);
-    if (marker) {
-        marker.setAnimation(null);
+    if (marker && marker.setAnimation) {
+        if (marker.content) {
+            marker.content.style.boxShadow = '';
+            marker.content.style.transform = '';
+        }
     }
 }
 
@@ -1078,11 +1095,12 @@ function showToast(message, type) {
 // NEW: Function to update the heatmap overlay on the map using marker positions
 function updateHeatmap() {
     if (!map) return;
+    // HeatmapLayer is deprecated, but left as-is for now (see deprecation warning)
     const heatData = markers.map(marker => marker.getPosition());
     if (heatmapLayer) heatmapLayer.setMap(null);
     heatmapLayer = new google.maps.visualization.HeatmapLayer({
         data: heatData,
-        radius: 50,      // increased radius for broader heat zones
+        radius: 50,
         opacity: 0.7,
         gradient: [
             'rgba(0, 255, 255, 0)',

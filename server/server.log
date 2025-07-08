@@ -1,0 +1,7 @@
+Attempting to load environment variables...
+CLOUDINARY_CLOUD_NAME from env: dgn5da9f8
+GOOGLE_CALLBACK_URL from env: http://localhost:3000/auth/google/callback
+SESSION_SECRET from env: Loaded
+✅ Server running locally: http://localhost:3000
+✅ Server running on your network: http://172.16.16.69:3000
+✅ Connected to Redis

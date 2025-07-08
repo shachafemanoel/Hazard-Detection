@@ -763,18 +763,29 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
     try {
         // עיבוד המידע
         const geoData = JSON.parse(jsonString);
-        if (!geoData || !geoData.lat || !geoData.lng) {
+        if (!geoData || typeof geoData.lat !== 'number' || typeof geoData.lng !== 'number' || 
+            isNaN(geoData.lat) || isNaN(geoData.lng) || 
+            geoData.lat < -90 || geoData.lat > 90 || 
+            geoData.lng < -180 || geoData.lng > 180) {
             return res.status(400).json({ error: 'Invalid geolocation data' });
         }
 
         const apiKey = "AIzaSyAXxZ7niDaxuyPEzt4j9P9U0kFzKHO9pZk";
         const geoCodingUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${geoData.lat},${geoData.lng}&language=he&key=${apiKey}`;
 
-        const geoResponse = await axios.get(geoCodingUrl);
-        if (!geoResponse.data.results.length) {
-            return res.status(500).json({ error: 'Failed to get address from geolocation' });
+        let address = `Coordinates: ${geoData.lat}, ${geoData.lng}`;
+        
+        try {
+            const geoResponse = await axios.get(geoCodingUrl, { timeout: 5000 });
+            if (geoResponse.data && geoResponse.data.results && geoResponse.data.results.length > 0) {
+                address = geoResponse.data.results[0]?.formatted_address || address;
+            } else {
+                console.warn('No geocoding results found for coordinates:', geoData.lat, geoData.lng);
+            }
+        } catch (geocodeError) {
+            console.warn('Geocoding API failed:', geocodeError.message);
+            // Continue with coordinate fallback address
         }
-        const address = geoResponse.data.results[0]?.formatted_address || 'כתובת לא זמינה';
         
         // העלאה ל-Cloudinary
         const streamUpload = (buffer) => {

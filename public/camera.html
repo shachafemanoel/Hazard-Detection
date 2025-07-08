@@ -39,27 +39,19 @@
         <div class="camera-controls">
             <button id="start-camera">
                 <i class="fas fa-video"></i>
-                <span>Start Camera</span>
             </button>
             <button id="stop-camera">
                 <i class="fas fa-video-slash"></i>
-                <span>Stop Camera</span>
             </button>
             <button id="switch-camera">
                 <i class="fas fa-sync"></i>
-                <span>Switch Camera</span>
             </button>
-            <!-- NEW: Camera selection dropdown -->
-            <div class="additional-controls">
-                <label for="camera-select">Camera</label>
-                <select id="camera-select">
-                    <!-- Options will be populated dynamically -->
-                </select>
-                <label for="brightness-slider">Brightness</label>
-                <input type="range" id="brightness-slider" min="50" max="150" value="100" step="1">
-                <label for="zoom-slider">Zoom</label>
-                <input type="range" id="zoom-slider" min="1" max="3" value="1" step="0.1">
-            </div>
+        </div>
+
+        <div id="performance-stats" class="performance-overlay">
+            <div>FPS: <span id="fps-counter">0</span></div>
+            <div>Frame Time: <span id="frame-time">0</span>ms</div>
+            <div>Inference: <span id="inference-time">0</span>ms</div>
         </div>
 
         <!-- Status Overlays -->

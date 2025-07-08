@@ -173,7 +173,7 @@ saveBtn.addEventListener("click", () => {
 
   try {
     session = await ort.InferenceSession.create(
-      '/object_detecion_model/road_damage_detection_last_version.onnx',
+      '/object_detection_model/last_model_train12052025.onnx',
       { executionProviders: ['cpu'] }
     );
     

@@ -21,14 +21,15 @@ document.addEventListener("DOMContentLoaded", () => {
   let frameCount = 0;
   let lastSaveTime = 0;
   let _lastCoords = null;
-  let _watchId    = null;  let videoDevices = [];
+  let _watchId    = null;
+  let videoDevices = [];
   let currentCamIndex = 0;
   let prevImageData = null;
-  const DIFF_THRESHOLD = 100000; // הורדת הערך כדי להגביר רגישות לשינויים
-  let skipFrames = 3;                       // ברירת מחדל
-  const targetFps = 30;                     // יעד: 15 פריימים לשנייה
-  const frameTimes = [];                    // היסטוריית זמנים
-  const maxHistory = 5;    
+  const DIFF_THRESHOLD = 30000; // Optimized for better motion detection
+  let skipFrames = 3;                       // Balanced for performance
+  const targetFps = 15;                     // Optimized target FPS
+  const frameTimes = [];                    // Frame time history
+  const maxHistory = 5;                     // Reduced for faster adaptation    
   let detectedObjectCount = 0; // Initialize object count
   let uniqueHazardTypes = []; // Initialize array for unique hazard types    
   // ────────────────────────────────────────────────────────────────────────────────
@@ -94,77 +95,135 @@ document.addEventListener("DOMContentLoaded", () => {
   
 
 /**
- * מנסה ראשית לקבל פוזיציה אחת מדוייקת (GPS), עם תזמון קצר.
- * אם הצליח – שומר אותה; אם קיבל DENIED – מודיע למשתמש.
- * לאחר מכן מריץ watchPosition כדי לעדכן ברצף את _lastCoords.
+ * Enhanced location tracking with improved fallback system
+ * Tries GPS -> Browser permissions -> IP location
  */
 function initLocationTracking() {
-  return new Promise(resolve => {
+  return new Promise(async (resolve) => {
     if (!navigator.geolocation) {
-      alert("מצטערים, הדפדפן שלך לא תומך בגיאולוקציה.");
-      return resolve(null);
+      console.warn("Geolocation not supported by browser");
+      await tryIPLocation();
+      return resolve(_lastCoords);
     }
 
-    // פונקציית עזר לרישום המיקום הראשון
+    // Check if location permission is already granted
+    if (navigator.permissions) {
+      try {
+        const permission = await navigator.permissions.query({name: 'geolocation'});
+        if (permission.state === 'denied') {
+          console.warn("Location permission denied, trying IP fallback");
+          await tryIPLocation();
+          return resolve(_lastCoords);
+        }
+      } catch (err) {
+        console.warn("Permission API not supported");
+      }
+    }
+
     let done = false;
-    function handleCoords(coords) {
+    function handleCoords(coords, source = 'GPS') {
       if (done) return;
       done = true;
       _lastCoords = coords;
-      console.log("📍 initial location:", coords);
+      console.log(`📍 Location obtained from ${source}:`, coords);
       resolve(coords);
     }
 
-    // 1️⃣ ניסיון High-Accuracy
+    // 1️⃣ Try High-Accuracy GPS
     navigator.geolocation.getCurrentPosition(
-      pos => handleCoords(pos.coords),
-      err => {
-        console.warn("High-Accuracy failed:", err.code, err.message);
+      pos => handleCoords(pos.coords, 'High-Accuracy GPS'),
+      async (err) => {
+        console.warn("High-Accuracy GPS failed:", err.code, err.message);
+        
         if (err.code === err.PERMISSION_DENIED) {
-          alert("אנא אפשר גישה למיקום כדי להשתמש ב-Live Detection.");
-          return resolve(null);
+          console.log("Permission denied, trying IP fallback");
+          await tryIPLocation();
+          return resolve(_lastCoords);
         }
-        // 2️⃣ ניסיון Low-Accuracy
+        
+        // 2️⃣ Try Low-Accuracy GPS
         navigator.geolocation.getCurrentPosition(
-          pos2 => handleCoords(pos2.coords),
-          err2 => {
-            console.warn("Low-Accuracy failed:", err2.code, err2.message);
-            // 3️⃣ fallback IP
-            fetch("https://ipapi.co/json/")
-              .then(r => r.json())
-              .then(data => handleCoords({ latitude: data.latitude, longitude: data.longitude }))
-              .catch(() => resolve(null));
+          pos2 => handleCoords(pos2.coords, 'Low-Accuracy GPS'),
+          async (err2) => {
+            console.warn("Low-Accuracy GPS failed:", err2.code, err2.message);
+            // 3️⃣ Final fallback to IP
+            await tryIPLocation();
+            resolve(_lastCoords);
           },
-          { enableHighAccuracy: false, timeout: 5000, maximumAge: 0 }
+          { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
         );
-      },
-      { enableHighAccuracy: true,  timeout: 5000, maximumAge: 0 }
-    );
-
-    // 4️⃣ watchPosition לעדכונים רציפים
-    _watchId = navigator.geolocation.watchPosition(
-      pos => {
-        _lastCoords = pos.coords;
-      },
-      err => {
-        console.warn("watchPosition error:", err.code, err.message);
-        if (err.code === err.PERMISSION_DENIED) {
-          alert("אנא אפשר גישה למיקום כדי להשתמש ב-Live Detection.");
-          navigator.geolocation.clearWatch(_watchId);
-        }
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
+
+    // 4️⃣ Setup continuous location tracking if GPS is available
+    if (!done) {
+      setTimeout(() => {
+        if (_lastCoords) {
+          _watchId = navigator.geolocation.watchPosition(
+            pos => {
+              _lastCoords = pos.coords;
+              console.log("📍 Location updated:", pos.coords);
+            },
+            err => {
+              console.warn("watchPosition error:", err.code, err.message);
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
+          );
+        }
+      }, 1000);
+    }
   });
 }
 
 /**
- * מחזיר Promise עם המיקום האחרון (או נדחית אם אין עדיין)
+ * Try to get location from IP address
+ */
+async function tryIPLocation() {
+  try {
+    console.log("Attempting IP-based location...");
+    const response = await fetch("https://ipapi.co/json/");
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    
+    const data = await response.json();
+    if (data.latitude && data.longitude) {
+      _lastCoords = {
+        latitude: data.latitude,
+        longitude: data.longitude,
+        source: 'IP'
+      };
+      console.log("📍 IP-based location obtained:", _lastCoords);
+      return true;
+    }
+  } catch (error) {
+    console.warn("IP location failed:", error);
+    try {
+      // Fallback to another IP service
+      const response = await fetch("https://api.ipify.org?format=json");
+      const ipData = await response.json();
+      console.log("Using fallback IP service for:", ipData.ip);
+      // Could implement additional IP geolocation service here
+    } catch (fallbackError) {
+      console.warn("All location methods failed:", fallbackError);
+    }
+  }
+  return false;
+}
+
+/**
+ * Returns Promise with the latest location (or rejects if not available)
  */
 function getLatestLocation() {
   return new Promise((resolve, reject) => {
-    if (_lastCoords) {
-      resolve(JSON.stringify({ lat: _lastCoords.latitude, lng: _lastCoords.longitude }));
+    if (_lastCoords && _lastCoords.latitude && _lastCoords.longitude) {
+      const lat = parseFloat(_lastCoords.latitude);
+      const lng = parseFloat(_lastCoords.longitude);
+      
+      if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        resolve(JSON.stringify({ lat: lat, lng: lng }));
+      } else {
+        reject("Invalid coordinates");
+      }
     } else {
       reject("No location available yet");
     }
@@ -181,23 +240,6 @@ function stopLocationTracking() {
   }
 }
 
-/**
- * משתמש בשירות IP-based לצורך מיקום גס
- */
-async function fallbackIpLocation() {
-  try {
-    const res = await fetch("https://ipapi.co/json/");
-    if (!res.ok) throw new Error(res.statusText);
-    const data = await res.json();
-    _lastCoords = {
-      latitude:  data.latitude,
-      longitude: data.longitude
-    };
-    console.log("📍 IP-fallback location:", _lastCoords);
-  } catch (e) {
-    console.warn("IP fallback failed:", e);
-  }
-}
 
 /**
  * מחזירה את המיקום האחרון (או נדחתת אם אין עדיין)
@@ -228,36 +270,66 @@ async function fallbackIpLocation() {
     let geoData;
     let locationNote;
   
-    // 1️⃣ נסיון ראשון: GPS
-    try {
-      geoData = await getLatestLocation();
-      locationNote = "GPS";
-    } catch (gpsErr) {
-      console.warn("GPS failed:", gpsErr);
-  
-      // 2️⃣ נסיון שני: IP fallback
-      try {
-        const ipRes  = await fetch("https://ipapi.co/json/");
-        const ipJson = await ipRes.json();
-        geoData = JSON.stringify({ lat: ipJson.latitude, lng: ipJson.longitude });
-        locationNote = "Approximate (IP)";
-      } catch (ipErr) {
-        console.error("IP fallback failed:", ipErr);
-        alert("אנא אפשר גישה למיקום כדי לבצע Live Detection.");
-        return;  // בלי מיקום – לא שומרים
+    // Try to get current location
+    if (_lastCoords && _lastCoords.latitude && _lastCoords.longitude) {
+      // Validate coordinates are reasonable
+      const lat = parseFloat(_lastCoords.latitude);
+      const lng = parseFloat(_lastCoords.longitude);
+      
+      if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        geoData = JSON.stringify({ 
+          lat: lat, 
+          lng: lng 
+        });
+        locationNote = _lastCoords.source === 'IP' ? "Approximate (IP)" : "GPS";
+        console.log(`📍 Using ${locationNote} location for detection save:`, {lat, lng});
+      } else {
+        console.warn("Invalid coordinates:", {lat, lng});
+        geoData = null;
+        locationNote = "Invalid coordinates";
+      }
+    } else {
+      // Final attempt to get location if not available
+      console.log("No location available, attempting final location fetch...");
+      await tryIPLocation();
+      
+      if (_lastCoords && _lastCoords.latitude && _lastCoords.longitude) {
+        const lat = parseFloat(_lastCoords.latitude);
+        const lng = parseFloat(_lastCoords.longitude);
+        
+        if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+          geoData = JSON.stringify({ 
+            lat: lat, 
+            lng: lng 
+          });
+          locationNote = "Approximate (IP)";
+        } else {
+          geoData = null;
+          locationNote = "Invalid IP coordinates";
+        }
+      } else {
+        console.warn("No location available for detection save");
+        geoData = null;
+        locationNote = "Location unavailable";
       }
     }
   
-    // 3️⃣ אם הצלחנו להשיג מיקום (GPS או IP), נשמור
+    // Save detection with location data
     canvas.toBlob(async blob => {
       if (!blob) return console.error("❌ Failed to get image blob");
   
       const file = new File([blob], "detection.jpg", { type: "image/jpeg" });
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("geoData", geoData);
+      
+      // Only append geoData if we have valid coordinates
+      if (geoData) {
+        formData.append("geoData", geoData);
+      }
+      
       formData.append("hazardTypes", label);
-      formData.append("locationNote", locationNote);  // ⇐ כעת תמיד תישלח
+      formData.append("locationNote", locationNote);
+      formData.append("timestamp", new Date().toISOString());
   
       try {
         const res = await fetch("/upload-detection", {
@@ -265,11 +337,31 @@ async function fallbackIpLocation() {
           body: formData,
           credentials: "include",
         });
-        if (!res.ok) throw new Error(await res.text());
-        console.log("✅ Detection saved:", (await res.json()).message);
-        showSuccessToast();
+        
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.error("Server error:", errorText);
+          throw new Error(errorText);
+        }
+        
+        const result = await res.json();
+        console.log("✅ Detection saved:", result.message);
+        showSuccessToast(`💾 Detection saved (${locationNote})`);
       } catch (err) {
         console.error("❌ Failed to save detection:", err);
+        
+        // Try to parse error message for better user feedback
+        let errorMessage = "Failed to save detection";
+        if (err.message) {
+          try {
+            const errorObj = JSON.parse(err.message);
+            errorMessage = errorObj.error || errorMessage;
+          } catch (parseErr) {
+            errorMessage = err.message;
+          }
+        }
+        
+        showSuccessToast(`❌ ${errorMessage}`);
       }
     }, "image/jpeg", 0.9);
   }
@@ -300,48 +392,24 @@ async function fallbackIpLocation() {
     letterboxParams = { scale, newW, newH, offsetX, offsetY };
   }
 
-function computeIoU(boxA, boxB) {
-  const xA = Math.max(boxA[0], boxB[0]);
-  const yA = Math.max(boxA[1], boxB[1]);
-  const xB = Math.min(boxA[2], boxB[2]);
-  const yB = Math.min(boxA[3], boxB[3]);
-  const interArea = Math.max(0, xB - xA) * Math.max(0, yB - yA);
-  const boxAArea = (boxA[2] - boxA[0]) * (boxA[3] - boxA[1]);
-  const boxBArea = (boxB[2] - boxB[0]) * (boxB[3] - boxB[1]);
-  return interArea / (boxAArea + boxBArea - interArea);
-}
-
-function nonMaxSuppression(boxes, scores, iouThreshold = 0.5) {
-  const indices = scores
-    .map((score, idx) => ({ idx, score }))
-    .sort((a, b) => b.score - a.score)
-    .map(obj => obj.idx);
-
-  const keep = [];
-  while (indices.length > 0) {
-    const current = indices.shift();
-    keep.push(current);
-    for (let i = indices.length - 1; i >= 0; i--) {
-      const iou = computeIoU(boxes[current], boxes[indices[i]]);
-      if (iou > iouThreshold) {
-        indices.splice(i, 1);
-      }
-    }
-  }
-  return keep;
-}
 
 
 async function detectLoop() {
   if (!detecting || !session) return;
 
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
+  // Only resize canvas if video dimensions changed
+  if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+  }
+  
+  // Always draw video frame for smooth preview
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
   frameCount++;
   const shouldRunDetection = frameCount % skipFrames === 0;
   if (!shouldRunDetection) {
+    // Continue smooth preview without detection
     requestAnimationFrame(detectLoop);
     return;
   }
@@ -351,44 +419,49 @@ async function detectLoop() {
   if (!letterboxParams) computeLetterboxParams();
   offCtx.fillStyle = 'black';
   offCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
-  offCtx.filter = 'contrast(120%) brightness(110%)';
+  offCtx.filter = 'none'; // Remove contrast/brightness filter for raw input
+
+  // Draw video frame into letterboxed area
   offCtx.drawImage(
     video,
+    0, 0, video.videoWidth, video.videoHeight,
     letterboxParams.offsetX, letterboxParams.offsetY,
     letterboxParams.newW, letterboxParams.newH
   );
 
+  // Prepare input for model
   const curr = offCtx.getImageData(0, 0, FIXED_SIZE, FIXED_SIZE);
+
   if (prevImageData) {
     let sum = 0;
     const d1 = curr.data, d2 = prevImageData.data;
     for (let i = 0; i < d1.length; i += 4) {
       sum += Math.abs(d1[i] - d2[i]) + Math.abs(d1[i+1] - d2[i+1]) + Math.abs(d1[i+2] - d2[i+2]);
     }
-    // ייצוב חכם – בדיקה אם יש שינוי דרסטי או חוסר תזוזה
-    if (sum < DIFF_THRESHOLD / 3) {
-      // כמעט אין שינוי → דלג
+    // Smart stabilization - check for significant change or lack of movement
+    if (sum < DIFF_THRESHOLD / 2) {
+      // Almost no change → skip
       prevImageData = curr;
       requestAnimationFrame(detectLoop);
       return;
-    } else if (sum > DIFF_THRESHOLD * 2) {
-      // תנועה חדה → אל תקפוץ פריימים
+    } else if (sum > DIFF_THRESHOLD * 3) {
+      // Sharp movement → don't skip frames
       skipFrames = 1;
     } else {
-      // תנועה רגילה → חזור לברירת מחדל
-      skipFrames = 3;
+      // Normal movement → return to default
+      skipFrames = 2;
     }
   }
 
   prevImageData = curr;
 
+  // Convert to float32, normalize to [0,1], and CHW format
   const { data, width, height } = curr;
   for (let i = 0, j = 0; i < data.length; i += 4, j += 3) {
     floatData[j]     = data[i]   / 255;
     floatData[j + 1] = data[i+1] / 255;
     floatData[j + 2] = data[i+2] / 255;
   }
-
   for (let c = 0; c < 3; c++) {
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
@@ -398,60 +471,93 @@ async function detectLoop() {
   }
 
   const inputTensor = new ort.Tensor('float32', chwData, [1, 3, height, width]);
-  const results = await session.run({ images: inputTensor });
+  let results;
+  try {
+    results = await session.run({ images: inputTensor });
+  } catch (err) {
+    console.error("ONNX inference error:", err);
+    requestAnimationFrame(detectLoop);
+    return;
+  }
   const outputData = results[Object.keys(results)[0]].data;
 
+  // --- DEBUG: Log output shape and sample values ---
+  // console.log("Model output:", outputData);
+
+  // Parse detections
   const boxes = [];
   const scores = [];
   const classes = [];
 
   for (let i = 0; i < outputData.length; i += 6) {
     const [x1, y1, x2, y2, score, cls] = outputData.slice(i, i + 6);
-    if (score >= 0.5) {
+    if (score >= 0.3) { // Lowered threshold for more detections
       boxes.push([x1, y1, x2, y2]);
       scores.push(score);
       classes.push(cls);
     }
   }
 
-  const keep = nonMaxSuppression(boxes, scores, 0.45);
+  // --- DEBUG: Log number of detections ---
+  // console.log("Detections:", boxes.length);
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-  for (let idx of keep) {
-    const [x1, y1, x2, y2] = boxes[idx];
-    const score = scores[idx];
-    const cls = classes[idx];
+  // Reset counters for overlays
+  detectedObjectCount = 0;
+  uniqueHazardTypes = [];
 
-    const scaleX = video.videoWidth / FIXED_SIZE;
-    const scaleY = video.videoHeight / FIXED_SIZE;
-    const w = (x2 - x1) * scaleX;
-    const h = (y2 - y1) * scaleY;
-    const left = x1 * scaleX;
-    const top  = y1 * scaleY;
+  // Process all detections directly without NMS
+  for (let i = 0; i < boxes.length; i++) {
+    const [x1, y1, x2, y2] = boxes[i];
+    const score = scores[i];
+    const cls = classes[i];
 
+    // Undo letterbox scaling - correct coordinate transformation
+    const left = (x1 - letterboxParams.offsetX) / letterboxParams.scale;
+    const top = (y1 - letterboxParams.offsetY) / letterboxParams.scale;
+    const right = (x2 - letterboxParams.offsetX) / letterboxParams.scale;
+    const bottom = (y2 - letterboxParams.offsetY) / letterboxParams.scale;
+    const w = right - left;
+    const h = bottom - top;
+
+    // Ensure coordinates are within bounds
+    if (left < 0 || top < 0 || right > video.videoWidth || bottom > video.videoHeight) {
+      continue; // Skip invalid detections
+    }
+    
     detectedObjectCount++;
-    const hazardName = classNames[Math.floor(cls)];
+    const hazardIdx = Math.floor(cls); // Use floor instead of round for proper indexing
+    const hazardName = (hazardIdx >= 0 && hazardIdx < classNames.length) ? classNames[hazardIdx] : `Unknown Class ${hazardIdx}`;
     if (hazardName && !uniqueHazardTypes.includes(hazardName)) {
       uniqueHazardTypes.push(hazardName);
     }
 
     const label = `${hazardName} (${(score * 100).toFixed(1)}%)`;
+    
+    // Ensure positive width and height
+    const drawW = Math.max(w, 1);
+    const drawH = Math.max(h, 1);
+    
+    // Draw bounding box
     ctx.strokeStyle = '#00FF00';
     ctx.lineWidth = 3;
-    ctx.strokeRect(left, top, w, h);
+    ctx.strokeRect(Math.max(0, left), Math.max(0, top), drawW, drawH);
 
+    // Draw label background and text
     ctx.fillStyle = '#00FF00';
     ctx.font = 'bold 16px Arial';
     const textWidth = ctx.measureText(label).width;
-    ctx.fillRect(left, top > 20 ? top - 20 : top, textWidth + 8, 20);
+    const labelY = top > 20 ? top - 20 : top + drawH + 20;
+    ctx.fillRect(Math.max(0, left), labelY, textWidth + 8, 20);
     ctx.fillStyle = 'black';
-    ctx.fillText(label, left + 4, top > 20 ? top - 5 : top + 15);
+    ctx.fillText(label, Math.max(4, left + 4), labelY + 15);
 
-    if (!lastSaveTime || Date.now() - lastSaveTime > 10000) {
+    // Save detection with improved timing
+    if (!lastSaveTime || Date.now() - lastSaveTime > 5000) {
       lastSaveTime = Date.now();
-      await saveDetection(canvas, label);
+      await saveDetection(canvas, hazardName);
     }
   }
 
@@ -470,26 +576,31 @@ async function detectLoop() {
   if (frameTimes.length > maxHistory) frameTimes.shift();
   const avgTime = frameTimes.reduce((a, b) => a + b, 0) / frameTimes.length;
   const idealInterval = 1000 / targetFps;
-  skipFrames = Math.max(1, Math.round(avgTime / idealInterval));
+  // Dynamic frame skipping based on performance
+  if (avgTime > idealInterval * 1.5) {
+    skipFrames = Math.min(skipFrames + 1, 5);
+  } else if (avgTime < idealInterval * 0.8) {
+    skipFrames = Math.max(skipFrames - 1, 1);
+  }
 
-  if (video.requestVideoFrameCallback) {
-  video.requestVideoFrameCallback(() => detectLoop());
-} else {
-  requestAnimationFrame(detectLoop);
-}
-
+  // Use requestAnimationFrame for smoother preview
+  if (video.requestVideoFrameCallback && detecting) {
+    video.requestVideoFrameCallback(() => detectLoop());
+  } else {
+    requestAnimationFrame(detectLoop);
+  }
 }
 
 
 
   startBtn.addEventListener("click", async () => {
-  initLocationTracking();
-
-  try {
-    await getLatestLocation();
-    console.log("📍 Location preloaded:", _lastCoords);
-  } catch (err) {
-    console.warn("⚠️ Could not preload location:", err);
+  // Wait for the initial location to be found.
+  const initialCoords = await initLocationTracking();
+  if (initialCoords) {
+    console.log("📍 Location preloaded:", initialCoords);
+  } else {
+    console.warn("⚠️ Could not get initial location. Detections may not be saved.");
+    // Optionally, alert the user or prevent starting.
   }
 
   try {
@@ -500,10 +611,11 @@ async function detectLoop() {
     const selectedDeviceId = videoDevices[currentCamIndex]?.deviceId;
     stream = await navigator.mediaDevices.getUserMedia({
       video: {
-        frameRate: { ideal: 60, max: 60 },
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        facingMode: "environment"
+        deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
+        frameRate: { ideal: 30, max: 30 }, // Reduced for better performance
+        width: { ideal: 1280, max: 1920 },
+        height: { ideal: 720, max: 1080 },
+        facingMode: selectedDeviceId ? undefined : "environment"
       }
     });
 
