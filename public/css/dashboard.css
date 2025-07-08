@@ -501,3 +501,246 @@ select:focus, input:focus {
     padding: 0.5rem 0.75rem;
   }
 }
+
+/* Personal Dashboard Statistics Cards */
+.stat-card {
+  padding: 1.5rem;
+  border-radius: 12px;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+}
+
+.stat-icon {
+  font-size: 2.5rem;
+  opacity: 0.8;
+}
+
+.stat-content h4 {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.stat-content p {
+  margin: 0;
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+/* Performance Metrics */
+.performance-metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.performance-metric:last-child {
+  border-bottom: none;
+}
+
+.metric-label {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.metric-value {
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+/* Location Insights */
+.insight-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.insight-item:last-child {
+  border-bottom: none;
+}
+
+.insight-label {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.insight-value {
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+/* Time Analytics */
+.time-metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.time-metric:last-child {
+  border-bottom: none;
+}
+
+.time-label {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.time-value {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Map Controls */
+.map-controls .btn {
+  border-radius: 6px;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.8rem;
+}
+
+/* Hazard Type Chart */
+#hazard-type-chart {
+  height: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.hazard-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.hazard-bar-fill {
+  height: 20px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+  min-width: 30px;
+}
+
+.hazard-bar-label {
+  font-size: 0.8rem;
+  color: var(--text-main);
+  min-width: 100px;
+}
+
+/* Recent Activity */
+#recent-activity {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.activity-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.activity-item:last-child {
+  border-bottom: none;
+}
+
+.activity-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  color: white;
+}
+
+.activity-icon.new {
+  background: var(--bs-primary);
+}
+
+.activity-icon.resolved {
+  background: var(--bs-success);
+}
+
+.activity-icon.updated {
+  background: var(--bs-warning);
+}
+
+.activity-content {
+  flex: 1;
+}
+
+.activity-title {
+  font-size: 0.9rem;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.activity-time {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* Enhanced Dashboard Panel */
+.dashboard-panel h3 {
+  color: var(--accent);
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.dashboard-panel h4 {
+  color: var(--text-main);
+  margin-bottom: 1rem;
+}
+
+.dashboard-panel h5 {
+  color: var(--text-main);
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+}
+
+/* Responsive adjustments for dashboard */
+@media (max-width: 768px) {
+  .stat-card {
+    padding: 1rem;
+  }
+  
+  .stat-icon {
+    font-size: 2rem;
+  }
+  
+  .stat-content h4 {
+    font-size: 1.5rem;
+  }
+  
+  .performance-metric,
+  .insight-item,
+  .time-metric {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+}

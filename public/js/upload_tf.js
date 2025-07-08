@@ -31,7 +31,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const frameTimes = [];                    // Frame time history
   const maxHistory = 5;                     // Reduced for faster adaptation    
   let detectedObjectCount = 0; // Initialize object count
-  let uniqueHazardTypes = []; // Initialize array for unique hazard types    
+  let uniqueHazardTypes = []; // Initialize array for unique hazard types
+  let fpsCounter = 0;
+  let lastFpsTime = Date.now();
+  let currentFps = 0;
   // ────────────────────────────────────────────────────────────────────────────────
   //  📸  Enumerate devices once on load
   // ────────────────────────────────────────────────────────────────────────────────
@@ -249,24 +252,57 @@ function stopLocationTracking() {
   
   
 
-  function showSuccessToast(message = "💾 Detected and saved!") {
+  function showToast(message, type = "success") {
     const toast = document.createElement("div");
     toast.textContent = message;
     toast.style.position = "fixed";
     toast.style.bottom = "20px";
     toast.style.right = "20px";
-    toast.style.backgroundColor = "#4caf50";
     toast.style.color = "white";
     toast.style.padding = "12px 20px";
     toast.style.borderRadius = "8px";
-    toast.style.boxShadow = "0 0 10px rgba(0,0,0,0.2)";
+    toast.style.boxShadow = "0 4px 12px rgba(0,0,0,0.3)";
     toast.style.zIndex = 9999;
     toast.style.fontSize = "14px";
+    toast.style.fontWeight = "500";
+    toast.style.maxWidth = "300px";
+    toast.style.wordWrap = "break-word";
+    toast.style.transition = "all 0.3s ease";
+    toast.style.transform = "translateY(100%)";
+    toast.style.opacity = "0";
+    
+    // Set colors based on type
+    if (type === "success") {
+      toast.style.backgroundColor = "#4caf50";
+    } else if (type === "error") {
+      toast.style.backgroundColor = "#f44336";
+    } else if (type === "warning") {
+      toast.style.backgroundColor = "#ff9800";
+    } else if (type === "info") {
+      toast.style.backgroundColor = "#2196f3";
+    }
+    
     document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
+    
+    // Animate in
+    setTimeout(() => {
+      toast.style.transform = "translateY(0)";
+      toast.style.opacity = "1";
+    }, 10);
+    
+    // Remove after delay
+    setTimeout(() => {
+      toast.style.transform = "translateY(100%)";
+      toast.style.opacity = "0";
+      setTimeout(() => toast.remove(), 300);
+    }, 3000);
   }
 
-  async function saveDetection(canvas, label = "Unknown") {
+  function showSuccessToast(message = "💾 Detected and saved!") {
+    showToast(message, "success");
+  }
+
+  async function saveDetection(canvas, label = "Unknown", retryCount = 0) {
     let geoData;
     let locationNote;
   
@@ -350,6 +386,14 @@ function stopLocationTracking() {
       } catch (err) {
         console.error("❌ Failed to save detection:", err);
         
+        // Retry logic for network errors
+        if (retryCount < 2 && (err.message.includes("network") || err.message.includes("timeout"))) {
+          console.log(`Retrying save detection... (${retryCount + 1}/2)`);
+          showToast(`🔄 Retrying save... (${retryCount + 1}/2)`, "warning");
+          setTimeout(() => saveDetection(canvas, label, retryCount + 1), 1000);
+          return;
+        }
+        
         // Try to parse error message for better user feedback
         let errorMessage = "Failed to save detection";
         if (err.message) {
@@ -361,7 +405,7 @@ function stopLocationTracking() {
           }
         }
         
-        showSuccessToast(`❌ ${errorMessage}`);
+        showToast(`❌ ${errorMessage}`, "error");
       }
     }, "image/jpeg", 0.9);
   }
@@ -435,16 +479,22 @@ async function detectLoop() {
   if (prevImageData) {
     let sum = 0;
     const d1 = curr.data, d2 = prevImageData.data;
-    for (let i = 0; i < d1.length; i += 4) {
+    const step = 16; // Sample every 4th pixel for faster computation
+    
+    for (let i = 0; i < d1.length; i += step) {
       sum += Math.abs(d1[i] - d2[i]) + Math.abs(d1[i+1] - d2[i+1]) + Math.abs(d1[i+2] - d2[i+2]);
     }
+    
+    // Adjust threshold for sampling
+    const adjustedThreshold = DIFF_THRESHOLD / 4;
+    
     // Smart stabilization - check for significant change or lack of movement
-    if (sum < DIFF_THRESHOLD / 2) {
+    if (sum < adjustedThreshold / 2) {
       // Almost no change → skip
       prevImageData = curr;
       requestAnimationFrame(detectLoop);
       return;
-    } else if (sum > DIFF_THRESHOLD * 3) {
+    } else if (sum > adjustedThreshold * 3) {
       // Sharp movement → don't skip frames
       skipFrames = 1;
     } else {
@@ -455,18 +505,20 @@ async function detectLoop() {
 
   prevImageData = curr;
 
-  // Convert to float32, normalize to [0,1], and CHW format
+  // Optimized conversion to float32, normalize to [0,1], and CHW format
   const { data, width, height } = curr;
-  for (let i = 0, j = 0; i < data.length; i += 4, j += 3) {
-    floatData[j]     = data[i]   / 255;
-    floatData[j + 1] = data[i+1] / 255;
-    floatData[j + 2] = data[i+2] / 255;
-  }
-  for (let c = 0; c < 3; c++) {
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        chwData[c*width*height + y*width + x] = floatData[y*width*3 + x*3 + c];
-      }
+  const inv255 = 1.0 / 255.0; // Pre-calculate division
+  
+  // Combined loop for better performance
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const pixelIndex = (y * width + x) * 4;
+      const outputIndex = y * width + x;
+      
+      // Convert RGB to CHW format in one pass
+      chwData[outputIndex] = data[pixelIndex] * inv255; // R
+      chwData[width * height + outputIndex] = data[pixelIndex + 1] * inv255; // G
+      chwData[2 * width * height + outputIndex] = data[pixelIndex + 2] * inv255; // B
     }
   }
 
@@ -476,10 +528,17 @@ async function detectLoop() {
     results = await session.run({ images: inputTensor });
   } catch (err) {
     console.error("ONNX inference error:", err);
+    inputTensor.dispose?.(); // Clean up tensor
     requestAnimationFrame(detectLoop);
     return;
   }
   const outputData = results[Object.keys(results)[0]].data;
+  
+  // Clean up tensors to prevent memory leaks
+  inputTensor.dispose?.();
+  if (results) {
+    Object.values(results).forEach(tensor => tensor.dispose?.());
+  }
 
   // --- DEBUG: Log output shape and sample values ---
   // console.log("Model output:", outputData);
@@ -489,12 +548,16 @@ async function detectLoop() {
   const scores = [];
   const classes = [];
 
-  for (let i = 0; i < outputData.length; i += 6) {
-    const [x1, y1, x2, y2, score, cls] = outputData.slice(i, i + 6);
-    if (score >= 0.3) { // Lowered threshold for more detections
-      boxes.push([x1, y1, x2, y2]);
+  // Optimized detection parsing with early termination
+  const threshold = 0.3;
+  const maxDetections = 50; // Limit detections for performance
+  
+  for (let i = 0; i < outputData.length && boxes.length < maxDetections; i += 6) {
+    const score = outputData[i + 4];
+    if (score >= threshold) {
+      boxes.push([outputData[i], outputData[i + 1], outputData[i + 2], outputData[i + 3]]);
       scores.push(score);
-      classes.push(cls);
+      classes.push(outputData[i + 5]);
     }
   }
 
@@ -561,8 +624,17 @@ async function detectLoop() {
     }
   }
 
+  // Update FPS counter
+  fpsCounter++;
+  const now = Date.now();
+  if (now - lastFpsTime >= 1000) {
+    currentFps = Math.round((fpsCounter * 1000) / (now - lastFpsTime));
+    fpsCounter = 0;
+    lastFpsTime = now;
+  }
+
   if (objectCountOverlay) {
-    objectCountOverlay.textContent = `Objects: ${detectedObjectCount}`;
+    objectCountOverlay.textContent = `Objects: ${detectedObjectCount} | FPS: ${currentFps}`;
   }
   if (hazardTypesOverlay) {
     hazardTypesOverlay.textContent = uniqueHazardTypes.length > 0
@@ -686,6 +758,20 @@ switchBtn.addEventListener("click", async () => {
     switchBtn.style.display = "none";
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     stopLocationTracking();
-    console.log("Camera stopped");
+    
+    // Memory cleanup
+    prevImageData = null;
+    frameTimes.length = 0;
+    detectedObjectCount = 0;
+    uniqueHazardTypes = [];
+    fpsCounter = 0;
+    lastFpsTime = Date.now();
+    currentFps = 0;
+    
+    // Clear overlays
+    if (objectCountOverlay) objectCountOverlay.textContent = "Objects: 0";
+    if (hazardTypesOverlay) hazardTypesOverlay.textContent = "Hazards: None";
+    
+    console.log("Camera stopped and memory cleaned");
   });
 });

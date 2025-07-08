@@ -238,6 +238,60 @@ window.toggleLegend = function() {
 // Make initMap available globally for Google Maps API
 window.initMap = initMap;
 
+// Enhanced map controls
+let heatmapVisible = true;
+
+// Toggle heatmap function
+function toggleHeatmap() {
+    if (heatmapLayer) {
+        heatmapVisible = !heatmapVisible;
+        heatmapLayer.setMap(heatmapVisible ? map : null);
+        
+        const btn = document.getElementById('toggle-heatmap');
+        if (btn) {
+            btn.innerHTML = heatmapVisible ? 
+                '<i class="fas fa-fire"></i> Hide Heatmap' : 
+                '<i class="fas fa-fire"></i> Show Heatmap';
+        }
+    }
+}
+
+// Center map on user location
+function centerMap() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const userLatLng = {
+                    lat: position.coords.latitude,
+                    lng: position.coords.longitude
+                };
+                map.setCenter(userLatLng);
+                map.setZoom(12);
+            },
+            (error) => {
+                console.error('Error getting location:', error);
+                showToast('Could not get your location', 'error');
+            }
+        );
+    } else {
+        showToast('Geolocation not supported', 'error');
+    }
+}
+
+// Bind new control functions
+document.addEventListener('DOMContentLoaded', () => {
+    const toggleHeatmapBtn = document.getElementById('toggle-heatmap');
+    const centerMapBtn = document.getElementById('center-map');
+    
+    if (toggleHeatmapBtn) {
+        toggleHeatmapBtn.addEventListener('click', toggleHeatmap);
+    }
+    
+    if (centerMapBtn) {
+        centerMapBtn.addEventListener('click', centerMap);
+    }
+});
+
 function clearMarkers() {
     markers.forEach(marker => marker.setMap(null));
     markers = [];
@@ -283,79 +337,102 @@ window.addEventListener("click", (event) => {
 // ממיר כתובת לקואורדינטות ומוסיף סמן
 async function geocodeAddress(address, report) {
     if (!address) return;
+    
+    // Check if we have cached geocoding result
+    const geocodeKey = `geocode_${address}`;
+    const cachedLocation = getCachedReports(geocodeKey);
+    
     try {
-        const response = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=AIzaSyA9qkNEaiu9vpTB0bzqhw_Ei55Mt2UqN3A`);
-        const data = await response.json();
-        if (data.status === "OK" && data.results[0]) {
-            const location = data.results[0].geometry.location;
-            let marker;
-            // Always use AdvancedMarkerElement if available
-            if (google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
-                marker = new google.maps.marker.AdvancedMarkerElement({
-                    map: map,
-                    position: location,
-                    title: `${report.type} - ${address}`,
-                    content: getMarkerContent(report.type)
-                });
-            } else {
-                // Fallback: create a DOM element as marker (should not happen in modern Maps JS)
-                marker = {
-                    setMap: () => {},
-                    getPosition: () => location,
-                    getTitle: () => `${report.type} - ${address}`,
-                    reportId: report.id,
-                    report: report,
-                    addEventListener: () => {},
-                    addListener: () => {},
-                    setAnimation: () => {}
-                };
-            }
-            marker.reportId = report.id;
-            marker.report = report;
-
-            // Register first "click" callback to open infowindow and pan/zoom map
-            registerMarkerClick(marker, () => {
-                markers.forEach(m => m.infoWindow?.close && m.infoWindow.close());
-                const infowindow = new google.maps.InfoWindow({
-                    content: `
-                    <div class="info-window">
-                        <h5>${report.type}</h5>
-                        <p><strong>Location:</strong> ${address}</p>
-                        <p><strong>Status:</strong> <span class="badge ${report.status === 'Resolved' ? 'bg-success' : 'bg-danger'}">${report.status}</span></p>
-                        <p><strong>Reported by:</strong> ${report.reportedBy}</p>
-                        <p><strong>Time:</strong> ${new Date(report.time).toLocaleString()}</p>
-                        ${report.image ? `<img src="${report.image}" alt="Hazard" style="width:200px;height:150px;object-fit:cover;margin:10px 0;">` : ''}
-                        <div class="mt-2">
-                            <button class="btn btn-sm btn-primary me-2" onclick="showReportDetails(${JSON.stringify(report)})">Details</button>
-                            <button class="btn btn-sm btn-warning" onclick="openEditReportModal(${JSON.stringify(report)})">Edit</button>
-                        </div>
-                    </div>`
-                });
-                marker.infoWindow = infowindow;
-                infowindow.open(map, marker);
-                map.panTo(location);
-                if (map.getZoom() < 14 && map.animateToZoom) {
-                    map.animateToZoom(14);
-                }
-            });
-
-            // Register a second "click" callback to sync the table row highlighting
-            registerMarkerClick(marker, () => {
-                const rows = document.querySelectorAll('#reports-table tbody tr');
-                rows.forEach(row => row.classList.remove('table-active'));
-                const targetRow = document.querySelector(`#reports-table tbody tr[data-report-id="${report.id}"]`);
-                if (targetRow) {
-                    targetRow.classList.add('table-active');
-                    targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-            });
-            return marker;
+        let location;
+        
+        if (cachedLocation) {
+            location = cachedLocation;
         } else {
-            console.error("Geocoding failed:", data.status, data.error_message);
-            return null;
+            // Use retry mechanism for geocoding
+            const response = await retryRequest(() => 
+                fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=AIzaSyA9qkNEaiu9vpTB0bzqhw_Ei55Mt2UqN3A`)
+            );
+            
+            const data = await response.json();
+            
+            if (data.status === "OK" && data.results[0]) {
+                location = data.results[0].geometry.location;
+                setCachedReports(geocodeKey, location);
+            } else {
+                console.error("Geocoding failed:", data.status, data.error_message);
+                if (data.status === "OVER_QUERY_LIMIT") {
+                    handleError(new Error("Geocoding quota exceeded"), 'geocodeAddress');
+                }
+                return null;
+            }
         }
+        
+        let marker;
+        // Always use AdvancedMarkerElement if available
+        if (google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
+            marker = new google.maps.marker.AdvancedMarkerElement({
+                map: map,
+                position: location,
+                title: `${report.type} - ${address}`,
+                content: getMarkerContent(report.type)
+            });
+        } else {
+            // Fallback: create a DOM element as marker (should not happen in modern Maps JS)
+            marker = {
+                setMap: () => {},
+                getPosition: () => location,
+                getTitle: () => `${report.type} - ${address}`,
+                reportId: report.id,
+                report: report,
+                addEventListener: () => {},
+                addListener: () => {},
+                setAnimation: () => {}
+            };
+        }
+        
+        marker.reportId = report.id;
+        marker.report = report;
+
+        // Register first "click" callback to open infowindow and pan/zoom map
+        registerMarkerClick(marker, () => {
+            markers.forEach(m => m.infoWindow?.close && m.infoWindow.close());
+            const infowindow = new google.maps.InfoWindow({
+                content: `
+                <div class="info-window">
+                    <h5>${report.type}</h5>
+                    <p><strong>Location:</strong> ${address}</p>
+                    <p><strong>Status:</strong> <span class="badge ${report.status === 'Resolved' ? 'bg-success' : 'bg-danger'}">${report.status}</span></p>
+                    <p><strong>Reported by:</strong> ${report.reportedBy}</p>
+                    <p><strong>Time:</strong> ${new Date(report.time).toLocaleString()}</p>
+                    ${report.image ? `<img src="${report.image}" alt="Hazard" style="width:200px;height:150px;object-fit:cover;margin:10px 0;cursor:pointer;" onclick="showImageModal('${report.image}')">` : ''}
+                    <div class="mt-2">
+                        <button class="btn btn-sm btn-primary me-2" onclick="showReportDetails(${JSON.stringify(report).replace(/"/g, '&quot;')})">Details</button>
+                        <button class="btn btn-sm btn-warning" onclick="openEditReportModal(${JSON.stringify(report).replace(/"/g, '&quot;')})">Edit</button>
+                    </div>
+                </div>`
+            });
+            marker.infoWindow = infowindow;
+            infowindow.open(map, marker);
+            map.panTo(location);
+            if (map.getZoom() < 14) {
+                map.setZoom(14);
+            }
+        });
+
+        // Register a second "click" callback to sync the table row highlighting
+        registerMarkerClick(marker, () => {
+            const rows = document.querySelectorAll('#reports-table tbody tr');
+            rows.forEach(row => row.classList.remove('table-active'));
+            const targetRow = document.querySelector(`#reports-table tbody tr[data-report-id="${report.id}"]`);
+            if (targetRow) {
+                targetRow.classList.add('table-active');
+                targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        });
+        
+        return marker;
     } catch (error) {
-        console.error("Geocoding error:", error);
+        handleError(error, 'geocodeAddress');
         return null;
     }
 }
@@ -481,6 +558,19 @@ function sortReports(reports, sortField, sortOrder) {
 // טוען דיווחים מהשרת ומכניס לטבלה ולמפה
 async function loadReports(filters = {}) {
     try {
+        showLoadingIndicator();
+        
+        // Check cache first
+        const cacheKey = JSON.stringify(filters);
+        const cachedReports = getCachedReports(cacheKey);
+        if (cachedReports) {
+            console.log('Using cached reports');
+            lastReports = cachedReports;
+            updateDashboardInfo(cachedReports);
+            hideLoadingIndicator();
+            return cachedReports;
+        }
+
         const queryString = Object.entries(filters)
             .filter(([_, value]) => value)
             .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
@@ -499,6 +589,9 @@ async function loadReports(filters = {}) {
 
         // בדיקה אם העמוד עדיין פעיל לפני המשך הטעינה
         if (!document.body) return [];
+        
+        // Cache the reports
+        setCachedReports(cacheKey, reports);
         
         lastReports = reports;
         clearMarkers();
@@ -531,11 +624,13 @@ async function loadReports(filters = {}) {
             window.filterAndRenderReports();
         }
         updateDashboardInfo(reports);
+        hideLoadingIndicator();
         return reports;
     } catch (error) {
         // בודקים אם השגיאה נובעת מיציאה מהעמוד
         if (document.body) {
-            showToast('Failed to load reports', 'error');
+            handleError(error, 'loadReports');
+            hideLoadingIndicator();
         }
         return [];
     }
@@ -665,9 +760,16 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const searchInput = document.getElementById('report-search-input');
     const sortSelect = document.getElementById('report-sort-select');
+    
+    // Create debounced search function
+    const debouncedSearch = debounce(() => {
+        window.filterAndRenderReports();
+    }, 300);
+    
     function filterAndRenderReports() {
-        let filtered = lastReports;
-        const q = (searchInput?.value || '').toLowerCase();
+        let filtered = lastReports || [];
+        const q = (searchInput?.value || '').toLowerCase().trim();
+        
         if (q) {
             filtered = filtered.filter(r =>
                 (r.type && r.type.toLowerCase().includes(q)) ||
@@ -676,24 +778,63 @@ document.addEventListener('DOMContentLoaded', () => {
                 (r.reportedBy && r.reportedBy.toLowerCase().includes(q))
             );
         }
+        
         // Filter by selected hazard types (if any)
         const checkedHazards = Array.from(document.querySelectorAll('#hazard-types-container input[type="checkbox"]:checked')).map(el => el.value);
         if (checkedHazards.length > 0) {
             filtered = filtered.filter(r => checkedHazards.includes(r.type));
         }
+        
         // Sort
         if (sortSelect) {
             const [field, order] = sortSelect.value.split('-');
             filtered = sortReports(filtered, field === 'reportedBy' ? 'reportedBy' : field, order);
         }
+        
         filtered = mergeDuplicateReports(filtered);
         renderReportBlocks(filtered);
         updateDashboardInfo(filtered);
+        
+        // Update URL with current filters (for bookmarking)
+        updateURLParams({ search: q, sort: sortSelect?.value });
     }
-    if (searchInput) searchInput.addEventListener('input', filterAndRenderReports);
+    
+    if (searchInput) searchInput.addEventListener('input', debouncedSearch);
     if (sortSelect) sortSelect.addEventListener('change', filterAndRenderReports);
     window.filterAndRenderReports = filterAndRenderReports;
+    
+    // Load filters from URL on page load
+    loadFiltersFromURL();
 });
+
+// URL parameter management
+function updateURLParams(params) {
+    const url = new URL(window.location);
+    Object.entries(params).forEach(([key, value]) => {
+        if (value) {
+            url.searchParams.set(key, value);
+        } else {
+            url.searchParams.delete(key);
+        }
+    });
+    window.history.replaceState({}, '', url);
+}
+
+function loadFiltersFromURL() {
+    const url = new URL(window.location);
+    const searchParam = url.searchParams.get('search');
+    const sortParam = url.searchParams.get('sort');
+    
+    if (searchParam) {
+        const searchInput = document.getElementById('report-search-input');
+        if (searchInput) searchInput.value = searchParam;
+    }
+    
+    if (sortParam) {
+        const sortSelect = document.getElementById('report-sort-select');
+        if (sortSelect) sortSelect.value = sortParam;
+    }
+}
 
 // --- Report Details Modal Logic ---
 function showReportDetails(report) {
@@ -1086,11 +1227,92 @@ function openEditReportModal(report) {
     alert("Opening Edit Report modal for report: " + report.id);
 }
 
-// Add missing showToast function for notifications
-function showToast(message, type) {
-    // Minimal implementation; replace with preferred toast logic.
-    alert(message);
+// Enhanced toast notification system
+function showToast(message, type = 'info') {
+    // Remove existing toasts
+    const existingToasts = document.querySelectorAll('.toast-notification');
+    existingToasts.forEach(toast => toast.remove());
+    
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.className = `toast-notification alert alert-${getAlertClass(type)} alert-dismissible fade show`;
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 9999;
+        min-width: 300px;
+        max-width: 500px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        border-radius: 8px;
+        animation: slideIn 0.3s ease-out;
+    `;
+    
+    toast.innerHTML = `
+        <div class="d-flex align-items-center">
+            <i class="fas fa-${getToastIcon(type)} me-2"></i>
+            <div class="flex-grow-1">${message}</div>
+            <button type="button" class="btn-close" onclick="this.parentElement.parentElement.remove()"></button>
+        </div>
+    `;
+    
+    document.body.appendChild(toast);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        if (toast.parentElement) {
+            toast.style.animation = 'slideOut 0.3s ease-in';
+            setTimeout(() => toast.remove(), 300);
+        }
+    }, 5000);
 }
+
+function getAlertClass(type) {
+    switch(type) {
+        case 'success': return 'success';
+        case 'error': return 'danger';
+        case 'warning': return 'warning';
+        case 'info':
+        default: return 'info';
+    }
+}
+
+function getToastIcon(type) {
+    switch(type) {
+        case 'success': return 'check-circle';
+        case 'error': return 'exclamation-triangle';
+        case 'warning': return 'exclamation-circle';
+        case 'info':
+        default: return 'info-circle';
+    }
+}
+
+// Add CSS animations for toasts
+const toastStyles = document.createElement('style');
+toastStyles.textContent = `
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes slideOut {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+    }
+`;
+document.head.appendChild(toastStyles);
 
 // NEW: Function to update the heatmap overlay on the map using marker positions
 function updateHeatmap() {
@@ -1123,6 +1345,169 @@ window.confirmDeleteReport = confirmDeleteReport;
 window.showImageModal = showImageModal;
 window.toggleReportStatus = toggleReportStatus;
 window.deleteReport = deleteReport;
+window.toggleHeatmap = toggleHeatmap;
+window.centerMap = centerMap;
+window.updateDashboardInfo = updateDashboardInfo;
+window.focusMapLocation = focusMapLocation;
+window.handleError = handleError;
+window.showToast = showToast;
+
+// Initialize dashboard when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize refresh button
+    const refreshBtn = document.getElementById('refresh-info-btn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => {
+            // Clear cache and reload
+            reportCache.clear();
+            loadReports();
+            showToast('Dashboard refreshed', 'success');
+        });
+    }
+    
+    // Initialize keyboard shortcuts
+    initializeKeyboardShortcuts();
+    
+    // Initialize visibility change handler
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Set up periodic cache cleanup
+    setInterval(cleanupCache, 60000); // Clean every minute
+    
+    // Initialize error boundary
+    window.addEventListener('error', handleGlobalError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+});
+
+// Keyboard shortcuts
+function initializeKeyboardShortcuts() {
+    document.addEventListener('keydown', (e) => {
+        // Ctrl/Cmd + R: Refresh dashboard
+        if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+            e.preventDefault();
+            reportCache.clear();
+            loadReports();
+        }
+        
+        // Ctrl/Cmd + F: Focus search
+        if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+            e.preventDefault();
+            const searchInput = document.getElementById('report-search-input');
+            if (searchInput) {
+                searchInput.focus();
+            }
+        }
+        
+        // Esc: Close modals
+        if (e.key === 'Escape') {
+            const modals = document.querySelectorAll('.modal.show');
+            modals.forEach(modal => {
+                const modalInstance = bootstrap.Modal.getInstance(modal);
+                if (modalInstance) modalInstance.hide();
+            });
+        }
+    });
+}
+
+// Handle visibility change (tab switching)
+function handleVisibilityChange() {
+    if (document.hidden) {
+        // Page is hidden, pause auto-refresh
+        if (window.personalizer && window.personalizer.refreshTimer) {
+            clearInterval(window.personalizer.refreshTimer);
+        }
+    } else {
+        // Page is visible, resume auto-refresh
+        if (window.personalizer && window.personalizer.settings.autoRefresh) {
+            window.personalizer.setupAutoRefresh();
+        }
+    }
+}
+
+// Cache cleanup
+function cleanupCache() {
+    const now = Date.now();
+    for (const [key, value] of reportCache.entries()) {
+        if (now - value.timestamp > cacheExpiry) {
+            reportCache.delete(key);
+        }
+    }
+}
+
+// Global error handlers
+function handleGlobalError(event) {
+    console.error('Global error:', event.error);
+    handleError(event.error, 'global');
+}
+
+function handleUnhandledRejection(event) {
+    console.error('Unhandled promise rejection:', event.reason);
+    handleError(event.reason, 'promise');
+}
+
+// Performance monitoring
+function measurePerformance(name, fn) {
+    return async function(...args) {
+        const start = performance.now();
+        try {
+            const result = await fn.apply(this, args);
+            const end = performance.now();
+            console.log(`${name} took ${end - start} milliseconds`);
+            return result;
+        } catch (error) {
+            const end = performance.now();
+            console.error(`${name} failed after ${end - start} milliseconds:`, error);
+            throw error;
+        }
+    };
+}
+
+// Wrap expensive functions with performance monitoring
+const originalLoadReports = loadReports;
+loadReports = measurePerformance('loadReports', originalLoadReports);
+
+// Utility functions for dashboard state management
+const DashboardState = {
+    currentView: 'normal',
+    filters: {},
+    sortConfig: { field: 'time', order: 'desc' },
+    
+    setView(view) {
+        this.currentView = view;
+        this.saveState();
+    },
+    
+    setFilters(filters) {
+        this.filters = { ...this.filters, ...filters };
+        this.saveState();
+    },
+    
+    setSortConfig(config) {
+        this.sortConfig = config;
+        this.saveState();
+    },
+    
+    saveState() {
+        localStorage.setItem('dashboard-state', JSON.stringify({
+            currentView: this.currentView,
+            filters: this.filters,
+            sortConfig: this.sortConfig
+        }));
+    },
+    
+    loadState() {
+        const saved = localStorage.getItem('dashboard-state');
+        if (saved) {
+            const state = JSON.parse(saved);
+            this.currentView = state.currentView || 'normal';
+            this.filters = state.filters || {};
+            this.sortConfig = state.sortConfig || { field: 'time', order: 'desc' };
+        }
+    }
+};
+
+// Initialize dashboard state
+DashboardState.loadState();
 
 // NEW: Fallback to use IP geolocation to center the map
 async function getLocationByIP() {
@@ -1138,5 +1523,108 @@ async function getLocationByIP() {
         console.error("IP geolocation error:", err);
     } finally {
         loadReports();
+    }
+}
+
+// Performance optimization functions
+let reportCache = new Map();
+let cacheExpiry = 5 * 60 * 1000; // 5 minutes
+
+function getCachedReports(key) {
+    const cached = reportCache.get(key);
+    if (cached && Date.now() - cached.timestamp < cacheExpiry) {
+        return cached.data;
+    }
+    return null;
+}
+
+function setCachedReports(key, data) {
+    reportCache.set(key, {
+        data: data,
+        timestamp: Date.now()
+    });
+}
+
+// Loading indicator functions
+function showLoadingIndicator() {
+    let indicator = document.getElementById('loading-indicator');
+    if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'loading-indicator';
+        indicator.className = 'position-fixed top-50 start-50 translate-middle';
+        indicator.innerHTML = `
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        `;
+        indicator.style.zIndex = '9999';
+        document.body.appendChild(indicator);
+    }
+    indicator.style.display = 'block';
+}
+
+function hideLoadingIndicator() {
+    const indicator = document.getElementById('loading-indicator');
+    if (indicator) {
+        indicator.style.display = 'none';
+    }
+}
+
+// Debounced search function for better performance
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Enhanced error handling
+function handleError(error, context = '') {
+    console.error(`Error in ${context}:`, error);
+    
+    // Show user-friendly error message
+    const errorMessages = {
+        'Failed to load reports': 'Unable to load reports. Please check your connection and try again.',
+        'Geocoding failed': 'Unable to locate address on map. Please verify the address.',
+        'Network error': 'Network connection issue. Please check your internet connection.',
+        'Failed to fetch': 'Connection failed. Please check your internet connection.',
+        'TypeError': 'A technical error occurred. Please refresh the page.'
+    };
+    
+    let message = errorMessages[error.message] || 'An unexpected error occurred.';
+    
+    // Add context-specific messages
+    if (context === 'loadReports') {
+        message += ' Click refresh to try again.';
+    } else if (context === 'geocodeAddress') {
+        message = 'Unable to locate some addresses on the map.';
+    }
+    
+    showToast(message, 'error');
+    
+    // Log to analytics/monitoring service if available
+    if (window.analytics && window.analytics.track) {
+        window.analytics.track('error', {
+            error: error.message,
+            context: context,
+            stack: error.stack
+        });
+    }
+}
+
+// Retry mechanism for failed requests
+async function retryRequest(requestFn, maxRetries = 3, delay = 1000) {
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            return await requestFn();
+        } catch (error) {
+            if (i === maxRetries - 1) throw error;
+            await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
+        }
     }
 }
