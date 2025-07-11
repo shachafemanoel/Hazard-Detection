@@ -350,7 +350,7 @@ async function geocodeAddress(address, report) {
         } else {
             // Use retry mechanism for geocoding
             const response = await retryRequest(() => 
-                fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=AIzaSyA9qkNEaiu9vpTB0bzqhw_Ei55Mt2UqN3A`)
+                fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`)
             );
             
             const data = await response.json();

@@ -170,8 +170,8 @@ passport.serializeUser((user, done) => {
 
 // הגדרת האסטרטגיה של גוגל
 passport.use(new GoogleStrategy({
-    clientID: "46375555882-rmivba20noas9slfskb3cfvugssladrr.apps.googleusercontent.com",
-    clientSecret: "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",
+    clientID:  process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     callbackURL: process.env.GOOGLE_CALLBACK_URL || "http://localhost:3000/auth/google/callback"
 
     },
@@ -319,10 +319,24 @@ app.get('/', (req, res) => {
 });
 
 app.get('/dashboard', (req, res) => {
-    if (!req.isAuthenticated()) { // שימוש ב-req.isAuthenticated()
+    if (!req.isAuthenticated()) {
         return res.redirect('/');
     }
-    res.sendFile(path.join(__dirname, '../public/dashboard.html'));
+
+    // קרא את הקובץ HTML מהדיסק
+    const filePath = path.join(__dirname, '../public/dashboard.html');
+    fs.readFile(filePath, 'utf8', (err, html) => {
+        if (err) {
+            console.error('שגיאה בטעינת הקובץ:', err);
+            return res.status(500).send('שגיאה בטעינת הדשבורד');
+        }
+
+        // בצע החלפה של המחרוזת למפתח API מה־env
+        const updatedHtml = html.replace('__GOOGLE_API_KEY__', process.env.GOOGLE_MAPS_API_KEY);
+
+        // שלח את ה-HTML עם המפתח
+        res.send(updatedHtml);
+    });
 });
 
 // יצירת דיווח חדש
@@ -770,7 +784,7 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
             return res.status(400).json({ error: 'Invalid geolocation data' });
         }
 
-        const apiKey = "AIzaSyAXxZ7niDaxuyPEzt4j9P9U0kFzKHO9pZk";
+        const apiKey = process.env.GOOGLE_GEOCODING_API_KEY;
         const geoCodingUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${geoData.lat},${geoData.lng}&language=he&key=${apiKey}`;
 
         let address = `Coordinates: ${geoData.lat}, ${geoData.lng}`;
