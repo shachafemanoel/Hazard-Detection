@@ -2,6 +2,7 @@ let map;
 let markers = [];
 let heatmapLayer = null; // NEW: Global heatmap layer
 let reportDetailsBootstrapModal = null; // For Bootstrap modal instance
+const apiKey = window.GOOGLE_MAPS_API_KEY; // Access the key from the window object
 
 const hazardTypes = [
     'Alligator Crack', 'Block Crack', 'Construction Joint Crack', 'Crosswalk Blur',
@@ -378,16 +379,17 @@ async function geocodeAddress(address, report) {
             });
         } else {
             // Fallback: create a DOM element as marker (should not happen in modern Maps JS)
-            marker = {
-                setMap: () => {},
-                getPosition: () => location,
-                getTitle: () => `${report.type} - ${address}`,
-                reportId: report.id,
-                report: report,
-                addEventListener: () => {},
-                addListener: () => {},
-                setAnimation: () => {}
-            };
+            marker = new google.maps.Marker({
+                position: location,
+                title: `${report.type} - ${address}`,
+                map: map, // ✅ הוספנו כאן
+                animation: google.maps.Animation.BOUNCNE,
+            });
+        }
+
+        // ✅ ודא שהסמן מוצמד למפה גם אם זה AdvancedMarkerElement ולא הגדיר מפה
+        if (marker && typeof marker.setMap === 'function' && !marker.map) {
+            marker.setMap(map);
         }
         
         marker.reportId = report.id;

@@ -318,26 +318,14 @@ app.get('/', (req, res) => {
     res.redirect('/login.html');
 });
 
+
 app.get('/dashboard', (req, res) => {
-    if (!req.isAuthenticated()) {
+    if (!req.isAuthenticated()) { // שימוש ב-req.isAuthenticated()
         return res.redirect('/');
     }
-
-    // קרא את הקובץ HTML מהדיסק
-    const filePath = path.join(__dirname, '../public/dashboard.html');
-    fs.readFile(filePath, 'utf8', (err, html) => {
-        if (err) {
-            console.error('שגיאה בטעינת הקובץ:', err);
-            return res.status(500).send('שגיאה בטעינת הדשבורד');
-        }
-
-        // בצע החלפה של המחרוזת למפתח API מה־env
-        const updatedHtml = html.replace('__GOOGLE_API_KEY__', process.env.GOOGLE_MAPS_API_KEY);
-
-        // שלח את ה-HTML עם המפתח
-        res.send(updatedHtml);
-    });
+    res.sendFile(path.join(__dirname, '../public/dashboard.html'));
 });
+
 
 // יצירת דיווח חדש
 app.post('/api/reports', async (req, res) => {
