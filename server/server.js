@@ -58,12 +58,19 @@ app.use(express.static(path.join(__dirname, '../public'), {
 
 
 app.use((req, res, next) => {
-    // Enable COOP and COEP for all routes
-    res.set({
-        'Cross-Origin-Embedder-Policy': 'require-corp',
-        'Cross-Origin-Opener-Policy': 'same-origin',
-        'Cross-Origin-Resource-Policy': 'cross-origin'
-    });
+    // Only apply COOP/COEP to specific routes, not to map-related pages
+    if (!req.path.includes('/dashboard') && !req.path.includes('/api/config/maps-key')) {
+        res.set({
+            'Cross-Origin-Embedder-Policy': 'require-corp',
+            'Cross-Origin-Opener-Policy': 'same-origin',
+            'Cross-Origin-Resource-Policy': 'cross-origin'
+        });
+    } else {
+        // For map-related routes, use less restrictive headers
+        res.set({
+            'Cross-Origin-Resource-Policy': 'cross-origin'
+        });
+    }
     next();
 });
 
@@ -465,6 +472,15 @@ app.patch('/api/reports/:id/status', async (req, res) => {
     } catch (err) {
         res.status(500).json({ error: 'Error updating status' });
     }
+});
+
+// API endpoint to get Google Maps API key (public endpoint)
+app.get('/api/config/maps-key', (_, res) => {
+    // Google Maps API key is public anyway, so no need for authentication
+    if (!process.env.GOOGLE_MAPS_API_KEY) {
+        return res.status(500).json({ error: 'API key not configured' });
+    }
+    res.json({ apiKey: process.env.GOOGLE_MAPS_API_KEY });
 });
 
 // עדכון דיווח (עריכה מלאה)

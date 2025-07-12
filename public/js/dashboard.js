@@ -2,7 +2,7 @@ let map;
 let markers = [];
 let heatmapLayer = null; // NEW: Global heatmap layer
 let reportDetailsBootstrapModal = null; // For Bootstrap modal instance
-const apiKey = window.GOOGLE_MAPS_API_KEY; // Access the key from the window object
+let apiKey = null; // Will be loaded from server
 
 const hazardTypes = [
     'Alligator Crack', 'Block Crack', 'Construction Joint Crack', 'Crosswalk Blur',
@@ -117,6 +117,7 @@ function initMap() {
         zoom: 8,
         center: defaultCenter,
         styles: darkMapStyle,
+        mapId: "4e9a93216ea2103583b8af86" // NEW: Add your Map ID here
     });
 
     // Add a marker for the default center as a fallback using AdvancedMarkerElement
@@ -167,7 +168,8 @@ function initMap() {
                 loadReports();
             },
             (error) => {
-                console.error("Error using geolocation:", error);
+                console.warn("Geolocation not available:", error.message);
+                // Don't show error toast for denied geolocation - it's user choice
                 getLocationByIP();
             }
         );
@@ -236,28 +238,219 @@ window.toggleLegend = function() {
 //     loadReports();
 // }
 
-// Make initMap available globally for Google Maps API
-window.initMap = initMap;
-
-// Enhanced map controls
-let heatmapVisible = true;
-
-// Toggle heatmap function
-function toggleHeatmap() {
-    if (heatmapLayer) {
-        heatmapVisible = !heatmapVisible;
-        heatmapLayer.setMap(heatmapVisible ? map : null);
+// Load API key from server
+async function loadApiKey() {
+    try {
+        console.log('Attempting to load API key from server...');
+        const response = await fetch('/api/config/maps-key');
         
-        const btn = document.getElementById('toggle-heatmap');
-        if (btn) {
-            btn.innerHTML = heatmapVisible ? 
-                '<i class="fas fa-fire"></i> Hide Heatmap' : 
-                '<i class="fas fa-fire"></i> Show Heatmap';
+        if (response.ok) {
+            const config = await response.json();
+            if (config.apiKey) {
+                apiKey = config.apiKey;
+                console.log('API key loaded successfully');
+                return apiKey;
+            } else {
+                console.error('API key not found in response:', config);
+                return null;
+            }
+        } else {
+            const errorText = await response.text();
+            console.error('Failed to load API key:', response.status, errorText);
+            return null;
         }
+    } catch (error) {
+        console.error('Error loading API key:', error);
+        return null;
     }
 }
 
-// Center map on user location
+// Load Google Maps API dynamically with the correct API key
+async function loadGoogleMapsAPI() {
+    if (!apiKey) {
+        await loadApiKey();
+    }
+    
+    // Fallback to environment variable from window object if server request failed
+    if (!apiKey && window.GOOGLE_MAPS_API_KEY) {
+        apiKey = window.GOOGLE_MAPS_API_KEY;
+        console.log('Using fallback API key from window object');
+    }
+    
+    if (!apiKey) {
+        console.error('Failed to load API key');
+        showToast('Failed to load map configuration. Please refresh the page.', 'error');
+        return;
+    }
+    
+    return new Promise((resolve, reject) => {
+        // Check if Google Maps is already loaded
+        if (window.google && window.google.maps) {
+            resolve();
+            return;
+        }
+        
+        // Set up the callback before creating the script
+        window.initGoogleMaps = () => {
+            resolve();
+            initMap();
+        };
+        
+        const script = document.createElement('script');
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=marker&v=weekly&callback=initGoogleMaps&loading=async`;
+        script.async = true;
+        script.defer = true;
+        script.onerror = (error) => {
+            console.error('Google Maps API failed to load:', error);
+            showToast('Failed to load Google Maps. Please refresh the page.', 'error');
+            reject(error);
+        };
+        
+        document.head.appendChild(script);
+    });
+}
+
+// Initialize the map loading process
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        await loadGoogleMapsAPI();
+    } catch (error) {
+        console.error('Failed to load Google Maps:', error);
+        showToast('Failed to load map. Please refresh the page.', 'error');
+    }
+});
+
+// Make initMap available globally for Google Maps API (fallback)
+window.initMap = initMap;
+
+// Enhanced map controls
+let heatmapVisible = false;
+let smartHeatmapLayer = null;
+
+// Smart heatmap using marker density visualization
+function toggleHeatmap() {
+    if (!map || markers.length === 0) {
+        showToast('No data available for heatmap visualization', 'warning');
+        return;
+    }
+
+    if (heatmapVisible) {
+        // Hide heatmap
+        if (smartHeatmapLayer) {
+            smartHeatmapLayer.setMap(null);
+            smartHeatmapLayer = null;
+        }
+        heatmapVisible = false;
+        showToast('Heatmap hidden', 'info');
+    } else {
+        // Show smart heatmap
+        createSmartHeatmap();
+        heatmapVisible = true;
+        showToast('Smart heatmap displayed', 'success');
+    }
+}
+
+// Create smart heatmap using marker clustering and density
+function createSmartHeatmap() {
+    if (!markers || markers.length === 0) return;
+
+    // Clear existing heatmap
+    if (smartHeatmapLayer) {
+        smartHeatmapLayer.setMap(null);
+    }
+
+    // Create density circles around marker clusters
+    const densityCircles = [];
+    const gridSize = 0.01; // Approximately 1km grid
+    const densityMap = new Map();
+
+    // Group markers by grid cells
+    markers.forEach(marker => {
+        const position = marker.position || marker.getPosition();
+        if (!position) return;
+
+        const lat = position.lat || position.lat();
+        const lng = position.lng || position.lng();
+        const gridKey = `${Math.floor(lat / gridSize)}_${Math.floor(lng / gridSize)}`;
+        
+        if (!densityMap.has(gridKey)) {
+            densityMap.set(gridKey, {
+                count: 0,
+                lat: 0,
+                lng: 0,
+                types: new Set()
+            });
+        }
+        
+        const cell = densityMap.get(gridKey);
+        cell.count++;
+        cell.lat += lat;
+        cell.lng += lng;
+        if (marker.report && marker.report.type) {
+            cell.types.add(marker.report.type);
+        }
+    });
+
+    // Create visual density indicators
+    densityMap.forEach((cell, key) => {
+        const avgLat = cell.lat / cell.count;
+        const avgLng = cell.lng / cell.count;
+        
+        // Determine color and size based on density
+        let color, radius;
+        if (cell.count >= 10) {
+            color = '#FF0000'; // Red for high density
+            radius = 800;
+        } else if (cell.count >= 5) {
+            color = '#FF8000'; // Orange for medium density
+            radius = 600;
+        } else if (cell.count >= 2) {
+            color = '#FFFF00'; // Yellow for low density
+            radius = 400;
+        } else {
+            return; // Skip single markers
+        }
+
+        const circle = new google.maps.Circle({
+            strokeColor: color,
+            strokeOpacity: 0.6,
+            strokeWeight: 2,
+            fillColor: color,
+            fillOpacity: 0.2,
+            map: map,
+            center: { lat: avgLat, lng: avgLng },
+            radius: radius
+        });
+
+        // Add info window with density information
+        const infoWindow = new google.maps.InfoWindow({
+            content: `
+                <div style="padding: 8px;">
+                    <h6>Hazard Density Cluster</h6>
+                    <p><strong>Reports:</strong> ${cell.count}</p>
+                    <p><strong>Types:</strong> ${Array.from(cell.types).join(', ')}</p>
+                    <p><strong>Density Level:</strong> ${cell.count >= 10 ? 'High' : cell.count >= 5 ? 'Medium' : 'Low'}</p>
+                </div>
+            `
+        });
+
+        circle.addListener('click', () => {
+            infoWindow.setPosition({ lat: avgLat, lng: avgLng });
+            infoWindow.open(map);
+        });
+
+        densityCircles.push(circle);
+    });
+
+    // Store reference for cleanup
+    smartHeatmapLayer = {
+        setMap: (map) => {
+            densityCircles.forEach(circle => circle.setMap(map));
+        }
+    };
+}
+
+// Center map on user location with IP fallback
 function centerMap() {
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
@@ -268,15 +461,138 @@ function centerMap() {
                 };
                 map.setCenter(userLatLng);
                 map.setZoom(12);
+                showToast('Map centered on your GPS location', 'success');
+                
+                // Add user location marker
+                addUserLocationMarker(userLatLng, 'GPS Location');
             },
             (error) => {
-                console.error('Error getting location:', error);
-                showToast('Could not get your location', 'error');
+                console.warn('GPS location failed:', error.message);
+                // Fallback to IP location
+                centerMapByIP();
             }
         );
     } else {
-        showToast('Geolocation not supported', 'error');
+        console.warn('Geolocation not supported by browser');
+        // Fallback to IP location
+        centerMapByIP();
     }
+}
+
+// Center map using IP-based geolocation
+async function centerMapByIP() {
+    try {
+        showToast('Getting your location...', 'info');
+        
+        // Try multiple IP geolocation services for better reliability
+        const ipServices = [
+            { url: 'https://ipapi.co/json/', parse: (data) => ({ lat: data.latitude, lng: data.longitude, city: data.city, country: data.country }) },
+            { url: 'https://ip-api.com/json/', parse: (data) => ({ lat: data.lat, lng: data.lon, city: data.city, country: data.country }) },
+            { url: 'https://ipinfo.io/json', parse: (data) => {
+                const [lat, lng] = (data.loc || '0,0').split(',').map(Number);
+                return { lat, lng, city: data.city, country: data.country };
+            }}
+        ];
+        
+        let locationData = null;
+        
+        for (const service of ipServices) {
+            try {
+                const response = await fetch(service.url, { 
+                    timeout: 5000,
+                    headers: { 'Accept': 'application/json' }
+                });
+                
+                if (!response.ok) continue;
+                
+                const data = await response.json();
+                locationData = service.parse(data);
+                
+                if (locationData && locationData.lat && locationData.lng && 
+                    !isNaN(locationData.lat) && !isNaN(locationData.lng) &&
+                    locationData.lat >= -90 && locationData.lat <= 90 &&
+                    locationData.lng >= -180 && locationData.lng <= 180) {
+                    break;
+                }
+            } catch (serviceError) {
+                console.warn(`IP service ${service.url} failed:`, serviceError.message);
+                continue;
+            }
+        }
+        
+        if (locationData) {
+            const ipLatLng = { lat: locationData.lat, lng: locationData.lng };
+            map.setCenter(ipLatLng);
+            map.setZoom(10);
+            
+            const locationText = locationData.city && locationData.country ? 
+                `${locationData.city}, ${locationData.country}` : 'IP Location';
+            
+            showToast(`Map centered on ${locationText}`, 'success');
+            
+            // Add IP location marker
+            addUserLocationMarker(ipLatLng, `IP Location: ${locationText}`);
+        } else {
+            throw new Error('All IP geolocation services failed');
+        }
+    } catch (error) {
+        console.error('IP geolocation failed:', error);
+        showToast('Could not determine your location. Using default location.', 'warning');
+        
+        // Fallback to default Israel location
+        const defaultLocation = { lat: 31.7683, lng: 35.2137 };
+        map.setCenter(defaultLocation);
+        map.setZoom(8);
+    }
+}
+
+// Add user location marker to map
+function addUserLocationMarker(location, title) {
+    // Remove existing user location markers
+    markers.forEach((marker, index) => {
+        const markerTitle = marker.customTitle || (marker.getTitle && marker.getTitle()) || '';
+        if (markerTitle.includes('Location') || markerTitle.includes('Your Location')) {
+            if (marker.map !== undefined) {
+                marker.map = null;
+            } else if (marker.setMap) {
+                marker.setMap(null);
+            }
+            markers.splice(index, 1);
+        }
+    });
+    
+    // Add new user location marker
+    let userMarker;
+    if (google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
+        const content = document.createElement('div');
+        content.style.width = '24px';
+        content.style.height = '24px';
+        content.style.backgroundColor = '#4285F4';
+        content.style.borderRadius = '50%';
+        content.style.border = '3px solid #fff';
+        content.style.boxShadow = '0 0 12px #4285F4';
+        content.style.animation = 'pulse 2s infinite';
+        
+        userMarker = new google.maps.marker.AdvancedMarkerElement({
+            map: map,
+            position: location,
+            content: content
+        });
+        userMarker.customTitle = title;
+    } else {
+        userMarker = new google.maps.Marker({
+            position: location,
+            map: map,
+            title: title,
+            icon: {
+                url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="#4285F4" stroke="white" stroke-width="3"/><circle cx="12" cy="12" r="3" fill="white"/></svg>`),
+                scaledSize: new google.maps.Size(24, 24)
+            },
+            animation: google.maps.Animation.DROP
+        });
+    }
+    
+    markers.push(userMarker);
 }
 
 // Bind new control functions
@@ -294,7 +610,15 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function clearMarkers() {
-    markers.forEach(marker => marker.setMap(null));
+    markers.forEach(marker => {
+        if (marker.map !== undefined) {
+            // AdvancedMarkerElement
+            marker.map = null;
+        } else if (marker.setMap) {
+            // Regular marker
+            marker.setMap(null);
+        }
+    });
     markers = [];
 }
 
@@ -339,6 +663,17 @@ window.addEventListener("click", (event) => {
 async function geocodeAddress(address, report) {
     if (!address) return;
     
+    // Check if address is already coordinates (format: "Coordinates: lat, lng")
+    const coordMatch = address.match(/Coordinates:\s*(-?\d+\.?\d*),\s*(-?\d+\.?\d*)/);
+    if (coordMatch) {
+        const lat = parseFloat(coordMatch[1]);
+        const lng = parseFloat(coordMatch[2]);
+        if (!isNaN(lat) && !isNaN(lng)) {
+            const location = { lat, lng };
+            return createMarkerFromLocation(location, address, report);
+        }
+    }
+    
     // Check if we have cached geocoding result
     const geocodeKey = `geocode_${address}`;
     const cachedLocation = getCachedReports(geocodeKey);
@@ -360,36 +695,54 @@ async function geocodeAddress(address, report) {
                 location = data.results[0].geometry.location;
                 setCachedReports(geocodeKey, location);
             } else {
-                console.error("Geocoding failed:", data.status, data.error_message);
-                if (data.status === "OVER_QUERY_LIMIT") {
+                if (data.status === "ZERO_RESULTS") {
+                    console.warn(`No geocoding results for address: ${address}`);
+                    // Skip this report rather than failing
+                    return null;
+                } else if (data.status === "OVER_QUERY_LIMIT") {
+                    console.error("Geocoding quota exceeded");
                     handleError(new Error("Geocoding quota exceeded"), 'geocodeAddress');
+                    return null;
+                } else {
+                    console.error("Geocoding failed:", data.status, data.error_message);
+                    return null;
                 }
-                return null;
             }
         }
         
+        return createMarkerFromLocation(location, address, report);
+    } catch (error) {
+        handleError(error, 'geocodeAddress');
+        return null;
+    }
+}
+
+// Helper function to create marker from location
+function createMarkerFromLocation(location, address, report) {
+    try {
+        
         let marker;
-        // Always use AdvancedMarkerElement if available
+        // Use AdvancedMarkerElement (modern approach) or fallback to regular marker
         if (google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
             marker = new google.maps.marker.AdvancedMarkerElement({
                 map: map,
                 position: location,
-                title: `${report.type} - ${address}`,
                 content: getMarkerContent(report.type)
             });
+            // Store custom properties for AdvancedMarkerElement
+            marker.customTitle = `${report.type} - ${address}`;
+            marker.position = location;
         } else {
-            // Fallback: create a DOM element as marker (should not happen in modern Maps JS)
+            // Fallback to regular marker
             marker = new google.maps.Marker({
                 position: location,
+                map: map,
                 title: `${report.type} - ${address}`,
-                map: map, // ✅ הוספנו כאן
-                animation: google.maps.Animation.BOUNCNE,
+                icon: {
+                    url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="${hazardMarkerColors[report.type] || hazardMarkerColors.default}" stroke="white" stroke-width="2"/></svg>`),
+                    scaledSize: new google.maps.Size(24, 24)
+                }
             });
-        }
-
-        // ✅ ודא שהסמן מוצמד למפה גם אם זה AdvancedMarkerElement ולא הגדיר מפה
-        if (marker && typeof marker.setMap === 'function' && !marker.map) {
-            marker.setMap(map);
         }
         
         marker.reportId = report.id;
@@ -434,7 +787,7 @@ async function geocodeAddress(address, report) {
         
         return marker;
     } catch (error) {
-        handleError(error, 'geocodeAddress');
+        handleError(error, 'createMarkerFromLocation');
         return null;
     }
 }
@@ -603,7 +956,10 @@ async function loadReports(filters = {}) {
             // בדיקה נוספת אם העמוד עדיין פעיל
             if (!document.body) return null;
             const marker = await geocodeAddress(report.location, report);
-            if (marker) bounds.extend(marker.getPosition());
+            if (marker) {
+                const position = marker.position || marker.getPosition();
+                if (position) bounds.extend(position);
+            }
             return marker;
         });
 
@@ -1064,14 +1420,20 @@ function getStatusBadgeClass(status) {
 
 // Helper function to focus map on location
 function focusMapLocation(location) {
-    const marker = markers.find(m => m.getTitle && m.getTitle()?.includes(location));
+    const marker = markers.find(m => {
+        const title = m.customTitle || (m.getTitle && m.getTitle()) || '';
+        return title.includes(location);
+    });
     if (marker) {
-        map.panTo(marker.getPosition());
-        map.setZoom(18);
-        highlightMarker(marker.reportId);
-        setTimeout(() => unhighlightMarker(marker.reportId), 2100);
-        if(marker.report) {
-            showReportDetails(marker.report);
+        const position = marker.position || marker.getPosition();
+        if (position) {
+            map.panTo(position);
+            map.setZoom(18);
+            highlightMarker(marker.reportId);
+            setTimeout(() => unhighlightMarker(marker.reportId), 2100);
+            if(marker.report) {
+                showReportDetails(marker.report);
+            }
         }
     } else {
         console.warn('No marker found for location:', location);
@@ -1208,7 +1570,14 @@ async function deleteReport(reportId) {
             // Remove marker, reload reports, and show success message
             const markerIndex = markers.findIndex(m => m.reportId === reportId);
             if (markerIndex !== -1) {
-                markers[markerIndex].setMap(null);
+                const marker = markers[markerIndex];
+                if (marker.map !== undefined) {
+                    // AdvancedMarkerElement
+                    marker.map = null;
+                } else if (marker.setMap) {
+                    // Regular marker
+                    marker.setMap(null);
+                }
                 markers.splice(markerIndex, 1);
             }
             await loadReports();
@@ -1289,7 +1658,7 @@ function getToastIcon(type) {
     }
 }
 
-// Add CSS animations for toasts
+// Add CSS animations for toasts and map elements
 const toastStyles = document.createElement('style');
 toastStyles.textContent = `
     @keyframes slideIn {
@@ -1313,33 +1682,31 @@ toastStyles.textContent = `
             opacity: 0;
         }
     }
+    
+    @keyframes pulse {
+        0% {
+            transform: scale(1);
+            opacity: 1;
+        }
+        50% {
+            transform: scale(1.2);
+            opacity: 0.7;
+        }
+        100% {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
 `;
 document.head.appendChild(toastStyles);
 
-// NEW: Function to update the heatmap overlay on the map using marker positions
+// Function to update the smart heatmap overlay
 function updateHeatmap() {
-    if (!map) return;
-    // HeatmapLayer is deprecated, but left as-is for now (see deprecation warning)
-    const heatData = markers.map(marker => marker.getPosition());
-    if (heatmapLayer) heatmapLayer.setMap(null);
-    heatmapLayer = new google.maps.visualization.HeatmapLayer({
-        data: heatData,
-        radius: 50,
-        opacity: 0.7,
-        gradient: [
-            'rgba(0, 255, 255, 0)',
-            'rgba(0, 255, 255, 1)',
-            'rgba(0, 191, 255, 1)',
-            'rgba(0, 127, 255, 1)',
-            'rgba(0, 63, 255, 1)',
-            'rgba(0, 0, 255, 1)',
-            'rgba(63, 0, 255, 1)',
-            'rgba(127, 0, 255, 1)',
-            'rgba(191, 0, 255, 1)',
-            'rgba(255, 0, 255, 1)'
-        ]
-    });
-    heatmapLayer.setMap(map);
+    if (heatmapVisible && markers.length > 0) {
+        // Recreate heatmap with updated data
+        createSmartHeatmap();
+        console.log('Smart heatmap updated with current data');
+    }
 }
 
 // NEW: Expose key functions so that they are accessible from HTML event handlers
@@ -1349,6 +1716,9 @@ window.toggleReportStatus = toggleReportStatus;
 window.deleteReport = deleteReport;
 window.toggleHeatmap = toggleHeatmap;
 window.centerMap = centerMap;
+window.centerMapByIP = centerMapByIP;
+window.createSmartHeatmap = createSmartHeatmap;
+window.addUserLocationMarker = addUserLocationMarker;
 window.updateDashboardInfo = updateDashboardInfo;
 window.focusMapLocation = focusMapLocation;
 window.handleError = handleError;
@@ -1514,15 +1884,23 @@ DashboardState.loadState();
 // NEW: Fallback to use IP geolocation to center the map
 async function getLocationByIP() {
     try {
-        const response = await fetch("https://ipapi.co/json/");
+        const response = await fetch("https://ipapi.co/json/", { timeout: 5000 });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
         const data = await response.json();
-        if(data.latitude && data.longitude) {
+        if(data.latitude && data.longitude && !data.error) {
             const ipLatLng = { lat: parseFloat(data.latitude), lng: parseFloat(data.longitude) };
             map.setCenter(ipLatLng);
             map.setZoom(10); // Zoom level for region
+            console.log("Using IP-based location:", data.city, data.country);
+        } else {
+            console.warn("IP geolocation unavailable, using default location");
+            // Keep default Israel location
         }
     } catch (err) {
-        console.error("IP geolocation error:", err);
+        console.warn("IP geolocation failed, using default location:", err.message);
+        // Keep default Israel location
     } finally {
         loadReports();
     }
