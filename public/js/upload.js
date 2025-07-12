@@ -170,10 +170,9 @@ saveBtn.addEventListener("click", () => {
   
   ort.env.wasm.wasmPaths = '/ort/';  
 
-
   try {
     session = await ort.InferenceSession.create(
-      '/object_detection_model/last_model_train12052025.onnx',
+      'object_detecion_model/last_model_train12052025.onnx',
       { executionProviders: ['cpu'] }
     );
     
