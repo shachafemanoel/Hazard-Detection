@@ -3,6 +3,7 @@ let markers = [];
 let heatmapLayer = null; // NEW: Global heatmap layer
 let reportDetailsBootstrapModal = null; // For Bootstrap modal instance
 let apiKey = null; // Will be loaded from server
+let allReports = []; // Global array to hold all loaded reports
 
 const hazardTypes = [
     'Alligator Crack', 'Block Crack', 'Construction Joint Crack', 'Crosswalk Blur',
@@ -139,20 +140,29 @@ function initMap() {
     }
 
     if (navigator.geolocation) {
+        // Enhanced geolocation options for better accuracy and timeout
+        const geoOptions = {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 300000 // 5 minutes
+        };
+        
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 const userLatLng = {
                     lat: position.coords.latitude,
                     lng: position.coords.longitude
                 };
+                console.log("Got user location:", userLatLng);
                 map.setCenter(userLatLng);
-                map.setZoom(12);
+                map.setZoom(14); // Higher zoom for better detail
+                
                 // Use AdvancedMarkerElement for user location
                 if (google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
                     new google.maps.marker.AdvancedMarkerElement({
                         map: map,
                         position: userLatLng,
-                        title: "Your Location",
+                        title: "Your Current Location",
                         content: (() => {
                             const div = document.createElement('div');
                             div.style.width = '24px';
@@ -160,7 +170,8 @@ function initMap() {
                             div.style.backgroundColor = '#4285F4';
                             div.style.borderRadius = '50%';
                             div.style.border = '3px solid #fff';
-                            div.style.boxShadow = '0 0 8px #4285F4';
+                            div.style.boxShadow = '0 0 12px rgba(66, 133, 244, 0.8)';
+                            div.style.cursor = 'pointer';
                             return div;
                         })()
                     });
@@ -168,13 +179,25 @@ function initMap() {
                 loadReports();
             },
             (error) => {
-                console.warn("Geolocation not available:", error.message);
-                // Don't show error toast for denied geolocation - it's user choice
+                console.warn("Geolocation error:", error.code, error.message);
+                switch(error.code) {
+                    case error.PERMISSION_DENIED:
+                        console.log("User denied geolocation request. Using IP fallback.");
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        console.log("Location information unavailable. Using IP fallback.");
+                        break;
+                    case error.TIMEOUT:
+                        console.log("Location request timed out. Using IP fallback.");
+                        break;
+                }
                 getLocationByIP();
-            }
+            },
+            geoOptions
         );
     } else {
-        loadReports();
+        console.log("Geolocation not supported by browser. Using IP fallback.");
+        getLocationByIP();
     }
 
     // NEW: Create the legend but do not add it to map controls.
@@ -622,6 +645,21 @@ function clearMarkers() {
     markers = [];
 }
 
+// Update map markers to show only filtered reports
+function updateMapMarkers(filteredReports) {
+    // Clear existing markers
+    clearMarkers();
+    
+    // Add markers for filtered reports
+    filteredReports.forEach(report => {
+        if (report.coordinates) {
+            addMarkerToMap(report);
+        }
+    });
+    
+    console.log(`Updated map with ${filteredReports.length} markers`);
+}
+
 // פותח את מודל התמונה
 function openModal(imageUrl) {
     const modal = document.getElementById("image-modal");
@@ -844,58 +882,93 @@ function openReportModal() {
     }
 }
 
-// Helper to create a report block element
+// Helper to create a report block element with profile-like layout
 function createReportBlock(report) {
     const block = document.createElement('div');
-    block.className = 'event-log-block d-flex gap-3 align-items-start p-3 rounded shadow-sm bg-white position-relative';
+    block.className = 'report-block';
+    
+    // Determine status badge class
+    const getStatusBadgeClass = (status) => {
+        switch(status?.toLowerCase()) {
+            case 'resolved': return 'badge-success';
+            case 'open': return 'badge-danger';
+            case 'in progress': return 'badge-warning';
+            default: return 'badge-secondary';
+        }
+    };
+    
+    // Format date
+    const formatDate = (dateString) => {
+        const date = new Date(dateString);
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    };
+    
     block.innerHTML = `
-        <img src="${report.image}" alt="Hazard image" class="event-block-image" style="width: 80px; height: 80px; object-fit: cover; border-radius: 12px; box-shadow: 0 2px 8px #23294622; border: 2px solid #e9f0fa; background: #f4f7fb;">
-        <div class="event-block-details">
-            <div class="event-block-title">
-                <i class="fas fa-exclamation-triangle"></i> ${report.type}
+        <img src="${report.image || ''}" alt="Hazard image" class="report-block-image" onclick="openModal('${report.image || ''}')">
+        <div class="report-block-details">
+            <div class="report-block-title">
+                <i class="fas fa-exclamation-triangle"></i> ${report.type || 'Unknown Type'}
             </div>
-            <div class="event-block-meta">
-                <span><i class="fas fa-map-marker-alt"></i> ${report.location}</span>
-                <span><i class="fas fa-calendar-alt"></i> ${new Date(report.time).toLocaleString()}</span>
-                <span><i class="fas fa-user"></i> ${report.reportedBy}</span>
+            <div class="report-block-meta">
+                <span><i class="fas fa-map-marker-alt"></i> ${report.location || 'Unknown Location'}</span>
+                <span><i class="fas fa-calendar-alt"></i> ${formatDate(report.time)}</span>
+                <span><i class="fas fa-user"></i> ${report.reportedBy || 'Anonymous'}</span>
             </div>
-            <div class="event-block-status mt-1">
-                <span class="status-badge badge ${report.status === 'Resolved' ? 'bg-success' : report.status === 'Open' ? 'bg-danger' : 'bg-warning text-dark'}">${report.status}</span>
+            <div class="report-block-status">
+                <span class="badge ${getStatusBadgeClass(report.status)}">${report.status || 'Unknown'}</span>
             </div>
-            <div class="event-block-actions mt-2 d-flex gap-2 flex-wrap">
-                <button class="btn btn-outline-primary btn-sm view-details-btn"><i class="fas fa-info-circle"></i> Details</button>
-                <button class="btn btn-outline-secondary btn-sm view-image-btn"><i class="fas fa-image"></i> Image</button>
-                <button class="btn btn-outline-warning btn-sm edit-report-btn"><i class="fas fa-edit"></i> Edit</button>
-                <button class="btn btn-outline-danger btn-sm delete-report-btn"><i class="fas fa-trash"></i> Delete</button>
-                <button class="btn btn-outline-success btn-sm status-toggle-btn">${report.status === 'Resolved' ? 'Mark Open' : 'Mark Resolved'}</button>
+            <div class="report-block-actions">
+                <button class="btn btn-primary btn-sm view-details-btn">
+                    <i class="fas fa-info-circle"></i> Details
+                </button>
+                <button class="btn btn-secondary btn-sm view-image-btn">
+                    <i class="fas fa-image"></i> View Image
+                </button>
+                <button class="btn btn-warning btn-sm edit-report-btn">
+                    <i class="fas fa-edit"></i> Edit
+                </button>
+                <button class="btn btn-danger btn-sm delete-report-btn">
+                    <i class="fas fa-trash"></i> Delete
+                </button>
+                <button class="btn btn-success btn-sm status-toggle-btn">
+                    <i class="fas fa-${report.status === 'Resolved' ? 'undo' : 'check'}"></i> 
+                    ${report.status === 'Resolved' ? 'Reopen' : 'Resolve'}
+                </button>
             </div>
         </div>
     `;
-    // Image modal
-    block.querySelector('.view-image-btn').addEventListener('click', () => openModal(report.image));
-    // Details modal
-    block.querySelector('.view-details-btn').addEventListener('click', () => showReportDetails(report));
-    // Admin actions
-    block.querySelector('.edit-report-btn').addEventListener('click', () => openEditReportModal(report));
-    block.querySelector('.delete-report-btn').addEventListener('click', () => deleteReport(report.id));
-    block.querySelector('.status-toggle-btn').addEventListener('click', () => toggleReportStatus(report));
+    
+    // Event listeners
+    const viewImageBtn = block.querySelector('.view-image-btn');
+    const viewDetailsBtn = block.querySelector('.view-details-btn');
+    const editBtn = block.querySelector('.edit-report-btn');
+    const deleteBtn = block.querySelector('.delete-report-btn');
+    const statusBtn = block.querySelector('.status-toggle-btn');
+    
+    if (viewImageBtn) {
+        viewImageBtn.addEventListener('click', () => openModal(report.image));
+    }
+    
+    if (viewDetailsBtn) {
+        viewDetailsBtn.addEventListener('click', () => showReportDetails(report));
+    }
+    
+    if (editBtn) {
+        editBtn.addEventListener('click', () => openEditReportModal(report));
+    }
+    
+    if (deleteBtn) {
+        deleteBtn.addEventListener('click', () => deleteReport(report.id));
+    }
+    
+    if (statusBtn) {
+        statusBtn.addEventListener('click', () => toggleReportStatus(report));
+    }
+    
     return block;
 }
 
-// Utility for sorting
-function sortReports(reports, sortField, sortOrder) {
-    return reports.slice().sort((a, b) => {
-        let valA = a[sortField];
-        let valB = b[sortField];
-        if (sortField === 'time') {
-            valA = new Date(valA);
-            valB = new Date(valB);
-        }
-        if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
-        if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
-        return 0;
-    });
-}
+// Utility for sorting - removed duplicate, enhanced version is defined later
 
 // --- יצירת סמנים עם קיבוץ לפי קואורדינטות ---
 async function loadReports(filters = {}) {
@@ -922,6 +995,7 @@ async function loadReports(filters = {}) {
         if (!document.body) return [];
         setCachedReports(cacheKey, reports);
         lastReports = reports;
+        allReports = reports; // Store all reports globally
         clearMarkers();
         const bounds = new google.maps.LatLngBounds();
         // --- קיבוץ דיווחים לפי קואורדינטות ---
@@ -1022,7 +1096,13 @@ async function loadReports(filters = {}) {
             });
         }
         updateHeatmap();
-        if (window.filterAndRenderReports) window.filterAndRenderReports();
+        console.log('loadReports: Loaded', allReports.length, 'reports total');
+        if (window.filterAndRenderReports) {
+            console.log('loadReports: Calling filterAndRenderReports');
+            window.filterAndRenderReports();
+        } else {
+            console.error('loadReports: filterAndRenderReports function not found');
+        }
         updateDashboardInfo(reports);
         hideLoadingIndicator();
         return reports;
@@ -1156,15 +1236,267 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize hazard type checkboxes
     const hazardContainer = document.getElementById('hazard-types-container');
     if (hazardContainer) {
-        generateHazardCheckboxes();
+        // generateHazardCheckboxes(); // TODO: Function not defined, using dropdown instead
         // Listen for changes on checkboxes to trigger filtering
         hazardContainer.addEventListener('change', () => {
             window.filterAndRenderReports();
         });
     }
     
+    // Initialize hazard type dropdown
+    const hazardDropdownBtn = document.getElementById('hazard-type-dropdown-btn');
+    const hazardDropdownMenu = document.getElementById('hazard-type-dropdown-menu');
+    const currentHazardTypeLabel = document.getElementById('current-hazard-type-label');
+    
+    if (hazardDropdownBtn && hazardDropdownMenu) {
+        // Toggle dropdown visibility
+        hazardDropdownBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            hazardDropdownMenu.classList.toggle('active');
+        });
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', () => {
+            hazardDropdownMenu.classList.remove('active');
+        });
+        
+        // Handle dropdown option selection
+        hazardDropdownMenu.addEventListener('click', (e) => {
+            if (e.target.classList.contains('hazard-type-option')) {
+                const selectedValue = e.target.getAttribute('data-value');
+                const selectedText = e.target.textContent;
+                
+                // Update global selected type
+                window.selectedHazardType = selectedValue;
+                
+                // Update button label
+                if (currentHazardTypeLabel) {
+                    currentHazardTypeLabel.textContent = selectedText;
+                }
+                
+                // Update visual state
+                document.querySelectorAll('.hazard-type-option').forEach(opt => opt.classList.remove('selected'));
+                e.target.classList.add('selected');
+                
+                // Close dropdown
+                hazardDropdownMenu.classList.remove('active');
+                
+                // Trigger filtering
+                window.filterAndRenderReports();
+            }
+        });
+    }
+    
     const searchInput = document.getElementById('report-search-input');
+    const areaSearchInput = document.getElementById('area-search-input');
+    const currentLocationBtn = document.getElementById('current-location-btn');
     const sortSelect = document.getElementById('report-sort-select');
+    const dateFromInput = document.getElementById('date-from');
+    const dateToInput = document.getElementById('date-to');
+    
+    // Layout toggle buttons
+    const toggleMapBlocks = document.getElementById('toggle-map-blocks');
+    const toggleMapTable = document.getElementById('toggle-map-table');
+    const toggleBlocksOnly = document.getElementById('toggle-blocks-only');
+    const toggleTableOnly = document.getElementById('toggle-table-only');
+    const toggleFullscreenTable = document.getElementById('toggle-fullscreen-table');
+    
+    // Filter collapse button
+    const toggleFiltersBtn = document.getElementById('toggle-filters-btn');
+    const reportsFilters = document.getElementById('reports-filters');
+    
+    // Filter collapse functionality
+    if (toggleFiltersBtn && reportsFilters) {
+        toggleFiltersBtn.addEventListener('click', () => {
+            // Check if we're in table-only or fullscreen mode - don't allow collapse
+            if (window.currentLayoutMode === 'table-only' || window.currentLayoutMode === 'fullscreen-table') {
+                return; // Do nothing in table-only or fullscreen mode
+            }
+            
+            const isCollapsed = reportsFilters.classList.contains('collapsed');
+            
+            if (isCollapsed) {
+                // Expand filters
+                reportsFilters.classList.remove('collapsed');
+                toggleFiltersBtn.classList.remove('collapsed');
+                toggleFiltersBtn.querySelector('i').className = 'fas fa-chevron-up';
+                toggleFiltersBtn.title = 'Minimize filters';
+            } else {
+                // Collapse filters
+                reportsFilters.classList.add('collapsed');
+                toggleFiltersBtn.classList.add('collapsed');
+                toggleFiltersBtn.querySelector('i').className = 'fas fa-chevron-down';
+                toggleFiltersBtn.title = 'Expand filters';
+            }
+        });
+    }
+    
+    // Layout toggle functionality
+    function setLayoutMode(mode) {
+        const mainLayout = document.querySelector('.dashboard-main-layout');
+        const blocksContainer = document.getElementById('reports-blocks-container');
+        const tableContainer = document.getElementById('reports-table-container');
+        const toggleBlocksBtn = document.getElementById('toggle-blocks-view');
+        const toggleTableBtn = document.getElementById('toggle-table-view');
+        
+        // Remove all layout classes
+        mainLayout.classList.remove('layout-map-hidden', 'layout-reports-hidden', 'layout-blocks-only', 'layout-table-only', 'layout-map-blocks', 'layout-map-table', 'layout-fullscreen-table');
+        
+        // Remove any existing exit fullscreen button
+        removeExitFullscreenButton();
+        
+        // Remove active state from all layout buttons
+        document.querySelectorAll('.layout-toggle-controls .btn').forEach(btn => btn.classList.remove('active'));
+        
+        switch(mode) {
+            case 'map-blocks':
+                mainLayout.classList.add('layout-map-blocks');
+                toggleMapBlocks.classList.add('active');
+                blocksContainer.style.display = 'flex';
+                tableContainer.style.display = 'none';
+                toggleBlocksBtn.classList.add('active');
+                toggleTableBtn.classList.remove('active');
+                break;
+                
+            case 'map-table':
+                mainLayout.classList.add('layout-map-table');
+                toggleMapTable.classList.add('active');
+                blocksContainer.style.display = 'none';
+                tableContainer.style.display = 'block';
+                toggleBlocksBtn.classList.remove('active');
+                toggleTableBtn.classList.add('active');
+                break;
+                
+            case 'blocks-only':
+                mainLayout.classList.add('layout-blocks-only', 'layout-map-hidden');
+                toggleBlocksOnly.classList.add('active');
+                blocksContainer.style.display = 'flex';
+                tableContainer.style.display = 'none';
+                toggleBlocksBtn.classList.add('active');
+                toggleTableBtn.classList.remove('active');
+                break;
+                
+            case 'table-only':
+                mainLayout.classList.add('layout-table-only', 'layout-map-hidden');
+                toggleTableOnly.classList.add('active');
+                blocksContainer.style.display = 'none';
+                tableContainer.style.display = 'block';
+                toggleBlocksBtn.classList.remove('active');
+                toggleTableBtn.classList.add('active');
+                
+                // Ensure filters are expanded and visible in table-only mode
+                if (reportsFilters && toggleFiltersBtn) {
+                    reportsFilters.classList.remove('collapsed');
+                    toggleFiltersBtn.classList.remove('collapsed');
+                    toggleFiltersBtn.querySelector('i').className = 'fas fa-chevron-up';
+                    toggleFiltersBtn.title = 'Filters always visible in table mode';
+                    toggleFiltersBtn.style.opacity = '0.5'; // Make it less prominent
+                }
+                break;
+                
+            case 'fullscreen-table':
+                mainLayout.classList.add('layout-fullscreen-table');
+                toggleFullscreenTable.classList.add('active');
+                blocksContainer.style.display = 'none';
+                tableContainer.style.display = 'block';
+                toggleBlocksBtn.classList.remove('active');
+                toggleTableBtn.classList.add('active');
+                
+                // Add exit fullscreen button to filter header
+                addExitFullscreenButton();
+                
+                // Ensure filters are expanded and visible
+                if (reportsFilters && toggleFiltersBtn) {
+                    reportsFilters.classList.remove('collapsed');
+                    toggleFiltersBtn.classList.remove('collapsed');
+                    toggleFiltersBtn.querySelector('i').className = 'fas fa-chevron-up';
+                    toggleFiltersBtn.title = 'Filters always visible in fullscreen mode';
+                    toggleFiltersBtn.style.opacity = '0.3'; // Make it very subtle
+                }
+                
+                // Hide floating menu in fullscreen
+                const floatingMenu = document.getElementById('floatingMenu');
+                const menuOverlay = document.getElementById('menuOverlay');
+                if (floatingMenu) floatingMenu.classList.remove('active');
+                if (menuOverlay) menuOverlay.classList.remove('active');
+                
+                break;
+        }
+        
+        // Store current layout mode
+        window.currentLayoutMode = mode;
+        
+        // Restore filter button functionality for non-table-only modes
+        if (mode !== 'table-only' && toggleFiltersBtn) {
+            toggleFiltersBtn.style.opacity = '1';
+            toggleFiltersBtn.title = 'Minimize/Expand filters';
+        }
+        
+        // Trigger re-rendering if needed
+        window.filterAndRenderReports();
+    }
+    
+    // Helper functions for fullscreen mode
+    function addExitFullscreenButton() {
+        const filterHeader = document.querySelector('.filter-header');
+        if (filterHeader && !filterHeader.querySelector('.fullscreen-exit-btn')) {
+            const exitBtn = document.createElement('button');
+            exitBtn.className = 'fullscreen-exit-btn';
+            exitBtn.innerHTML = '<i class="fas fa-times"></i> Exit Fullscreen';
+            exitBtn.addEventListener('click', () => setLayoutMode('table-only'));
+            filterHeader.appendChild(exitBtn);
+        }
+    }
+    
+    function removeExitFullscreenButton() {
+        const exitBtn = document.querySelector('.fullscreen-exit-btn');
+        if (exitBtn) {
+            exitBtn.remove();
+        }
+    }
+
+    // Add event listeners for layout toggle buttons
+    if (toggleMapBlocks) toggleMapBlocks.addEventListener('click', () => setLayoutMode('map-blocks'));
+    if (toggleMapTable) toggleMapTable.addEventListener('click', () => setLayoutMode('map-table'));
+    if (toggleBlocksOnly) toggleBlocksOnly.addEventListener('click', () => setLayoutMode('blocks-only'));
+    if (toggleTableOnly) toggleTableOnly.addEventListener('click', () => setLayoutMode('table-only'));
+    if (toggleFullscreenTable) toggleFullscreenTable.addEventListener('click', () => setLayoutMode('fullscreen-table'));
+    
+    // Update existing blocks/table toggle buttons to work with new layout system
+    const toggleBlocksBtn = document.getElementById('toggle-blocks-view');
+    const toggleTableBtn = document.getElementById('toggle-table-view');
+    
+    if (toggleBlocksBtn) {
+        toggleBlocksBtn.addEventListener('click', () => {
+            const currentMode = window.currentLayoutMode || 'map-blocks';
+            if (currentMode.includes('map')) {
+                setLayoutMode('map-blocks');
+            } else {
+                setLayoutMode('blocks-only');
+            }
+        });
+    }
+    
+    if (toggleTableBtn) {
+        toggleTableBtn.addEventListener('click', () => {
+            const currentMode = window.currentLayoutMode || 'map-blocks';
+            if (currentMode.includes('map')) {
+                setLayoutMode('map-table');
+            } else {
+                setLayoutMode('table-only');
+            }
+        });
+    }
+    
+    // Set default layout mode
+    window.currentLayoutMode = 'map-blocks';
+    
+    // Add keyboard shortcut to exit fullscreen mode
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && window.currentLayoutMode === 'fullscreen-table') {
+            setLayoutMode('table-only');
+        }
+    });
     
     // Create debounced search function
     const debouncedSearch = debounce(() => {
@@ -1172,9 +1504,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 300);
     
     function filterAndRenderReports() {
-        let filtered = lastReports || [];
-        const q = (searchInput?.value || '').toLowerCase().trim();
+        let filtered = allReports || [];
         
+        // General search filter
+        const q = (searchInput?.value || '').toLowerCase().trim();
         if (q) {
             filtered = filtered.filter(r =>
                 (r.type && r.type.toLowerCase().includes(q)) ||
@@ -1184,32 +1517,150 @@ document.addEventListener('DOMContentLoaded', () => {
             );
         }
         
+        // Area/city search filter
+        const areaQ = (areaSearchInput?.value || '').toLowerCase().trim();
+        if (areaQ) {
+            filtered = filtered.filter(r =>
+                (r.location && r.location.toLowerCase().includes(areaQ)) ||
+                (r.address && r.address.toLowerCase().includes(areaQ)) ||
+                (r.city && r.city.toLowerCase().includes(areaQ)) ||
+                (r.region && r.region.toLowerCase().includes(areaQ))
+            );
+        }
         // Filter by selected hazard types (if any)
         const checkedHazards = Array.from(document.querySelectorAll('#hazard-types-container input[type="checkbox"]:checked')).map(el => el.value);
         if (checkedHazards.length > 0) {
             filtered = filtered.filter(r => checkedHazards.includes(r.type));
         }
-        
+        // Filter by hazard type dropdown
+        if (window.selectedHazardType && window.selectedHazardType !== '') {
+          filtered = filtered.filter(r => r.type === window.selectedHazardType);
+        }
+        // Filter by date range
+        const fromDate = dateFromInput && dateFromInput.value ? new Date(dateFromInput.value) : null;
+        const toDate = dateToInput && dateToInput.value ? new Date(dateToInput.value) : null;
+        if (fromDate) {
+          filtered = filtered.filter(r => {
+            const t = new Date(r.time);
+            return t >= fromDate;
+          });
+        }
+        if (toDate) {
+          filtered = filtered.filter(r => {
+            const t = new Date(r.time);
+            return t <= toDate;
+          });
+        }
         // Sort
         if (sortSelect) {
             const [field, order] = sortSelect.value.split('-');
             filtered = sortReports(filtered, field === 'reportedBy' ? 'reportedBy' : field, order);
         }
-        
         filtered = mergeDuplicateReports(filtered);
-        renderReportBlocks(filtered);
-        updateDashboardInfo(filtered);
         
-        // Update URL with current filters (for bookmarking)
+        // Update map markers to show only filtered reports
+        updateMapMarkers(filtered);
+        
+        // Check current view mode and render accordingly
+        const tableContainer = document.getElementById('reports-table-container');
+        const blocksContainer = document.getElementById('reports-blocks-container');
+        const isTableView = tableContainer && tableContainer.style.display !== 'none';
+        const isBlocksView = blocksContainer && blocksContainer.style.display !== 'none';
+        
+        console.log('Current layout mode:', window.currentLayoutMode);
+        console.log('Current view mode:', isTableView ? 'table' : 'blocks');
+        console.log('Filtered reports count:', filtered.length);
+        
+        // Render based on current display mode
+        if (isTableView) {
+            renderReportTableRows(filtered);
+        }
+        if (isBlocksView) {
+            renderReportBlocks(filtered);
+        }
+        
+        updateDashboardInfo(filtered);
         updateURLParams({ search: q, sort: sortSelect?.value });
     }
     
+    // Current location button functionality
+    if (currentLocationBtn) {
+        currentLocationBtn.addEventListener('click', () => {
+            if (navigator.geolocation) {
+                currentLocationBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                currentLocationBtn.disabled = true;
+                
+                navigator.geolocation.getCurrentPosition(
+                    async (position) => {
+                        try {
+                            const lat = position.coords.latitude;
+                            const lng = position.coords.longitude;
+                            
+                            // Use reverse geocoding to get city name
+                            const geocoder = new google.maps.Geocoder();
+                            geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+                                if (status === 'OK' && results[0]) {
+                                    // Extract city from address components
+                                    const addressComponents = results[0].address_components;
+                                    let city = '';
+                                    
+                                    for (let component of addressComponents) {
+                                        if (component.types.includes('locality') || 
+                                            component.types.includes('administrative_area_level_2') ||
+                                            component.types.includes('administrative_area_level_1')) {
+                                            city = component.long_name;
+                                            break;
+                                        }
+                                    }
+                                    
+                                    if (city && areaSearchInput) {
+                                        areaSearchInput.value = city;
+                                        window.filterAndRenderReports();
+                                    }
+                                } else {
+                                    console.warn('Geocoding failed:', status);
+                                }
+                                
+                                // Reset button state
+                                currentLocationBtn.innerHTML = '<i class="fas fa-location-arrow"></i>';
+                                currentLocationBtn.disabled = false;
+                            });
+                        } catch (error) {
+                            console.error('Error with geocoding:', error);
+                            currentLocationBtn.innerHTML = '<i class="fas fa-location-arrow"></i>';
+                            currentLocationBtn.disabled = false;
+                        }
+                    },
+                    (error) => {
+                        console.warn('Geolocation error:', error);
+                        currentLocationBtn.innerHTML = '<i class="fas fa-location-arrow"></i>';
+                        currentLocationBtn.disabled = false;
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 300000
+                    }
+                );
+            }
+        });
+    }
+
     if (searchInput) searchInput.addEventListener('input', debouncedSearch);
+    if (areaSearchInput) areaSearchInput.addEventListener('input', debouncedSearch);
     if (sortSelect) sortSelect.addEventListener('change', filterAndRenderReports);
+    if (dateFromInput) dateFromInput.addEventListener('change', filterAndRenderReports);
+    if (dateToInput) dateToInput.addEventListener('change', filterAndRenderReports);
     window.filterAndRenderReports = filterAndRenderReports;
     
     // Load filters from URL on page load
     loadFiltersFromURL();
+    
+    // Ensure initial rendering happens when data is available
+    if (allReports && allReports.length > 0) {
+        console.log('Initial rendering of', allReports.length, 'reports');
+        filterAndRenderReports();
+    }
 });
 
 // URL parameter management
@@ -1243,20 +1694,84 @@ function loadFiltersFromURL() {
 
 // --- Report Details Modal Logic ---
 function showReportDetails(report) {
-  document.getElementById("modal-hazard-id").textContent = report.id;
-  document.getElementById("modal-type").textContent = report.type;
-  document.getElementById("modal-location").textContent = report.location;
-  document.getElementById("modal-time").textContent = new Date(report.time).toLocaleString();
-  document.getElementById("modal-status").textContent = report.status;
-  document.getElementById("modal-user").textContent = report.reportedBy;
-  const modalImageElement = document.getElementById("modal-report-image");
-  if (report.image) {
-    modalImageElement.src = report.image;
-    modalImageElement.style.display = "block";
-  } else {
-    modalImageElement.src = "";
-    modalImageElement.style.display = "none";
+  // Helper function to format date
+  const formatDetailedDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+  
+  // Helper function to get status badge class
+  const getStatusBadgeClass = (status) => {
+    switch(status?.toLowerCase()) {
+      case 'resolved': return 'badge-success';
+      case 'open': return 'badge-danger';
+      case 'in progress': return 'badge-warning';
+      default: return 'badge-secondary';
+    }
+  };
+  
+  // Basic information
+  document.getElementById("modal-hazard-id").textContent = report.id || 'N/A';
+  document.getElementById("modal-type").textContent = report.type || 'Unknown Type';
+  document.getElementById("modal-location").textContent = report.location || 'Unknown Location';
+  document.getElementById("modal-time").textContent = formatDetailedDate(report.time);
+  document.getElementById("modal-status").textContent = report.status || 'Unknown';
+  document.getElementById("modal-user").textContent = report.reportedBy || 'Anonymous';
+  
+  // Status badge with appropriate styling
+  const statusBadge = document.getElementById("modal-status-badge");
+  if (statusBadge) {
+    statusBadge.textContent = report.status || 'Unknown';
+    statusBadge.className = `badge ${getStatusBadgeClass(report.status)}`;
   }
+  
+  // Coordinates (extract from location if available)
+  const coordinatesEl = document.getElementById("modal-coordinates");
+  if (coordinatesEl) {
+    const coordMatch = (report.location || '').match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+    if (coordMatch) {
+      coordinatesEl.textContent = `${coordMatch[1]}, ${coordMatch[2]}`;
+    } else {
+      coordinatesEl.textContent = 'Not available';
+    }
+  }
+  
+  // Additional details (you can extend these based on your data structure)
+  const priorityEl = document.getElementById("modal-priority");
+  if (priorityEl) {
+    priorityEl.textContent = report.priority || 'Medium';
+  }
+  
+  const descriptionEl = document.getElementById("modal-description");
+  if (descriptionEl) {
+    descriptionEl.textContent = report.description || 'No additional description provided.';
+  }
+  
+  const categoryEl = document.getElementById("modal-category");
+  if (categoryEl) {
+    categoryEl.textContent = report.category || 'Road Hazard';
+  }
+  
+  // Handle image
+  const modalImageElement = document.getElementById("modal-report-image");
+  if (modalImageElement) {
+    if (report.image && report.image.trim() !== '') {
+      modalImageElement.src = report.image;
+      modalImageElement.style.display = "block";
+    } else {
+      modalImageElement.src = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtc2l6ZT0iMTgiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIj5ObyBJbWFnZSBBdmFpbGFibGU8L3RleHQ+PC9zdmc+";
+      modalImageElement.style.display = "block";
+    }
+  }
+  
+  // Show the modal
   if (window.reportDetailsBootstrapModal) {
     window.reportDetailsBootstrapModal.show();
   }
@@ -1279,6 +1794,247 @@ function toggleSidebar() {
 
 // Expose toggleSidebar globally
 window.toggleSidebar = toggleSidebar;
+
+// === VIEW TOGGLE FUNCTIONALITY ===
+let currentViewMode = 'blocks'; // 'blocks' or 'table'
+
+// Toggle between blocks and table view
+function toggleReportsView(mode) {
+    const blocksContainer = document.getElementById('reports-blocks-container');
+    const tableContainer = document.getElementById('reports-table-container');
+    const blocksBtn = document.getElementById('toggle-blocks-view');
+    const tableBtn = document.getElementById('toggle-table-view');
+    
+    console.log('toggleReportsView called with mode:', mode);
+    
+    if (!blocksContainer || !tableContainer || !blocksBtn || !tableBtn) {
+        console.error('Missing elements for view toggle');
+        return;
+    }
+    
+    currentViewMode = mode;
+    
+    if (mode === 'table') {
+        // Show table, hide blocks
+        blocksContainer.style.display = 'none';
+        tableContainer.style.display = 'block';
+        
+        // Update button styles
+        blocksBtn.classList.remove('active');
+        tableBtn.classList.add('active');
+        
+        // Re-render current data in table format
+        if (window.currentFilteredReports) {
+            renderReportTableRows(window.currentFilteredReports);
+        }
+    } else {
+        // Show blocks, hide table
+        blocksContainer.style.display = 'block';
+        tableContainer.style.display = 'none';
+        
+        // Update button styles
+        tableBtn.classList.remove('active');
+        blocksBtn.classList.add('active');
+        
+        // Re-render current data in blocks format
+        if (window.currentFilteredReports) {
+            renderReportBlocks(window.currentFilteredReports);
+        }
+    }
+}
+
+// Initialize view toggle event listeners
+document.addEventListener('DOMContentLoaded', () => {
+    const blocksBtn = document.getElementById('toggle-blocks-view');
+    const tableBtn = document.getElementById('toggle-table-view');
+    const applyMapSortBtn = document.getElementById('apply-map-sort');
+    
+    // NOTE: These old event listeners are commented out to prevent conflicts with new layout system
+    // The new layout system handles these buttons in the main search/filter section
+    /*
+    if (blocksBtn) {
+        blocksBtn.addEventListener('click', () => toggleReportsView('blocks'));
+    }
+    
+    if (tableBtn) {
+        tableBtn.addEventListener('click', () => toggleReportsView('table'));
+    }
+    */
+    
+    if (applyMapSortBtn) {
+        applyMapSortBtn.addEventListener('click', sortMapMarkers);
+    }
+});
+
+// === MAP SORTING FUNCTIONALITY ===
+function sortMapMarkers() {
+    const sortSelect = document.getElementById('report-sort-select');
+    if (!sortSelect || !map || !markers.length) {
+        showToast('No markers to sort or sort option not selected', 'warning');
+        return;
+    }
+    
+    const [field, order] = sortSelect.value.split('-');
+    const sortedReports = [...(window.currentFilteredReports || allReports)];
+    
+    // Sort the reports
+    const sorted = sortReports(sortedReports, field, order);
+    
+    // Clear existing markers
+    clearMarkers();
+    
+    // Add markers in sorted order with animation delay
+    sorted.forEach((report, index) => {
+        setTimeout(() => {
+            addMarkerToMap(report);
+        }, index * 100); // 100ms delay between each marker for visual effect
+    });
+    
+    showToast(`Map markers sorted by ${field} (${order === 'asc' ? 'ascending' : 'descending'})`, 'success');
+}
+
+// Helper function to add individual marker to map with animation
+function addMarkerToMap(report) {
+    if (!report.coordinates) return;
+    
+    const position = {
+        lat: parseFloat(report.coordinates.lat),
+        lng: parseFloat(report.coordinates.lng)
+    };
+    
+    if (isNaN(position.lat) || isNaN(position.lng)) return;
+    
+    let marker;
+    const markerContent = getMarkerContent(report.type);
+    
+    if (google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
+        marker = new google.maps.marker.AdvancedMarkerElement({
+            map: map,
+            position: position,
+            content: markerContent,
+            title: `${report.type} - ${report.location}`
+        });
+    } else {
+        marker = new google.maps.Marker({
+            position: position,
+            map: map,
+            title: `${report.type} - ${report.location}`,
+            icon: getMarkerIcon(report.type),
+            animation: google.maps.Animation.DROP
+        });
+    }
+    
+    // Store report data with marker
+    marker.report = report;
+    
+    // Add click listener for info window
+    const clickListener = () => {
+        if (window.currentInfoWindow) {
+            window.currentInfoWindow.close();
+        }
+        
+        const infoWindow = new google.maps.InfoWindow({
+            content: createInfoWindowContent(report)
+        });
+        
+        infoWindow.open(map, marker);
+        window.currentInfoWindow = infoWindow;
+    };
+    
+    if (marker.addListener) {
+        marker.addListener('click', clickListener);
+    } else {
+        marker.addEventListener('click', clickListener);
+    }
+    
+    markers.push(marker);
+}
+
+// Store current filtered reports for view switching
+window.currentFilteredReports = [];
+
+// Update the filter function to store current reports
+const originalFilterAndRenderReports = window.filterAndRenderReports;
+if (originalFilterAndRenderReports) {
+    window.filterAndRenderReports = function() {
+        const result = originalFilterAndRenderReports.apply(this, arguments);
+        // Store the filtered reports for view switching
+        const searchInput = document.getElementById('report-search-input');
+        const sortSelect = document.getElementById('report-sort-select');
+        const q = searchInput?.value?.toLowerCase() || '';
+        
+        let filtered = [...allReports];
+        if (q) {
+            filtered = filtered.filter(r => 
+                r.type?.toLowerCase().includes(q) ||
+                r.location?.toLowerCase().includes(q) ||
+                r.status?.toLowerCase().includes(q) ||
+                r.reportedBy?.toLowerCase().includes(q)
+            );
+        }
+        
+        if (sortSelect) {
+            const [field, order] = sortSelect.value.split('-');
+            filtered = sortReports(filtered, field, order);
+        }
+        
+        window.currentFilteredReports = filtered;
+        return result;
+    };
+}
+
+// === ENHANCED SORTING FUNCTIONALITY ===
+function sortReports(reports, field, order = 'asc') {
+    return reports.sort((a, b) => {
+        let aValue, bValue;
+        
+        switch (field) {
+            case 'time':
+                aValue = new Date(a.time);
+                bValue = new Date(b.time);
+                break;
+            case 'type':
+                aValue = (a.type || '').toLowerCase();
+                bValue = (b.type || '').toLowerCase();
+                break;
+            case 'status':
+                aValue = (a.status || '').toLowerCase();
+                bValue = (b.status || '').toLowerCase();
+                break;
+            case 'location':
+                aValue = (a.location || '').toLowerCase();
+                bValue = (b.location || '').toLowerCase();
+                break;
+            case 'reportedBy':
+                aValue = (a.reportedBy || '').toLowerCase();
+                bValue = (b.reportedBy || '').toLowerCase();
+                break;
+            default:
+                return 0;
+        }
+        
+        if (aValue < bValue) return order === 'asc' ? -1 : 1;
+        if (aValue > bValue) return order === 'asc' ? 1 : -1;
+        return 0;
+    });
+}
+
+// Add CSS for active button state
+const style = document.createElement('style');
+style.textContent = `
+.view-toggle-controls .btn.active {
+    background-color: var(--accent) !important;
+    border-color: var(--accent) !important;
+    color: white !important;
+}
+.view-toggle-controls .btn {
+    min-width: 80px;
+}
+.sort-controls .form-select {
+    min-width: 150px;
+}
+`;
+document.head.appendChild(style);
 
 // Add a function to create and return a map legend div
 function addMapLegend() {
@@ -1372,7 +2128,26 @@ function mergeDuplicateReports(reports) {
 
 // --- Render Report Blocks ---
 function renderReportBlocks(reports) {
-  renderReportTableRows(reports);
+    const blocksContainer = document.getElementById('reports-blocks-container');
+    if (!blocksContainer) {
+        console.error("Element with id 'reports-blocks-container' not found.");
+        return;
+    }
+    
+    // Clear existing blocks
+    blocksContainer.innerHTML = '';
+    console.log("Rendering", reports.length, "reports to blocks container");
+    
+    // Create and append each report block
+    reports.forEach(report => {
+        const reportBlock = createReportBlock(report);
+        blocksContainer.appendChild(reportBlock);
+    });
+    
+    // Show loading message if no reports
+    if (reports.length === 0) {
+        blocksContainer.innerHTML = '<div class="text-center text-muted p-4"><i class="fas fa-inbox fa-2x mb-2"></i><br>No reports found</div>';
+    }
 }
 
 // --- Render Report Table Rows ---
@@ -2445,227 +3220,4 @@ function playHighPrioritySound() {
         highPriorityAudio.currentTime = 0;
         highPriorityAudio.play().catch(() => {});
     }
-}
-
-class CollapsibleDashboard {
-  constructor() {
-    this.panels = [];
-    this.panelConfigs = [
-      { id: 'realtime-overview', title: 'Real-time Overview', icon: 'fa-tachometer-alt', defaultOpen: true },
-      { id: 'performance-metrics', title: 'Performance Metrics', icon: 'fa-chart-line', defaultOpen: false },
-      { id: 'geographic-analytics', title: 'Geographic Analytics', icon: 'fa-map-marked-alt', defaultOpen: false },
-      { id: 'team-performance', title: 'Team Performance', icon: 'fa-users', defaultOpen: false },
-      { id: 'predictive-analytics', title: 'Predictive Analytics', icon: 'fa-brain', defaultOpen: false }
-    ];
-    this.initializePanels();
-    this.loadSavedState();
-  }
-
-  initializePanels() {
-    const container = document.querySelector('.dashboard-accordion');
-    if (!container) return;
-    this.panelConfigs.forEach(config => {
-      const panel = container.querySelector(`[id$='${config.id}-content']`).parentElement;
-      if (config.defaultOpen) {
-        panel.classList.add('active');
-        panel.querySelector('.accordion-header').setAttribute('aria-expanded', 'true');
-      } else {
-        panel.classList.remove('active');
-        panel.querySelector('.accordion-header').setAttribute('aria-expanded', 'false');
-      }
-      // Click handler
-      panel.querySelector('.accordion-header').addEventListener('click', () => {
-        this.togglePanel(config.id);
-      });
-    });
-  }
-
-  togglePanel(panelId) {
-    const panel = document.getElementById(`${panelId}-content`).parentElement;
-    const isOpen = panel.classList.contains('active');
-    if (isOpen) {
-      this.closePanel(panelId);
-    } else {
-      this.openPanel(panelId);
-    }
-    this.saveState();
-  }
-
-  openPanel(panelId) {
-    const panel = document.getElementById(`${panelId}-content`).parentElement;
-    panel.classList.add('active');
-    panel.querySelector('.accordion-header').setAttribute('aria-expanded', 'true');
-    // Lazy load content if not loaded
-    if (!panel.dataset.loaded) {
-      this.loadPanelContent(panelId);
-      panel.dataset.loaded = 'true';
-    }
-  }
-
-  closePanel(panelId) {
-    const panel = document.getElementById(`${panelId}-content`).parentElement;
-    panel.classList.remove('active');
-    panel.querySelector('.accordion-header').setAttribute('aria-expanded', 'false');
-  }
-
-  loadPanelContent(panelId) {
-    const content = document.getElementById(`${panelId}-content`);
-    // Placeholder: Replace with actual content loading logic
-    content.innerHTML = `<div class='panel-loading'><div class='spinner-border text-primary' role='status'><span class='visually-hidden'>Loading...</span></div></div>`;
-    // TODO: Add chart/component initialization here
-  }
-
-  saveState() {
-    const openPanels = this.panelConfigs.filter(cfg => {
-      const panel = document.getElementById(`${cfg.id}-content`).parentElement;
-      return panel.classList.contains('active');
-    }).map(cfg => cfg.id);
-    localStorage.setItem('dashboard-open-panels', JSON.stringify(openPanels));
-  }
-
-  loadSavedState() {
-    const openPanels = JSON.parse(localStorage.getItem('dashboard-open-panels') || '[]');
-    this.panelConfigs.forEach(cfg => {
-      const panel = document.getElementById(`${cfg.id}-content`).parentElement;
-      if (openPanels.includes(cfg.id)) {
-        panel.classList.add('active');
-        panel.querySelector('.accordion-header').setAttribute('aria-expanded', 'true');
-      } else {
-        panel.classList.remove('active');
-        panel.querySelector('.accordion-header').setAttribute('aria-expanded', 'false');
-      }
-    });
-  }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  window.collapsibleDashboard = new CollapsibleDashboard();
-});
-
-document.addEventListener('DOMContentLoaded', () => {
-  const sortBtn = document.getElementById('sort-dropdown-btn');
-  const sortMenu = document.getElementById('sort-dropdown-menu');
-  const sortLabel = document.getElementById('current-sort-label');
-  const sortOptions = sortMenu ? sortMenu.querySelectorAll('.sort-option') : [];
-  const sortSelect = document.getElementById('report-sort-select');
-
-  if (sortBtn && sortMenu) {
-    sortBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      sortMenu.classList.toggle('active');
-    });
-    sortOptions.forEach(option => {
-      option.addEventListener('click', () => {
-        // עדכן תצוגה
-        sortLabel.textContent = 'מיון לפי: ' + option.textContent;
-        sortOptions.forEach(o => o.classList.remove('selected'));
-        option.classList.add('selected');
-        sortMenu.classList.remove('active');
-        // עדכן מיון בפועל
-        if (sortSelect) {
-          sortSelect.value = option.dataset.value;
-          if (window.filterAndRenderReports) window.filterAndRenderReports();
-        }
-      });
-    });
-    // סגירה בלחיצה מחוץ
-    document.addEventListener('click', (e) => {
-      if (!sortBtn.contains(e.target) && !sortMenu.contains(e.target)) {
-        sortMenu.classList.remove('active');
-      }
-    });
-  }
-});
-
-document.addEventListener('DOMContentLoaded', () => {
-  // --- Hazard type dropdown logic ---
-  const hazardBtn = document.getElementById('hazard-type-dropdown-btn');
-  const hazardMenu = document.getElementById('hazard-type-dropdown-menu');
-  const hazardLabel = document.getElementById('current-hazard-type-label');
-  const hazardOptions = hazardMenu ? hazardMenu.querySelectorAll('.hazard-type-option') : [];
-
-  if (hazardBtn && hazardMenu) {
-    hazardBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      hazardMenu.classList.toggle('active');
-    });
-    hazardOptions.forEach(option => {
-      option.addEventListener('click', () => {
-        hazardLabel.textContent = option.textContent;
-        hazardOptions.forEach(o => o.classList.remove('selected'));
-        option.classList.add('selected');
-        hazardMenu.classList.remove('active');
-        // עדכן סינון בפועל
-        window.selectedHazardType = option.dataset.value;
-        if (window.filterAndRenderReports) window.filterAndRenderReports();
-      });
-    });
-    document.addEventListener('click', (e) => {
-      if (!hazardBtn.contains(e.target) && !hazardMenu.contains(e.target)) {
-        hazardMenu.classList.remove('active');
-      }
-    });
-  }
-});
-
-// עדכון filterAndRenderReports לסינון לפי window.selectedHazardType באנגלית
-const origFilterAndRender = window.filterAndRenderReports;
-window.filterAndRenderReports = function() {
-  let filtered = lastReports || [];
-  const q = (document.getElementById('report-search-input')?.value || '').toLowerCase().trim();
-  if (q) {
-    filtered = filtered.filter(r =>
-      (r.type && r.type.toLowerCase().includes(q)) ||
-      (r.location && r.location.toLowerCase().includes(q)) ||
-      (r.status && r.status.toLowerCase().includes(q)) ||
-      (r.reportedBy && r.reportedBy.toLowerCase().includes(q))
-    );
-  }
-  // סינון לפי סוג
-  if (window.selectedHazardType && window.selectedHazardType !== '') {
-    filtered = filtered.filter(r => r.type === window.selectedHazardType);
-  }
-  // מיון
-  const sortSelect = document.getElementById('report-sort-select');
-  if (sortSelect) {
-    const [field, order] = sortSelect.value.split('-');
-    filtered = sortReports(filtered, field === 'reportedBy' ? 'reportedBy' : field, order);
-  }
-  filtered = mergeDuplicateReports(filtered);
-  renderReportBlocksModern(filtered);
-  updateDashboardInfo(filtered);
-  updateURLParams({ search: q, sort: sortSelect?.value });
-};
-
-// רנדר בלוקים מודרניים במקום שורות טבלה
-function renderReportBlocksModern(reports) {
-  const container = document.getElementById('reports-blocks-container');
-  if (!container) return;
-  container.innerHTML = '';
-  reports.forEach(report => {
-    const block = document.createElement('div');
-    block.className = 'report-block';
-    block.innerHTML = `
-      <img src="${report.image || ''}" alt="Hazard image" class="report-block-image">
-      <div class="report-block-details">
-        <div class="report-block-title">${report.type || ''}</div>
-        <div class="report-block-meta">
-          <span><i class="fas fa-map-marker-alt"></i> ${report.location || ''}</span>
-          <span><i class="fas fa-calendar-alt"></i> ${report.time ? new Date(report.time).toLocaleString() : ''}</span>
-          <span><i class="fas fa-user"></i> ${report.reportedBy || ''}</span>
-        </div>
-        <div class="report-block-status mt-1">
-          <span class="badge ${getStatusBadgeClass(report.status)}">${report.status || ''}</span>
-        </div>
-        <div class="report-block-actions mt-2 d-flex gap-2 flex-wrap">
-          <button class="btn btn-outline-primary btn-sm" onclick="showReportDetails(${JSON.stringify(report).replace(/"/g, '&quot;')})"><i class="fas fa-info-circle"></i> Details</button>
-          <button class="btn btn-outline-secondary btn-sm" onclick="showImageModal('${report.image}')" ${!report.image ? 'disabled' : ''}><i class="fas fa-image"></i> Image</button>
-          <button class="btn btn-outline-warning btn-sm" onclick="openEditReportModal(${JSON.stringify(report).replace(/"/g, '&quot;')})"><i class="fas fa-edit"></i> Edit</button>
-          <button class="btn btn-outline-danger btn-sm" onclick="confirmDeleteReport('${report.id}')"><i class="fas fa-trash"></i> Delete</button>
-          <button class="btn btn-outline-${report.status === 'Resolved' ? 'danger' : 'success'} btn-sm" onclick="toggleReportStatus('${report.id}', '${report.status}')">${report.status === 'Resolved' ? 'Mark Open' : 'Mark Resolved'}</button>
-        </div>
-      </div>
-    `;
-    container.appendChild(block);
-  });
 }
