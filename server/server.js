@@ -351,7 +351,6 @@ app.post('/api/reports', async (req, res) => {
         status,
         reportedBy,
         locationNote: req.body.locationNote || 'GPS'
-
     };
     
     const reportKey = `report:${report.id}`;  // יצירת המפתח הייחודי לכל דיווח
@@ -359,7 +358,7 @@ app.post('/api/reports', async (req, res) => {
     try {
         // שמירה ב-Redis תחת המפתח הייחודי
         await client.json.set(reportKey, '$', report);  // משתמשים ב-JSON.SET כדי לשמור את הדיווח
-        
+        broadcastSSEEvent({ type: 'new_report', report });
         res.status(200).json({ message: 'Report saved successfully' });
     } catch (err) {
         res.status(500).json({ error: 'Error saving report' });
@@ -464,13 +463,25 @@ app.patch('/api/reports/:id/status', async (req, res) => {
     const newStatus = req.body.status;
     const reportKey = `report:${reportId}`;
     try {
-        const report = await client.json.get(reportKey);
+        let report = await client.json.get(reportKey);
+        if (!report) {
+            // Fallback: try to get as string and parse
+            const str = await client.get(reportKey);
+            if (str) {
+                report = JSON.parse(str);
+                // Migrate to JSON
+                await client.json.set(reportKey, '$', report);
+                await client.del(reportKey); // Remove old string key if needed
+            }
+        }
         if (!report) return res.status(404).json({ error: 'Report not found' });
         report.status = newStatus;
         await client.json.set(reportKey, '$', report);
+        broadcastSSEEvent({ type: 'status_update', report });
         res.status(200).json({ message: 'Status updated', report });
     } catch (err) {
-        res.status(500).json({ error: 'Error updating status' });
+        console.error('Error updating status:', err);
+        res.status(500).json({ error: 'Error updating status', details: err.message });
     }
 });
 
@@ -869,4 +880,36 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
         console.error('🔥 Upload error:', e);
         res.status(500).json({ error: 'Failed to upload report' });
     }
+});
+
+// --- SSE clients storage and broadcast ---
+const sseClients = new Set();
+function broadcastSSEEvent(event) {
+    const data = `data: ${JSON.stringify(event)}\n\n`;
+    for (const client of sseClients) {
+        client.write(data);
+    }
+}
+// --- Minimal SSE endpoint for real-time events ---
+app.get('/api/events/stream', (req, res) => {
+    res.set({
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': '*', // Optional: for local dev
+    });
+    res.flushHeaders();
+
+    sseClients.add(res);
+
+    // Keep-alive comment every 20s
+    const keepAlive = setInterval(() => {
+        res.write(': keep-alive\n\n');
+    }, 20000);
+
+    req.on('close', () => {
+        clearInterval(keepAlive);
+        sseClients.delete(res);
+        res.end();
+    });
 });

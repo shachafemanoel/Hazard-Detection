@@ -232,11 +232,10 @@
   </div>
 </header>
 
-  <main class="container-flex">
-    <!-- PERSONAL DASHBOARD OVERVIEW SECTION -->
-    <section id="overview-section" class="dashboard-panel">
-      <h3 class="mb-4"><i class="fas fa-chart-line me-2"></i>Personal Dashboard Overview</h3>
-      <div class="row g-4 mb-4">
+  <main class="dashboard-main-layout">
+    <!-- מדדים בראש הדף -->
+    <section id="overview-section" class="dashboard-panel dashboard-metrics-row mb-4">
+      <div class="row g-4">
         <div class="col-md-3">
           <div class="stat-card bg-primary">
             <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
@@ -274,133 +273,53 @@
           </div>
         </div>
       </div>
-      
-      <!-- ENHANCED STATISTICS ROW -->
-      <div class="row g-4 mb-4">
-        <div class="col-md-6">
-          <div class="dashboard-panel">
-            <h5><i class="fas fa-chart-bar me-2"></i>Hazard Type Distribution</h5>
-            <div id="hazard-type-chart"></div>
-            <div id="hazard-type-stats"></div>
+    </section>
+    <div class="dashboard-center-row d-flex gap-4">
+      <!-- מפה במרכז -->
+      <section class="dashboard-center dashboard-panel flex-grow-1">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h4><i class="fas fa-map me-2"></i>Hazard Map</h4>
+          <div class="map-controls">
+            <button id="toggle-heatmap" class="btn btn-sm btn-outline-primary me-2">
+              <i class="fas fa-fire"></i> Toggle Heatmap
+            </button>
+            <button id="center-map" class="btn btn-sm btn-outline-secondary">
+              <i class="fas fa-crosshairs"></i> Center Map
+            </button>
           </div>
         </div>
-        <div class="col-md-6">
-          <div class="dashboard-panel">
-            <h5><i class="fas fa-calendar-alt me-2"></i>Recent Activity</h5>
-            <div id="recent-activity"></div>
-          </div>
-        </div>
-      </div>
-      
-      <!-- PERSONAL ANALYTICS ROW -->
-      <div class="row g-4 mb-4">
-        <div class="col-md-4">
-          <div class="dashboard-panel">
-            <h5><i class="fas fa-trophy me-2"></i>Your Performance</h5>
-            <div id="user-performance">
-              <div class="performance-metric">
-                <span class="metric-label">Reports Submitted:</span>
-                <span class="metric-value" id="user-reports-count">0</span>
-              </div>
-              <div class="performance-metric">
-                <span class="metric-label">Resolution Rate:</span>
-                <span class="metric-value" id="user-resolution-rate">0%</span>
-              </div>
-              <div class="performance-metric">
-                <span class="metric-label">Avg Response Time:</span>
-                <span class="metric-value" id="user-avg-response">0h</span>
-              </div>
+        <div id="map"></div>
+      </section>
+      <!-- טבלת אירועים מימין למפה -->
+      <aside class="dashboard-right dashboard-panel" style="min-width:380px;max-width:480px;width:32%;">
+        <div id="reports-filters" class="d-flex flex-wrap gap-3 mb-3">
+          <input id="report-search-input" class="form-control" type="search" placeholder="Search reports..." aria-label="Search reports">
+          <div class="hazard-type-filter-bar mb-3">
+            <button id="hazard-type-dropdown-btn" class="hazard-type-dropdown-btn">
+              <span id="current-hazard-type-label">All Types</span>
+              <i class="fas fa-chevron-down"></i>
+            </button>
+            <div id="hazard-type-dropdown-menu" class="hazard-type-dropdown-menu">
+              <button class="hazard-type-option" data-value="">All Types</button>
+              <button class="hazard-type-option" data-value="Alligator Crack">Alligator Crack</button>
+              <button class="hazard-type-option" data-value="Block Crack">Block Crack</button>
+              <button class="hazard-type-option" data-value="Construction Joint Crack">Construction Joint Crack</button>
+              <button class="hazard-type-option" data-value="Crosswalk Blur">Crosswalk Blur</button>
+              <button class="hazard-type-option" data-value="Lane Blur">Lane Blur</button>
+              <button class="hazard-type-option" data-value="Longitudinal Crack">Longitudinal Crack</button>
+              <button class="hazard-type-option" data-value="Manhole">Manhole</button>
+              <button class="hazard-type-option" data-value="Patch Repair">Patch Repair</button>
+              <button class="hazard-type-option" data-value="Pothole">Pothole</button>
+              <button class="hazard-type-option" data-value="Transverse Crack">Transverse Crack</button>
+              <button class="hazard-type-option" data-value="Wheel Mark Crack">Wheel Mark Crack</button>
             </div>
           </div>
+          <div id="hazard-types-container" class="d-flex flex-wrap gap-2"></div>
         </div>
-        <div class="col-md-4">
-          <div class="dashboard-panel">
-            <h5><i class="fas fa-map-marked-alt me-2"></i>Location Insights</h5>
-            <div id="location-insights">
-              <div class="insight-item">
-                <span class="insight-label">Most Active Area:</span>
-                <span class="insight-value" id="most-active-area">-</span>
-              </div>
-              <div class="insight-item">
-                <span class="insight-label">Hotspot Hazards:</span>
-                <span class="insight-value" id="hotspot-hazards">-</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-4">
-          <div class="dashboard-panel">
-            <h5><i class="fas fa-clock me-2"></i>Time Analytics</h5>
-            <div id="time-analytics">
-              <div class="time-metric">
-                <span class="time-label">Peak Hours:</span>
-                <span class="time-value" id="peak-hours">-</span>
-              </div>
-              <div class="time-metric">
-                <span class="time-label">Response Time:</span>
-                <span class="time-value" id="avg-response-time">-</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-    
-    <!-- MAP SECTION wrapped in a panel -->
-    <section id="map-section" class="dashboard-panel">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h4><i class="fas fa-map me-2"></i>Hazard Map</h4>
-        <div class="map-controls">
-          <button id="toggle-heatmap" class="btn btn-sm btn-outline-primary me-2">
-            <i class="fas fa-fire"></i> Toggle Heatmap
-          </button>
-          <button id="center-map" class="btn btn-sm btn-outline-secondary">
-            <i class="fas fa-crosshairs"></i> Center Map
-          </button>
-        </div>
-      </div>
-      <div id="map"></div>
-    </section>
-    
-    <!-- REPORTS LOG SECTION wrapped in a panel -->
-    <section id="reports-section" class="dashboard-panel">
-      <!-- New Filters Panel -->
-      <div id="reports-filters" class="d-flex flex-wrap gap-3 mb-3">
-        <input id="report-search-input" class="form-control" type="search" placeholder="Search reports..." aria-label="Search reports">
-        <select id="report-sort-select" class="form-select">
-          <option value="time-desc">Newest</option>
-          <option value="time-asc">Oldest</option>
-          <option value="type-asc">Hazard Type A-Z</option>
-          <option value="type-desc">Hazard Type Z-A</option>
-          <option value="status-asc">Status A-Z</option>
-          <option value="status-desc">Status Z-A</option>
-          <option value="location-asc">Location A-Z</option>
-          <option value="location-desc">Location Z-A</option>
-          <option value="reportedBy-asc">Reporter A-Z</option>
-          <option value="reportedBy-desc">Reporter Z-A</option>
-        </select>
-        <!-- Container for hazard type checkboxes -->
-        <div id="hazard-types-container" class="d-flex flex-wrap gap-2"></div>
-      </div>
-      <div id="reports-table-container">
-        <table id="reports-table" class="table table-dark table-hover">
-          <thead>
-            <tr>
-              <th>Image</th>
-              <th>Type</th>
-              <th>Location</th>
-              <th>Time</th>
-              <th>Status</th>
-              <th>Reporter</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="reports-table-body">
-            <!-- ...Report rows will be injected via dashboard.js... -->
-          </tbody>
-        </table>
-      </div>
-    </section>
+        <!-- במקום טבלת הדיווחים, אציג בלוקים מודרניים -->
+        <div id="reports-blocks-container" class="reports-blocks-list"></div>
+      </aside>
+    </div>
   </main>
   
   <!-- Modals -->
@@ -446,6 +365,7 @@
   <!-- Updated: Legend Toggle Button label remains "info" -->
   <button id="legend-toggle-btn">info</button>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="js/dashboard.js" type="module"></script>
   <script src="js/dashboard-personalizer.js"></script>
   <!-- Google Maps API will be loaded dynamically with the correct API key -->

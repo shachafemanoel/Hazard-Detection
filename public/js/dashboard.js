@@ -622,19 +622,6 @@ function clearMarkers() {
     markers = [];
 }
 
-// יצירת תיבות סימון לסוגי מפגעים
-function generateHazardCheckboxes() {
-    const container = document.getElementById('hazard-types-container');
-    hazardTypes.forEach(hazard => {
-        const checkboxDiv = document.createElement('div');
-        checkboxDiv.innerHTML = `
-            <input type="checkbox" id="hazard-${hazard.toLowerCase().replace(/ /g, '-')}" value="${hazard}">
-            <label for="hazard-${hazard.toLowerCase().replace(/ /g, '-')}" class="hazard-label">${hazard}</label>
-        `;
-        container.appendChild(checkboxDiv);
-    });
-}
-
 // פותח את מודל התמונה
 function openModal(imageUrl) {
     const modal = document.getElementById("image-modal");
@@ -910,82 +897,136 @@ function sortReports(reports, sortField, sortOrder) {
     });
 }
 
-// טוען דיווחים מהשרת ומכניס לטבלה ולמפה
+// --- יצירת סמנים עם קיבוץ לפי קואורדינטות ---
 async function loadReports(filters = {}) {
     try {
         showLoadingIndicator();
-        
-        // Check cache first
         const cacheKey = JSON.stringify(filters);
         const cachedReports = getCachedReports(cacheKey);
         if (cachedReports) {
-            console.log('Using cached reports');
             lastReports = cachedReports;
             updateDashboardInfo(cachedReports);
             hideLoadingIndicator();
             return cachedReports;
         }
-
         const queryString = Object.entries(filters)
             .filter(([_, value]) => value)
             .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
             .join('&');
-
         const response = await fetch(`/api/reports${queryString ? `?${queryString}` : ''}`, {
             method: 'GET',
             credentials: 'include',
         });
-
-        if (!response.ok) {
-            throw new Error('Failed to load reports');
-        }
-
+        if (!response.ok) throw new Error('Failed to load reports');
         let reports = await response.json();
-
-        // בדיקה אם העמוד עדיין פעיל לפני המשך הטעינה
         if (!document.body) return [];
-        
-        // Cache the reports
         setCachedReports(cacheKey, reports);
-        
         lastReports = reports;
         clearMarkers();
         const bounds = new google.maps.LatLngBounds();
-
-        const markerPromises = reports.map(async report => {
-            // בדיקה נוספת אם העמוד עדיין פעיל
-            if (!document.body) return null;
-            const marker = await geocodeAddress(report.location, report);
-            if (marker) {
-                const position = marker.position || marker.getPosition();
-                if (position) bounds.extend(position);
+        // --- קיבוץ דיווחים לפי קואורדינטות ---
+        const coordMap = new Map();
+        for (const report of reports) {
+            let coords = null;
+            // ננסה לחלץ קואורדינטות מהכתובת
+            const coordMatch = (report.location||'').match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+            if (coordMatch) {
+                coords = `${parseFloat(coordMatch[1]).toFixed(5)},${parseFloat(coordMatch[2]).toFixed(5)}`;
+            } else {
+                // נשתמש בגיאוקוד
+                const loc = await geocodeAddress(report.location, report);
+                if (loc && loc.position) {
+                    coords = `${loc.position.lat.toFixed(5)},${loc.position.lng.toFixed(5)}`;
+                }
             }
-            return marker;
-        });
-
-        const newMarkers = (await Promise.all(markerPromises)).filter(Boolean);
-        
-        // בדיקה אחרונה לפני עדכון המפה
-        if (!document.body) return [];
-        
-        if (newMarkers.length > 0) {
+            if (coords) {
+                if (!coordMap.has(coords)) coordMap.set(coords, []);
+                coordMap.get(coords).push(report);
+            }
+        }
+        // יצירת סמנים
+        for (const [coords, group] of coordMap.entries()) {
+            const [lat, lng] = coords.split(',').map(Number);
+            const location = { lat, lng };
+            const mainReport = group[0];
+            let marker;
+            // סמן עם מספר אם יש יותר מאחד
+            if (google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
+                const div = document.createElement('div');
+                div.style.width = '28px';
+                div.style.height = '28px';
+                div.style.backgroundColor = hazardMarkerColors[mainReport.type] || hazardMarkerColors['default'];
+                div.style.borderRadius = '50%';
+                div.style.border = '2px solid #fff';
+                div.style.display = 'flex';
+                div.style.alignItems = 'center';
+                div.style.justifyContent = 'center';
+                div.style.color = '#fff';
+                div.style.fontWeight = 'bold';
+                div.style.fontSize = '1rem';
+                if (group.length > 1) {
+                    div.textContent = group.length;
+                }
+                marker = new google.maps.marker.AdvancedMarkerElement({
+                    map: map,
+                    position: location,
+                    content: div
+                });
+            } else {
+                marker = new google.maps.Marker({
+                    position: location,
+                    map: map,
+                    title: `${mainReport.type} - ${mainReport.location}`,
+                    label: group.length > 1 ? { text: String(group.length), color: '#fff', fontWeight: 'bold' } : undefined,
+                    icon: {
+                        url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'><circle cx='14' cy='14' r='12' fill='${hazardMarkerColors[mainReport.type] || hazardMarkerColors.default}' stroke='white' stroke-width='2'/></svg>`),
+                        scaledSize: new google.maps.Size(28, 28)
+                    }
+                });
+            }
+            marker.reportId = mainReport.id;
+            marker.reportsGroup = group;
+            marker.position = location;
+            // בלחיצה: פופאפ עם כל הדיווחים במיקום
+            registerMarkerClick(marker, () => {
+                markers.forEach(m => m.infoWindow?.close && m.infoWindow.close());
+                const infowindow = new google.maps.InfoWindow({
+                    content: `
+                    <div class="info-window">
+                        <h5>Hazards (${group.length})</h5>
+                        <ul style="max-height:200px;overflow:auto;padding-left:1em;">
+                        ${group.map(r => `
+                            <li style='margin-bottom:8px;'>
+                                <b>${r.type}</b> <span class='badge ${r.status === 'Resolved' ? 'bg-success' : 'bg-danger'}'>${r.status}</span><br>
+                                <small>${new Date(r.time).toLocaleString()}</small><br>
+                                <button class='btn btn-sm btn-primary mt-1' onclick='showReportDetails(${JSON.stringify(r).replace(/"/g, "&quot;")})'>Details</button>
+                                ${r.image ? `<button class='btn btn-sm btn-secondary mt-1' onclick='showImageModal(\'${r.image}\')'>Image</button>` : ''}
+                            </li>
+                        `).join('')}
+                        </ul>
+                    </div>`
+                });
+                marker.infoWindow = infowindow;
+                infowindow.open(map, marker);
+                map.panTo(location);
+                if (map.getZoom() < 14) map.setZoom(14);
+            });
+            markers.push(marker);
+            bounds.extend(location);
+        }
+        if (markers.length > 0) {
             map.fitBounds(bounds);
             const listener = google.maps.event.addListener(map, 'idle', function () {
                 if (map.getZoom() > 16) map.setZoom(16);
                 google.maps.event.removeListener(listener);
             });
         }
-
-        markers = newMarkers;
         updateHeatmap();
-        if (window.filterAndRenderReports) {
-            window.filterAndRenderReports();
-        }
+        if (window.filterAndRenderReports) window.filterAndRenderReports();
         updateDashboardInfo(reports);
         hideLoadingIndicator();
         return reports;
     } catch (error) {
-        // בודקים אם השגיאה נובעת מיציאה מהעמוד
         if (document.body) {
             handleError(error, 'loadReports');
             hideLoadingIndicator();
@@ -993,7 +1034,6 @@ async function loadReports(filters = {}) {
         return [];
     }
 }
-
 
 // Update general info blocks
 function updateDashboardInfo(reports) {
@@ -1027,6 +1067,7 @@ function updateDashboardInfo(reports) {
 // --- GLOBAL STATE ---
 let lastReports = [];
 let currentMarker = null;
+let selectedReportIds = new Set();
 
 // --- DOM ELEMENTS HOOKUP FOR NEW LAYOUT ---
 const dom = {
@@ -1040,6 +1081,12 @@ const dom = {
   toggleReportsBtn: document.getElementById('reports-maximize-btn'),
   imageModal: document.getElementById('image-modal'),
   viewToggleContainer: document.getElementById('view-toggle-container'),
+  selectAll: document.getElementById('select-all-reports'),
+  bulkToolbar: document.getElementById('bulk-actions-toolbar'),
+  selectedCount: document.getElementById('selected-count'),
+  bulkStatusBtn: document.getElementById('bulk-status-btn'),
+  bulkDeleteBtn: document.getElementById('bulk-delete-btn'),
+  bulkExportBtn: document.getElementById('bulk-export-btn'),
 };
 
 // --- BUTTON LOGIC CONNECTIONS ---
@@ -1340,7 +1387,13 @@ function renderReportTableRows(reports) {
     reports.forEach(report => {
         const tr = document.createElement('tr');
         tr.dataset.reportId = report.id; // For marker sync if needed
+        // Checkbox for selection
+        const checked = selectedReportIds.has(report.id.toString());
+        tr.classList.toggle('selected', checked);
         tr.innerHTML = `
+            <td style="text-align:center;">
+                <input type="checkbox" class="row-select-checkbox" data-report-id="${report.id}" ${checked ? 'checked' : ''} aria-label="Select report">
+            </td>
             <td>
                 ${report.image ? 
                     `<img src="${report.image}" alt="Hazard" class="hazard-thumbnail" 
@@ -1368,7 +1421,7 @@ function renderReportTableRows(reports) {
             </td>
             <td>
                 ${report.reportedBy}
-                ${report._mergedReporters?.size > 1 ? 
+                ${report._mergedReporters ?
                     `<span class="badge bg-secondary ms-1" title="Multiple reporters">
                         +${report._mergedReporters.size - 1}
                     </span>` 
@@ -1404,7 +1457,131 @@ function renderReportTableRows(reports) {
 
         // Add hover events to sync with map markers
         tr.addEventListener('mouseenter', () => highlightMarker(report.id));
-        tr.addEventListener('mouseleave', () => unhighlightMarker(report.id));
+        // Checkbox event
+        const checkbox = tr.querySelector('.row-select-checkbox');
+        if (checkbox) {
+            checkbox.addEventListener('change', (e) => {
+                const id = e.target.dataset.reportId;
+                if (e.target.checked) {
+                    selectedReportIds.add(id);
+                } else {
+                    selectedReportIds.delete(id);
+                }
+                updateBulkToolbar();
+                updateSelectAllCheckbox();
+                tr.classList.toggle('selected', e.target.checked);
+            });
+        }
+    });
+    updateBulkToolbar();
+    updateSelectAllCheckbox();
+}
+
+// Select-all logic
+if (dom.selectAll) {
+    dom.selectAll.addEventListener('change', (e) => {
+        const checkboxes = document.querySelectorAll('.row-select-checkbox');
+        if (e.target.checked) {
+            lastReports.forEach(r => selectedReportIds.add(r.id.toString()));
+            checkboxes.forEach(cb => { cb.checked = true; cb.closest('tr').classList.add('selected'); });
+        } else {
+            selectedReportIds.clear();
+            checkboxes.forEach(cb => { cb.checked = false; cb.closest('tr').classList.remove('selected'); });
+        }
+        updateBulkToolbar();
+    });
+}
+
+function updateSelectAllCheckbox() {
+    if (!dom.selectAll) return;
+    const checkboxes = document.querySelectorAll('.row-select-checkbox');
+    const checked = Array.from(checkboxes).filter(cb => cb.checked).length;
+    dom.selectAll.checked = checked > 0 && checked === checkboxes.length;
+    dom.selectAll.indeterminate = checked > 0 && checked < checkboxes.length;
+}
+
+function updateBulkToolbar() {
+    const count = selectedReportIds.size;
+    if (dom.bulkToolbar) {
+        dom.bulkToolbar.style.display = count > 0 ? 'flex' : 'none';
+    }
+    if (dom.selectedCount) {
+        dom.selectedCount.textContent = `${count} selected`;
+    }
+}
+
+// Bulk status update
+if (dom.bulkStatusBtn) {
+    dom.bulkStatusBtn.addEventListener('click', async () => {
+        if (!selectedReportIds.size) return;
+        const newStatus = prompt('Enter new status for selected reports (e.g., Open, Resolved):');
+        if (!newStatus) return;
+        for (const id of selectedReportIds) {
+            try {
+                await fetch(`/api/reports/${id}/status`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: newStatus })
+                });
+            } catch (err) {
+                console.error('Bulk status update error:', err);
+            }
+        }
+        showToast('Bulk status update complete', 'success');
+        await loadReports();
+        selectedReportIds.clear();
+        updateBulkToolbar();
+    });
+}
+
+// Bulk delete
+if (dom.bulkDeleteBtn) {
+    dom.bulkDeleteBtn.addEventListener('click', async () => {
+        if (!selectedReportIds.size) return;
+        if (!confirm(`Delete ${selectedReportIds.size} selected reports? This cannot be undone.`)) return;
+        for (const id of selectedReportIds) {
+            try {
+                await fetch(`/api/reports/${id}`, { method: 'DELETE' });
+            } catch (err) {
+                console.error('Bulk delete error:', err);
+            }
+        }
+        showToast('Bulk delete complete', 'success');
+        await loadReports();
+        selectedReportIds.clear();
+        updateBulkToolbar();
+    });
+}
+
+// Bulk export to CSV
+function reportsToCSV(reports) {
+    if (!reports.length) return '';
+    const fields = ['id','type','location','time','status','reportedBy','image'];
+    const csvRows = [fields.join(',')];
+    for (const r of reports) {
+        const row = fields.map(f => {
+            let val = r[f] || '';
+            if (typeof val === 'string') val = val.replace(/"/g, '""');
+            return '"' + val + '"';
+        });
+        csvRows.push(row.join(','));
+    }
+    return csvRows.join('\n');
+}
+
+if (dom.bulkExportBtn) {
+    dom.bulkExportBtn.addEventListener('click', () => {
+        if (!selectedReportIds.size) return;
+        const selected = lastReports.filter(r => selectedReportIds.has(r.id.toString()));
+        const csv = reportsToCSV(selected);
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `hazard-reports-${Date.now()}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
     });
 }
 
@@ -1749,6 +1926,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize error boundary
     window.addEventListener('error', handleGlobalError);
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    
+    connectSSE(); // Start SSE connection on load
+    requestBrowserNotificationPermission();
+    preloadHighPrioritySound();
 });
 
 // Keyboard shortcuts
@@ -2007,4 +2188,484 @@ async function retryRequest(requestFn, maxRetries = 3, delay = 1000) {
             await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
         }
     }
+}
+
+// --- SSE Real-Time Notifications ---
+let eventSource = null;
+let sseReconnectTimer = null;
+
+function connectSSE() {
+    if (eventSource) {
+        eventSource.close();
+    }
+    eventSource = new EventSource('/api/events/stream');
+    
+    eventSource.onopen = () => {
+        console.log('[SSE] Connected to /api/events/stream');
+        if (sseReconnectTimer) {
+            clearTimeout(sseReconnectTimer);
+            sseReconnectTimer = null;
+        }
+        // Optionally update UI to show LIVE
+        if (window.setLiveIndicator) window.setLiveIndicator(true);
+    };
+    
+    eventSource.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            handleIncomingEvent(data);
+        } catch (err) {
+            console.warn('[SSE] Failed to parse event:', event.data, err);
+        }
+    };
+    
+    eventSource.onerror = (err) => {
+        console.error('[SSE] Connection error:', err);
+        if (window.setLiveIndicator) window.setLiveIndicator(false);
+        // Attempt to reconnect after delay
+        if (!sseReconnectTimer) {
+            sseReconnectTimer = setTimeout(connectSSE, 5000);
+        }
+    };
+}
+
+function handleIncomingEvent(data) {
+    if (data.type === 'new_report' && data.report) {
+        showNotificationInCenter({
+            title: 'New Hazard Reported',
+            body: `${data.report.type} at ${data.report.location}`,
+            time: data.report.time,
+            onClick: () => {
+                window.showNotificationCenter();
+                focusMapLocation(data.report.location);
+            }
+        });
+        showDesktopNotification({
+            title: 'New Hazard Reported',
+            body: `${data.report.type} at ${data.report.location}`,
+            report: data.report,
+            onClick: () => {
+                window.showNotificationCenter();
+                focusMapLocation(data.report.location);
+            }
+        });
+        if (HIGH_PRIORITY_TYPES.includes(data.report.type)) {
+            playHighPrioritySound();
+        }
+    } else if (data.type === 'status_update' && data.report) {
+        showNotificationInCenter({
+            title: 'Report Status Updated',
+            body: `${data.report.type} at ${data.report.location} is now ${data.report.status}`,
+            time: data.report.time,
+            onClick: () => {
+                window.showNotificationCenter();
+                focusMapLocation(data.report.location);
+            }
+        });
+        showDesktopNotification({
+            title: 'Report Status Updated',
+            body: `${data.report.type} at ${data.report.location} is now ${data.report.status}`,
+            report: data.report,
+            onClick: () => {
+                window.showNotificationCenter();
+                focusMapLocation(data.report.location);
+            }
+        });
+    } else {
+        // Fallback for other event types
+        showNotificationInCenter({
+            title: data.type || 'Event',
+            body: data.message || '',
+            time: data.time || Date.now()
+        });
+    }
+}
+
+// --- Notification Center UI ---
+function createNotificationCenter() {
+    let center = document.getElementById('notification-center');
+    if (center) return center;
+    center = document.createElement('div');
+    center.id = 'notification-center';
+    center.style.position = 'fixed';
+    center.style.top = '20px';
+    center.style.right = '20px';
+    center.style.width = '340px';
+    center.style.maxHeight = '60vh';
+    center.style.overflowY = 'auto';
+    center.style.zIndex = '10000';
+    center.style.background = 'rgba(30, 30, 40, 0.98)';
+    center.style.borderRadius = '12px';
+    center.style.boxShadow = '0 4px 16px rgba(0,0,0,0.25)';
+    center.style.padding = '0 0 8px 0';
+    center.style.display = 'flex';
+    center.style.flexDirection = 'column';
+    center.style.gap = '0';
+    center.innerHTML = `
+        <div id="notification-center-header" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px 8px 16px;border-bottom:1px solid #444;">
+            <span style="font-weight:bold;font-size:1.1em;color:#fff;letter-spacing:1px;">Notifications <span id="live-indicator" style="margin-left:8px;font-size:0.9em;"></span></span>
+            <button id="notification-center-close" style="background:none;border:none;color:#fff;font-size:1.2em;cursor:pointer;">&times;</button>
+        </div>
+        <div id="notification-list" style="padding:8px 0 0 0;max-height:48vh;overflow-y:auto;"></div>
+    `;
+    document.body.appendChild(center);
+    // Close button
+    center.querySelector('#notification-center-close').onclick = () => {
+        center.style.display = 'none';
+    };
+    // Show on click of bell icon (if you add one)
+    window.showNotificationCenter = () => {
+        center.style.display = 'flex';
+    };
+    return center;
+}
+
+function showNotificationInCenter(notification) {
+    const center = createNotificationCenter();
+    center.style.display = 'flex';
+    const list = center.querySelector('#notification-list');
+    if (!list) return;
+    // Create notification item
+    const item = document.createElement('div');
+    item.className = 'notification-item';
+    item.style.background = '#232946';
+    item.style.color = '#fff';
+    item.style.margin = '0 12px 8px 12px';
+    item.style.padding = '10px 12px';
+    item.style.borderRadius = '8px';
+    item.style.boxShadow = '0 2px 8px #23294633';
+    item.style.display = 'flex';
+    item.style.alignItems = 'center';
+    item.style.gap = '12px';
+    item.style.fontSize = '1em';
+    item.style.cursor = 'pointer';
+    item.innerHTML = `
+        <div style="flex:1;">
+            <div style="font-weight:bold;">${notification.title || 'New Event'}</div>
+            <div style="font-size:0.95em;opacity:0.85;">${notification.body || ''}</div>
+            <div style="font-size:0.85em;opacity:0.6;">${notification.time ? new Date(notification.time).toLocaleTimeString() : ''}</div>
+        </div>
+    `;
+    // Optionally, click to focus map or show details
+    if (notification.onClick) {
+        item.onclick = notification.onClick;
+    }
+    list.prepend(item);
+    // Limit to 10 notifications
+    while (list.children.length > 10) {
+        list.removeChild(list.lastChild);
+    }
+}
+
+// --- LIVE Indicator Pulse ---
+function setLiveIndicator(isLive) {
+    const el = document.getElementById('live-indicator');
+    if (!el) return;
+    if (isLive) {
+        el.innerHTML = '<span class="live-dot"></span>LIVE';
+        el.classList.add('live-pulse');
+    } else {
+        el.innerHTML = '<span class="live-dot" style="background:#888"></span>OFFLINE';
+        el.classList.remove('live-pulse');
+    }
+}
+window.setLiveIndicator = setLiveIndicator;
+
+// Add CSS for notification center and pulse
+(function addNotificationCenterStyles() {
+    const style = document.createElement('style');
+    style.textContent = `
+        .live-dot {
+            display:inline-block;width:10px;height:10px;border-radius:50%;background:#ff5252;margin-right:6px;vertical-align:middle;box-shadow:0 0 8px #ff5252;
+        }
+        .live-pulse .live-dot {
+            animation: livePulse 1.2s infinite;
+        }
+        @keyframes livePulse {
+            0% { box-shadow:0 0 0 0 #ff5252; }
+            70% { box-shadow:0 0 0 8px rgba(255,82,82,0); }
+            100% { box-shadow:0 0 0 0 #ff5252; }
+        }
+        #notification-center::-webkit-scrollbar { width: 8px; background: #232946; }
+        #notification-center::-webkit-scrollbar-thumb { background: #444; border-radius: 8px; }
+        .notification-item:hover { background: #2a2e3a; }
+    `;
+    document.head.appendChild(style);
+})();
+
+// --- Browser Notification Permission ---
+let browserNotificationPermission = 'default';
+
+function requestBrowserNotificationPermission() {
+    if (!('Notification' in window)) {
+        browserNotificationPermission = 'unsupported';
+        return;
+    }
+    Notification.requestPermission().then(permission => {
+        browserNotificationPermission = permission;
+        console.log('[Notifications] Permission:', permission);
+    });
+}
+
+function canShowDesktopNotification() {
+    return browserNotificationPermission === 'granted';
+}
+
+function showDesktopNotification({ title, body, report, onClick }) {
+    if (!canShowDesktopNotification()) return;
+    const notification = new Notification(title, {
+        body: body,
+        icon: '/public/icon.png', // Use your app icon
+        tag: report && report.id ? `report-${report.id}` : undefined
+    });
+    notification.onclick = function(event) {
+        event.preventDefault();
+        window.focus();
+        if (onClick) onClick();
+    };
+}
+
+// --- Sound Alerts for High-Priority Items ---
+const HIGH_PRIORITY_TYPES = ['Pothole', 'Manhole', 'Transverse Crack'];
+let highPriorityAudio = null;
+
+function preloadHighPrioritySound() {
+    if (!highPriorityAudio) {
+        highPriorityAudio = document.createElement('audio');
+        highPriorityAudio.src = 'https://cdn.pixabay.com/audio/2022/07/26/audio_124bfae5b2.mp3'; // Free notification sound
+        highPriorityAudio.preload = 'auto';
+        highPriorityAudio.volume = 0.7;
+        document.body.appendChild(highPriorityAudio);
+        highPriorityAudio.style.display = 'none';
+    }
+}
+
+function playHighPrioritySound() {
+    if (highPriorityAudio) {
+        highPriorityAudio.currentTime = 0;
+        highPriorityAudio.play().catch(() => {});
+    }
+}
+
+class CollapsibleDashboard {
+  constructor() {
+    this.panels = [];
+    this.panelConfigs = [
+      { id: 'realtime-overview', title: 'Real-time Overview', icon: 'fa-tachometer-alt', defaultOpen: true },
+      { id: 'performance-metrics', title: 'Performance Metrics', icon: 'fa-chart-line', defaultOpen: false },
+      { id: 'geographic-analytics', title: 'Geographic Analytics', icon: 'fa-map-marked-alt', defaultOpen: false },
+      { id: 'team-performance', title: 'Team Performance', icon: 'fa-users', defaultOpen: false },
+      { id: 'predictive-analytics', title: 'Predictive Analytics', icon: 'fa-brain', defaultOpen: false }
+    ];
+    this.initializePanels();
+    this.loadSavedState();
+  }
+
+  initializePanels() {
+    const container = document.querySelector('.dashboard-accordion');
+    if (!container) return;
+    this.panelConfigs.forEach(config => {
+      const panel = container.querySelector(`[id$='${config.id}-content']`).parentElement;
+      if (config.defaultOpen) {
+        panel.classList.add('active');
+        panel.querySelector('.accordion-header').setAttribute('aria-expanded', 'true');
+      } else {
+        panel.classList.remove('active');
+        panel.querySelector('.accordion-header').setAttribute('aria-expanded', 'false');
+      }
+      // Click handler
+      panel.querySelector('.accordion-header').addEventListener('click', () => {
+        this.togglePanel(config.id);
+      });
+    });
+  }
+
+  togglePanel(panelId) {
+    const panel = document.getElementById(`${panelId}-content`).parentElement;
+    const isOpen = panel.classList.contains('active');
+    if (isOpen) {
+      this.closePanel(panelId);
+    } else {
+      this.openPanel(panelId);
+    }
+    this.saveState();
+  }
+
+  openPanel(panelId) {
+    const panel = document.getElementById(`${panelId}-content`).parentElement;
+    panel.classList.add('active');
+    panel.querySelector('.accordion-header').setAttribute('aria-expanded', 'true');
+    // Lazy load content if not loaded
+    if (!panel.dataset.loaded) {
+      this.loadPanelContent(panelId);
+      panel.dataset.loaded = 'true';
+    }
+  }
+
+  closePanel(panelId) {
+    const panel = document.getElementById(`${panelId}-content`).parentElement;
+    panel.classList.remove('active');
+    panel.querySelector('.accordion-header').setAttribute('aria-expanded', 'false');
+  }
+
+  loadPanelContent(panelId) {
+    const content = document.getElementById(`${panelId}-content`);
+    // Placeholder: Replace with actual content loading logic
+    content.innerHTML = `<div class='panel-loading'><div class='spinner-border text-primary' role='status'><span class='visually-hidden'>Loading...</span></div></div>`;
+    // TODO: Add chart/component initialization here
+  }
+
+  saveState() {
+    const openPanels = this.panelConfigs.filter(cfg => {
+      const panel = document.getElementById(`${cfg.id}-content`).parentElement;
+      return panel.classList.contains('active');
+    }).map(cfg => cfg.id);
+    localStorage.setItem('dashboard-open-panels', JSON.stringify(openPanels));
+  }
+
+  loadSavedState() {
+    const openPanels = JSON.parse(localStorage.getItem('dashboard-open-panels') || '[]');
+    this.panelConfigs.forEach(cfg => {
+      const panel = document.getElementById(`${cfg.id}-content`).parentElement;
+      if (openPanels.includes(cfg.id)) {
+        panel.classList.add('active');
+        panel.querySelector('.accordion-header').setAttribute('aria-expanded', 'true');
+      } else {
+        panel.classList.remove('active');
+        panel.querySelector('.accordion-header').setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  window.collapsibleDashboard = new CollapsibleDashboard();
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  const sortBtn = document.getElementById('sort-dropdown-btn');
+  const sortMenu = document.getElementById('sort-dropdown-menu');
+  const sortLabel = document.getElementById('current-sort-label');
+  const sortOptions = sortMenu ? sortMenu.querySelectorAll('.sort-option') : [];
+  const sortSelect = document.getElementById('report-sort-select');
+
+  if (sortBtn && sortMenu) {
+    sortBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sortMenu.classList.toggle('active');
+    });
+    sortOptions.forEach(option => {
+      option.addEventListener('click', () => {
+        // עדכן תצוגה
+        sortLabel.textContent = 'מיון לפי: ' + option.textContent;
+        sortOptions.forEach(o => o.classList.remove('selected'));
+        option.classList.add('selected');
+        sortMenu.classList.remove('active');
+        // עדכן מיון בפועל
+        if (sortSelect) {
+          sortSelect.value = option.dataset.value;
+          if (window.filterAndRenderReports) window.filterAndRenderReports();
+        }
+      });
+    });
+    // סגירה בלחיצה מחוץ
+    document.addEventListener('click', (e) => {
+      if (!sortBtn.contains(e.target) && !sortMenu.contains(e.target)) {
+        sortMenu.classList.remove('active');
+      }
+    });
+  }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  // --- Hazard type dropdown logic ---
+  const hazardBtn = document.getElementById('hazard-type-dropdown-btn');
+  const hazardMenu = document.getElementById('hazard-type-dropdown-menu');
+  const hazardLabel = document.getElementById('current-hazard-type-label');
+  const hazardOptions = hazardMenu ? hazardMenu.querySelectorAll('.hazard-type-option') : [];
+
+  if (hazardBtn && hazardMenu) {
+    hazardBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      hazardMenu.classList.toggle('active');
+    });
+    hazardOptions.forEach(option => {
+      option.addEventListener('click', () => {
+        hazardLabel.textContent = option.textContent;
+        hazardOptions.forEach(o => o.classList.remove('selected'));
+        option.classList.add('selected');
+        hazardMenu.classList.remove('active');
+        // עדכן סינון בפועל
+        window.selectedHazardType = option.dataset.value;
+        if (window.filterAndRenderReports) window.filterAndRenderReports();
+      });
+    });
+    document.addEventListener('click', (e) => {
+      if (!hazardBtn.contains(e.target) && !hazardMenu.contains(e.target)) {
+        hazardMenu.classList.remove('active');
+      }
+    });
+  }
+});
+
+// עדכון filterAndRenderReports לסינון לפי window.selectedHazardType באנגלית
+const origFilterAndRender = window.filterAndRenderReports;
+window.filterAndRenderReports = function() {
+  let filtered = lastReports || [];
+  const q = (document.getElementById('report-search-input')?.value || '').toLowerCase().trim();
+  if (q) {
+    filtered = filtered.filter(r =>
+      (r.type && r.type.toLowerCase().includes(q)) ||
+      (r.location && r.location.toLowerCase().includes(q)) ||
+      (r.status && r.status.toLowerCase().includes(q)) ||
+      (r.reportedBy && r.reportedBy.toLowerCase().includes(q))
+    );
+  }
+  // סינון לפי סוג
+  if (window.selectedHazardType && window.selectedHazardType !== '') {
+    filtered = filtered.filter(r => r.type === window.selectedHazardType);
+  }
+  // מיון
+  const sortSelect = document.getElementById('report-sort-select');
+  if (sortSelect) {
+    const [field, order] = sortSelect.value.split('-');
+    filtered = sortReports(filtered, field === 'reportedBy' ? 'reportedBy' : field, order);
+  }
+  filtered = mergeDuplicateReports(filtered);
+  renderReportBlocksModern(filtered);
+  updateDashboardInfo(filtered);
+  updateURLParams({ search: q, sort: sortSelect?.value });
+};
+
+// רנדר בלוקים מודרניים במקום שורות טבלה
+function renderReportBlocksModern(reports) {
+  const container = document.getElementById('reports-blocks-container');
+  if (!container) return;
+  container.innerHTML = '';
+  reports.forEach(report => {
+    const block = document.createElement('div');
+    block.className = 'report-block';
+    block.innerHTML = `
+      <img src="${report.image || ''}" alt="Hazard image" class="report-block-image">
+      <div class="report-block-details">
+        <div class="report-block-title">${report.type || ''}</div>
+        <div class="report-block-meta">
+          <span><i class="fas fa-map-marker-alt"></i> ${report.location || ''}</span>
+          <span><i class="fas fa-calendar-alt"></i> ${report.time ? new Date(report.time).toLocaleString() : ''}</span>
+          <span><i class="fas fa-user"></i> ${report.reportedBy || ''}</span>
+        </div>
+        <div class="report-block-status mt-1">
+          <span class="badge ${getStatusBadgeClass(report.status)}">${report.status || ''}</span>
+        </div>
+        <div class="report-block-actions mt-2 d-flex gap-2 flex-wrap">
+          <button class="btn btn-outline-primary btn-sm" onclick="showReportDetails(${JSON.stringify(report).replace(/"/g, '&quot;')})"><i class="fas fa-info-circle"></i> Details</button>
+          <button class="btn btn-outline-secondary btn-sm" onclick="showImageModal('${report.image}')" ${!report.image ? 'disabled' : ''}><i class="fas fa-image"></i> Image</button>
+          <button class="btn btn-outline-warning btn-sm" onclick="openEditReportModal(${JSON.stringify(report).replace(/"/g, '&quot;')})"><i class="fas fa-edit"></i> Edit</button>
+          <button class="btn btn-outline-danger btn-sm" onclick="confirmDeleteReport('${report.id}')"><i class="fas fa-trash"></i> Delete</button>
+          <button class="btn btn-outline-${report.status === 'Resolved' ? 'danger' : 'success'} btn-sm" onclick="toggleReportStatus('${report.id}', '${report.status}')">${report.status === 'Resolved' ? 'Mark Open' : 'Mark Resolved'}</button>
+        </div>
+      </div>
+    `;
+    container.appendChild(block);
+  });
 }

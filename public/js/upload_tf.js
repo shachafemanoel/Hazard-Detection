@@ -31,7 +31,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const frameTimes = [];                    // Frame time history
   const maxHistory = 5;                     // Reduced for faster adaptation    
   let detectedObjectCount = 0; // Initialize object count
+  let sessionDetectionCount = 0; // Total detections in session
   let uniqueHazardTypes = []; // Initialize array for unique hazard types
+  let trackedObjects = new Map(); // Object tracker
+  let nextObjectId = 1;
   let fpsCounter = 0;
   let lastFpsTime = Date.now();
   let currentFps = 0;
@@ -94,6 +97,60 @@ document.addEventListener("DOMContentLoaded", () => {
     "Transverse Crack",
     "Wheel Mark Crack",
   ];
+
+  // Object tracking function
+  function findOrCreateTrackedObject(x, y, hazardType, area) {
+    const threshold = 100; // Distance threshold for matching objects
+    let bestMatch = null;
+    let bestDistance = Infinity;
+    
+    // Find closest existing object of same type
+    for (let [key, obj] of trackedObjects) {
+      if (obj.hazardType === hazardType) {
+        const distance = Math.sqrt(Math.pow(x - obj.x, 2) + Math.pow(y - obj.y, 2));
+        if (distance < threshold && distance < bestDistance) {
+          bestMatch = key;
+          bestDistance = distance;
+        }
+      }
+    }
+    
+    if (bestMatch) {
+      // Update existing object position
+      const obj = trackedObjects.get(bestMatch);
+      obj.x = x;
+      obj.y = y;
+      obj.lastSeen = Date.now();
+      obj.area = area;
+      return bestMatch;
+    } else {
+      // Create new tracked object
+      const newKey = `obj_${nextObjectId++}`;
+      trackedObjects.set(newKey, {
+        id: newKey,
+        x: x,
+        y: y,
+        hazardType: hazardType,
+        area: area,
+        firstSeen: Date.now(),
+        lastSeen: Date.now(),
+        isNew: true
+      });
+      return newKey;
+    }
+  }
+  
+  // Clean up old tracked objects periodically
+  function cleanupTrackedObjects() {
+    const now = Date.now();
+    const timeout = 3000; // 3 seconds
+    
+    for (let [key, obj] of trackedObjects) {
+      if (now - obj.lastSeen > timeout) {
+        trackedObjects.delete(key);
+      }
+    }
+  }
 
   
 
@@ -549,7 +606,7 @@ async function detectLoop() {
   const classes = [];
 
   // Optimized detection parsing with early termination
-  const threshold = 0.3;
+  const threshold = 0.5;
   const maxDetections = 50; // Limit detections for performance
   
   for (let i = 0; i < outputData.length && boxes.length < maxDetections; i += 6) {
@@ -567,9 +624,9 @@ async function detectLoop() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-  // Reset counters for overlays
+  // Reset frame counters for overlays
   detectedObjectCount = 0;
-  uniqueHazardTypes = [];
+  const frameHazardTypes = [];
 
   // Process all detections directly without NMS
   for (let i = 0; i < boxes.length; i++) {
@@ -591,8 +648,17 @@ async function detectLoop() {
     }
     
     detectedObjectCount++;
-    const hazardIdx = Math.floor(cls); // Use floor instead of round for proper indexing
+    const hazardIdx = Math.floor(cls);
     const hazardName = (hazardIdx >= 0 && hazardIdx < classNames.length) ? classNames[hazardIdx] : `Unknown Class ${hazardIdx}`;
+    
+    // Track unique objects
+    const centerX = (left + right) / 2;
+    const centerY = (top + bottom) / 2;
+    const objectKey = findOrCreateTrackedObject(centerX, centerY, hazardName, w * h);
+    
+    if (hazardName && !frameHazardTypes.includes(hazardName)) {
+      frameHazardTypes.push(hazardName);
+    }
     if (hazardName && !uniqueHazardTypes.includes(hazardName)) {
       uniqueHazardTypes.push(hazardName);
     }
@@ -617,9 +683,10 @@ async function detectLoop() {
     ctx.fillStyle = 'black';
     ctx.fillText(label, Math.max(4, left + 4), labelY + 15);
 
-    // Save detection with improved timing
-    if (!lastSaveTime || Date.now() - lastSaveTime > 5000) {
-      lastSaveTime = Date.now();
+    // Save detection only for new tracked objects
+    if (trackedObjects.get(objectKey).isNew) {
+      trackedObjects.get(objectKey).isNew = false;
+      sessionDetectionCount++;
       await saveDetection(canvas, hazardName);
     }
   }
@@ -634,11 +701,11 @@ async function detectLoop() {
   }
 
   if (objectCountOverlay) {
-    objectCountOverlay.textContent = `Objects: ${detectedObjectCount} | FPS: ${currentFps}`;
+    objectCountOverlay.textContent = `Frame: ${detectedObjectCount} | Session: ${sessionDetectionCount} | FPS: ${currentFps}`;
   }
   if (hazardTypesOverlay) {
-    hazardTypesOverlay.textContent = uniqueHazardTypes.length > 0
-      ? `Hazards: ${uniqueHazardTypes.join(', ')}`
+    hazardTypesOverlay.textContent = frameHazardTypes.length > 0
+      ? `Hazards: ${frameHazardTypes.join(', ')}`
       : 'Hazards: None';
   }
 
@@ -653,6 +720,11 @@ async function detectLoop() {
     skipFrames = Math.min(skipFrames + 1, 5);
   } else if (avgTime < idealInterval * 0.8) {
     skipFrames = Math.max(skipFrames - 1, 1);
+  }
+
+  // Cleanup old tracked objects periodically
+  if (frameCount % 30 === 0) {
+    cleanupTrackedObjects();
   }
 
   // Use requestAnimationFrame for smoother preview
@@ -763,13 +835,16 @@ switchBtn.addEventListener("click", async () => {
     prevImageData = null;
     frameTimes.length = 0;
     detectedObjectCount = 0;
+    sessionDetectionCount = 0;
     uniqueHazardTypes = [];
+    trackedObjects.clear();
+    nextObjectId = 1;
     fpsCounter = 0;
     lastFpsTime = Date.now();
     currentFps = 0;
     
     // Clear overlays
-    if (objectCountOverlay) objectCountOverlay.textContent = "Objects: 0";
+    if (objectCountOverlay) objectCountOverlay.textContent = "Frame: 0 | Session: 0 | FPS: 0";
     if (hazardTypesOverlay) hazardTypesOverlay.textContent = "Hazards: None";
     
     console.log("Camera stopped and memory cleaned");
