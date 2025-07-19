@@ -161,18 +161,11 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   // רשימת המחלקות
   const classNames = [
-    "Alligator Crack",
-    "Block Crack",
-    "Construction Joint Crack",
-    "Crosswalk Blur",
-    "Lane Blur",
-    "Longitudinal Crack",
-    "Manhole",
-    "Patch Repair",
-    "Pothole",
-    "Transverse Crack",
-    "Wheel Mark Crack",
-  ];
+    'crack',
+    'knocked',
+    'pothole',
+    'surface_damage'
+  ]
 
   let session = null;
 
@@ -222,7 +215,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       const startTime = performance.now();
       
       session = await ort.InferenceSession.create(
-        "/assets/object_detecion_model/road_damage_detection_last_version.onnx",
+        "/assets/object_detecion_model/model 18:7.onnx",
         sessionOptions
       );
       
