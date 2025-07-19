@@ -1,0 +1,44 @@
+<!-- Button Component - Reusable button with various styles -->
+<button
+  type="{{TYPE:button}}"
+  class="btn {{VARIANT:btn-primary}} {{SIZE:}} {{CLASSES:}}"
+  id="{{ID:}}"
+  {{DISABLED:}}
+  {{ATTRIBUTES:}}
+>
+  {{#if ICON_LEFT}}
+  <i class="{{ICON_LEFT}}"></i>
+  {{/if}}
+
+  <span class="btn-text">{{TEXT}}</span>
+
+  {{#if ICON_RIGHT}}
+  <i class="{{ICON_RIGHT}}"></i>
+  {{/if}} {{#if LOADING}}
+  <i class="fas fa-spinner fa-spin btn-spinner hidden"></i>
+  {{/if}}
+</button>
+
+<!-- Button Variants Available:
+- btn-primary: Primary button style
+- btn-secondary: Secondary button style
+- btn-success: Success/positive action style
+- btn-danger: Danger/destructive action style
+- btn-warning: Warning style
+- btn-info: Info style
+- btn-light: Light style
+- btn-dark: Dark style
+- btn-outline-primary: Outline primary
+- btn-outline-secondary: Outline secondary
+- btn-modern: Modern rounded style
+
+Button Sizes Available:
+- btn-sm: Small button
+- btn-lg: Large button
+- (default): Regular size
+
+Usage Examples:
+{{> button TYPE="submit" VARIANT="btn-primary" TEXT="Submit" ICON_LEFT="fas fa-check" LOADING=true}}
+{{> button TYPE="button" VARIANT="btn-outline-secondary" TEXT="Cancel" CLASSES="me-2"}}
+{{> button TYPE="button" VARIANT="btn-modern" TEXT="Google Login" ICON_LEFT="fab fa-google" SIZE="btn-lg"}}
+-->

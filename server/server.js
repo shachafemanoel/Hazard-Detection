@@ -234,7 +234,7 @@ app.get('/auth/google', async (req, res, next) => {
         req.logout(function(err) {  
             if (err) {  
                 console.error('Error during logout:', err);  
-                return res.redirect('/login.html?error=LogoutFailed');  
+                return res.redirect('/pages/login.html?error=LogoutFailed');  
             }  
             req.session.destroy(() => {  
                 next(); // נמשיך רק אחרי שה-session נוקתה  
@@ -257,27 +257,27 @@ app.get('/auth/google/callback', (req, res, next) => {
         
         if (err) {
             console.error('Google Auth Error:', err);
-            return res.redirect('/login.html?error=ServerError');
+            return res.redirect('/pages/login.html?error=ServerError');
         }
         
         if (!user) {
             // משתמש לא אותנטי → בדוק אם זה בגלל שהמייל כבר תפוס
             if (info && info.message === 'EmailExists') {
-                return res.redirect('/login.html?error=EmailExists');
+                return res.redirect('/pages/login.html?error=EmailExists');
             }
-            return res.redirect('/login.html?error=AuthFailed');
+            return res.redirect('/pages/login.html?error=AuthFailed');
         }
         
         // התחברות או רישום מוצלחים
         req.login(user, async (err) => {
             if (err) {
                 console.error('Login Error:', err);
-                return res.redirect('/login.html?error=LoginFailed');
+                return res.redirect('/pages/login.html?error=LoginFailed');
             }
             
             req.session.user = { email: user.email, username: user.username };
             
-            return res.redirect('/upload.html');
+            return res.redirect('/pages/index.html');
         });
     })(req, res, next);
 });
@@ -290,7 +290,7 @@ app.get('/upload', async (req, res) => {
         return res.redirect('/'); // אם לא מחובר, מחזירים לדף הבית
     }
     // הצגת דף ה-upload
-    res.sendFile(path.join(__dirname, '../public/upload.html'));
+    res.sendFile(path.join(__dirname, '../public/pages/index.html'));
 });
 
 app.get('/camera.html', (req, res) => {
@@ -317,12 +317,27 @@ app.get('/logout', (req, res) => {
     });
 });
 
+// Authentication check endpoint  
+app.get('/api/auth/check', (req, res) => {
+    if (req.isAuthenticated()) {
+        res.status(200).json({ 
+            authenticated: true, 
+            user: { 
+                email: req.session.user?.email || req.user?.email,
+                username: req.session.user?.username || req.user?.username 
+            } 
+        });
+    } else {
+        res.status(401).json({ authenticated: false });
+    }
+});
+
 // דף ברירת מחדל
 app.get('/', (req, res) => {
     if (req.isAuthenticated()) {
-        return res.redirect('/upload');
+        return res.redirect('/pages/index.html');
     }
-    res.redirect('/login.html');
+    res.redirect('/pages/login.html');
 });
 
 
@@ -665,68 +680,70 @@ app.post('/login', async (req, res) => {
 // שליחה למייל של קישור לאיפוס סיסמה
 app.post('/forgot-password', async (req, res) => {
     const { email } = req.body;
+    
     if (!email) {
-        return res.status(400).json({ error: 'Email is required' });
+        return res.status(400).json({ error: 'Please enter your email address' });
     }
-
-    const userKeys = await client.keys('user:*');
-    let userId = null;
-    let userData = null;
-    for (const key of userKeys) {
-        const data = JSON.parse(await client.get(key));
-        if (data.email === email) {
-            userId = key;
-            userData = data;
-            break;
-        }
-    }
-
-    if (!userId || !userData) {
-        return res.status(404).json({ error: 'Email not found' });
-    }
-
-    if (!userData.password) {
-        return res.status(400).json({ error: 'This account uses Google login and cannot reset password.' });
-    }
-
-
-    // ✅ מחיקת טוקנים קודמים של אותו משתמש אם קיימים
-    const existingTokens = await client.keys('reset:*');
-    for (const key of existingTokens) {
-        const value = await client.get(key);
-        if (value === userId) {
-            await client.del(key);
-        }
-    }
-
-    // יצירת טוקן ייחודי
-    const token = crypto.randomBytes(20).toString('hex');
-    const tokenKey = `reset:${token}`;
-
-    // שמירת הטוקן עם תוקף של 10 דקות
-    await client.setEx(tokenKey, 600, userId); // 600 שניות = 10 דקות
-
-    const resetUrl = `https://hazard-detection.onrender.com/reset-password.html?token=${token}`;
-
-    const message = {
-        to: email,
-        from: 'hazard.reporter@outlook.com', // כתובת שנרשמה ואושרה ב-SendGrid
-        subject: 'Password Reset Request',
-        html: `
-            <h3>Hello,</h3>
-            <p>You requested to reset your password. Click the link below to reset it:</p>
-            <a href="${resetUrl}">${resetUrl}</a>
-            <p>This link will expire in 10 minutes.</p>
-        `
-    };
 
     try {
+        const userKeys = await client.keys('user:*');
+        let userId = null;
+        let userData = null;
+        
+        for (const key of userKeys) {
+            const data = JSON.parse(await client.get(key));
+            if (data.email === email) {
+                userId = key;
+                userData = data;
+                break;
+            }
+        }
+
+        if (!userId || !userData) {
+            return res.status(404).json({ error: 'Email not found' });
+        }
+
+        if (!userData.password) {
+            return res.status(400).json({ error: 'This account uses Google login and cannot reset password' });
+        }
+
+        // מחיקת טוקנים קודמים של אותו משתמש אם קיימים
+        const existingTokens = await client.keys('reset:*');
+        for (const key of existingTokens) {
+            const value = await client.get(key);
+            if (value === userId) {
+                await client.del(key);
+            }
+        }
+
+        // יצירת טוקן ייחודי
+        const token = crypto.randomBytes(20).toString('hex');
+        const tokenKey = `reset:${token}`;
+
+        // שמירת הטוקן עם תוקף של 10 דקות
+        await client.setEx(tokenKey, 600, userId);
+
+        const resetUrl = `https://hazard-detection.onrender.com/reset-password.html?token=${token}`;
+
+        const message = {
+            to: email,
+            from: 'hazard.reporter@outlook.com',
+            subject: 'Password Reset Request',
+            html: `
+                <h3>Hello,</h3>
+                <p>You requested to reset your password. Click the link below to reset it:</p>
+                <a href="${resetUrl}">${resetUrl}</a>
+                <p>This link will expire in 10 minutes.</p>
+            `
+        };
+
         await sgMail.send(message); 
         console.log("Reset email sent successfully to", email);
         res.status(200).json({ message: 'Reset link sent to your email' });
+        
     } catch (error) {
-        console.error("Error sending email: ", error);
-        res.status(500).json({ error: 'Failed to send email' });
+        console.error("Error in forgot-password:", error);
+        res.status(500).json({ error: 'Failed to send reset email' });
     } 
 });
 
@@ -882,6 +899,133 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
     }
 });
 
+// Anonymous upload endpoint for AI camera detections (no authentication required)
+app.post('/detections', upload.single('file'), async (req, res) => {
+    console.log("Anonymous detection upload requested");
+
+    // Check if file was uploaded
+    if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const hazardTypes = req.body.hazardTypes || 'Unknown';
+    const locationNote = req.body.locationNote || 'Location unavailable';
+    const timestamp = req.body.timestamp || new Date().toISOString();
+    
+    // Handle geolocation data
+    let address = 'Location unavailable';
+    let geoData = null;
+    
+    if (req.body.geoData) {
+        try {
+            geoData = JSON.parse(req.body.geoData);
+            if (geoData && typeof geoData.lat === 'number' && typeof geoData.lng === 'number' && 
+                !isNaN(geoData.lat) && !isNaN(geoData.lng) && 
+                geoData.lat >= -90 && geoData.lat <= 90 && 
+                geoData.lng >= -180 && geoData.lng <= 180) {
+                
+                // Try to get address from coordinates
+                try {
+                    const apiKey = process.env.GOOGLE_GEOCODING_API_KEY;
+                    if (apiKey) {
+                        const geoCodingUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${geoData.lat},${geoData.lng}&language=en&key=${apiKey}`;
+                        const geoResponse = await axios.get(geoCodingUrl, { timeout: 3000 });
+                        
+                        if (geoResponse.data && geoResponse.data.results && geoResponse.data.results.length > 0) {
+                            address = geoResponse.data.results[0]?.formatted_address || `Coordinates: ${geoData.lat}, ${geoData.lng}`;
+                        } else {
+                            address = `Coordinates: ${geoData.lat}, ${geoData.lng}`;
+                        }
+                    } else {
+                        address = `Coordinates: ${geoData.lat}, ${geoData.lng}`;
+                    }
+                } catch (geocodeError) {
+                    console.warn('Geocoding failed for anonymous upload:', geocodeError.message);
+                    address = `Coordinates: ${geoData.lat}, ${geoData.lng}`;
+                }
+            } else {
+                console.warn('Invalid geolocation data in anonymous upload');
+            }
+        } catch (parseError) {
+            console.warn('Failed to parse geolocation data in anonymous upload:', parseError.message);
+        }
+    }
+
+    try {
+        // Upload to Cloudinary
+        const streamUpload = (buffer) => {
+            return new Promise((resolve, reject) => {
+                const stream = cloudinary.uploader.upload_stream(
+                    { 
+                        folder: 'anonymous-detections',
+                        quality: 'auto:low', // Optimize for faster uploads
+                        fetch_format: 'auto'
+                    },
+                    (error, result) => {
+                        if (result) {
+                            resolve(result);
+                        } else {
+                            reject(error);
+                        }
+                    }
+                );
+                streamifier.createReadStream(buffer).pipe(stream);
+            });
+        };
+
+        const result = await streamUpload(req.file.buffer);
+
+        if (!result || !result.secure_url) {
+            return res.status(500).json({ error: 'Failed to upload image to cloud storage' });
+        }
+
+        // Save to Redis with anonymous prefix
+        const reportId = Date.now();
+        const reportKey = `report:anon:${reportId}`;
+        
+        const report = {
+            id: reportId,
+            type: hazardTypes,
+            location: address,
+            time: timestamp,
+            image: result.secure_url,
+            status: 'New',
+            locationNote,
+            reportedBy: 'AI Camera Detection',
+            createdAt: new Date().toISOString(),
+            isAnonymous: true,
+            coordinates: geoData ? { lat: geoData.lat, lng: geoData.lng } : null
+        };
+
+        // Store in Redis
+        if (redisConnected && client.isOpen) {
+            try {
+                await client.json.set(reportKey, '$', report);
+                console.log("💾 Anonymous report saved to Redis:", reportKey);
+                
+                // Broadcast real-time event if there are connected clients
+                broadcastSSEEvent({ type: 'new_anonymous_report', report });
+            } catch (redisError) {
+                console.warn('Failed to save anonymous report to Redis:', redisError.message);
+                // Continue anyway - the upload to Cloudinary succeeded
+            }
+        }
+
+        res.status(200).json({
+            message: 'Anonymous detection uploaded successfully',
+            reportId: reportId,
+            url: result.secure_url
+        });
+
+    } catch (uploadError) {
+        console.error('🔥 Anonymous upload error:', uploadError);
+        res.status(500).json({ 
+            error: 'Failed to upload detection',
+            details: uploadError.message 
+        });
+    }
+});
+
 // --- SSE clients storage and broadcast ---
 const sseClients = new Set();
 function broadcastSSEEvent(event) {
@@ -912,4 +1056,33 @@ app.get('/api/events/stream', (req, res) => {
         sseClients.delete(res);
         res.end();
     });
+});
+
+// Delete image from Redis endpoint
+app.delete('/api/redis/deleteImage', async (req, res) => {
+    try {
+        const { url } = req.body;
+        if (!url) {
+            return res.status(400).json({ error: 'URL is required' });
+        }
+
+        // For Cloudinary URLs, we can extract the public_id and delete from Cloudinary
+        if (url.includes('cloudinary.com')) {
+            const publicIdMatch = url.match(/\/v\d+\/(.+)\.\w+$/);
+            if (publicIdMatch) {
+                const publicId = publicIdMatch[1];
+                try {
+                    await cloudinary.uploader.destroy(publicId);
+                    console.log(`🗑️ Deleted image from Cloudinary: ${publicId}`);
+                } catch (cloudinaryError) {
+                    console.warn('Failed to delete from Cloudinary:', cloudinaryError.message);
+                }
+            }
+        }
+
+        res.status(200).json({ message: 'Image deletion processed' });
+    } catch (error) {
+        console.error('Error deleting image:', error);
+        res.status(500).json({ error: 'Failed to delete image' });
+    }
 });

@@ -1,0 +1,132 @@
+<!-- Auth Form Component - Reusable form container for authentication -->
+<div class="auth-form-container">
+  <!-- Error Message Display -->
+  <div id="error-message" class="error-message hidden">
+    <i class="fas fa-exclamation-triangle"></i>
+    <span id="error-text"></span>
+  </div>
+
+  <!-- Success Message Display -->
+  <div id="success-message" class="success-message hidden">
+    <i class="fas fa-check-circle"></i>
+    <span id="success-text"></span>
+  </div>
+
+  <!-- Form Content -->
+  <form id="auth-form" class="auth-form" method="POST" action="{{FORM_ACTION}}">
+    {{FORM_FIELDS}}
+
+    <!-- Submit Button -->
+    <button type="submit" class="auth-submit-btn" id="submit-btn">
+      <span class="btn-text">{{SUBMIT_TEXT}}</span>
+      <i class="fas fa-spinner fa-spin btn-spinner hidden"></i>
+    </button>
+
+    <!-- Additional Actions -->
+    <div class="form-actions">{{FORM_ACTIONS}}</div>
+  </form>
+
+  <!-- Social Login (Optional) -->
+  <div class="social-login" id="social-login">{{SOCIAL_LOGIN}}</div>
+</div>
+
+<script>
+  // Auth Form Component Script
+  (function () {
+    const form = document.getElementById("auth-form");
+    const submitBtn = document.getElementById("submit-btn");
+    const btnText = submitBtn.querySelector(".btn-text");
+    const btnSpinner = submitBtn.querySelector(".btn-spinner");
+
+    if (form) {
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        handleFormSubmit();
+      });
+    }
+
+    function handleFormSubmit() {
+      // Show loading state
+      setLoadingState(true);
+
+      // Get form data
+      const formData = new FormData(form);
+      const data = Object.fromEntries(formData);
+
+      // Submit form
+      fetch(form.action, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      })
+        .then((response) => response.json())
+        .then((result) => {
+          if (result.success) {
+            showSuccess(result.message);
+            if (result.redirect) {
+              setTimeout(() => {
+                window.location.href = result.redirect;
+              }, 1000);
+            }
+          } else {
+            showError(result.message);
+          }
+        })
+        .catch((error) => {
+          console.error("Error:", error);
+          showError("An error occurred. Please try again.");
+        })
+        .finally(() => {
+          setLoadingState(false);
+        });
+    }
+
+    function setLoadingState(loading) {
+      if (loading) {
+        submitBtn.disabled = true;
+        btnText.classList.add("hidden");
+        btnSpinner.classList.remove("hidden");
+      } else {
+        submitBtn.disabled = false;
+        btnText.classList.remove("hidden");
+        btnSpinner.classList.add("hidden");
+      }
+    }
+
+    function showError(message) {
+      const errorDiv = document.getElementById("error-message");
+      const errorText = document.getElementById("error-text");
+
+      errorText.textContent = message;
+      errorDiv.classList.remove("hidden");
+
+      // Hide success message if visible
+      document.getElementById("success-message").classList.add("hidden");
+
+      // Auto hide after 5 seconds
+      setTimeout(() => {
+        errorDiv.classList.add("hidden");
+      }, 5000);
+    }
+
+    function showSuccess(message) {
+      const successDiv = document.getElementById("success-message");
+      const successText = document.getElementById("success-text");
+
+      successText.textContent = message;
+      successDiv.classList.remove("hidden");
+
+      // Hide error message if visible
+      document.getElementById("error-message").classList.add("hidden");
+    }
+
+    // Export functions for external use
+    window.AuthForm = {
+      showError: showError,
+      showSuccess: showSuccess,
+      setLoading: setLoadingState,
+    };
+  })();
+</script>

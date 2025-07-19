@@ -1,0 +1,389 @@
+<!-- Login Form Component - Specific login form implementation -->
+<div class="login-form-wrapper">
+  <!-- Initial Options -->
+  <div id="login-options" class="form-section active">
+    <div class="button-container">
+      <button
+        type="button"
+        class="nav-button nav-button-primary"
+        id="show-email-login"
+      >
+        <i class="far fa-envelope"></i>
+        Email Login
+      </button>
+
+      <button
+        type="button"
+        class="nav-button nav-button-info"
+        id="show-google-login"
+      >
+        <i class="fab fa-google"></i>
+        Google Login
+      </button>
+    </div>
+
+    <div class="divider">
+      <span>or</span>
+    </div>
+
+    <div class="button-container">
+      <button
+        type="button"
+        class="nav-button nav-button-success"
+        id="show-signup"
+      >
+        <i class="fas fa-user-plus"></i>
+        Sign Up
+      </button>
+    </div>
+  </div>
+
+  <!-- Email Login Form -->
+  <div id="email-login-form" class="form-section">
+    <button type="button" class="back-button" id="back-to-options">
+      <i class="fas fa-arrow-left"></i>
+    </button>
+
+    <h2>Email Login</h2>
+
+    <form class="login-form" data-form-type="login">
+      <input
+        type="email"
+        id="login-email"
+        name="email"
+        placeholder="Email"
+        required
+      />
+      <input
+        type="password"
+        id="login-password"
+        name="password"
+        placeholder="Password"
+        required
+      />
+
+      <button type="submit" class="login-button">
+        <span>Login</span>
+        <i class="fas fa-spinner fa-spin hidden"></i>
+      </button>
+    </form>
+
+    <div class="forgot-password">
+      <a href="#" id="show-forgot-password">Forgot Password?</a>
+    </div>
+  </div>
+
+  <!-- Sign Up Form -->
+  <div id="signup-form" class="form-section">
+    <button type="button" class="back-button" id="back-to-options-signup">
+      <i class="fas fa-arrow-left"></i>
+    </button>
+
+    <h2>Sign Up</h2>
+
+    <form class="login-form" data-form-type="signup">
+      <input
+        type="text"
+        id="signup-username"
+        name="username"
+        placeholder="Username"
+        required
+      />
+      <input
+        type="email"
+        id="signup-email"
+        name="email"
+        placeholder="Email"
+        required
+      />
+      <input
+        type="password"
+        id="signup-password"
+        name="password"
+        placeholder="Password"
+        required
+      />
+      <input
+        type="password"
+        id="signup-confirm-password"
+        name="confirmPassword"
+        placeholder="Confirm Password"
+        required
+      />
+
+      <button type="submit" class="login-button">
+        <span>Sign Up</span>
+        <i class="fas fa-spinner fa-spin hidden"></i>
+      </button>
+    </form>
+  </div>
+
+  <!-- Forgot Password Form -->
+  <div id="forgot-password-form" class="form-section">
+    <button type="button" class="back-button" id="back-to-email-login">
+      <i class="fas fa-arrow-left"></i>
+    </button>
+
+    <h2>Reset Password</h2>
+
+    <form class="login-form" data-form-type="forgot-password">
+      <input
+        type="email"
+        id="reset-email"
+        name="email"
+        placeholder="Email"
+        required
+      />
+
+      <button type="submit" class="login-button">
+        <span>Send Reset Link</span>
+        <i class="fas fa-spinner fa-spin hidden"></i>
+      </button>
+    </form>
+  </div>
+
+  <!-- Error/Success Messages -->
+  <div id="form-messages"></div>
+</div>
+
+<script>
+  // Login Form Component Script
+  (function () {
+    // Form navigation
+    const sections = {
+      options: document.getElementById("login-options"),
+      emailLogin: document.getElementById("email-login-form"),
+      signup: document.getElementById("signup-form"),
+      forgotPassword: document.getElementById("forgot-password-form"),
+    };
+
+    // Navigation buttons
+    document
+      .getElementById("show-email-login")
+      .addEventListener("click", () => showSection("emailLogin"));
+    document
+      .getElementById("show-signup")
+      .addEventListener("click", () => showSection("signup"));
+    document
+      .getElementById("show-forgot-password")
+      .addEventListener("click", () => showSection("forgotPassword"));
+
+    // Back buttons
+    document
+      .getElementById("back-to-options")
+      .addEventListener("click", () => showSection("options"));
+    document
+      .getElementById("back-to-options-signup")
+      .addEventListener("click", () => showSection("options"));
+    document
+      .getElementById("back-to-email-login")
+      .addEventListener("click", () => showSection("emailLogin"));
+
+    // Form submissions
+    document.querySelectorAll(".login-form").forEach((form) => {
+      form.addEventListener("submit", handleFormSubmit);
+    });
+
+    function showSection(sectionName) {
+      // Hide all sections
+      Object.values(sections).forEach((section) => {
+        section.classList.remove("active");
+      });
+
+      // Show target section
+      sections[sectionName].classList.add("active");
+    }
+
+    function handleFormSubmit(e) {
+      e.preventDefault();
+
+      const form = e.target;
+      const formType = form.getAttribute("data-form-type");
+      const submitBtn = form.querySelector('button[type="submit"]');
+      const btnText = submitBtn.querySelector("span");
+      const btnSpinner = submitBtn.querySelector(".fa-spinner");
+
+      // Show loading state
+      setLoadingState(submitBtn, true);
+
+      // Get form data
+      const formData = new FormData(form);
+      const data = Object.fromEntries(formData);
+
+      // Validate form
+      if (!validateForm(formType, data)) {
+        setLoadingState(submitBtn, false);
+        return;
+      }
+
+      // Submit form
+      submitAuthForm(formType, data)
+        .then((result) => {
+          if (result.success) {
+            showMessage("success", result.message);
+            if (result.redirect) {
+              setTimeout(() => {
+                window.location.href = result.redirect;
+              }, 1000);
+            }
+          } else {
+            showMessage("error", result.message);
+          }
+        })
+        .catch((error) => {
+          console.error("Error:", error);
+          showMessage("error", "An error occurred. Please try again.");
+        })
+        .finally(() => {
+          setLoadingState(submitBtn, false);
+        });
+    }
+
+    function validateForm(formType, data) {
+      switch (formType) {
+        case "login":
+          return validateLogin(data);
+        case "signup":
+          return validateSignup(data);
+        case "forgot-password":
+          return validateForgotPassword(data);
+        default:
+          return false;
+      }
+    }
+
+    function validateLogin(data) {
+      if (!data.email || !data.password) {
+        showMessage("error", "Please fill in all fields");
+        return false;
+      }
+
+      if (!isValidEmail(data.email)) {
+        showMessage("error", "Please enter a valid email address");
+        return false;
+      }
+
+      return true;
+    }
+
+    function validateSignup(data) {
+      if (
+        !data.username ||
+        !data.email ||
+        !data.password ||
+        !data.confirmPassword
+      ) {
+        showMessage("error", "Please fill in all fields");
+        return false;
+      }
+
+      if (!isValidEmail(data.email)) {
+        showMessage("error", "Please enter a valid email address");
+        return false;
+      }
+
+      if (data.password !== data.confirmPassword) {
+        showMessage("error", "Passwords do not match");
+        return false;
+      }
+
+      if (data.password.length < 6) {
+        showMessage("error", "Password must be at least 6 characters");
+        return false;
+      }
+
+      return true;
+    }
+
+    function validateForgotPassword(data) {
+      if (!data.email) {
+        showMessage("error", "Please enter your email address");
+        return false;
+      }
+
+      if (!isValidEmail(data.email)) {
+        showMessage("error", "Please enter a valid email address");
+        return false;
+      }
+
+      return true;
+    }
+
+    function isValidEmail(email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return emailRegex.test(email);
+    }
+
+    function setLoadingState(btn, loading) {
+      const text = btn.querySelector("span");
+      const spinner = btn.querySelector(".fa-spinner");
+
+      if (loading) {
+        btn.disabled = true;
+        text.style.opacity = "0.7";
+        spinner.classList.remove("hidden");
+      } else {
+        btn.disabled = false;
+        text.style.opacity = "1";
+        spinner.classList.add("hidden");
+      }
+    }
+
+    function showMessage(type, message) {
+      const messagesDiv = document.getElementById("form-messages");
+      const messageClass =
+        type === "success" ? "success-message" : "error-message";
+
+      messagesDiv.innerHTML = `
+            <div class="${messageClass}">
+                <i class="fas fa-${type === "success" ? "check-circle" : "exclamation-triangle"}"></i>
+                ${message}
+            </div>
+        `;
+
+      // Auto hide after 5 seconds
+      setTimeout(() => {
+        messagesDiv.innerHTML = "";
+      }, 5000);
+    }
+
+    async function submitAuthForm(formType, data) {
+      const endpoints = {
+        login: "/login",
+        signup: "/register", 
+        "forgot-password": "/forgot-password",
+      };
+
+      try {
+        const response = await fetch(endpoints[formType], {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data),
+        });
+
+        const result = await response.json();
+        
+        return {
+          success: response.ok,
+          message: result.message || (response.ok ? "Success!" : result.error || "An error occurred"),
+          redirect: response.ok && formType !== "forgot-password" ? "/pages/upload.html" : null
+        };
+      } catch (error) {
+        console.error('Network error:', error);
+        return {
+          success: false,
+          message: "Network error. Please try again."
+        };
+      }
+    }
+
+    // Google Login Handler
+    document
+      .getElementById("show-google-login")
+      .addEventListener("click", function () {
+        window.location.href = "/auth/google";
+      });
+  })();
+</script>

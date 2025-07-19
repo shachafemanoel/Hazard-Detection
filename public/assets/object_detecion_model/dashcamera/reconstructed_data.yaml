@@ -1,0 +1,9 @@
+path: /Users/shachafemanoel/Documents/Hazard-Detection/public/object_detecion_model/dashcamera
+train: images/train
+val: images/val
+test: images/test
+nc: 3
+names:
+  0: crack
+  1: damaged-paint
+  2: pothole

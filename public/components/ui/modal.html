@@ -1,0 +1,126 @@
+<!-- Modal Component - Reusable modal dialog -->
+<div
+  class="modal {{CLASSES:}}"
+  id="{{ID}}"
+  tabindex="-1"
+  role="dialog"
+  aria-labelledby="{{ID}}-label"
+  aria-hidden="true"
+>
+  <div class="modal-dialog {{SIZE:}} {{POSITION:}}">
+    <div class="modal-content">
+      {{#if SHOW_HEADER}}
+      <div class="modal-header">
+        <h5 class="modal-title" id="{{ID}}-label">{{TITLE}}</h5>
+        {{#if SHOW_CLOSE}}
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+          aria-label="Close"
+        ></button>
+        {{/if}}
+      </div>
+      {{/if}}
+
+      <div class="modal-body">{{CONTENT}}</div>
+
+      {{#if SHOW_FOOTER}}
+      <div class="modal-footer">{{FOOTER_CONTENT}}</div>
+      {{/if}}
+    </div>
+  </div>
+</div>
+
+<!-- Modal backdrop overlay -->
+<div class="modal-backdrop {{BACKDROP_CLASSES:}}" id="{{ID}}-backdrop"></div>
+
+<script>
+  // Modal Component Script
+  (function () {
+    const modalId = "{{ID}}";
+    const modal = document.getElementById(modalId);
+    const backdrop = document.getElementById(modalId + "-backdrop");
+
+    if (!modal || !backdrop) return;
+
+    // Modal API
+    window.Modal = window.Modal || {};
+    window.Modal[modalId] = {
+      show: function () {
+        modal.classList.add("show");
+        backdrop.classList.add("show");
+        modal.style.display = "block";
+        backdrop.style.display = "block";
+        document.body.classList.add("modal-open");
+
+        // Focus management
+        modal.focus();
+
+        // Dispatch show event
+        modal.dispatchEvent(new CustomEvent("modal:show"));
+      },
+
+      hide: function () {
+        modal.classList.remove("show");
+        backdrop.classList.remove("show");
+        modal.style.display = "none";
+        backdrop.style.display = "none";
+        document.body.classList.remove("modal-open");
+
+        // Dispatch hide event
+        modal.dispatchEvent(new CustomEvent("modal:hide"));
+      },
+
+      toggle: function () {
+        if (modal.classList.contains("show")) {
+          this.hide();
+        } else {
+          this.show();
+        }
+      },
+    };
+
+    // Close modal handlers
+    const closeButtons = modal.querySelectorAll('[data-bs-dismiss="modal"]');
+    closeButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        window.Modal[modalId].hide();
+      });
+    });
+
+    // Close on backdrop click
+    backdrop.addEventListener("click", () => {
+      window.Modal[modalId].hide();
+    });
+
+    // Close on Escape key
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && modal.classList.contains("show")) {
+        window.Modal[modalId].hide();
+      }
+    });
+
+    // Auto-initialize if data-show attribute is present
+    if (modal.hasAttribute("data-show")) {
+      window.Modal[modalId].show();
+    }
+  })();
+</script>
+
+<!-- Modal Sizes Available:
+- modal-sm: Small modal
+- modal-lg: Large modal
+- modal-xl: Extra large modal
+- (default): Regular size
+
+Modal Positions Available:
+- modal-dialog-centered: Vertically centered
+- modal-dialog-scrollable: Scrollable content
+- (default): Top positioned
+
+Usage Examples:
+{{> modal ID="confirmModal" TITLE="Confirm Action" SHOW_HEADER=true SHOW_CLOSE=true SHOW_FOOTER=true}}
+{{> modal ID="imageModal" SIZE="modal-lg" POSITION="modal-dialog-centered" CLASSES="fade"}}
+{{> modal ID="alertModal" TITLE="Alert" SHOW_HEADER=true SHOW_CLOSE=false}}
+-->

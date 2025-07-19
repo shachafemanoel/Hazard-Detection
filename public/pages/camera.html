@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en" data-bs-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/assets/icon.png" type="image/png" />
+
+    <!-- Google Fonts -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Font Awesome -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+    />
+
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+
+    <!-- Base CSS Files -->
+    <link rel="stylesheet" href="/css/base.css" />
+    <link rel="stylesheet" href="/css/layout.css" />
+    <link rel="stylesheet" href="/css/components.css" />
+
+    <!-- Component CSS -->
+    <link rel="stylesheet" href="/css/components/floating-menu.css" />
+
+    <!-- Page Specific CSS -->
+    <link rel="stylesheet" href="/css/pages/camera.css" />
+
+    <title>Camera - RoadGuardian</title>
+  </head>
+  <body>
+    <!-- Floating Menu Component -->
+    <div id="floating-menu-container">
+      <!-- Floating menu will be loaded here -->
+    </div>
+
+    <!-- Main Camera Container -->
+    <div id="camera-container">
+      <!-- Camera Wrapper -->
+      <div class="camera-wrapper">
+        <video id="camera-stream" autoplay muted playsinline></video>
+        <canvas id="overlay-canvas"></canvas>
+      </div>
+
+      <!-- Camera Controls Component -->
+      <div id="camera-controls-container">
+        <!-- Camera controls will be loaded here -->
+      </div>
+    </div>
+
+    <!-- Toast Component -->
+    <div id="toast-container-placeholder"></div>
+
+    <!-- Bootstrap Bundle JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- ONNX Runtime -->
+    <script src="/assets/ort/ort.min.js" onload="console.log('ONNX Runtime script loaded successfully'); if(window.ort) { window.ort.env.wasm.wasmPaths = '/assets/ort/'; }" onerror="console.error('Failed to load ONNX Runtime script')"></script>
+
+    <!-- Scripts -->
+    <script>
+      // Load components
+      document.addEventListener("DOMContentLoaded", function () {
+        loadComponent(
+          "/components/navigation/floating-menu.html",
+          "floating-menu-container",
+        );
+        loadComponent(
+          "/components/ui/camera-controls.html",
+          "camera-controls-container",
+        ).then(() => {
+          // Wait for ONNX Runtime to be fully loaded before loading upload_tf.js
+          setTimeout(() => {
+            const script = document.createElement("script");
+            script.type = "module";
+            script.src = "/js/upload_tf.js";
+            document.body.appendChild(script);
+          }, 1000); // Increased timeout to allow ONNX Runtime to load
+        });
+        loadComponent(
+          "/components/ui/toast.html",
+          "toast-container-placeholder",
+        );
+
+        // Initialize camera detection after components are loaded
+        setTimeout(() => {
+          initializeCameraDetection();
+        }, 500);
+      });
+
+      // Simple component loader
+      function loadComponent(url, targetId) {
+        return fetch(url)
+          .then((response) => response.text())
+          .then((html) => {
+            const target = document.getElementById(targetId);
+            if (target) {
+              target.innerHTML = html;
+
+              // Execute any scripts in the loaded component
+              const scripts = target.querySelectorAll("script");
+              scripts.forEach((script) => {
+                const newScript = document.createElement("script");
+                newScript.textContent = script.textContent;
+                document.head.appendChild(newScript);
+              });
+            }
+          })
+          .catch((error) => {
+            console.error("Error loading component:", error);
+          });
+      }
+
+      // Camera detection initialization
+      function initializeCameraDetection() {
+        // This would contain the actual ML model loading and detection logic
+        console.log("Camera detection initialized");
+
+        // Example: Listen for camera events
+        document.addEventListener("camera:started", function (e) {
+          console.log("Camera started:", e.detail);
+          // Start detection loop
+        });
+
+        document.addEventListener("camera:stopped", function (e) {
+          console.log("Camera stopped");
+          // Stop detection loop
+        });
+
+        document.addEventListener("camera:confidenceChanged", function (e) {
+          console.log("Confidence threshold changed:", e.detail.threshold);
+          // Update detection parameters
+        });
+      }
+
+      // Example detection results (would come from ML model)
+      function simulateDetectionResults() {
+        const results = {
+          objects: [
+            { type: "car", confidence: 0.85, bbox: [100, 100, 200, 200] },
+            { type: "person", confidence: 0.92, bbox: [300, 150, 350, 300] },
+          ],
+          hazards: [
+            { type: "pothole", confidence: 0.78, bbox: [450, 200, 500, 250] },
+          ],
+        };
+
+        // Dispatch results to update UI
+        document.dispatchEvent(
+          new CustomEvent("detection:results", {
+            detail: results,
+          }),
+        );
+
+        // Dispatch performance stats
+        document.dispatchEvent(
+          new CustomEvent("detection:performance", {
+            detail: {
+              fps: 30,
+              frameTime: 33,
+              inferenceTime: 45,
+            },
+          }),
+        );
+      }
+
+      // Simulate detection results every 2 seconds (for demo)
+      // setInterval(simulateDetectionResults, 2000);
+    </script>
+  </body>
+</html>

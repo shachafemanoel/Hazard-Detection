@@ -9,7 +9,7 @@ const firebaseConfig = {
   storageBucket: "hazard-detection-cf392.appspot.com",
   messagingSenderId: "617952034976",
   appId: "1:617952034976:web:e88bec86deb03e19806681",
-  measurementId: "G-7XW2Z26JQ5"
+  measurementId: "G-7XW2Z26JQ5",
 };
 
 const app = initializeApp(firebaseConfig);

@@ -1,9 +1,18 @@
+import { CanvasUtils } from "./modules/CanvasUtils.js";
+import { ApiService } from "./modules/ApiService.js";
+import { GeolocationService } from "./modules/GeolocationService.js";
+import { Constants, CLASS_NAMES } from "./modules/Constants.js";
+
 document.addEventListener("DOMContentLoaded", async function () {
   // אלמנטים של מסך הבית וממשק ההעלאה
-  const homeScreenContent = document.getElementById('home-screen-content');
-  const detectionSection = document.getElementById('detection-section');
-  const showUploadSectionBtn = document.getElementById('show-upload-section-btn');
-  const closeUploadSectionBtn = document.getElementById('close-upload-section-btn');
+  const homeScreenContent = document.getElementById("home-screen-content");
+  const detectionSection = document.getElementById("detection-section");
+  const showUploadSectionBtn = document.getElementById(
+    "show-upload-section-btn",
+  );
+  const closeUploadSectionBtn = document.getElementById(
+    "close-upload-section-btn",
+  );
 
   const imageUpload = document.getElementById("image-upload");
   const confidenceSlider = document.getElementById("confidence-slider");
@@ -14,82 +23,46 @@ document.addEventListener("DOMContentLoaded", async function () {
   const saveBtn = document.getElementById("save-detection");
 
   // Toast Notification Elements
-  const toastElement = document.getElementById('toast-notification');
-  const toastBody = document.getElementById('toast-body');
+  const toastElement = document.getElementById("toast-notification");
+  const toastBody = document.getElementById("toast-body");
 
-  function showToast(message, type = 'success') {
+  function showToast(message, type = "success") {
     if (!toastElement || !toastBody) return;
 
     toastBody.textContent = message;
-    toastElement.classList.remove('bg-success', 'bg-danger', 'bg-warning'); // Remove previous classes
+    toastElement.classList.remove("bg-success", "bg-danger", "bg-warning"); // Remove previous classes
 
-    if (type === 'success') {
-      toastElement.classList.add('bg-success');
-    } else if (type === 'error') {
-      toastElement.classList.add('bg-danger');
+    if (type === "success") {
+      toastElement.classList.add("bg-success");
+    } else if (type === "error") {
+      toastElement.classList.add("bg-danger");
     } // Add more types like 'warning' if needed
 
-    toastElement.style.display = 'block';
+    toastElement.style.display = "block";
     setTimeout(() => {
-      toastElement.style.display = 'none';
+      toastElement.style.display = "none";
     }, 5000); // Hide after 5 seconds
   }
 
   let geoData = null;
 
-  function getGeoDataFromImage(file) {
-    // ... (קוד פונקציה זהה)
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = function (e) {
-        const imgData = e.target.result;
-  
-        const img = new Image();
-        img.onload = function () {
-          EXIF.getData(img, function () {
-            const lat = EXIF.getTag(this, "GPSLatitude");
-            const lon = EXIF.getTag(this, "GPSLongitude");
-            const latRef = EXIF.getTag(this, "GPSLatitudeRef") || "N";
-            const lonRef = EXIF.getTag(this, "GPSLongitudeRef") || "E";
-  
-            if (!lat || !lon) {
-              return resolve(null); // No geo data
-            }
-  
-            const toDecimal = (dms, ref) => {
-              const [deg, min, sec] = dms;
-              let decimal = deg + min / 60 + sec / 3600;
-              if (ref === "S" || ref === "W") decimal *= -1;
-              return decimal;
-            };
-  
-            const latitude = toDecimal(lat, latRef);
-            const longitude = toDecimal(lon, lonRef);
-  
-            resolve(JSON.stringify({ lat: latitude, lng: longitude }));
-          });
-        };
-        img.src = imgData;
-      };
-      reader.readAsDataURL(file);
-    });
-  }
+  const geoService = new GeolocationService();
 
   // ניהול תצוגת מסך הבית וממשק ההעלאה
   if (showUploadSectionBtn && homeScreenContent && detectionSection) {
-    showUploadSectionBtn.addEventListener('click', () => {
-      homeScreenContent.style.display = 'none';
-      detectionSection.style.display = 'block';
+    showUploadSectionBtn.addEventListener("click", () => {
+      homeScreenContent.style.display = "none";
+      detectionSection.style.display = "block";
     });
   }
 
   if (closeUploadSectionBtn && homeScreenContent && detectionSection) {
-    closeUploadSectionBtn.addEventListener('click', () => {
-      detectionSection.style.display = 'none';
-      homeScreenContent.style.display = 'block';
+    closeUploadSectionBtn.addEventListener("click", () => {
+      detectionSection.style.display = "none";
+      homeScreenContent.style.display = "block";
       // איפוס אופציונלי של שדות וקנבס בעת סגירה
       if (imageUpload) {
-        imageUpload.value = ''; // מנקה את שדה העלאת התמונה
+        imageUpload.value = ""; // מנקה את שדה העלאת התמונה
       }
       if (ctx && canvas) {
         ctx.clearRect(0, 0, canvas.width, canvas.height); // נמחק את התמונה המוצגת ב-canvas
@@ -105,81 +78,176 @@ document.addEventListener("DOMContentLoaded", async function () {
     });
   }
 
+  // שמירת התמונה והנתונים
+  saveBtn.addEventListener("click", () => {
+    if (!canvas) {
+      showToast("❌ Canvas element not found.", "error");
+      return;
+    }
 
-// שמירת התמונה והנתונים
-saveBtn.addEventListener("click", () => {
-  if (!canvas) {
-    showToast("❌ Canvas element not found.", "error");
-    return;
-  }
+    if (!geoData) {
+      showToast("❌ Cannot save report without geolocation data.", "error");
+      return;
+    }
 
-  if (!geoData) {
-    showToast("❌ Cannot save report without geolocation data.", "error");
-    return;
-  }
+    canvas.toBlob(
+      async (blob) => {
+        if (!blob) return alert("❌ Failed to get image blob");
 
-  canvas.toBlob(async (blob) => {
-      if (!blob) return alert("❌ Failed to get image blob");
-  
-      const file = new File([blob], "detection.jpg", { type: "image/jpeg" });
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("geoData", geoData);  // הוספת המיקום לפורם דאטה
-      formData.append("hazardTypes", hazardTypes.join(","));
-      formData.append("locationNote","GPS");
+        const file = new File([blob], "detection.jpg", { type: "image/jpeg" });
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("geoData", geoData); // הוספת המיקום לפורם דאטה
+        formData.append("hazardTypes", hazardTypes.join(","));
+        formData.append("locationNote", "GPS");
 
-
-      try {
-          const res = await fetch("/upload-detection", {
-              method: "POST",
-              body: formData,
-              credentials: "include",
+        try {
+          const res = await ApiService.request("/detections", {
+            method: "POST",
+            body: formData,
           });
-  
-          const result = await res.json();
-          showToast("✅ Saved to server: " + result.message + "\n📸 " + result.url, "success");
-      } catch (err) {
-          showToast("❌ Failed to save image to server.", "error");
-          console.error(err);
-      }
 
-      // נמחק את התמונה אחרי 5 שניות
-      setTimeout(() => {
-          const imageInput = document.getElementById('image-upload');
-          const imagePreview = document.getElementById('preview-canvas');
+          const result = await res.json();
+          
+          // Handle the server response structure correctly
+          const reportUrl = result.report?.image || result.url || "No URL available";
+          const message = result.message || "Report uploaded successfully";
+          
+          showToast(
+            `✅ ${message}\n📸 Image saved to cloud storage`,
+            "success",
+          );
+          
+          console.log("✅ Report saved successfully:", result);
+        } catch (err) {
+          console.error("❌ Failed to save detection:", err);
+          
+          // Better error message handling
+          let errorMessage = "Failed to save image to server";
+          if (err.message) {
+            try {
+              const errorObj = JSON.parse(err.message);
+              errorMessage = errorObj.error || errorMessage;
+            } catch (parseErr) {
+              errorMessage = err.message;
+            }
+          }
+          
+          showToast(`❌ ${errorMessage}`, "error");
+        }
+
+        // נמחק את התמונה אחרי 5 שניות
+        setTimeout(() => {
+          const imageInput = document.getElementById("image-upload");
+          const imagePreview = document.getElementById("preview-canvas");
 
           if (imageInput) {
-              imageInput.value = ''; // מנקה את שדה העלאת התמונה
+            imageInput.value = ""; // מנקה את שדה העלאת התמונה
           }
 
           if (imagePreview) {
-              const ctx = imagePreview.getContext('2d'); 
-              ctx.clearRect(0, 0, imagePreview.width, imagePreview.height);           // נמחק את התמונה המוצגת ב-canvas
+            const ctx = imagePreview.getContext("2d");
+            ctx.clearRect(0, 0, imagePreview.width, imagePreview.height); // נמחק את התמונה המוצגת ב-canvas
           }
-      }, 2500);
-  }, "image/jpeg", 0.95);
-});
-  
+        }, 2500);
+      },
+      "image/jpeg",
+      0.95,
+    );
+  });
+
   // המודל (YOLO באון-אן-אקס) מיוצא לגודל 640x640
-  const FIXED_SIZE =640;
+  const FIXED_SIZE = 640;
 
   // רשימת המחלקות
-  const classNames = ['Alligator Crack', 'Block Crack', 'Construction Joint Crack', 'Crosswalk Blur', 'Lane Blur', 'Longitudinal Crack', 'Manhole', 'Patch Repair', 'Pothole', 'Transverse Crack', 'Wheel Mark Crack'];
+  const classNames = [
+    "Alligator Crack",
+    "Block Crack",
+    "Construction Joint Crack",
+    "Crosswalk Blur",
+    "Lane Blur",
+    "Longitudinal Crack",
+    "Manhole",
+    "Patch Repair",
+    "Pothole",
+    "Transverse Crack",
+    "Wheel Mark Crack",
+  ];
 
   let session = null;
-  
-  ort.env.wasm.wasmPaths = '/ort/';  
 
-  try {
-    session = await ort.InferenceSession.create(
-      'object_detecion_model/last_model_train12052025.onnx',
-      { executionProviders: ['cpu'] }
-    );
-    
-    console.log("✅ YOLO model loaded!");
-  } catch (err) {
-    console.error("❌ Failed to load model:", err);
+  // Wait for ONNX Runtime to be available
+  function waitForOrt() {
+    return new Promise((resolve, reject) => {
+      let attempts = 0;
+      const maxAttempts = 100;
+      
+      const checkOrt = () => {
+        if (window.ort && window.ort.env && window.ort.InferenceSession) {
+          console.log("✅ ONNX Runtime is ready!");
+          resolve(window.ort);
+        } else if (attempts < maxAttempts) {
+          attempts++;
+          setTimeout(checkOrt, 100);
+        } else {
+          reject(new Error("ONNX Runtime failed to load after 10 seconds."));
+        }
+      };
+      
+      checkOrt();
+    });
   }
+
+  // Load model with better error handling
+  async function loadModel() {
+    try {
+      const ort = await waitForOrt();
+      
+      // Configure ONNX Runtime
+      ort.env.wasm.wasmPaths = "/assets/ort/";
+      ort.env.wasm.simd = true;
+      ort.env.wasm.numThreads = Math.min(navigator.hardwareConcurrency || 1, 2);
+      ort.env.logLevel = 'warning';
+      
+      const sessionOptions = {
+        executionProviders: ["wasm"],
+        graphOptimizationLevel: "all",
+        enableCpuMemArena: true,
+        enableMemPattern: true,
+        executionMode: "sequential",
+        intraOpNumThreads: 1
+      };
+      
+      console.log("Loading model: /assets/object_detecion_model/road_damage_detection_last_version.onnx");
+      const startTime = performance.now();
+      
+      session = await ort.InferenceSession.create(
+        "/assets/object_detecion_model/road_damage_detection_last_version.onnx",
+        sessionOptions
+      );
+      
+      const loadTime = performance.now() - startTime;
+      console.log(`✅ Model loaded in ${loadTime.toFixed(0)}ms`);
+      
+      // Warm up the model
+      const dummyInput = new ort.Tensor('float32', new Float32Array(3 * FIXED_SIZE * FIXED_SIZE), [1, 3, FIXED_SIZE, FIXED_SIZE]);
+      try {
+        await session.run({ images: dummyInput });
+        console.log('✅ Model warmed up successfully');
+      } catch (warmupError) {
+        console.warn('Warmup failed, but model should still work:', warmupError.message);
+      } finally {
+        dummyInput.dispose?.();
+      }
+      
+    } catch (err) {
+      console.error("❌ Failed to load model:", err);
+      showToast(`❌ Failed to load AI model: ${err.message}`, "error");
+    }
+  }
+
+  // Load model on page load
+  loadModel();
 
   let confidenceThreshold = parseFloat(confidenceSlider.value);
   confidenceSlider.addEventListener("input", (e) => {
@@ -191,41 +259,47 @@ saveBtn.addEventListener("click", () => {
   });
 
   let currentImage = null;
-  let letterboxParams = { offsetX: 0, offsetY: 0, newW: FIXED_SIZE, newH: FIXED_SIZE };
+  let letterboxParams = {
+    offsetX: 0,
+    offsetY: 0,
+    newW: FIXED_SIZE,
+    newH: FIXED_SIZE,
+  };
 
   if (imageUpload) {
     imageUpload.addEventListener("change", async (event) => {
-  const file = event.target.files[0];
-  if (!file || !canvas) return; // Add check for canvas
+      const file = event.target.files[0];
+      if (!file || !canvas) return; // Add check for canvas
 
-  // 1. נתחיל קריאת EXIF ברקע (לא חוסם את התצוגה)
-  getGeoDataFromImage(file).then(data => {
-    if (data) {
-      geoData = data;      // שומר מיקום אם קיים
-    } else {
-      console.warn("אין נתוני EXIF גיאו בתמונה הזאת");
-    }
-  });
+      // 1. נתחיל קריאת EXIF ברקע (לא חוסם את התצוגה)
+      GeolocationService.getGeoDataFromImage(file).then((data) => {
+        if (data) {
+          geoData = data; // שומר מיקום אם קיים
+        } else {
+          console.warn("אין נתוני EXIF גיאו בתמונה הזאת");
+        }
+      });
 
-  // 2. תמיד תציג תצוגה ותריץ את המודל
-  const reader = new FileReader();
-  reader.onload = e => {
-    const img = new Image();
-    img.onload = async () => {
-      currentImage = img;
-      canvas.width  = FIXED_SIZE;
-      canvas.height = FIXED_SIZE;
-      await runInferenceOnImage(img);  // כאן מציירים את המסגרות
-    };
-    img.src = e.target.result;
-  };
-  reader.readAsDataURL(file);
-});
+      // 2. תמיד תציג תצוגה ותריץ את המודל
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = async () => {
+          currentImage = img;
+          canvas.width = FIXED_SIZE;
+          canvas.height = FIXED_SIZE;
+          await runInferenceOnImage(img); // כאן מציירים את המסגרות
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
   }
 
   async function runInferenceOnImage(imageElement) {
     if (!session) {
       console.warn("Model not loaded yet or canvas not found.");
+      showToast("⚠️ Model not loaded yet. Please wait...", "warning");
       return;
     }
 
@@ -273,9 +347,24 @@ saveBtn.addEventListener("click", () => {
       const tensor = new ort.Tensor("float32", chwData, dims);
       const feeds = { images: tensor };
 
-      const results = await session.run(feeds);
+      let results;
+      try {
+        results = await session.run(feeds);
+      } catch (err) {
+        console.error("ONNX inference error:", err);
+        tensor.dispose?.();
+        showToast(`❌ Model inference failed: ${err.message}`, "error");
+        return;
+      }
+      
       const outputKey = Object.keys(results)[0];
       const outputData = results[outputKey].data;
+
+      // Clean up tensors to prevent memory leaks
+      tensor.dispose?.();
+      if (results) {
+        Object.values(results).forEach((tensor) => tensor.dispose?.());
+      }
 
       console.log("Raw outputData:", outputData);
 
@@ -289,6 +378,7 @@ saveBtn.addEventListener("click", () => {
       drawResults(boxes);
     } catch (err) {
       console.error("Error in inference:", err);
+      showToast(`❌ Detection failed: ${err.message}`, "error");
     }
   }
 
@@ -319,7 +409,8 @@ saveBtn.addEventListener("click", () => {
       const boxW = x2 - x1;
       const boxH = y2 - y1;
 
-      if (boxW <= 1 || boxH <= 1 || boxW > FIXED_SIZE || boxH > FIXED_SIZE) return;
+      if (boxW <= 1 || boxH <= 1 || boxW > FIXED_SIZE || boxH > FIXED_SIZE)
+        return;
 
       // אם מצאנו לפחות קופסה שמאובחנת כמפגע, נעדכן את המשתנה
       hasHazard = true;
@@ -329,19 +420,19 @@ saveBtn.addEventListener("click", () => {
 
       // מוסיפים את סוג המפגע למערך אם הוא לא כבר שם
       if (!hazardTypes.includes(labelName)) {
-      hazardTypes.push(labelName);
+        hazardTypes.push(labelName);
       }
       console.log("Hazard types:", hazardTypes);
 
       // --- שינוי סגנון התיבות ---
-      const color = '#00FF00'; // ירוק בהיר
+      const color = "#00FF00"; // ירוק בהיר
       ctx.strokeStyle = color;
       ctx.lineWidth = 3; // קו עבה יותר
       ctx.strokeRect(x1, y1, boxW, boxH);
 
       // --- שינוי סגנון הטקסט והוספת רקע ---
       ctx.fillStyle = color;
-      ctx.font='bold 16px Arial'; // פונט מודגש
+      ctx.font = "bold 16px Arial"; // פונט מודגש
       const textWidth = ctx.measureText(`${labelName} (${scorePerc}%)`).width;
       // מיקום הרקע מעל התיבה, עם התאמה אם התיבה קרובה לקצה העליון
       const textBgX = x1;
@@ -349,60 +440,62 @@ saveBtn.addEventListener("click", () => {
       const textBgWidth = textWidth + 8; // רוחב הטקסט + ריווח קטן
       const textBgHeight = 20; // גובה קבוע לרקע הטקסט
       ctx.fillRect(textBgX, textBgY, textBgWidth, textBgHeight); // רקע לטקסט
-      ctx.fillStyle = 'black'; // צבע טקסט שחור על הרקע הבהיר
+      ctx.fillStyle = "black"; // צבע טקסט שחור על הרקע הבהיר
       ctx.fillText(`${labelName} (${scorePerc}%)`, textBgX + 4, textBgY + 15); // מיקום הטקסט בתוך הרקע
     });
 
-  // שליטה בכפתור השמירה לפי האם יש מפגעים
-  if (!saveBtn || !tooltip) return;
+    // שליטה בכפתור השמירה לפי האם יש מפגעים
+    if (!saveBtn || !tooltip) return;
 
-  if (!hasHazard) {
-    saveBtn.disabled = true;
-    saveBtn.style.opacity = "0.5";
-    saveBtn.style.cursor = "not-allowed";
+    if (!hasHazard) {
+      saveBtn.disabled = true;
+      saveBtn.style.opacity = "0.5";
+      saveBtn.style.cursor = "not-allowed";
 
-    // מוסיפים את ההאזנה רק אם לא נוספה עדיין
-    saveBtn.addEventListener("mousemove", showTooltip);
-    saveBtn.addEventListener("mouseleave", hideTooltip);
-  } else {
-    saveBtn.disabled = false;
-    saveBtn.style.opacity = "1";
-    saveBtn.style.cursor = "pointer";
+      // מוסיפים את ההאזנה רק אם לא נוספה עדיין
+      saveBtn.addEventListener("mousemove", showTooltip);
+      saveBtn.addEventListener("mouseleave", hideTooltip);
+    } else {
+      saveBtn.disabled = false;
+      saveBtn.style.opacity = "1";
+      saveBtn.style.cursor = "pointer";
 
-    // מסתיר את הטולטיפ מיידית
-    tooltip.style.display = "none";
-    tooltip.style.left = "-9999px";  // אופציונלי — לוודא שהוא לא נשאר במקום
-    tooltip.style.top = "-9999px";
+      // מסתיר את הטולטיפ מיידית
+      tooltip.style.display = "none";
+      tooltip.style.left = "-9999px"; // אופציונלי — לוודא שהוא לא נשאר במקום
+      tooltip.style.top = "-9999px";
 
-    // מסיר את ההאזנה כדי למנוע חפיפות
-    saveBtn.removeEventListener("mousemove", showTooltip);
-    saveBtn.removeEventListener("mouseleave", hideTooltip);
-  }
-}
-
-function showTooltip(e) {
-  tooltip.style.left = e.pageX + 15 + "px";
-  tooltip.style.top = e.pageY + "px";
-  tooltip.style.display = "block";
-}
-
-function hideTooltip() {
-  tooltip.style.display = "none";
-}
-
-if (saveBtn && tooltip) { // Ensure elements exist before adding listeners
-  saveBtn.addEventListener("mousemove", (e) => {
-    if (saveBtn.disabled) { // Simplified tooltip logic, text is static in HTML/CSS
-      tooltip.style.left = `${e.pageX + 10}px`;
-      tooltip.style.top = `${e.pageY + 10}px`;
-      tooltip.style.display = "block";
+      // מסיר את ההאזנה כדי למנוע חפיפות
+      saveBtn.removeEventListener("mousemove", showTooltip);
+      saveBtn.removeEventListener("mouseleave", hideTooltip);
     }
-  });
+  }
 
-  saveBtn.addEventListener("mouseleave", () => {
+  function showTooltip(e) {
+    tooltip.style.left = e.pageX + 15 + "px";
+    tooltip.style.top = e.pageY + "px";
+    tooltip.style.display = "block";
+  }
+
+  function hideTooltip() {
     tooltip.style.display = "none";
-  });
-}
+  }
+
+  if (saveBtn && tooltip) {
+    // Ensure elements exist before adding listeners
+    saveBtn.addEventListener("mousemove", (e) => {
+      if (saveBtn.disabled) {
+        // Simplified tooltip logic, text is static in HTML/CSS
+        tooltip.style.left = `${e.pageX + 10}px`;
+        tooltip.style.top = `${e.pageY + 10}px`;
+        tooltip.style.display = "block";
+      }
+    });
+
+    saveBtn.addEventListener("mouseleave", () => {
+      tooltip.style.display = "none";
+    });
+  }
 
   if (logoutBtn) {
     logoutBtn.addEventListener("click", async () => {
@@ -420,7 +513,7 @@ if (saveBtn && tooltip) { // Ensure elements exist before adding listeners
     });
   } else {
     // Optional: Add logout functionality to a sidebar button if it exists
-    const sidebarLogoutBtn = document.getElementById('sidebar-logout-btn');
+    const sidebarLogoutBtn = document.getElementById("sidebar-logout-btn");
     if (sidebarLogoutBtn) {
       sidebarLogoutBtn.addEventListener("click", async () => {
         try {

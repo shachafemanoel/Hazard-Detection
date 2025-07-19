@@ -43,3 +43,42 @@ serviceAccountKey.json
 # Large directories
 /patchs.v2i.yolov12/
 /public/object_detecion_model/public/object_detecion_model/dashcamera.zip
+node_modules
+
+# Ignore images and media files everywhere
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.gif
+*.bmp
+*.tiff
+*.svg
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.mp3
+*.wav
+*.ogg
+
+# Ignore dataset folders and their contents
+public/**/images/
+public/**/labels/
+public/**/test/
+public/**/val/
+public/**/train/
+public/**/backup/
+public/**/legacy/
+public/**/runs/
+public/**/weights/
+
+# Ignore Jupyter notebooks
+*.ipynb
+
+# Ignore log files
+*.log
+
+# Ignore system files
+.DS_Store
+Thumbs.db

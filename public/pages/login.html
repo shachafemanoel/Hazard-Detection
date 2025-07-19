@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/assets/icon.png" type="image/png" />
+
+    <!-- Google Fonts -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Font Awesome -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+    />
+
+    <!-- TailwindCSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Base CSS Files -->
+    <link rel="stylesheet" href="/css/base.css" />
+    <link rel="stylesheet" href="/css/layout.css" />
+    <link rel="stylesheet" href="/css/components.css" />
+
+    <!-- Page Specific CSS -->
+    <link rel="stylesheet" href="/css/pages/login.css" />
+
+    <title>Login - RoadGuardian</title>
+  </head>
+  <body
+    class="bg-gray-100 dark:bg-gray-900 dark:text-white min-h-screen flex items-center justify-center px-4"
+  >
+    <!-- Main Auth Container -->
+    <div
+      class="w-full max-w-md bg-white dark:bg-gray-800 p-6 rounded-xl shadow-xl transition-all"
+    >
+      <!-- Logo and Header -->
+      <div class="text-center mb-6">
+        <img
+          src="/assets/icon.png"
+          alt="RoadGuardian Logo"
+          class="w-20 h-20 mx-auto mb-4 rounded-lg shadow"
+        />
+        <h1 class="text-2xl font-bold text-gray-800 dark:text-white">
+          Welcome Back
+        </h1>
+        <p class="text-gray-600 dark:text-gray-300 text-sm mt-2">
+          Please sign in to your account
+        </p>
+      </div>
+
+      <!-- Login Form Component -->
+      <div id="login-form-container">
+        <!-- This will be populated by the login form component -->
+      </div>
+    </div>
+
+    <!-- Include Toast Component -->
+    <div id="toast-container-placeholder"></div>
+
+    <!-- Login Scripts -->
+    <script src="/js/login.js" defer></script>
+
+    <!-- Scripts -->
+    <script>
+      // Dark mode configuration
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["Poppins", "sans-serif"],
+            },
+          },
+        },
+      };
+
+      // Load components when page loads
+      document.addEventListener("DOMContentLoaded", function () {
+        loadLoginFormComponent();
+        loadToastComponent();
+        
+        // Check for URL parameters (error messages)
+        checkURLParams();
+      });
+
+      // Simple component loader
+      function loadComponent(url, targetId) {
+        return fetch(url)
+          .then((response) => response.text())
+          .then((html) => {
+            const target = document.getElementById(targetId);
+            if (target) {
+              target.innerHTML = html;
+
+              // Execute any scripts in the loaded component
+              const scripts = target.querySelectorAll("script");
+              scripts.forEach((script) => {
+                const newScript = document.createElement("script");
+                newScript.textContent = script.textContent;
+                document.head.appendChild(newScript);
+              });
+            }
+          })
+          .catch((error) => {
+            console.error("Error loading component:", error);
+          });
+      }
+
+      function loadLoginFormComponent() {
+        return loadComponent("/components/forms/login-form.html", "login-form-container");
+      }
+
+      function loadToastComponent() {
+        return loadComponent("/components/ui/toast.html", "toast-container-placeholder");
+      }
+
+      // Check for URL parameters and show messages
+      function checkURLParams() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const error = urlParams.get('error');
+        
+        if (error) {
+          // Wait for components to load before showing error
+          setTimeout(() => {
+            const errorMessages = {
+              'EmailExists': 'This email is already registered. Please try logging in instead.',
+              'AuthFailed': 'Authentication failed. Please try again.',
+              'LoginFailed': 'Login failed. Please try again.',
+              'LogoutFailed': 'Logout failed. Please refresh the page.',
+              'ServerError': 'Server error. Please try again later.'
+            };
+            
+            const message = errorMessages[error] || 'An error occurred. Please try again.';
+            showErrorMessage(message);
+          }, 500);
+        }
+      }
+
+      // Global error message function
+      function showErrorMessage(message) {
+        const messagesDiv = document.getElementById("form-messages");
+        if (messagesDiv) {
+          messagesDiv.innerHTML = `
+            <div class="error-message">
+              <i class="fas fa-exclamation-triangle"></i>
+              ${message}
+            </div>
+          `;
+          
+          setTimeout(() => {
+            messagesDiv.innerHTML = "";
+          }, 5000);
+        }
+      }
+    </script>
+  </body>
+</html>

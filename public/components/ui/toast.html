@@ -1,0 +1,163 @@
+<!-- Toast Component - Notification toast messages -->
+<div class="toast-container" id="toast-container">
+  <!-- Toasts will be dynamically inserted here -->
+</div>
+
+<script>
+  // Toast Component Script
+  (function () {
+    const toastContainer = document.getElementById("toast-container");
+
+    if (!toastContainer) {
+      console.warn("Toast container not found");
+      return;
+    }
+
+    // Toast API
+    window.Toast = {
+      show: function (options) {
+        const toast = createToast(options);
+        toastContainer.appendChild(toast);
+
+        // Animate in
+        setTimeout(() => {
+          toast.classList.add("show");
+        }, 100);
+
+        // Auto hide
+        const duration = options.duration || 5000;
+        if (duration > 0) {
+          setTimeout(() => {
+            this.hide(toast);
+          }, duration);
+        }
+
+        return toast;
+      },
+
+      hide: function (toast) {
+        toast.classList.remove("show");
+
+        // Remove from DOM after animation
+        setTimeout(() => {
+          if (toast.parentNode) {
+            toast.parentNode.removeChild(toast);
+          }
+        }, 300);
+      },
+
+      success: function (message, options = {}) {
+        return this.show({
+          type: "success",
+          title: options.title || "Success",
+          message: message,
+          duration: options.duration || 5000,
+          icon: "fas fa-check-circle",
+        });
+      },
+
+      error: function (message, options = {}) {
+        return this.show({
+          type: "error",
+          title: options.title || "Error",
+          message: message,
+          duration: options.duration || 7000,
+          icon: "fas fa-exclamation-triangle",
+        });
+      },
+
+      warning: function (message, options = {}) {
+        return this.show({
+          type: "warning",
+          title: options.title || "Warning",
+          message: message,
+          duration: options.duration || 6000,
+          icon: "fas fa-exclamation-circle",
+        });
+      },
+
+      info: function (message, options = {}) {
+        return this.show({
+          type: "info",
+          title: options.title || "Info",
+          message: message,
+          duration: options.duration || 5000,
+          icon: "fas fa-info-circle",
+        });
+      },
+
+      loading: function (message, options = {}) {
+        return this.show({
+          type: "info",
+          title: options.title || "Loading",
+          message: message,
+          duration: 0, // Don't auto-hide
+          icon: "fas fa-spinner fa-spin",
+        });
+      },
+    };
+
+    function createToast(options) {
+      const toast = document.createElement("div");
+      toast.className = `toast toast-${options.type || "info"}`;
+
+      toast.innerHTML = `
+            <div class="toast-header">
+                <i class="${options.icon || "fas fa-info-circle"}"></i>
+                <strong class="toast-title">${options.title || "Notification"}</strong>
+                <button type="button" class="toast-close" aria-label="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="toast-body">
+                ${options.message || ""}
+            </div>
+        `;
+
+      // Add close functionality
+      const closeBtn = toast.querySelector(".toast-close");
+      closeBtn.addEventListener("click", () => {
+        window.Toast.hide(toast);
+      });
+
+      // Add click to dismiss
+      toast.addEventListener("click", (e) => {
+        if (e.target === toast || e.target.classList.contains("toast-body")) {
+          window.Toast.hide(toast);
+        }
+      });
+
+      return toast;
+    }
+
+    // Auto-initialize any existing toasts
+    document.querySelectorAll(".toast[data-message]").forEach((toast) => {
+      const message = toast.getAttribute("data-message");
+      const type = toast.getAttribute("data-type") || "info";
+      const title = toast.getAttribute("data-title") || "Notification";
+
+      window.Toast.show({
+        type: type,
+        title: title,
+        message: message,
+      });
+    });
+  })();
+</script>
+
+<!-- Toast Types Available:
+- success: Green toast for success messages
+- error: Red toast for error messages
+- warning: Yellow toast for warning messages
+- info: Blue toast for info messages
+
+Usage Examples:
+- Toast.success('Form submitted successfully!');
+- Toast.error('Failed to save data', { duration: 10000 });
+- Toast.warning('Please fill in all required fields');
+- Toast.info('Loading data...', { title: 'Please Wait' });
+- Toast.loading('Processing...'); // Doesn't auto-hide
+
+Static Usage:
+<div class="toast" data-type="success" data-title="Success" data-message="Action completed!"></div>
+-->
