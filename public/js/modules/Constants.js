@@ -14,47 +14,26 @@ export const Constants = {
 
   // Class Names for Object Detection
   CLASS_NAMES: [
-    "Alligator Crack",
-    "Block Crack",
-    "Construction Joint Crack",
-    "Crosswalk Blur",
-    "Lane Blur",
-    "Longitudinal Crack",
-    "Manhole",
-    "Patch Repair",
-    "Pothole",
-    "Transverse Crack",
-    "Wheel Mark Crack",
+    'crack',
+    'knocked',
+    'pothole',
+    'surface_damage'
   ],
 
   // Hazard Types (same as CLASS_NAMES for consistency)
   HAZARD_TYPES: [
-    "Alligator Crack",
-    "Block Crack",
-    "Construction Joint Crack",
-    "Crosswalk Blur",
-    "Lane Blur",
-    "Longitudinal Crack",
-    "Manhole",
-    "Patch Repair",
-    "Pothole",
-    "Transverse Crack",
-    "Wheel Mark Crack",
+    'crack',
+    'knocked',
+    'pothole',
+    'surface_damage'
   ],
 
   // Color mapping for hazard types
   HAZARD_COLORS: {
-    "Alligator Crack": "#FF0000",
-    "Block Crack": "#FF7F00",
-    "Construction Joint Crack": "#FFFF00",
-    "Crosswalk Blur": "#00FF00",
-    "Lane Blur": "#00FFFF",
-    "Longitudinal Crack": "#0000FF",
-    Manhole: "#8B00FF",
-    "Patch Repair": "#FF00FF",
-    Pothole: "#FF1493",
-    "Transverse Crack": "#ADFF2F",
-    "Wheel Mark Crack": "#7FFF00",
+    crack: "#FF0000",
+    knocked: "#FF7F00",
+    pothole: "#FFFF00",
+    surface_damage: "#00FF00",
     default: "#808080",
   },
 

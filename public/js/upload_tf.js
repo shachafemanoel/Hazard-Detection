@@ -625,7 +625,7 @@ const OPTIMIZATION = {
     ort.env.logLevel = 'warning'; // Reduce logging overhead
     
     const modelPaths = [
-      "/assets/object_detecion_model/road_damage_detection_last_version.onnx"
+      "/assets/object_detecion_model/model 18:7.onnx"
     ];
     
     const sessionOptions = {
