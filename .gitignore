@@ -34,7 +34,7 @@ calibration_image_sample_data*
 /public/object_detecion_model/**/*.png
 /public/object_detecion_model/**/*.webp
 /public/object_detecion_model/**/*.gif
-
+/public/object_detecion_model/**/*.pt
 # Certificates and sensitive files
 *.pem
 serviceAccountKey.json
