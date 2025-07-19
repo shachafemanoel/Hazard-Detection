@@ -141,6 +141,25 @@ const OPTIMIZATION = {
     })();
   })();
 
+  // --- התאמת גודל הקנבס לגודל הווידאו במסך/מובייל ---
+  function resizeCanvasToVideo() {
+    if (!video || !canvas) return;
+    // קח את הגודל האמיתי של הווידאו (לא ה-css)
+    const width = video.videoWidth || video.clientWidth;
+    const height = video.videoHeight || video.clientHeight;
+    if (width && height) {
+      canvas.width = width;
+      canvas.height = height;
+      canvas.style.width = "100%";
+      canvas.style.height = "100%";
+    }
+  }
+
+  // עדכן קנבס כאשר הווידאו נטען או משתנה גודל
+  video.addEventListener("loadedmetadata", resizeCanvasToVideo);
+  window.addEventListener("resize", resizeCanvasToVideo);
+  window.addEventListener("orientationchange", resizeCanvasToVideo);
+
   const offscreen = document.createElement("canvas");
   offscreen.width = FIXED_SIZE;
   offscreen.height = FIXED_SIZE;
@@ -514,6 +533,11 @@ const OPTIMIZATION = {
           
           clearTimeout(timeoutId);
           const result = await res.json();
+          // ודא שתמיד יש report.image
+          if (result.url && (!result.report || !result.report.image)) {
+            result.report = result.report || {};
+            result.report.image = result.url;
+          }
           console.log("✅ Detection saved:", result.message);
           
           // Handle successful upload response with quality info

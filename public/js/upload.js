@@ -102,12 +102,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         formData.append("locationNote", "GPS");
 
         try {
-          const res = await ApiService.request("/detections", {
-            method: "POST",
-            body: formData,
-          });
-
-          const result = await res.json();
+          const result = await ApiService.uploadAnonymousDetection(formData);
           
           // Handle the server response structure correctly
           const reportUrl = result.report?.image || result.url || "No URL available";
@@ -527,4 +522,21 @@ document.addEventListener("DOMContentLoaded", async function () {
       });
     }
   }
+
+  // --- התאמת גודל הקנבס למסך/קונטיינר במובייל ---
+  function resizePreviewCanvas() {
+    if (!canvas) return;
+    // קח את הרוחב של הקונטיינר או המסך
+    const container = canvas.parentElement;
+    let width = container ? container.clientWidth : window.innerWidth;
+    // שמור על יחס ריבועי (כמו FIXED_SIZE)
+    canvas.width = width;
+    canvas.height = width;
+    canvas.style.width = "100%";
+    canvas.style.height = "auto";
+  }
+  window.addEventListener("resize", resizePreviewCanvas);
+  window.addEventListener("orientationchange", resizePreviewCanvas);
+  // הפעל ברגע שהדף נטען
+  resizePreviewCanvas();
 });
