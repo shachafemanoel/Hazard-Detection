@@ -15,6 +15,7 @@ import {
   PERFORMANCE,
   CAMERA,
 } from "./modules/Constants.js";
+import { Constants } from "./modules/Constants.js";
 
 // Advanced optimization constants for best detection performance
 const OPTIMIZATION = {
@@ -74,7 +75,7 @@ const OPTIMIZATION = {
   const loadingOverlay = document.getElementById("loading-overlay");
   const hazardTypesOverlay = document.getElementById("hazard-types-overlay");
 
-  const FIXED_SIZE = 640; // Increased for better detection accuracy
+  const FIXED_SIZE = Constants.MODEL.FIXED_SIZE; // Increased for better detection accuracy
   let stream = null;
   let detecting = false;
   let session = null;
@@ -522,17 +523,7 @@ const OPTIMIZATION = {
         }
 
         try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
-          
-          const res = await ApiService.request("/detections", {
-            method: "POST",
-            body: formData,
-            signal: controller.signal
-          });
-          
-          clearTimeout(timeoutId);
-          const result = await res.json();
+          const result = await ApiService.uploadAnonymousDetection(formData);
           // ודא שתמיד יש report.image
           if (result.url && (!result.report || !result.report.image)) {
             result.report = result.report || {};
@@ -1081,27 +1072,7 @@ const OPTIMIZATION = {
     }
   }
 
-  // Fullscreen functionality
-  function enterFullscreen() {
-    const cameraContainer = document.getElementById("camera-container");
-    if (cameraContainer.requestFullscreen) {
-      cameraContainer.requestFullscreen();
-    } else if (cameraContainer.webkitRequestFullscreen) {
-      cameraContainer.webkitRequestFullscreen();
-    } else if (cameraContainer.msRequestFullscreen) {
-      cameraContainer.msRequestFullscreen();
-    }
-  }
-
-  function exitFullscreen() {
-    if (document.exitFullscreen) {
-      document.exitFullscreen();
-    } else if (document.webkitExitFullscreen) {
-      document.webkitExitFullscreen();
-    } else if (document.msExitFullscreen) {
-      document.msExitFullscreen();
-    }
-  }
+  // Fullscreen functionality removed - using full body layout by default
 
   startBtn.addEventListener("click", async () => {
       // Wait for the initial location to be found.
@@ -1140,8 +1111,7 @@ const OPTIMIZATION = {
         switchBtn.style.display =
           videoDevices.length > 1 ? "inline-block" : "none";
 
-        // Enter fullscreen mode
-        enterFullscreen();
+        // Fullscreen removed - camera now uses full body layout
 
         detectedObjectCount = 0;
         uniqueHazardTypes = [];
@@ -1208,7 +1178,6 @@ const OPTIMIZATION = {
       
       // Stop location tracking
       stopLocationTracking();
-      exitFullscreen();
 
       // Comprehensive memory cleanup
       prevImageData = null;

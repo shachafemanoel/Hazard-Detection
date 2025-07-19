@@ -601,6 +601,138 @@ async function emailExists(email) {
     return false; // מייל לא קיים  
 }  
 
+// Middleware לבדוק הרשאת admin
+function requireAdmin(req, res, next) {
+  const user = req.session.user || req.user;
+  if (user && user.type === 'admin') {
+    return next();
+  }
+  return res.status(403).send('Access denied: Admins only');
+}
+
+// הגבלת דף admin-dashboard
+app.get('/pages/admin-dashboard.html', requireAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/pages/admin-dashboard.html'));
+});
+
+// הגבלת API רגישים (דוגמה למחיקה/עדכון/שליפה)
+app.get('/api/reports', requireAdmin, async (req, res, next) => {
+  const filters = req.query;
+
+    if (filters.hazardType && typeof filters.hazardType === 'string') {
+        filters.hazardType = filters.hazardType.split(',').map(type => type.trim());
+    }
+
+    try {
+        const keys = await client.keys('report:*');
+        const reports = [];
+
+        for (const key of keys) {
+            let report;
+            try {
+                report = await client.json.get(key);
+            } catch (err) {
+                console.error(`Skipping key ${key} due to Redis type error:`, err.message);
+                continue;
+            }
+            if (!report) continue;
+
+            let match = true;
+
+            // סוגי מפגעים: לפחות אחד מתוך הרשימה
+            if (filters.hazardType) {
+                const hazardArray = Array.isArray(filters.hazardType) ? filters.hazardType : [filters.hazardType];
+            
+                const reportTypes = (report.type || '').split(',').map(t => t.trim().toLowerCase());
+                const hasMatch = hazardArray.some(type => reportTypes.includes(type.toLowerCase()));
+                
+                if (!hasMatch) match = false;
+            }
+                     
+
+            // מיקום
+            if (filters.location) {
+                const reportLoc = (report.location || '').toLowerCase();
+                const pattern = filters.location.trim().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp(pattern, 'i');
+                if (!regex.test(reportLoc)) match = false;
+            }
+
+            // תאריך
+            if (filters.startDate && new Date(report.time) < new Date(filters.startDate)) match = false;
+            if (filters.endDate && new Date(report.time) > new Date(filters.endDate)) match = false;
+
+            // סטטוס
+            if (filters.status) {
+                const reportStatus = report.status.toLowerCase();
+                const filterStatus = filters.status.toLowerCase();
+                if (reportStatus !== filterStatus) match = false;
+            }
+
+            // מחפש לפי מדווח
+            if (filters.reportedBy) {
+                const reporter = (report.reportedBy || '').toLowerCase();
+                const search = filters.reportedBy.toLowerCase();
+                if (!reporter.includes(search)) match = false;
+            }
+
+            if (match) {
+                reports.push(report);
+            }
+        }
+
+        res.status(200).json(reports);
+    } catch (err) {
+        console.error('🔥 Error fetching reports:', err);
+        res.status(500).json({ error: 'Error fetching reports' });
+    }
+  next();
+});
+app.delete('/api/reports/:id', requireAdmin, async (req, res, next) => {
+    if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const reportId = req.params.id;
+    const reportKey = `report:${reportId}`;
+    try {
+        await client.del(reportKey);
+        res.status(200).json({ message: 'Report deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ error: 'Error deleting report' });
+    }
+  next();
+});
+app.patch('/api/reports/:id', requireAdmin, async (req, res, next) => {
+    if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const reportId = req.params.id;
+    const newStatus = req.body.status;
+    const reportKey = `report:${reportId}`;
+    try {
+        let report = await client.json.get(reportKey);
+        if (!report) {
+            // Fallback: try to get as string and parse
+            const str = await client.get(reportKey);
+            if (str) {
+                report = JSON.parse(str);
+                // Migrate to JSON
+                await client.json.set(reportKey, '$', report);
+                await client.del(reportKey); // Remove old string key if needed
+            }
+        }
+        if (!report) return res.status(404).json({ error: 'Report not found' });
+        report.status = newStatus;
+        await client.json.set(reportKey, '$', report);
+        broadcastSSEEvent({ type: 'status_update', report });
+        res.status(200).json({ message: 'Status updated', report });
+    } catch (err) {
+        console.error('Error updating status:', err);
+        res.status(500).json({ error: 'Error updating status', details: err.message });
+    }
+  next();
+});
+
 // רישום משתמש רגיל (לא Google)
 app.post('/register', async (req, res) => {  
     const { email, username, password } = req.body;  
@@ -615,12 +747,16 @@ app.post('/register', async (req, res) => {
         return res.status(400).json({ error: 'User already registered with this email.' }); // הודעת שגיאה  
     }  
 
+    const isAdmin = [
+        'nireljano@gmail.com',
+        'shachaf331@gmail.com'
+    ].includes(email);
     const userId = `user:${Date.now()}`;  // יצירת מזהה ייחודי למשתמש
     const newUser = {  
         email,  
         username,  
         password,  
-        type: 'user'  
+        type: isAdmin ? 'admin' : 'user'  
     };  
 
     // שמירה ב-Redis כ-string
@@ -782,19 +918,25 @@ app.post('/reset-password', async (req, res) => {
 });
 
 
-app.post('/upload-detection', upload.single('file'), async (req, res) => {
+// Unified detection upload endpoint
+app.post('/api/detections', upload.single('file'), async (req, res) => {
+    console.log("Unified detection upload requested");
     console.log("Session:", req.session); // Debug session
     console.log("Is Authenticated:", req.isAuthenticated()); // Debug authentication
     console.log("User:", req.user); // Debug user object
+    console.log("Anonymous flag:", req.body.anonymous); // Debug anonymous flag
 
     // בדוק אם הקובץ הועלה
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // אימות משתמש - בדיקה משופרת
-    if (!req.isAuthenticated()) {
-        console.log("Authentication failed"); // Debug log
+    // Check if this is an anonymous upload
+    const isAnonymous = req.body.anonymous === 'true';
+    
+    // אימות משתמש - רק אם זה לא anonymous
+    if (!isAnonymous && !req.isAuthenticated()) {
+        console.log("Authentication failed for non-anonymous upload"); // Debug log
         return res.status(401).json({ error: 'Please log in again' });
     }
 
@@ -858,10 +1000,14 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
         }
         let locationNote = req.body.locationNote || "GPS";
 
-        // קבלת שם המדווח
-        let reportedBy;  
-
-        if (req.session?.user?.username) {  
+        // קבלת שם המדווח based on authentication status
+        let reportedBy;
+        let reportKeyPrefix = 'report:';
+        
+        if (isAnonymous) {
+            reportedBy = 'AI Camera Detection';
+            reportKeyPrefix = 'report:anon:';
+        } else if (req.session?.user?.username) {  
           reportedBy = req.session.user.username;  
         } else if (req.user?.username) {  
           reportedBy = req.user.username;  
@@ -871,7 +1017,7 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
         
         // שמירה ב-Redis
         const reportId = Date.now();
-        const reportKey = `report:${reportId}`;
+        const reportKey = `${reportKeyPrefix}${reportId}`;
         const createdAt = new Date().toISOString();
         
         const report = {
@@ -883,15 +1029,35 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
             status:'New',
             locationNote,
             reportedBy,
-            createdAt
+            createdAt,
+            isAnonymous: isAnonymous,
+            coordinates: geoData ? { lat: geoData.lat, lng: geoData.lng } : null
         };
 
-        await client.json.set(reportKey, '$', report);
-        console.log("💾 Report saved to Redis: ", reportKey);
+        // Store in Redis if connected
+        if (redisConnected && client.isOpen) {
+            try {
+                await client.json.set(reportKey, '$', report);
+                console.log("💾 Report saved to Redis: ", reportKey);
+                
+                // Broadcast real-time event
+                const eventType = isAnonymous ? 'new_anonymous_report' : 'new_report';
+                broadcastSSEEvent({ type: eventType, report });
+            } catch (redisError) {
+                console.warn('Failed to save report to Redis:', redisError.message);
+                // Continue anyway - the upload to Cloudinary succeeded
+            }
+        }
 
+        const successMessage = isAnonymous ? 
+            'Anonymous detection uploaded successfully' : 
+            'Report uploaded and saved successfully';
+            
         res.status(200).json({
-            message: 'Report uploaded and saved successfully',
-            report
+            message: successMessage,
+            reportId: reportId,
+            report,
+            url: result.secure_url
         });
     } catch (e) {
         console.error('🔥 Upload error:', e);
@@ -899,131 +1065,19 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
     }
 });
 
-// Anonymous upload endpoint for AI camera detections (no authentication required)
-app.post('/detections', upload.single('file'), async (req, res) => {
-    console.log("Anonymous detection upload requested");
+// Legacy endpoint redirect for backward compatibility
+app.post('/detections', upload.single('file'), (req, _res, next) => {
+    console.log('Legacy /detections endpoint called, adding anonymous flag and forwarding');
+    req.body.anonymous = 'true';
+    req.url = '/api/detections';
+    next();
+});
 
-    // Check if file was uploaded
-    if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded' });
-    }
-
-    const hazardTypes = req.body.hazardTypes || 'Unknown';
-    const locationNote = req.body.locationNote || 'Location unavailable';
-    const timestamp = req.body.timestamp || new Date().toISOString();
-    
-    // Handle geolocation data
-    let address = 'Location unavailable';
-    let geoData = null;
-    
-    if (req.body.geoData) {
-        try {
-            geoData = JSON.parse(req.body.geoData);
-            if (geoData && typeof geoData.lat === 'number' && typeof geoData.lng === 'number' && 
-                !isNaN(geoData.lat) && !isNaN(geoData.lng) && 
-                geoData.lat >= -90 && geoData.lat <= 90 && 
-                geoData.lng >= -180 && geoData.lng <= 180) {
-                
-                // Try to get address from coordinates
-                try {
-                    const apiKey = process.env.GOOGLE_GEOCODING_API_KEY;
-                    if (apiKey) {
-                        const geoCodingUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${geoData.lat},${geoData.lng}&language=en&key=${apiKey}`;
-                        const geoResponse = await axios.get(geoCodingUrl, { timeout: 3000 });
-                        
-                        if (geoResponse.data && geoResponse.data.results && geoResponse.data.results.length > 0) {
-                            address = geoResponse.data.results[0]?.formatted_address || `Coordinates: ${geoData.lat}, ${geoData.lng}`;
-                        } else {
-                            address = `Coordinates: ${geoData.lat}, ${geoData.lng}`;
-                        }
-                    } else {
-                        address = `Coordinates: ${geoData.lat}, ${geoData.lng}`;
-                    }
-                } catch (geocodeError) {
-                    console.warn('Geocoding failed for anonymous upload:', geocodeError.message);
-                    address = `Coordinates: ${geoData.lat}, ${geoData.lng}`;
-                }
-            } else {
-                console.warn('Invalid geolocation data in anonymous upload');
-            }
-        } catch (parseError) {
-            console.warn('Failed to parse geolocation data in anonymous upload:', parseError.message);
-        }
-    }
-
-    try {
-        // Upload to Cloudinary
-        const streamUpload = (buffer) => {
-            return new Promise((resolve, reject) => {
-                const stream = cloudinary.uploader.upload_stream(
-                    { 
-                        folder: 'anonymous-detections',
-                        quality: 'auto:low', // Optimize for faster uploads
-                        fetch_format: 'auto'
-                    },
-                    (error, result) => {
-                        if (result) {
-                            resolve(result);
-                        } else {
-                            reject(error);
-                        }
-                    }
-                );
-                streamifier.createReadStream(buffer).pipe(stream);
-            });
-        };
-
-        const result = await streamUpload(req.file.buffer);
-
-        if (!result || !result.secure_url) {
-            return res.status(500).json({ error: 'Failed to upload image to cloud storage' });
-        }
-
-        // Save to Redis with anonymous prefix
-        const reportId = Date.now();
-        const reportKey = `report:anon:${reportId}`;
-        
-        const report = {
-            id: reportId,
-            type: hazardTypes,
-            location: address,
-            time: timestamp,
-            image: result.secure_url,
-            status: 'New',
-            locationNote,
-            reportedBy: 'AI Camera Detection',
-            createdAt: new Date().toISOString(),
-            isAnonymous: true,
-            coordinates: geoData ? { lat: geoData.lat, lng: geoData.lng } : null
-        };
-
-        // Store in Redis
-        if (redisConnected && client.isOpen) {
-            try {
-                await client.json.set(reportKey, '$', report);
-                console.log("💾 Anonymous report saved to Redis:", reportKey);
-                
-                // Broadcast real-time event if there are connected clients
-                broadcastSSEEvent({ type: 'new_anonymous_report', report });
-            } catch (redisError) {
-                console.warn('Failed to save anonymous report to Redis:', redisError.message);
-                // Continue anyway - the upload to Cloudinary succeeded
-            }
-        }
-
-        res.status(200).json({
-            message: 'Anonymous detection uploaded successfully',
-            reportId: reportId,
-            url: result.secure_url
-        });
-
-    } catch (uploadError) {
-        console.error('🔥 Anonymous upload error:', uploadError);
-        res.status(500).json({ 
-            error: 'Failed to upload detection',
-            details: uploadError.message 
-        });
-    }
+// Legacy endpoint redirect for backward compatibility
+app.post('/upload-detection', upload.single('file'), (req, _res, next) => {
+    console.log('Legacy /upload-detection endpoint called, forwarding to unified endpoint');
+    req.url = '/api/detections';
+    next();
 });
 
 // --- SSE clients storage and broadcast ---

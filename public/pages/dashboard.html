@@ -32,396 +32,204 @@
     <link rel="stylesheet" href="/css/components/floating-menu.css" />
 
     <!-- Page Specific CSS -->
-    <link rel="stylesheet" href="/css/pages/dashboard.css" />
+    <link rel="stylesheet" href="/css/pages/dashboard-unified.css" />
 
     <title>Dashboard - RoadGuardian</title>
   </head>
   <body>
-    <!-- Floating Menu Component -->
-    <div id="floating-menu-container">
-      <!-- Floating menu will be loaded here -->
-    </div>
-
-    <!-- Main Dashboard Layout -->
-    <div class="dashboard-main-layout with-sidebar">
-      <!-- Dashboard Header -->
+    <!-- Dashboard Container -->
+    <div class="dashboard-container">
+      
+      <!-- Header Section -->
       <header class="dashboard-header">
-        <h1><i class="fas fa-road me-2"></i>RoadGuardian - Dashboard</h1>
+        <div class="header-content">
+          <h1 class="header-title">
+            <i class="fas fa-road header-icon"></i>
+            RoadGuardian Dashboard
+          </h1>
+          <div class="header-actions">
+            <a href="/pages/index.html" class="header-btn">
+              <i class="fas fa-home"></i>
+              Home
+            </a>
+            <a href="/pages/admin-dashboard.html" class="header-btn" style="background: var(--accent-color);">
+              <i class="fas fa-shield-alt"></i>
+              Admin
+            </a>
+            <button id="logout-btn" class="header-btn">
+              <i class="fas fa-sign-out-alt"></i>
+              Logout
+            </button>
+          </div>
+        </div>
       </header>
 
-      <!-- Dashboard Metrics Row -->
-      <div class="dashboard-metrics-row">
-        <div class="minimal-metrics-row">
-          <div class="minimal-metric-card">
-            <div class="metric-icon">
-              <i class="fas fa-exclamation-triangle"></i>
-            </div>
-            <div class="metric-value" id="total-reports-count">0</div>
-            <div class="metric-label">Total Reports</div>
-          </div>
-
-          <div class="minimal-metric-card">
-            <div class="metric-icon">
-              <i class="fas fa-fire"></i>
-            </div>
-            <div class="metric-value" id="open-hazards-count">0</div>
-            <div class="metric-label">Open Hazards</div>
-          </div>
-
-          <div class="minimal-metric-card">
-            <div class="metric-icon">
-              <i class="fas fa-check-circle"></i>
-            </div>
-            <div class="metric-value" id="resolved-this-month">0</div>
-            <div class="metric-label">Resolved This Month</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Dashboard Center Row -->
-      <div class="dashboard-center-row">
-        <!-- Map Section -->
-        <div class="dashboard-center">
-          <div class="map-controls mb-3">
-            <button class="btn btn-sm btn-outline-primary" id="toggle-heatmap">
-              <i class="fas fa-fire"></i> Toggle Heatmap
-            </button>
-            <button class="btn btn-sm btn-outline-secondary" id="center-map">
-              <i class="fas fa-crosshairs"></i> Center Map
-            </button>
-          </div>
-
-          <div
-            id="map"
-            style="
-              height: 400px;
-              background: #333;
-              border-radius: 8px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              color: #fff;
-            "
-          >
-            <!-- Map will be loaded here by dashboard.js -->
-          </div>
-        </div>
-
-        <!-- Reports Section -->
-        <div class="dashboard-right">
-          <div
-            class="filter-header d-flex justify-content-between align-items-center mb-3"
-          >
-            <h6 class="mb-0">Reports & Hazards</h6>
-            <button
-              class="btn btn-sm btn-outline-secondary"
-              id="toggle-filters-btn"
-            >
-              <i class="fas fa-filter"></i>
-            </button>
-          </div>
-
-          <!-- Reports Filters -->
-          <div id="reports-filters" class="mb-3">
-            <div class="row g-2">
-              <div class="col-md-6">
-                <input
-                  type="text"
-                  class="form-control form-control-sm"
-                  id="report-search-input"
-                  placeholder="Search reports..."
-                />
+      <!-- Stats Section -->
+      <section class="stats-section">
+        <div class="stats-container">
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-content">
+                <div class="stat-icon">
+                  <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div class="stat-details">
+                  <h3 id="total-reports">0</h3>
+                  <p>Total Reports</p>
+                </div>
               </div>
-              <div class="col-md-6">
-                <select
-                  class="form-select form-select-sm"
-                  id="report-sort-select"
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-content">
+                <div class="stat-icon">
+                  <i class="fas fa-clock"></i>
+                </div>
+                <div class="stat-details">
+                  <h3 id="pending-reports">0</h3>
+                  <p>Pending</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-content">
+                <div class="stat-icon">
+                  <i class="fas fa-check-circle"></i>
+                </div>
+                <div class="stat-details">
+                  <h3 id="resolved-reports">0</h3>
+                  <p>Resolved</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-content">
+                <div class="stat-icon">
+                  <i class="fas fa-map-marker-alt"></i>
+                </div>
+                <div class="stat-details">
+                  <h3 id="locations-count">0</h3>
+                  <p>Locations</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Reports Section -->
+      <section class="reports-section">
+        <div class="reports-container">
+          <div class="section-header">
+            <h2 class="section-title">
+              <i class="fas fa-clipboard-list"></i>
+              Recent Reports
+            </h2>
+            <div class="section-controls">
+              <button class="control-btn active" id="view-cards">
+                <i class="fas fa-th-large"></i>
+                Cards
+              </button>
+              <button class="control-btn" id="view-table">
+                <i class="fas fa-table"></i>
+                Table
+              </button>
+              <button class="control-btn" id="refresh-reports">
+                <i class="fas fa-sync-alt"></i>
+                Refresh
+              </button>
+            </div>
+          </div>
+
+          <div class="reports-cards-wrapper">
+            <div class="reports-cards-header">
+              <div class="search-container">
+                <i class="fas fa-search search-icon"></i>
+                <input 
+                  type="text" 
+                  class="search-input" 
+                  id="search-reports" 
+                  placeholder="Search reports by type, location, or status..."
                 >
-                  <option value="date">Sort by Date</option>
-                  <option value="type">Sort by Type</option>
-                  <option value="status">Sort by Status</option>
-                </select>
+              </div>
+            </div>
+            
+            <div class="reports-cards-container" id="reports-cards">
+              <!-- Report cards will be populated here -->
+              <div class="text-center py-4" id="loading-reports">
+                <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                <p class="mt-2 text-muted">Loading reports...</p>
               </div>
             </div>
           </div>
+        </div>
+      </section>
 
-          <!-- Reports Table Container -->
-          <div
-            id="reports-table-container"
-            style="height: 400px; overflow-y: auto"
-          >
-            <table class="table table-hover" id="reports-table">
-              <thead>
-                <tr>
-                  <th>Type</th>
-                  <th>Status</th>
-                  <th>Date</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="reports-table-body">
-                <!-- Reports will be loaded here -->
-                <tr>
-                  <td colspan="4" class="text-center text-muted">
-                    <i class="fas fa-spinner fa-spin"></i> Loading reports...
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+      <!-- Map Section -->
+      <section class="map-section">
+        <div class="map-container">
+          <div class="map-header">
+            <h2 class="map-title">
+              <i class="fas fa-map-marked-alt"></i>
+              Hazard Locations
+            </h2>
+            <div class="map-controls">
+              <button class="control-btn" id="toggle-heatmap">
+                <i class="fas fa-fire"></i>
+                Heatmap
+              </button>
+              <button class="control-btn" id="center-map">
+                <i class="fas fa-crosshairs"></i>
+                Center
+              </button>
+              <button class="control-btn" id="fullscreen-map">
+                <i class="fas fa-expand"></i>
+                Fullscreen
+              </button>
+            </div>
+          </div>
+          
+          <div class="map-content" id="map">
+            <div class="map-placeholder">
+              <i class="fas fa-map"></i>
+              <h3>Interactive Map</h3>
+              <p>Hazard locations and detection points will appear here</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- Report Details Modal -->
+    <div class="modal fade" id="reportModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Report Details</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body" id="modal-content">
+            <!-- Modal content will be populated here -->
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            <button type="button" class="btn btn-warning" id="edit-report">Edit Report</button>
+            <button type="button" class="btn btn-danger" id="delete-report">Delete</button>
           </div>
         </div>
       </div>
     </div>
-
-    <!-- Modal Components -->
-    <div id="modal-container">
-      <!-- Modals will be loaded here -->
-    </div>
-
-    <!-- Toast Component -->
-    <div id="toast-container-placeholder"></div>
 
     <!-- Bootstrap Bundle JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-    <!-- Dashboard Scripts -->
+    <!-- Dashboard JavaScript - Load existing dashboard.js first -->
     <script src="/js/dashboard.js" type="module"></script>
+    <script src="/js/modules/DashboardUnified.js" type="module"></script>
 
-    <!-- Google Maps API (dynamically loaded) -->
-    <script>
-      // (Removed placeholder map logic. Map will be loaded by dashboard.js)
-    </script>
-
-    <!-- Scripts -->
-    <script>
-      // Load components
-      document.addEventListener("DOMContentLoaded", function () {
-        loadComponent(
-          "/components/navigation/floating-menu.html",
-          "floating-menu-container",
-        );
-        loadComponent(
-          "/components/ui/toast.html",
-          "toast-container-placeholder",
-        );
-      });
-
-      // Simple component loader
-      function loadComponent(url, targetId) {
-        fetch(url)
-          .then((response) => response.text())
-          .then((html) => {
-            const target = document.getElementById(targetId);
-            if (target) {
-              target.innerHTML = html;
-
-              // Execute any scripts in the loaded component
-              const scripts = target.querySelectorAll("script");
-              scripts.forEach((script) => {
-                const newScript = document.createElement("script");
-                newScript.textContent = script.textContent;
-                document.head.appendChild(newScript);
-              });
-            }
-          })
-          .catch((error) => {
-            console.error("Error loading component:", error);
-          });
-      }
-
-      // Dashboard initialization
-      function initializeDashboard() {
-        console.log("Dashboard initialized");
-
-        // Initialize map
-        initializeMap();
-
-        // Load dashboard data
-        loadDashboardData();
-
-        // Setup event listeners
-        setupEventListeners();
-      }
-
-      function initializeMap() {
-        // Initialize Google Maps or other mapping solution
-        console.log("Map initialized");
-
-        // Example: Replace the placeholder with actual map
-        const mapContainer = document.getElementById("map");
-        if (mapContainer) {
-          // This would contain actual map initialization
-          mapContainer.innerHTML = `
-                    <div style="width: 100%; height: 100%; background: linear-gradient(45deg, #1e3c72, #2a5298); display: flex; align-items: center; justify-content: center; border-radius: 8px;">
-                        <div style="text-align: center; color: white;">
-                            <i class="fas fa-map fa-3x mb-3"></i>
-                            <p>Interactive Map</p>
-                            <small>Hazard locations will appear here</small>
-                        </div>
-                    </div>
-                `;
-        }
-      }
-
-      function loadDashboardData() {
-        // Simulate loading dashboard data
-        setTimeout(() => {
-          updateMetrics({
-            totalReports: 145,
-            openHazards: 23,
-            resolvedThisMonth: 67,
-          });
-
-          loadReportsTable();
-        }, 1000);
-      }
-
-      function updateMetrics(metrics) {
-        const totalReports = document.getElementById("total-reports-count");
-        const openHazards = document.getElementById("open-hazards-count");
-        const resolvedThisMonth = document.getElementById(
-          "resolved-this-month",
-        );
-
-        if (totalReports) {
-          animateNumber(totalReports, metrics.totalReports);
-        }
-
-        if (openHazards) {
-          animateNumber(openHazards, metrics.openHazards);
-        }
-
-        if (resolvedThisMonth) {
-          animateNumber(resolvedThisMonth, metrics.resolvedThisMonth);
-        }
-      }
-
-      function animateNumber(element, targetValue) {
-        const startValue = parseInt(element.textContent) || 0;
-        const increment = (targetValue - startValue) / 20;
-        let currentValue = startValue;
-
-        const timer = setInterval(() => {
-          currentValue += increment;
-          if (currentValue >= targetValue) {
-            element.textContent = targetValue;
-            clearInterval(timer);
-          } else {
-            element.textContent = Math.round(currentValue);
-          }
-        }, 50);
-      }
-
-      function loadReportsTable() {
-        const tableBody = document.getElementById("reports-table-body");
-
-        // Simulate loading reports
-        const sampleReports = [
-          { type: "Pothole", status: "Open", date: "2024-01-15", id: 1 },
-          { type: "Crack", status: "In Progress", date: "2024-01-14", id: 2 },
-          { type: "Debris", status: "Resolved", date: "2024-01-13", id: 3 },
-          { type: "Pothole", status: "Open", date: "2024-01-12", id: 4 },
-        ];
-
-        if (tableBody) {
-          tableBody.innerHTML = sampleReports
-            .map(
-              (report) => `
-                    <tr>
-                        <td>
-                            <span class="badge badge-secondary">${report.type}</span>
-                        </td>
-                        <td>
-                            <span class="badge badge-${getStatusColor(report.status)}">${report.status}</span>
-                        </td>
-                        <td>${report.date}</td>
-                        <td>
-                            <button class="btn btn-sm btn-outline-primary me-1" onclick="viewReport(${report.id})">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-secondary" onclick="editReport(${report.id})">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                        </td>
-                    </tr>
-                `,
-            )
-            .join("");
-        }
-      }
-
-      function getStatusColor(status) {
-        switch (status) {
-          case "Open":
-            return "danger";
-          case "In Progress":
-            return "warning";
-          case "Resolved":
-            return "success";
-          default:
-            return "secondary";
-        }
-      }
-
-      function setupEventListeners() {
-        // Filter toggle
-        const filterToggle = document.getElementById("toggle-filters-btn");
-        const filtersContainer = document.getElementById("reports-filters");
-
-        if (filterToggle && filtersContainer) {
-          filterToggle.addEventListener("click", function () {
-            filtersContainer.classList.toggle("collapsed");
-            this.classList.toggle("collapsed");
-          });
-        }
-
-        // Search functionality
-        const searchInput = document.getElementById("report-search-input");
-        if (searchInput) {
-          searchInput.addEventListener("input", function () {
-            // Implement search functionality
-            console.log("Search:", this.value);
-          });
-        }
-
-        // Sort functionality
-        const sortSelect = document.getElementById("report-sort-select");
-        if (sortSelect) {
-          sortSelect.addEventListener("change", function () {
-            // Implement sort functionality
-            console.log("Sort by:", this.value);
-          });
-        }
-
-        // Map controls
-        const heatmapToggle = document.getElementById("toggle-heatmap");
-        const centerMap = document.getElementById("center-map");
-
-        if (heatmapToggle) {
-          heatmapToggle.addEventListener("click", function () {
-            console.log("Toggle heatmap");
-            // Implement heatmap toggle
-          });
-        }
-
-        if (centerMap) {
-          centerMap.addEventListener("click", function () {
-            console.log("Center map");
-            // Implement map centering
-          });
-        }
-      }
-
-      // Report actions
-      function viewReport(reportId) {
-        console.log("View report:", reportId);
-        // Implement report viewing
-      }
-
-      function editReport(reportId) {
-        console.log("Edit report:", reportId);
-        // Implement report editing
-      }
-    </script>
+    <!-- Google Maps API will be loaded by dashboard.js -->
   </body>
 </html>

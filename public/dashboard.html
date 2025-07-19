@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="/assets/icon.png" type="image/png">
+  <title>Hazard Detection Dashboard - RoadGuardian</title>
+
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  
+  <!-- Unified Dashboard CSS -->
+  <link rel="stylesheet" href="/css/pages/dashboard-unified.css">
+</head>
+<body>
+  <!-- Dashboard Container -->
+  <div class="dashboard-container">
+    
+    <!-- Header Section -->
+    <header class="dashboard-header">
+      <div class="header-content">
+        <h1 class="header-title">
+          <i class="fas fa-road header-icon"></i>
+          RoadGuardian Dashboard
+        </h1>
+        <div class="header-actions">
+          <a href="/pages/index.html" class="header-btn">
+            <i class="fas fa-home"></i>
+            Home
+          </a>
+          <button id="logout-btn" class="header-btn">
+            <i class="fas fa-sign-out-alt"></i>
+            Logout
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Stats Section -->
+    <section class="stats-section">
+      <div class="stats-container">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-content">
+              <div class="stat-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+              </div>
+              <div class="stat-details">
+                <h3 id="total-reports">0</h3>
+                <p>Total Reports</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-content">
+              <div class="stat-icon">
+                <i class="fas fa-clock"></i>
+              </div>
+              <div class="stat-details">
+                <h3 id="pending-reports">0</h3>
+                <p>Pending</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-content">
+              <div class="stat-icon">
+                <i class="fas fa-check-circle"></i>
+              </div>
+              <div class="stat-details">
+                <h3 id="resolved-reports">0</h3>
+                <p>Resolved</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-content">
+              <div class="stat-icon">
+                <i class="fas fa-map-marker-alt"></i>
+              </div>
+              <div class="stat-details">
+                <h3 id="locations-count">0</h3>
+                <p>Locations</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Reports Section -->
+    <section class="reports-section">
+      <div class="reports-container">
+        <div class="section-header">
+          <h2 class="section-title">
+            <i class="fas fa-clipboard-list"></i>
+            Recent Reports
+          </h2>
+          <div class="section-controls">
+            <button class="control-btn active" id="view-cards">
+              <i class="fas fa-th-large"></i>
+              Cards
+            </button>
+            <button class="control-btn" id="view-table">
+              <i class="fas fa-table"></i>
+              Table
+            </button>
+            <button class="control-btn" id="refresh-reports">
+              <i class="fas fa-sync-alt"></i>
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        <div class="reports-cards-wrapper">
+          <div class="reports-cards-header">
+            <div class="search-container">
+              <i class="fas fa-search search-icon"></i>
+              <input 
+                type="text" 
+                class="search-input" 
+                id="search-reports" 
+                placeholder="Search reports by type, location, or status..."
+              >
+            </div>
+          </div>
+          
+          <div class="reports-cards-container report-cards-grid" id="reports-cards">
+            <!-- Report cards will be populated here -->
+            <div class="text-center py-4" id="loading-reports">
+              <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+              <p class="mt-2 text-muted">Loading reports...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Map Section -->
+    <section class="map-section">
+      <div class="map-container">
+        <div class="map-header">
+          <h2 class="map-title">
+            <i class="fas fa-map-marked-alt"></i>
+            Hazard Locations
+          </h2>
+          <div class="map-controls">
+            <button class="control-btn" id="toggle-heatmap">
+              <i class="fas fa-fire"></i>
+              Heatmap
+            </button>
+            <button class="control-btn" id="center-map">
+              <i class="fas fa-crosshairs"></i>
+              Center
+            </button>
+            <button class="control-btn" id="fullscreen-map">
+              <i class="fas fa-expand"></i>
+              Fullscreen
+            </button>
+          </div>
+        </div>
+        
+        <div class="map-content" id="map">
+          <div class="map-placeholder">
+            <i class="fas fa-map"></i>
+            <h3>Interactive Map</h3>
+            <p>Hazard locations and detection points will appear here</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Report Details Modal -->
+  <div class="modal fade" id="reportModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Report Details</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="modal-content">
+          <!-- Modal content will be populated here -->
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-warning" id="edit-report">Edit Report</button>
+          <button type="button" class="btn btn-danger" id="delete-report">Delete</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <!-- Dashboard JavaScript - Load existing dashboard.js first -->
+  <script src="/js/dashboard.js"></script>
+  <script src="/js/modules/DashboardUnified.js" type="module"></script>
+
+  <!-- Google Maps API -->
+  <script async defer 
+    src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap">
+  </script>
+
+</body>
+</html>

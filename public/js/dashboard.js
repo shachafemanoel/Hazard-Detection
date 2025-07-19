@@ -1,3 +1,5 @@
+import { ApiService } from './modules/ApiService.js';
+
 let map;
 let markers = [];
 let heatmapLayer = null; // NEW: Global heatmap layer
@@ -869,7 +871,7 @@ function createMarkerFromLocation(location, address, report) {
                     <p><strong>Status:</strong> <span class="badge ${report.status === "Resolved" ? "bg-success" : "bg-danger"}">${report.status}</span></p>
                     <p><strong>Reported by:</strong> ${report.reportedBy}</p>
                     <p><strong>Time:</strong> ${new Date(report.time).toLocaleString()}</p>
-                    ${report.image ? `<img src="${report.image}" alt="Hazard" style="width:200px;height:150px;object-fit:cover;margin:10px 0;cursor:pointer;" onclick="showImageModal('${report.image}')">` : ""}
+                    ${report.image || report.url ? `<img src="${report.image || report.url}" alt="Hazard" style="width:200px;height:150px;object-fit:cover;margin:10px 0;cursor:pointer;" onclick="showImageModal('${report.image || report.url}')">` : ""}
                     <div class="mt-2">
                         <button class="btn btn-sm btn-primary me-2" onclick="showReportDetails(${JSON.stringify(report).replace(/"/g, "&quot;")})">Details</button>
                         <button class="btn btn-sm btn-warning" onclick="openEditReportModal(${JSON.stringify(report).replace(/"/g, "&quot;")})">Edit</button>
@@ -949,13 +951,7 @@ async function isValidImage(url) {
 // NEW: Function to fetch report by ID and open the Edit Report modal
 async function editMarkerReport(reportId) {
   try {
-    const response = await fetch(`/api/reports/${reportId}`, {
-      credentials: "include",
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to fetch report with id ${reportId}`);
-    }
-    const report = await response.json();
+    const report = await ApiService.getReportById(reportId);
     openEditReportModal(report);
   } catch (err) {
     console.error("Error fetching report for edit:", err);
@@ -1000,7 +996,7 @@ function createReportBlock(report) {
   };
 
   block.innerHTML = `
-        <img src="${report.image || ""}" alt="Hazard image" class="report-block-image" onclick="openModal('${report.image || ""}')">
+        <img src="${report.image || report.url || ""}" alt="Hazard image" class="report-block-image" onclick="openModal('${report.image || report.url || ""}')">
         <div class="report-block-details">
             <div class="report-block-title">
                 <i class="fas fa-exclamation-triangle"></i> ${report.type || "Unknown Type"}
@@ -1078,19 +1074,8 @@ async function loadReports(filters = {}) {
       hideLoadingIndicator();
       return cachedReports;
     }
-    const queryString = Object.entries(filters)
-      .filter(([_, value]) => value)
-      .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-      .join("&");
-    const response = await throttledRequest(() => fetch(
-      `/api/reports${queryString ? `?${queryString}` : ""}`,
-      {
-        method: "GET",
-        credentials: "include",
-      },
-    ));
-    if (!response.ok) throw new Error("Failed to load reports");
-    let reports = await response.json();
+    // שימוש ב-ApiService לטעינת דיווחים
+    let reports = await ApiService.loadReports();
     if (!document.body) return [];
     setCachedReports(cacheKey, reports);
     lastReports = reports;
@@ -1742,21 +1727,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Check current view mode and render accordingly
     const tableContainer = document.getElementById("reports-table-container");
-    const blocksContainer = document.getElementById("reports-blocks-container");
-    const isTableView =
-      tableContainer && tableContainer.style.display !== "none";
-    const isBlocksView =
-      blocksContainer && blocksContainer.style.display !== "none";
+    const blocksContainer = document.getElementById("reports-blocks");
+    const cardsContainer = document.getElementById("reports-cards");
+    
+    const tableDiv = tableContainer?.querySelector('.table-responsive');
+    const isTableView = tableDiv && tableDiv.style.display !== "none";
+    const isBlocksView = blocksContainer && blocksContainer.style.display !== "none";
+    const isCardsView = cardsContainer && cardsContainer.style.display !== "none";
 
     console.log("Current layout mode:", window.currentLayoutMode);
-    console.log("Current view mode:", isTableView ? "table" : "blocks");
+    console.log("Current view mode:", isTableView ? "table" : isCardsView ? "cards" : "blocks");
     console.log("Filtered reports count:", filtered.length);
 
     // Render based on current display mode
     if (isTableView) {
       renderReportTableRows(filtered);
-    }
-    if (isBlocksView) {
+    } else if (isCardsView) {
+      renderReportCards(filtered);
+    } else if (isBlocksView) {
       renderReportBlocks(filtered);
     }
 
@@ -1892,19 +1880,35 @@ function showReportDetails(report) {
   if (!document.getElementById("reportDetailsModal")) {
     const modalHtml = `
       <div class="modal fade" id="reportDetailsModal" tabindex="-1">
-        <div class="modal-dialog">
+        <div class="modal-dialog modal-lg">
           <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title">Report Details</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header bg-primary text-white">
+              <h5 class="modal-title"><i class="fas fa-info-circle me-2"></i>Report Details</h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-              <div><b>ID:</b> <span id="modal-hazard-id"></span></div>
-              <div><b>Type:</b> <span id="modal-type"></span></div>
-              <div><b>Location:</b> <span id="modal-location"></span></div>
-              <div><b>Status:</b> <span id="modal-status"></span></div>
-              <div><b>User:</b> <span id="modal-user"></span></div>
-              <!-- Add other fields as needed -->
+            <div class="modal-body row g-3">
+              <div class="col-md-4 text-center">
+                <img id="modal-hazard-image" src="" alt="Hazard Image" class="img-fluid rounded mb-2" style="max-height:220px;object-fit:cover;cursor:pointer;display:none;" />
+                <div id="modal-no-image" class="text-muted" style="display:none;">No image</div>
+              </div>
+              <div class="col-md-8">
+                <div class="mb-2"><b>ID:</b> <span id="modal-hazard-id"></span> <button class="btn btn-sm btn-outline-secondary ms-2" id="copy-id-btn" title="Copy ID"><i class="fas fa-copy"></i></button></div>
+                <div class="mb-2"><b>Type:</b> <span id="modal-type"></span></div>
+                <div class="mb-2"><b>Location:</b> <span id="modal-location"></span></div>
+                <div class="mb-2"><b>Status:</b> <span id="modal-status"></span></div>
+                <div class="mb-2"><b>User:</b> <span id="modal-user"></span></div>
+                <div class="mb-2"><b>Date:</b> <span id="modal-date"></span></div>
+                <div class="mb-2"><b>Location Note:</b> <span id="modal-location-note"></span></div>
+                <div class="mb-2"><b>Coordinates:</b> <span id="modal-coords"></span></div>
+                <div class="mb-2"><b>Created At:</b> <span id="modal-created-at"></span></div>
+                <div class="mb-2"><b>Last Modified:</b> <span id="modal-last-modified"></span></div>
+                <div class="mt-3" id="modal-admin-actions" style="display:none;">
+                  <button class="btn btn-warning btn-sm" id="edit-report-btn"><i class="fas fa-edit"></i> Edit</button>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><i class="fas fa-times"></i> סגור</button>
             </div>
           </div>
         </div>
@@ -1919,16 +1923,59 @@ function showReportDetails(report) {
     container.innerHTML = modalHtml;
   }
 
-  // Now set modal fields
+  // Set modal fields
   document.getElementById("modal-hazard-id").textContent = report.id || "N/A";
   document.getElementById("modal-type").textContent = report.type || "Unknown Type";
   document.getElementById("modal-location").textContent = report.location || "Unknown Location";
   document.getElementById("modal-status").textContent = report.status || "Unknown";
   document.getElementById("modal-user").textContent = report.reportedBy || "Anonymous";
+  document.getElementById("modal-date").textContent = report.time ? new Date(report.time).toLocaleString() : "N/A";
+  document.getElementById("modal-location-note").textContent = report.locationNote || "-";
+  document.getElementById("modal-coords").textContent = report.coordinates ? `${report.coordinates.lat}, ${report.coordinates.lng}` : "-";
+  document.getElementById("modal-created-at").textContent = report.createdAt ? new Date(report.createdAt).toLocaleString() : "-";
+  document.getElementById("modal-last-modified").textContent = report.lastModified ? new Date(report.lastModified).toLocaleString() : "-";
+
+  // Image logic
+  const img = document.getElementById("modal-hazard-image");
+  const noImg = document.getElementById("modal-no-image");
+  if (report.image || report.url) {
+    img.src = report.image || report.url;
+    img.style.display = "block";
+    noImg.style.display = "none";
+    img.onclick = () => window.showImageModal(report.image || report.url);
+  } else {
+    img.style.display = "none";
+    noImg.style.display = "block";
+  }
+
+  // Copy ID button
+  const copyBtn = document.getElementById("copy-id-btn");
+  copyBtn.onclick = () => {
+    navigator.clipboard.writeText(report.id || "");
+    window.showToast("ID copied!", "success");
+  };
+
+  // Admin actions (edit button)
+  const adminActions = document.getElementById("modal-admin-actions");
+  const editBtn = document.getElementById("edit-report-btn");
+  // Simple check: if user is admin (to be replaced with real check)
+  if (window.isAdminUser) {
+    adminActions.style.display = "block";
+    editBtn.onclick = () => window.openEditReportModal(report);
+  } else {
+    adminActions.style.display = "none";
+  }
 
   // Show the modal using Bootstrap
-  const modal = new bootstrap.Modal(document.getElementById("reportDetailsModal"));
+  const modalEl = document.getElementById("reportDetailsModal");
+  modalEl.style.zIndex = 20000;
+  const modal = new bootstrap.Modal(modalEl);
   modal.show();
+  // ודא שה-body לא נשאר עם modal-open לאחר סגירה
+  modalEl.addEventListener('hidden.bs.modal', () => {
+    document.body.classList.remove('modal-open');
+    document.body.style = '';
+  });
 }
 
 // Expose globally for infowindow and HTML
@@ -2006,46 +2053,59 @@ function toggleSidebar() {
 window.toggleSidebar = toggleSidebar;
 
 // === VIEW TOGGLE FUNCTIONALITY ===
-let currentViewMode = "blocks"; // 'blocks' or 'table'
+let currentViewMode = "blocks"; // 'blocks', 'cards', or 'table'
 
-// Toggle between blocks and table view
+// Toggle between blocks, cards, and table view
 function toggleReportsView(mode) {
-  const blocksContainer = document.getElementById("reports-blocks-container");
+  const blocksContainer = document.getElementById("reports-blocks");
+  const cardsContainer = document.getElementById("reports-cards");
   const tableContainer = document.getElementById("reports-table-container");
-  const blocksBtn = document.getElementById("toggle-blocks-view");
-  const tableBtn = document.getElementById("toggle-table-view");
+  const blocksBtn = document.getElementById("layout-blocks-btn");
+  const cardsBtn = document.getElementById("layout-cards-btn");
+  const tableBtn = document.getElementById("layout-table-btn");
 
   console.log("toggleReportsView called with mode:", mode);
 
-  if (!blocksContainer || !tableContainer || !blocksBtn || !tableBtn) {
-    console.error("Missing elements for view toggle");
+  if (!blocksContainer || !cardsContainer || !tableContainer) {
+    console.error("Missing container elements for view toggle");
     return;
   }
 
   currentViewMode = mode;
 
+  // Hide all containers first
+  blocksContainer.style.display = "none";
+  cardsContainer.style.display = "none";
+  const tableDiv = tableContainer.querySelector('.table-responsive');
+  if (tableDiv) tableDiv.style.display = "none";
+
+  // Remove active class from all buttons
+  if (blocksBtn) blocksBtn.classList.remove("active");
+  if (cardsBtn) cardsBtn.classList.remove("active");
+  if (tableBtn) tableBtn.classList.remove("active");
+
+  // Show selected view
   if (mode === "table") {
-    // Show table, hide blocks
-    blocksContainer.style.display = "none";
-    tableContainer.style.display = "block";
-
-    // Update button styles
-    blocksBtn.classList.remove("active");
-    tableBtn.classList.add("active");
-
+    if (tableDiv) tableDiv.style.display = "block";
+    if (tableBtn) tableBtn.classList.add("active");
+    
     // Re-render current data in table format
     if (window.currentFilteredReports) {
       renderReportTableRows(window.currentFilteredReports);
     }
+  } else if (mode === "cards") {
+    cardsContainer.style.display = "block";
+    if (cardsBtn) cardsBtn.classList.add("active");
+    
+    // Re-render current data in cards format
+    if (window.currentFilteredReports) {
+      renderReportCards(window.currentFilteredReports);
+    }
   } else {
-    // Show blocks, hide table
+    // blocks mode
     blocksContainer.style.display = "block";
-    tableContainer.style.display = "none";
-
-    // Update button styles
-    tableBtn.classList.remove("active");
-    blocksBtn.classList.add("active");
-
+    if (blocksBtn) blocksBtn.classList.add("active");
+    
     // Re-render current data in blocks format
     if (window.currentFilteredReports) {
       renderReportBlocks(window.currentFilteredReports);
@@ -2055,26 +2115,91 @@ function toggleReportsView(mode) {
 
 // Initialize view toggle event listeners
 document.addEventListener("DOMContentLoaded", () => {
-  const blocksBtn = document.getElementById("toggle-blocks-view");
-  const tableBtn = document.getElementById("toggle-table-view");
+  const layoutBlocksBtn = document.getElementById("layout-blocks-btn");
+  const layoutCardsBtn = document.getElementById("layout-cards-btn");
+  const layoutTableBtn = document.getElementById("layout-table-btn");
   const applyMapSortBtn = document.getElementById("apply-map-sort");
 
-  // NOTE: These old event listeners are commented out to prevent conflicts with new layout system
-  // The new layout system handles these buttons in the main search/filter section
-  /*
-    if (blocksBtn) {
-        blocksBtn.addEventListener('click', () => toggleReportsView('blocks'));
-    }
-    
-    if (tableBtn) {
-        tableBtn.addEventListener('click', () => toggleReportsView('table'));
-    }
-    */
+  // Add event listeners for new layout buttons
+  if (layoutBlocksBtn) {
+    layoutBlocksBtn.addEventListener('click', () => toggleReportsView('blocks'));
+  }
+  
+  if (layoutCardsBtn) {
+    layoutCardsBtn.addEventListener('click', () => toggleReportsView('cards'));
+  }
+  
+  if (layoutTableBtn) {
+    layoutTableBtn.addEventListener('click', () => toggleReportsView('table'));
+  }
 
   if (applyMapSortBtn) {
     applyMapSortBtn.addEventListener("click", sortMapMarkers);
   }
+  
+  // Add quick filter functionality
+  const quickFilterBtns = document.querySelectorAll('.quick-filter-btn');
+  quickFilterBtns.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const filter = e.target.closest('.quick-filter-btn').dataset.filter;
+      handleQuickFilter(filter, e.target.closest('.quick-filter-btn'));
+    });
+  });
 });
+
+// Quick filter handler
+function handleQuickFilter(filter, button) {
+  const statusFilter = document.getElementById('status-filter');
+  const typeFilter = document.getElementById('type-filter');
+  const dateFromFilter = document.getElementById('date-from-filter');
+  const dateToFilter = document.getElementById('date-to-filter');
+  const searchFilter = document.getElementById('search-filter');
+  const quickFilterBtns = document.querySelectorAll('.quick-filter-btn');
+  
+  // Remove active class from all quick filter buttons
+  quickFilterBtns.forEach(btn => btn.classList.remove('active'));
+  
+  const today = new Date().toISOString().split('T')[0];
+  
+  switch(filter) {
+    case 'pending':
+      statusFilter.value = 'Pending';
+      button.classList.add('active');
+      break;
+      
+    case 'resolved':
+      statusFilter.value = 'Resolved';
+      button.classList.add('active');
+      break;
+      
+    case 'today':
+      dateFromFilter.value = today;
+      dateToFilter.value = today;
+      button.classList.add('active');
+      break;
+      
+    case 'clear':
+      statusFilter.value = '';
+      typeFilter.value = '';
+      dateFromFilter.value = '';
+      dateToFilter.value = '';
+      searchFilter.value = '';
+      button.classList.add('active');
+      setTimeout(() => button.classList.remove('active'), 300);
+      break;
+  }
+  
+  // Trigger filter update
+  if (window.filterAndRenderReports) {
+    window.filterAndRenderReports();
+  }
+  
+  // Show feedback animation
+  button.style.transform = 'scale(0.95)';
+  setTimeout(() => {
+    button.style.transform = '';
+  }, 150);
+};
 
 // === MAP SORTING FUNCTIONALITY ===
 function sortMapMarkers() {
@@ -2140,18 +2265,34 @@ function addMarkerToMap(report) {
   // Store report data with marker
   marker.report = report;
 
-  // Add click listener for info window
+  // Add click listener for report modal
   const clickListener = () => {
+    // Close any existing info window
     if (window.currentInfoWindow) {
       window.currentInfoWindow.close();
     }
 
+    // Show report details modal
+    showReportDetails(report);
+    
+    // Optional: Show a brief info window with basic info
     const infoWindow = new google.maps.InfoWindow({
-      content: createInfoWindowContent(report),
+      content: `<div class="text-center p-2">
+        <strong>${report.type}</strong><br>
+        <small class="text-muted">${report.location}</small><br>
+        <small class="text-info">Opening details...</small>
+      </div>`,
     });
 
     infoWindow.open(map, marker);
     window.currentInfoWindow = infoWindow;
+    
+    // Auto-close info window after 2 seconds
+    setTimeout(() => {
+      if (window.currentInfoWindow === infoWindow) {
+        infoWindow.close();
+      }
+    }, 2000);
   };
 
   if (marker.addListener) {
@@ -2366,6 +2507,99 @@ function renderReportBlocks(reports) {
   }
 }
 
+// --- Render Report Cards ---
+const REPORTS_PAGE_SIZE = 12;
+let reportsCurrentPage = 1;
+let reportsLastData = [];
+
+function renderReportCards(reports, {resetPage = false} = {}) {
+  const cardsContainer = document.getElementById("reports-cards");
+  const loadMoreBtnId = 'load-more-reports-btn';
+  if (!cardsContainer) {
+    console.error("Element with id 'reports-cards' not found.");
+    return;
+  }
+  if (resetPage) {
+    reportsCurrentPage = 1;
+  }
+  reportsLastData = reports;
+  // Clear existing cards
+  cardsContainer.innerHTML = "";
+  // Pagination logic
+  const startIdx = 0;
+  const endIdx = reportsCurrentPage * REPORTS_PAGE_SIZE;
+  const pagedReports = reports.slice(startIdx, endIdx);
+  // Create and append each report card
+  pagedReports.forEach((report, index) => {
+    const reportCard = createReportCard(report, index);
+    cardsContainer.appendChild(reportCard);
+  });
+  // Show loading message if no reports
+  if (reports.length === 0) {
+    cardsContainer.innerHTML =
+      '<div class="text-center text-muted p-4"><i class="fas fa-inbox fa-2x mb-2"></i><br>No reports found</div>';
+  }
+  // Add Load More button if needed
+  let loadMoreBtn = document.getElementById(loadMoreBtnId);
+  if (endIdx < reports.length) {
+    if (!loadMoreBtn) {
+      loadMoreBtn = document.createElement('button');
+      loadMoreBtn.id = loadMoreBtnId;
+      loadMoreBtn.className = 'btn btn-outline-primary w-100 mt-3';
+      loadMoreBtn.innerHTML = '<i class="fas fa-plus"></i> טען עוד';
+      loadMoreBtn.onclick = () => {
+        reportsCurrentPage++;
+        renderReportCards(reportsLastData);
+      };
+      cardsContainer.parentElement.appendChild(loadMoreBtn);
+    }
+  } else if (loadMoreBtn) {
+    loadMoreBtn.remove();
+  }
+}
+
+// Skeleton loading for reports
+function renderReportCardsSkeleton(count = 6) {
+  const cardsContainer = document.getElementById("reports-cards");
+  if (!cardsContainer) return;
+  cardsContainer.innerHTML = '';
+  for (let i = 0; i < count; i++) {
+    const skeleton = document.createElement('div');
+    skeleton.className = 'report-card report-card-skeleton';
+    skeleton.innerHTML = `
+      <div class="report-image-wrapper skeleton-bg"></div>
+      <div class="report-meta skeleton-bg" style="height: 24px; margin: 12px 0;"></div>
+      <div class="report-meta skeleton-bg" style="height: 18px; width: 60%;"></div>
+    `;
+    cardsContainer.appendChild(skeleton);
+  }
+}
+
+function createReportCard(report, index) {
+  const card = document.createElement("div");
+  card.className = "report-card";
+  card.style.animationDelay = `${index * 0.05}s`;
+  card.dataset.reportId = report.id;
+  // Overlay description and all details on image
+  const imageUrl = report.image || report.url || '/assets/placeholder-image.png';
+  const description = report.description ? (report.description.length > 60 ? report.description.substring(0, 60) + '...' : report.description) : '';
+  card.innerHTML = `
+    <div class="report-image-wrapper">
+      <img src="${imageUrl}" alt="${report.type || ''}" class="report-image" onerror="this.src='/assets/placeholder-image.png'; this.onerror=null;">
+      <div class="report-overlay">
+        <div class="report-overlay-content">
+          <span class="report-type">${report.type || ''}</span>
+          <p class="report-desc">${description}</p>
+          <span class="report-status ${getStatusBadgeClass(report.status)}">${report.status || ''}</span>
+          <span class="report-location"><i class="fas fa-map-marker-alt"></i> ${report.location || '---'}</span>
+        </div>
+      </div>
+    </div>
+  `;
+  card.onclick = () => showReportDetails(report);
+  return card;
+}
+
 // --- Render Report Table Rows ---
 function renderReportTableRows(reports) {
   const tbody = document.getElementById("reports-table-body");
@@ -2387,11 +2621,11 @@ function renderReportTableRows(reports) {
             </td>
             <td>
                 ${
-                  report.image
-                    ? `<img src="${report.image}" alt="Hazard" class="hazard-thumbnail" 
+                  report.image || report.url
+                    ? `<img src="${report.image || report.url}" alt="Hazard" class="hazard-thumbnail" 
                      style="width:56px;height:56px;object-fit:cover;border-radius:10px;
                      box-shadow:0 2px 8px #23294622;cursor:pointer"
-                     onclick="showImageModal('${report.image}')" title="View full image">`
+                     onclick="showImageModal('${report.image || report.url}')" title="View full image">`
                     : '<span class="text-muted">No image</span>'
                 }
             </td>
@@ -2431,7 +2665,7 @@ function renderReportTableRows(reports) {
                         <i class="fas fa-info-circle"></i>
                     </button>
                     <button class="btn btn-outline-secondary btn-sm" title="View Image"
-                            onclick="showImageModal('${report.image}')"
+                            onclick="showImageModal('${report.image || report.url}')"
                             ${!report.image ? "disabled" : ""}>
                         <i class="fas fa-image"></i>
                     </button>
@@ -2523,11 +2757,7 @@ if (dom.bulkStatusBtn) {
     if (!newStatus) return;
     for (const id of selectedReportIds) {
       try {
-        await fetch(`/api/reports/${id}/status`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: newStatus }),
-        });
+        await ApiService.updateReportStatus(id, newStatus);
       } catch (err) {
         console.error("Bulk status update error:", err);
       }
@@ -2551,7 +2781,7 @@ if (dom.bulkDeleteBtn) {
       return;
     for (const id of selectedReportIds) {
       try {
-        await fetch(`/api/reports/${id}`, { method: "DELETE" });
+        await ApiService.deleteReport(id);
       } catch (err) {
         console.error("Bulk delete error:", err);
       }
@@ -2671,7 +2901,7 @@ function showImageModal(imageUrl) {
   if (!imageUrl) return;
 
   const modalHtml = `
-        <div class="modal fade" id="imageModal" tabindex="-1">
+        <div class="modal fade" id="imageModal" tabindex="-1" style="z-index:20000;">
             <div class="modal-dialog modal-lg modal-dialog-centered">
                 <div class="modal-content bg-dark">
                     <div class="modal-header border-secondary">
@@ -2696,23 +2926,22 @@ function showImageModal(imageUrl) {
   document.body.insertAdjacentHTML("beforeend", modalHtml);
 
   // Show modal
-  const modal = new bootstrap.Modal(document.getElementById("imageModal"));
+  const modalEl = document.getElementById("imageModal");
+  modalEl.style.zIndex = 20000;
+  const modal = new bootstrap.Modal(modalEl);
   modal.show();
+  modalEl.addEventListener('hidden.bs.modal', () => {
+    document.body.classList.remove('modal-open');
+    document.body.style = '';
+  });
 }
 
 // Toggle report status
 async function toggleReportStatus(reportId, currentStatus) {
   const newStatus = currentStatus === "Resolved" ? "Open" : "Resolved";
   try {
-    const response = await fetch(`/api/reports/${reportId}/status`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ status: newStatus }),
-    });
-
-    if (response.ok) {
+    const statusResponse = await ApiService.updateReportStatus(reportId, newStatus);
+    if (statusResponse && statusResponse.message) {
       await loadReports(); // Reload to update UI
       showToast(`Report marked as ${newStatus}`, "success");
     } else {
@@ -2765,10 +2994,8 @@ function confirmDeleteReport(reportId) {
 // Delete report
 async function deleteReport(reportId) {
   try {
-    const response = await fetch(`/api/reports/${reportId}`, {
-      method: "DELETE",
-    });
-    if (response.ok) {
+    const deleteResponse = await ApiService.deleteReport(reportId);
+    if (deleteResponse.ok) {
       // Close any open confirmation modal
       const modal = bootstrap.Modal.getInstance(
         document.getElementById("deleteConfirmModal"),
@@ -2790,13 +3017,31 @@ async function deleteReport(reportId) {
       await loadReports();
       showToast("Report deleted successfully", "success");
     } else {
-      const errMsg = await response.text();
-      throw new Error(`Failed to delete report: ${response.status} ${errMsg}`);
+      const errMsg = deleteResponse && deleteResponse.status ? await deleteResponse.text() : "";
+      throw new Error(`Failed to delete report: ${deleteResponse.status || ''} ${errMsg}`);
     }
   } catch (error) {
     console.error("Error deleting report:", error);
     showToast(`Failed to delete report: ${error.message}`, "error");
   }
+}
+
+// Add missing createInfoWindowContent function
+function createInfoWindowContent(report) {
+  const address = report.address || "Unknown location";
+  return `
+    <div class="info-window">
+        <h5>${report.type}</h5>
+        <p><strong>Location:</strong> ${address}</p>
+        <p><strong>Status:</strong> <span class="badge ${report.status === "Resolved" ? "bg-success" : "bg-danger"}">${report.status}</span></p>
+        <p><strong>Reported by:</strong> ${report.reportedBy}</p>
+        <p><strong>Time:</strong> ${new Date(report.time).toLocaleString()}</p>
+        ${report.image || report.url ? `<img src="${report.image || report.url}" alt="Hazard" style="width:200px;height:150px;object-fit:cover;margin:10px 0;cursor:pointer;" onclick="showImageModal('${report.image || report.url}')">` : ""}
+        <div class="mt-2">
+            <button class="btn btn-sm btn-primary me-2" onclick="showReportDetails(${JSON.stringify(report).replace(/"/g, "&quot;")})">Details</button>
+            <button class="btn btn-sm btn-warning" onclick="openEditReportModal(${JSON.stringify(report).replace(/"/g, "&quot;")})">Edit</button>
+        </div>
+    </div>`;
 }
 
 // Add missing openEditReportModal function
@@ -3502,3 +3747,4 @@ window.openEditReportModal = function(report) {
   // TODO: Replace with actual modal logic
   alert("Edit Report: " + (report.id || JSON.stringify(report)));
 };
+

@@ -49,72 +49,6 @@
     ort.env.logLevel = 'warning';
     window.ort = ort;
   </script>
-
-  <style>
-    :root {
-      --scrollbar-width: calc(100vw - 100%);
-    }
-    
-    html {
-      overflow-y: scroll;
-      width: 100%;
-      height: 100%;
-    }
-    
-    body {
-      width: 100%;
-      min-height: 100vh;
-      margin: 0;
-      padding: 0 !important;
-      overflow-x: hidden;
-      position: relative;
-    }
-    
-    body.modal-open {
-      overflow: hidden;
-      position: fixed;
-      width: 100%;
-      padding-right: var(--scrollbar-width) !important;
-    }
-    
-    .content-wrapper {
-      position: relative;
-      width: 100%;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 1rem;
-      box-sizing: border-box;
-      margin: 0 auto;
-    }
-    
-    #home-screen-content {
-      width: 100%;
-      max-width: 380px;
-      margin: 0 auto;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-    }
-    
-    #detection-section {
-      animation: fadeIn 0.3s ease-in-out;
-    }
-    
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: translateY(-10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-  </style>
 </head>
 <body class="bg-gray-100 dark:bg-gray-900 dark:text-white">
   <div class="content-wrapper">
@@ -122,18 +56,18 @@
 
     <!-- מסך הבית -->
     <div id="home-screen-content" class="h-full transition-all duration-300">
-      <img src="/assets/icon.png" alt="Hazard Detection Logo" class="w-full max-w-xs aspect-square mb-6 rounded-lg shadow-md">
+      <img src="/assets/icon.png" alt="Hazard Detection Logo" class="responsive-img mb-6 rounded-lg shadow-md">
       <h1 class="text-3xl font-bold text-gray-700 dark:text-white mb-8">Hazard Detection</h1>
       <div class="space-y-4 w-full max-w-xs">
-        <a href="/pages/dashboard.html" class="btn-modern flex items-center justify-center w-full bg-blue-500 hover:bg-blue-600 text-white py-3 px-4 rounded-xl shadow-md">
+        <a href="/pages/dashboard.html" class="btn-modern responsive-btn flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white py-3 px-4 rounded-xl shadow-md">
           <i class="fas fa-chart-line text-xl mr-3"></i>
           <span class="text-sm font-medium">View Dashboard</span>
         </a>
-        <a href="/pages/camera.html" class="btn-modern flex items-center justify-center w-full bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-xl shadow-md">
+        <a href="/pages/camera.html" class="btn-modern responsive-btn flex items-center justify-center bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-xl shadow-md">
           <i class="fas fa-camera text-xl mr-3"></i>
           <span class="text-sm font-medium">Start Live Detection</span>
         </a>
-        <button id="show-upload-section-btn" class="btn-modern flex items-center justify-center w-full bg-indigo-500 hover:bg-indigo-600 text-white py-3 px-4 rounded-xl shadow-md">
+        <button id="show-upload-section-btn" class="btn-modern responsive-btn flex items-center justify-center bg-indigo-500 hover:bg-indigo-600 text-white py-3 px-4 rounded-xl shadow-md">
           <i class="fas fa-upload text-xl mr-3"></i>
           <span class="text-sm font-medium">Upload Image for Detection</span>
         </button>

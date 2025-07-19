@@ -27,12 +27,12 @@ export class ApiService {
   }
 
   /**
-   * Uploads detection data to server
+   * Uploads detection data to server (authenticated)
    * @param {FormData} formData - Form data containing detection info
    * @returns {Promise} Upload response
    */
   static async uploadDetection(formData) {
-    const response = await this.request("/upload-detection", {
+    const response = await this.request("/api/detections", {
       method: "POST",
       body: formData,
     });
@@ -135,11 +135,35 @@ export class ApiService {
    */
   static async updateReportStatus(reportId, status) {
     const response = await this.request(`/api/reports/${reportId}/status`, {
-      method: "PUT",
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
+    return response.json();
+  }
 
+  /**
+   * Get a single report by ID
+   * @param {string|number} reportId
+   * @returns {Promise} Report data
+   */
+  static async getReportById(reportId) {
+    const response = await this.request(`/api/reports/${reportId}`);
+    return response.json();
+  }
+
+  /**
+   * Update a report (full edit)
+   * @param {string|number} reportId
+   * @param {Object} updates
+   * @returns {Promise} Update response
+   */
+  static async updateReport(reportId, updates) {
+    const response = await this.request(`/api/reports/${reportId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
     return response.json();
   }
 
@@ -190,5 +214,19 @@ export class ApiService {
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
+  }
+
+  /**
+   * Upload anonymous detection (AI camera)
+   * @param {FormData} formData
+   * @returns {Promise} Detection response
+   */
+  static async uploadAnonymousDetection(formData) {
+    formData.append('anonymous', 'true');
+    const response = await this.request("/api/detections", {
+      method: "POST",
+      body: formData,
+    });
+    return response.json();
   }
 }

@@ -39,7 +39,7 @@ export const Constants = {
 
   // Performance Configuration
   PERFORMANCE: {
-    TARGET_FPS: 15,
+    TARGET_FPS: 10,
     SKIP_FRAMES: 3,
     DIFF_THRESHOLD: 30000,
     MAX_HISTORY: 5,
