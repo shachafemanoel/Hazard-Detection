@@ -788,17 +788,30 @@ app.post('/register', async (req, res) => {
 
     try {
         await client.set(userId, JSON.stringify(newUser));
+        
+        // התחבר אוטומטית אחרי רישום
+        req.login(newUser, (err) => {
+            if (err) {
+                console.error('Auto-login after registration failed:', err);
+                return res.status(201).json({ 
+                    success: true, 
+                    message: 'User registered successfully, please login manually', 
+                    user: { email, username } 
+                });
+            }
+            
+            res.status(201).json({ 
+                success: true, 
+                message: 'User registered and logged in successfully', 
+                redirect: '/pages/index.html',
+                user: { email, username } 
+            });
+        });
+        
     } catch (err) {
         console.error('Error saving user to Redis:', err);
         return res.status(500).json({ success: false, error: 'Internal server error' });
     }
-
-    req.session.user = {  
-        email,  
-        username  
-    };  
-
-    res.status(201).json({ success: true, message: 'User registered successfully', user: { email, username } });  
 });
 
 

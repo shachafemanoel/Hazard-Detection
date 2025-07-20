@@ -27,20 +27,6 @@ export class ApiService {
   }
 
   /**
-   * Uploads detection data to server (authenticated)
-   * @param {FormData} formData - Form data containing detection info
-   * @returns {Promise} Upload response
-   */
-  static async uploadDetection(formData) {
-    const response = await this.request("/api/detections", {
-      method: "POST",
-      body: formData,
-    });
-
-    return response.json();
-  }
-
-  /**
    * Handles user login
    * @param {string} email - User email
    * @param {string} password - User password
@@ -250,6 +236,19 @@ export class ApiService {
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
+  }
+
+  /**
+   * Uploads a detection with form data
+   * @param {FormData} formData - Form data containing image and metadata
+   * @returns {Promise} Upload response
+   */
+  static async uploadDetection(formData) {
+    const response = await this.request("/api/detections", {
+      method: "POST",
+      body: formData, // Don't set Content-Type header for FormData - browser will set it with boundary
+    });
+    return response.json();
   }
 
 

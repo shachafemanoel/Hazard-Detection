@@ -299,7 +299,9 @@ window.toggleLegend = function () {
 async function loadApiKey() {
   try {
     console.log("Attempting to load API key from server...");
-    const response = await fetch("/api/config/maps-key");
+    const response = await fetch("/api/config/maps-key", {
+      credentials: 'include'
+    });
 
     if (response.ok) {
       const config = await response.json();
@@ -919,8 +921,11 @@ function registerMarkerClick(marker, callback) {
 async function deleteImageFromRedis(url) {
   try {
     await fetch("/api/redis/deleteImage", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: 'include',
       body: JSON.stringify({ url }),
     });
   } catch (error) {

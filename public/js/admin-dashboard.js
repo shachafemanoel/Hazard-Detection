@@ -263,7 +263,9 @@ const darkMapStyle = [
 async function initializeMap() {
   try {
     // Load Google Maps API key
-    const response = await fetch('/api/config/maps-key');
+    const response = await fetch('/api/config/maps-key', {
+      credentials: 'include'
+    });
     const { apiKey } = await response.json();
     
     const defaultCenter = { lat: 31.7683, lng: 35.2137 }; // Israel center
@@ -475,31 +477,26 @@ function getStatusColor(status) {
 }
 
 // Load Google Maps API
-function loadGoogleMapsAPI() {
-  fetch('/api/config/maps-key')
-    .then(response => response.json())
-    .then(data => {
-      if (!data.apiKey) {
-        throw new Error('No API key received');
-      }
-      
-      // Set up global callback
-      window.initGoogleMapsAdmin = initializeMap;
-      
+async function loadGoogleMapsApi() {
+  try {
+    const response = await fetch('/api/config/maps-key', {
+      credentials: 'include'
+    });
+    if (!response.ok) throw new Error('Failed to load API key');
+    
+    const { apiKey } = await response.json();
+    
+    return new Promise((resolve) => {
+      window.initGoogleMaps = resolve;
       const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${data.apiKey}&libraries=marker&v=weekly&callback=initGoogleMapsAdmin&loading=async`;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initGoogleMaps&libraries=marker`;
       script.async = true;
       script.defer = true;
-      script.onerror = (error) => {
-        console.error('Google Maps API failed to load:', error);
-        showMapError('Failed to load Google Maps API');
-      };
       document.head.appendChild(script);
-    })
-    .catch(error => {
-      console.error('Failed to load Google Maps API key:', error);
-      showMapError('Failed to load map configuration');
     });
+  } catch (error) {
+    console.error('Error loading Google Maps API:', error);
+  }
 }
 
 function showMapError(message) {
@@ -611,12 +608,14 @@ function removeToast(toastId) {
 }
 
 // Initialize page
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', async function() {
   const isAuthorized = await checkAdminAuth();
+  
   if (isAuthorized) {
     loadReports();
     bindEvents();
-    loadGoogleMapsAPI();
+    await loadGoogleMapsApi();
+    initializeMap();
   }
 });
 
