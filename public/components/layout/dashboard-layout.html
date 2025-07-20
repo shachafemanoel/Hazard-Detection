@@ -11,8 +11,8 @@
       rel="stylesheet"
     />
 
-    <!-- Component CSS -->
-    <link rel="stylesheet" href="/css/components/floating-menu.css" />
+    <!-- Unified Design System -->
+    <link rel="stylesheet" href="/styles/unified-design.css" />
 
     <title>{{PAGE_TITLE}} - RoadGuardian</title>
 
@@ -20,8 +20,8 @@
     {{PAGE_CSS}}
   </head>
   <body>
-    <!-- Floating Menu -->
-    <!-- INCLUDE: /components/navigation/floating-menu.html -->
+    <!-- Unified Navigation -->
+    <div id="unified-navigation-container"></div>
 
     <!-- Main Dashboard Layout -->
     <div class="dashboard-main-layout">
@@ -37,8 +37,8 @@
     <!-- Bootstrap Bundle JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-    <!-- Floating Menu Script -->
-    <!-- INCLUDE: /components/navigation/floating-menu.js -->
+    <!-- Unified Navigation Script -->
+    <script src="/components/navigation/unified-nav.js"></script>
 
     <!-- Page Specific Scripts -->
     {{PAGE_SCRIPTS}}

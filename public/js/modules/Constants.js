@@ -83,7 +83,7 @@ export const Constants = {
     REGISTER: "/register",
     LOGOUT: "/logout",
     FORGOT_PASSWORD: "/forgot-password",
-    REPORTS: "/api/detections", // unified GET/POST endpoint
+    REPORTS: "/api/reports", // admin reports endpoint
     GOOGLE_MAPS_KEY: "/api/google-maps-key",
     USER_INFO: "/api/user",
   },

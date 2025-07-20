@@ -1,0 +1,338 @@
+/* Role-Based Design Enhancements for Road Management System */
+
+/* Manager Role Enhancements */
+.role-manager .floating-navigation {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(30, 30, 30, 0.8));
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.role-manager .floating-nav-brand {
+  color: var(--info);
+}
+
+.role-manager .floating-nav-brand:hover {
+  color: var(--primary-accent);
+}
+
+/* Manager Dashboard Cards */
+.role-manager .glass-card {
+  border-left: 4px solid var(--info);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.05), rgba(255, 255, 255, 0.05));
+}
+
+.role-manager .btn-primary {
+  background: linear-gradient(135deg, var(--info), #1e40af);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.role-manager .btn-primary:hover {
+  background: linear-gradient(135deg, #1e40af, var(--info));
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+}
+
+/* Manager Status Indicators */
+.role-manager .system-status {
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.role-manager .stat-icon {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(59, 130, 246, 0.1));
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+/* Manager Priority Indicators */
+.role-manager .priority-high {
+  border-left: 4px solid var(--error);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(255, 255, 255, 0.05));
+}
+
+.role-manager .priority-medium {
+  border-left: 4px solid var(--warning);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(255, 255, 255, 0.05));
+}
+
+.role-manager .priority-low {
+  border-left: 4px solid var(--success);
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(255, 255, 255, 0.05));
+}
+
+/* Reporter Role Enhancements */
+.role-reporter .floating-navigation {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.1), rgba(30, 30, 30, 0.8));
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.role-reporter .floating-nav-brand {
+  color: var(--success);
+}
+
+.role-reporter .floating-nav-brand:hover {
+  color: var(--primary-accent);
+}
+
+/* Reporter Dashboard Cards */
+.role-reporter .glass-card {
+  border-left: 4px solid var(--success);
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.05), rgba(255, 255, 255, 0.05));
+}
+
+.role-reporter .btn-primary {
+  background: linear-gradient(135deg, var(--success), #15803d);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+}
+
+.role-reporter .btn-primary:hover {
+  background: linear-gradient(135deg, #15803d, var(--success));
+  box-shadow: 0 6px 20px rgba(34, 197, 94, 0.4);
+}
+
+/* Reporter Status Indicators */
+.role-reporter .stat-icon {
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.2), rgba(34, 197, 94, 0.1));
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+/* Reporter Report Cards */
+.role-reporter .report-card {
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.05), rgba(255, 255, 255, 0.05));
+}
+
+.role-reporter .report-card:hover {
+  border-color: rgba(34, 197, 94, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(34, 197, 94, 0.2);
+}
+
+/* Reporter Quick Actions */
+.role-reporter .quick-report-btn {
+  position: fixed;
+  bottom: 120px;
+  right: 2rem;
+  width: 60px;
+  height: 60px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, var(--success), #15803d);
+  color: white;
+  border: none;
+  box-shadow: 0 8px 24px rgba(34, 197, 94, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: var(--transition-base);
+  z-index: 999;
+}
+
+.role-reporter .quick-report-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 12px 32px rgba(34, 197, 94, 0.5);
+}
+
+/* Admin Role Enhancements */
+.role-admin .floating-navigation {
+  background: linear-gradient(135deg, rgba(247, 200, 115, 0.1), rgba(30, 30, 30, 0.8));
+  border: 1px solid rgba(247, 200, 115, 0.2);
+}
+
+.role-admin .floating-nav-brand {
+  color: var(--primary-accent);
+}
+
+.role-admin .floating-nav-brand:hover {
+  color: var(--info);
+}
+
+/* Admin Dashboard Cards */
+.role-admin .glass-card {
+  border-left: 4px solid var(--primary-accent);
+  background: linear-gradient(135deg, rgba(247, 200, 115, 0.05), rgba(255, 255, 255, 0.05));
+}
+
+.role-admin .btn-primary {
+  background: linear-gradient(135deg, var(--primary-accent), #d97706);
+  box-shadow: 0 4px 12px rgba(247, 200, 115, 0.3);
+}
+
+.role-admin .btn-primary:hover {
+  background: linear-gradient(135deg, #d97706, var(--primary-accent));
+  box-shadow: 0 6px 20px rgba(247, 200, 115, 0.4);
+}
+
+/* Admin Status Indicators */
+.role-admin .stat-icon {
+  background: linear-gradient(135deg, rgba(247, 200, 115, 0.2), rgba(247, 200, 115, 0.1));
+  border: 1px solid rgba(247, 200, 115, 0.3);
+}
+
+/* Admin System Controls */
+.role-admin .system-controls {
+  position: fixed;
+  top: 50%;
+  right: 2rem;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  z-index: 999;
+}
+
+.role-admin .system-control-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-full);
+  background: rgba(247, 200, 115, 0.1);
+  border: 1px solid rgba(247, 200, 115, 0.2);
+  color: var(--primary-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-base);
+  backdrop-filter: blur(8px);
+}
+
+.role-admin .system-control-btn:hover {
+  background: rgba(247, 200, 115, 0.2);
+  border-color: rgba(247, 200, 115, 0.4);
+  transform: scale(1.1);
+}
+
+/* Role-Specific Animations */
+@keyframes managerPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); }
+  50% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+}
+
+@keyframes reporterPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+  50% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+}
+
+@keyframes adminPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(247, 200, 115, 0.4); }
+  50% { box-shadow: 0 0 0 10px rgba(247, 200, 115, 0); }
+}
+
+.role-manager .notification-badge {
+  animation: managerPulse 2s infinite;
+}
+
+.role-reporter .notification-badge {
+  animation: reporterPulse 2s infinite;
+}
+
+.role-admin .notification-badge {
+  animation: adminPulse 2s infinite;
+}
+
+/* Role-Specific Typography */
+.role-manager h1, .role-manager h2, .role-manager h3 {
+  color: var(--info);
+}
+
+.role-reporter h1, .role-reporter h2, .role-reporter h3 {
+  color: var(--success);
+}
+
+.role-admin h1, .role-admin h2, .role-admin h3 {
+  color: var(--primary-accent);
+}
+
+/* Role-Specific Page Layouts */
+.role-manager .page-container {
+  background: radial-gradient(circle at 20% 80%, rgba(59, 130, 246, 0.05) 0%, transparent 50%),
+              radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.05) 0%, transparent 50%),
+              linear-gradient(135deg, var(--bg-main) 0%, #1e293b 50%, var(--bg-main) 100%);
+}
+
+.role-reporter .page-container {
+  background: radial-gradient(circle at 20% 80%, rgba(34, 197, 94, 0.05) 0%, transparent 50%),
+              radial-gradient(circle at 80% 20%, rgba(16, 185, 129, 0.05) 0%, transparent 50%),
+              linear-gradient(135deg, var(--bg-main) 0%, #1e293b 50%, var(--bg-main) 100%);
+}
+
+.role-admin .page-container {
+  background: radial-gradient(circle at 20% 80%, rgba(247, 200, 115, 0.05) 0%, transparent 50%),
+              radial-gradient(circle at 80% 20%, rgba(217, 119, 6, 0.05) 0%, transparent 50%),
+              linear-gradient(135deg, var(--bg-main) 0%, #1e293b 50%, var(--bg-main) 100%);
+}
+
+/* Mobile Optimizations for Roles */
+@media (max-width: 768px) {
+  .role-reporter .quick-report-btn {
+    bottom: 80px;
+    right: 1rem;
+    width: 48px;
+    height: 48px;
+    font-size: 1.2rem;
+  }
+  
+  .role-admin .system-controls {
+    position: fixed;
+    bottom: 120px;
+    right: 1rem;
+    flex-direction: row;
+    gap: var(--space-xs);
+    transform: none;
+    top: auto;
+  }
+  
+  .role-admin .system-control-btn {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* Accessibility Enhancements */
+.role-manager .floating-nav-item:focus,
+.role-reporter .floating-nav-item:focus,
+.role-admin .floating-nav-item:focus {
+  outline: 2px solid;
+  outline-offset: 2px;
+}
+
+.role-manager .floating-nav-item:focus {
+  outline-color: var(--info);
+}
+
+.role-reporter .floating-nav-item:focus {
+  outline-color: var(--success);
+}
+
+.role-admin .floating-nav-item:focus {
+  outline-color: var(--primary-accent);
+}
+
+/* High Contrast Mode Support */
+@media (prefers-contrast: high) {
+  .role-manager .glass-card,
+  .role-reporter .glass-card,
+  .role-admin .glass-card {
+    border-width: 2px;
+    background: rgba(255, 255, 255, 0.1);
+  }
+  
+  .role-manager .floating-navigation,
+  .role-reporter .floating-navigation,
+  .role-admin .floating-navigation {
+    border-width: 2px;
+    background: rgba(0, 0, 0, 0.9);
+  }
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  .role-manager .notification-badge,
+  .role-reporter .notification-badge,
+  .role-admin .notification-badge {
+    animation: none;
+  }
+  
+  .role-reporter .quick-report-btn:hover,
+  .role-admin .system-control-btn:hover {
+    transform: none;
+  }
+}

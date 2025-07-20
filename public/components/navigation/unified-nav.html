@@ -1,0 +1,228 @@
+<!-- Unified Professional Navigation Component -->
+<nav class="floating-navigation" id="unified-navigation">
+  <!-- Brand Section -->
+  <a href="/pages/dashboard.html" class="floating-nav-brand">
+    <img src="/assets/icon.png" alt="RoadGuardian" class="brand-icon">
+    <span>RoadGuardian</span>
+  </a>
+
+  <!-- Navigation Items -->
+  <div class="floating-nav-items">
+    <a href="/pages/index.html" class="floating-nav-item" data-page="home" title="Home">
+      <i class="fas fa-home"></i>
+      <span>Home</span>
+    </a>
+
+    <a href="/pages/dashboard.html" class="floating-nav-item" data-page="dashboard" title="Dashboard">
+      <i class="fas fa-chart-line"></i>
+      <span>Dashboard</span>
+    </a>
+
+    <a href="/pages/camera.html" class="floating-nav-item" data-page="camera" title="Camera Detection">
+      <i class="fas fa-camera"></i>
+      <span>Camera</span>
+    </a>
+
+    <!-- Role-based Navigation Items -->
+    <div id="role-nav-items">
+      <!-- Manager-only items -->
+      <a href="/pages/admin-dashboard.html" class="floating-nav-item role-manager-only" data-page="admin" title="Management Dashboard">
+        <i class="fas fa-shield-alt"></i>
+        <span>Management</span>
+      </a>
+      
+      <!-- Reporter items -->
+      <a href="/pages/reports.html" class="floating-nav-item role-reporter-item" data-page="reports" title="My Reports">
+        <i class="fas fa-file-alt"></i>
+        <span>Reports</span>
+      </a>
+    </div>
+
+    <!-- System Status Indicator (for managers) -->
+    <div class="system-status role-manager-only" id="system-status" title="System Status">
+      <i class="fas fa-heartbeat"></i>
+      <div class="status-indicator" id="status-dot"></div>
+    </div>
+  </div>
+
+  <!-- User Section -->
+  <div class="floating-nav-user">
+    <!-- Role Indicator -->
+    <div class="role-indicator" id="user-role-indicator">
+      <i class="fas fa-user"></i>
+      <span id="role-text">User</span>
+    </div>
+
+    <!-- User Profile -->
+    <div class="user-indicator" id="user-profile" title="User Profile">
+      <div class="user-avatar" id="user-avatar">
+        <i class="fas fa-user"></i>
+      </div>
+      <div class="user-status" id="user-status"></div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+      <button class="floating-search-btn" id="quick-search" title="Quick Search">
+        <i class="fas fa-search"></i>
+      </button>
+      
+      <button class="floating-search-btn" id="notifications" title="Notifications">
+        <i class="fas fa-bell"></i>
+        <span class="notification-badge" id="notification-count" style="display: none;">0</span>
+      </button>
+    </div>
+
+    <!-- Logout -->
+    <a href="/logout" class="floating-nav-item logout-item" data-action="logout" title="Logout">
+      <i class="fas fa-sign-out-alt"></i>
+    </a>
+  </div>
+</nav>
+
+<!-- Additional styles for enhanced navigation -->
+<style>
+/* Role-based visibility */
+.role-manager-only {
+  display: none;
+}
+
+.role-reporter-item {
+  display: flex;
+}
+
+/* System status indicator */
+.system-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.system-status:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--success);
+  animation: pulse 2s infinite;
+}
+
+.status-indicator.warning {
+  background: var(--warning);
+}
+
+.status-indicator.error {
+  background: var(--error);
+}
+
+/* Quick actions */
+.quick-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.notification-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: var(--error);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: var(--radius-full);
+  min-width: 18px;
+  text-align: center;
+  line-height: 1;
+}
+
+.floating-search-btn {
+  position: relative;
+}
+
+/* Logout item styling */
+.logout-item {
+  padding: var(--space-xs);
+  border-radius: var(--radius-full);
+  color: var(--text-muted);
+}
+
+.logout-item:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--error);
+}
+
+/* Enhanced role indicator */
+.role-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.role-indicator:hover {
+  transform: scale(1.05);
+}
+
+/* Dynamic role styling will be applied via JavaScript */
+.role-indicator.manager {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--info);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.role-indicator.reporter {
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--success);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.role-indicator.admin {
+  background: rgba(247, 200, 115, 0.1);
+  color: var(--primary-accent);
+  border: 1px solid rgba(247, 200, 115, 0.2);
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .role-indicator span {
+    display: none;
+  }
+  
+  .system-status {
+    padding: var(--space-xs);
+  }
+  
+  .quick-actions {
+    gap: var(--space-xs);
+  }
+}
+
+@media (max-width: 480px) {
+  .role-indicator {
+    padding: var(--space-xs);
+  }
+  
+  .floating-nav-user {
+    gap: var(--space-xs);
+  }
+}
+</style>

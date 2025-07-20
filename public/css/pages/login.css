@@ -426,3 +426,16 @@
     font-size: 0.875rem;
   }
 }
+
+.login-btns-glass {
+  background: transparent;
+  border-radius: 1rem;
+  transition: background 0.3s, box-shadow 0.3s, border 0.3s;
+}
+.login-btns-glass:hover,
+.login-btns-glass:focus-within {
+  background: rgba(255,255,255,0.08);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 24px rgba(59,130,246,0.10);
+  border: 1.5px solid rgba(247,200,115,0.18);
+}

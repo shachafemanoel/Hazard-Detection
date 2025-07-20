@@ -678,134 +678,162 @@ async function emailExists(email) {
 
 // Middleware לבדוק הרשאת admin
 function requireAdmin(req, res, next) {
-  const user = req.session.user || req.user;
-  if (user && user.type === 'admin') {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  
+  // Try to get user info from different sources
+  let userType = null;
+  
+  // Check session first
+  if (req.session && req.session.user) {
+    userType = req.session.user.type;
+  } else if (req.user) {
+    userType = req.user.type;
+  }
+  
+  // If type not in session/user, check Redis or hardcoded admin emails
+  if (!userType) {
+    const email = req.session?.user?.email || req.user?.email;
+    if (email) {
+      // Check if email is in admin list
+      const adminEmails = ['nireljano@gmail.com', 'shachaf331@gmail.com'];
+      userType = adminEmails.includes(email) ? 'admin' : 'user';
+    }
+  }
+  
+  if (userType === 'admin') {
     return next();
   }
-  return res.status(403).send('Access denied: Admins only');
+  
+  return res.status(403).json({ error: 'Access denied: Admins only' });
 }
+
+// API endpoint to get user info including admin status
+app.get('/api/user-info', (req, res) => {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ authenticated: false });
+  }
+  
+  const email = req.session?.user?.email || req.user?.email;
+  const username = req.session?.user?.username || req.user?.username;
+  
+  // Check if user is admin
+  const adminEmails = ['nireljano@gmail.com', 'shachaf331@gmail.com'];
+  const isAdmin = adminEmails.includes(email);
+  
+  res.json({
+    authenticated: true,
+    email,
+    username,
+    type: isAdmin ? 'admin' : 'user'
+  });
+});
+
+// API endpoint to get current authenticated user information
+app.get('/api/user', (req, res) => {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ authenticated: false, error: 'Not authenticated' });
+  }
+  
+  const email = req.session?.user?.email || req.user?.email;
+  const username = req.session?.user?.username || req.user?.username;
+  
+  // Check if user is admin
+  const adminEmails = ['nireljano@gmail.com', 'shachaf331@gmail.com'];
+  const isAdmin = adminEmails.includes(email);
+  
+  res.json({
+    authenticated: true,
+    email,
+    username,
+    type: isAdmin ? 'admin' : 'user',
+    role: isAdmin ? 'admin' : 'user'
+  });
+});
+
+// API endpoint to get all users from Redis (admin only)
+app.get('/api/users', requireAdmin, async (req, res) => {
+  try {
+    const userKeys = await client.keys('user:*');
+    const users = [];
+    
+    for (const key of userKeys) {
+      try {
+        const userData = await client.get(key);
+        if (userData) {
+          const user = JSON.parse(userData);
+          // Don't expose passwords
+          const { password, ...userWithoutPassword } = user;
+          
+          // Check if user is admin
+          const adminEmails = ['nireljano@gmail.com', 'shachaf331@gmail.com'];
+          const isAdmin = adminEmails.includes(user.email);
+          
+          users.push({
+            ...userWithoutPassword,
+            id: key,
+            type: user.type || (isAdmin ? 'admin' : 'user'),
+            role: user.type || (isAdmin ? 'admin' : 'user')
+          });
+        }
+      } catch (parseError) {
+        console.warn(`Failed to parse user data for key ${key}:`, parseError.message);
+      }
+    }
+    
+    res.json(users);
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// API endpoint to get user statistics
+app.get('/api/user-stats', async (req, res) => {
+  try {
+    const userKeys = await client.keys('user:*');
+    const reportKeys = await client.keys('report:*');
+    
+    let totalUsers = 0;
+    let adminUsers = 0;
+    let regularUsers = 0;
+    
+    const adminEmails = ['nireljano@gmail.com', 'shachaf331@gmail.com'];
+    
+    for (const key of userKeys) {
+      try {
+        const userData = await client.get(key);
+        if (userData) {
+          const user = JSON.parse(userData);
+          totalUsers++;
+          
+          if (user.type === 'admin' || adminEmails.includes(user.email)) {
+            adminUsers++;
+          } else {
+            regularUsers++;
+          }
+        }
+      } catch (parseError) {
+        console.warn(`Failed to parse user data for key ${key}:`, parseError.message);
+      }
+    }
+    
+    res.json({
+      totalUsers,
+      adminUsers,
+      regularUsers,
+      totalReports: reportKeys.length
+    });
+  } catch (error) {
+    console.error('Error fetching user statistics:', error);
+    res.status(500).json({ error: 'Failed to fetch user statistics' });
+  }
+});
 
 // הגבלת דף admin-dashboard
 app.get('/pages/admin-dashboard.html', requireAdmin, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/pages/admin-dashboard.html'));
-});
-
-// הגבלת API רגישים (דוגמה למחיקה/עדכון/שליפה)
-app.get('/api/reports', requireAdmin, async (req, res, next) => {
-  const filters = req.query;
-
-    if (filters.hazardType && typeof filters.hazardType === 'string') {
-        filters.hazardType = filters.hazardType.split(',').map(type => type.trim());
-    }
-
-    try {
-        const keys = await client.keys('report:*');
-        const reports = [];
-
-        for (const key of keys) {
-            let report;
-            try {
-                report = await client.json.get(key);
-            } catch (err) {
-                console.error(`Skipping key ${key} due to Redis type error:`, err.message);
-                continue;
-            }
-            if (!report) continue;
-
-            let match = true;
-
-            // סוגי מפגעים: לפחות אחד מתוך הרשימה
-            if (filters.hazardType) {
-                const hazardArray = Array.isArray(filters.hazardType) ? filters.hazardType : [filters.hazardType];
-            
-                const reportTypes = (report.type || '').split(',').map(t => t.trim().toLowerCase());
-                const hasMatch = hazardArray.some(type => reportTypes.includes(type.toLowerCase()));
-                
-                if (!hasMatch) match = false;
-            }
-                     
-
-            // מיקום
-            if (filters.location) {
-                const reportLoc = (report.location || '').toLowerCase();
-                const pattern = filters.location.trim().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const regex = new RegExp(pattern, 'i');
-                if (!regex.test(reportLoc)) match = false;
-            }
-
-            // תאריך
-            if (filters.startDate && new Date(report.time) < new Date(filters.startDate)) match = false;
-            if (filters.endDate && new Date(report.time) > new Date(filters.endDate)) match = false;
-
-            // סטטוס
-            if (filters.status) {
-                const reportStatus = report.status.toLowerCase();
-                const filterStatus = filters.status.toLowerCase();
-                if (reportStatus !== filterStatus) match = false;
-            }
-
-            // מחפש לפי מדווח
-            if (filters.reportedBy) {
-                const reporter = (report.reportedBy || '').toLowerCase();
-                const search = filters.reportedBy.toLowerCase();
-                if (!reporter.includes(search)) match = false;
-            }
-
-            if (match) {
-                reports.push(report);
-            }
-        }
-
-        res.status(200).json(reports);
-    } catch (err) {
-        console.error('🔥 Error fetching reports:', err);
-        res.status(500).json({ error: 'Error fetching reports' });
-    }
-  next();
-});
-app.delete('/api/reports/:id', requireAdmin, async (req, res, next) => {
-    if (!req.isAuthenticated()) {
-        return res.status(401).json({ error: 'Unauthorized' });
-    }
-    const reportId = req.params.id;
-    const reportKey = `report:${reportId}`;
-    try {
-        await client.del(reportKey);
-        res.status(200).json({ message: 'Report deleted successfully' });
-    } catch (err) {
-        res.status(500).json({ error: 'Error deleting report' });
-    }
-  next();
-});
-app.patch('/api/reports/:id', requireAdmin, async (req, res, next) => {
-    if (!req.isAuthenticated()) {
-        return res.status(401).json({ error: 'Unauthorized' });
-    }
-    const reportId = req.params.id;
-    const newStatus = req.body.status;
-    const reportKey = `report:${reportId}`;
-    try {
-        let report = await client.json.get(reportKey);
-        if (!report) {
-            // Fallback: try to get as string and parse
-            const str = await client.get(reportKey);
-            if (str) {
-                report = JSON.parse(str);
-                // Migrate to JSON
-                await client.json.set(reportKey, '$', report);
-                await client.del(reportKey); // Remove old string key if needed
-            }
-        }
-        if (!report) return res.status(404).json({ error: 'Report not found' });
-        report.status = newStatus;
-        await client.json.set(reportKey, '$', report);
-        broadcastSSEEvent({ type: 'status_update', report });
-        res.status(200).json({ message: 'Status updated', report });
-    } catch (err) {
-        console.error('Error updating status:', err);
-        res.status(500).json({ error: 'Error updating status', details: err.message });
-    }
-  next();
 });
 
 // רישום משתמש רגיל (לא Google)
@@ -813,20 +841,19 @@ app.post('/register', async (req, res) => {
     const { email, username, password } = req.body;  
 
     if (!email || !username || !password) {  
-        return res.status(400).json({ error: 'Missing required fields' });  
+        return res.status(400).json({ success: false, error: 'Missing required fields' });  
     }  
 
-    // בדוק אם המייל קיים בעזרת פונקציה שנבנתה קודם
     const existingUser = await emailExists(email);  
     if (existingUser) {  
-        return res.status(400).json({ error: 'User already registered with this email.' }); // הודעת שגיאה  
+        return res.status(400).json({ success: false, error: 'User already registered with this email.' }); 
     }  
 
     const isAdmin = [
         'nireljano@gmail.com',
         'shachaf331@gmail.com'
     ].includes(email);
-    const userId = `user:${Date.now()}`;  // יצירת מזהה ייחודי למשתמש
+    const userId = `user:${Date.now()}`;  
     const newUser = {  
         email,  
         username,  
@@ -834,12 +861,11 @@ app.post('/register', async (req, res) => {
         type: isAdmin ? 'admin' : 'user'  
     };  
 
-    // שמירה ב-Redis כ-string
     try {
-        await client.set(userId, JSON.stringify(newUser));  // שמירה כ-string
+        await client.set(userId, JSON.stringify(newUser));
     } catch (err) {
         console.error('Error saving user to Redis:', err);
-        return res.status(500).json({ error: 'Internal server error' });
+        return res.status(500).json({ success: false, error: 'Internal server error' });
     }
 
     req.session.user = {  
@@ -847,10 +873,7 @@ app.post('/register', async (req, res) => {
         username  
     };  
 
-    res.status(201).json({   
-        message: 'User registered successfully',   
-        user: { email, username }   
-    });  
+    res.status(201).json({ success: true, message: 'User registered successfully', user: { email, username } });  
 });
 
 
@@ -859,7 +882,7 @@ app.post('/login', async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-        return res.status(400).json({ error: 'Missing email or password' });
+        return res.status(400).json({ success: false, error: 'Missing email or password' });
     }
 
     const userKeys = await client.keys('user:*');
@@ -876,14 +899,14 @@ app.post('/login', async (req, res) => {
                     username: user.username
                 };
 
-                return res.status(200).json({ message: 'Login successful', user: { email, username: user.username } });
+                return res.status(200).json({ success: true, message: 'Login successful', user: { email, username: user.username } });
             } else {
-                return res.status(401).json({ error: 'Incorrect password' });
+                return res.status(401).json({ success: false, error: 'Incorrect password' });
             }
         }
     }
 
-    return res.status(404).json({ error: 'User not found' });
+    return res.status(404).json({ success: false, error: 'User not found' });
 });
 
 
@@ -963,19 +986,19 @@ app.post('/forgot-password', async (req, res) => {
 app.post('/reset-password', async (req, res) => {
     const { token, password } = req.body;
     if (!token || !password) {
-        return res.status(400).json({ error: 'Missing token or password' });
+        return res.status(400).json({ success: false, error: 'Missing token or password' });
     }
 
     const valid = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/.test(password);
     if (!valid) {
-        return res.status(400).json({ error: 'Invalid password format' });
+        return res.status(400).json({ success: false, error: 'Invalid password format' });
     }
 
     const tokenKey = `reset:${token}`;
     const userKey = await client.get(tokenKey);
 
     if (!userKey) {
-        return res.status(400).json({ error: 'Token expired or invalid' });
+        return res.status(400).json({ success: false, error: 'Token expired or invalid' });
     }
 
     const userData = JSON.parse(await client.get(userKey));
@@ -989,7 +1012,7 @@ app.post('/reset-password', async (req, res) => {
         username: userData.username
     };
 
-    res.status(200).json({ message: 'Password reset successfully' });
+    res.status(200).json({ success: true, message: 'Password reset successfully' });
 });
 
 

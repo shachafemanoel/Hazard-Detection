@@ -51,39 +51,143 @@
       />
     </div>
   </div>
-</div>
 
-<!-- Camera Status Overlays -->
-<div id="object-count-overlay" class="status-overlay">
-  <strong>Objects: <span id="object-count">0</span></strong>
-</div>
-
-<div id="hazard-types-overlay" class="status-overlay">
-  <strong>Hazards Detected:</strong>
-  <div id="hazard-types-list">No hazards detected</div>
-</div>
-
-<!-- Performance Stats -->
-<div class="performance-overlay" id="performance-stats">
-  <h6>Performance</h6>
-  <div>FPS: <span id="fps-counter">0</span></div>
-  <div>Frame Time: <span id="frame-time">0ms</span></div>
-  <div>Inference: <span id="inference-time">0ms</span></div>
-</div>
-
-<!-- Loading Overlay -->
-<div id="loading-overlay" class="loading-overlay hidden">
-  <div class="spinner-border text-light" role="status">
-    <span class="visually-hidden">Loading...</span>
+  <!-- Floating Navigation Menu (moved below controls) -->
+  <div class="floating-navigation floating-navigation-camera">
+    <div class="nav-container">
+      <nav class="nav-menu">
+        <div class="nav-brand">
+          <img src="/assets/icon.png" alt="RoadGuardian" class="nav-logo">
+          <span class="nav-title">RoadGuardian</span>
+        </div>
+        
+        <div class="nav-items">
+          <a href="/pages/index.html" class="nav-item" data-tooltip="Home">
+            <i class="fas fa-home"></i>
+            <span class="nav-label">Home</span>
+          </a>
+          <a href="/pages/camera.html" class="nav-item active" data-tooltip="Camera">
+            <i class="fas fa-camera"></i>
+            <span class="nav-label">Camera</span>
+          </a>
+          <a href="/pages/dashboard.html" class="nav-item" data-tooltip="Dashboard">
+            <i class="fas fa-chart-line"></i>
+            <span class="nav-label">Dashboard</span>
+          </a>
+          <a href="/pages/admin-dashboard.html" class="nav-item admin-only" data-tooltip="Admin">
+            <i class="fas fa-users-cog"></i>
+            <span class="nav-label">Admin</span>
+          </a>
+        </div>
+        
+        <div class="nav-user">
+          <div class="user-info">
+            <div class="user-avatar">
+              <i class="fas fa-user"></i>
+            </div>
+            <div class="user-details">
+              <span class="user-name" id="nav-user-name">Loading...</span>
+              <span class="user-role" id="nav-user-role">user</span>
+            </div>
+          </div>
+          <div class="nav-actions">
+            <button class="nav-action-btn" id="nav-logout" data-tooltip="Logout">
+              <i class="fas fa-sign-out-alt"></i>
+            </button>
+          </div>
+        </div>
+      </nav>
+    </div>
   </div>
-  <h3>Initializing Camera...</h3>
-</div>
 
-<!-- Hazard Notification Template -->
-<div id="hazard-notification-template" class="hazard-notification hidden">
-  <i class="fas fa-exclamation-triangle"></i>
-  <div class="hazard-notification-content">
-    <h3>Hazard Detected</h3>
-    <p id="hazard-message">Unknown hazard detected</p>
+  <script>
+    // Initialize navigation functionality for camera controls
+    document.addEventListener('DOMContentLoaded', function() {
+      // Load user data for camera navigation
+      async function loadCameraUserData() {
+        try {
+          const response = await fetch('/api/user', { credentials: 'include' });
+          if (response.ok) {
+            const userData = await response.json();
+            
+            // Update user info in camera navigation
+            const userNameEl = document.getElementById('nav-user-name');
+            const userRoleEl = document.getElementById('nav-user-role');
+            const navContainer = document.querySelector('.floating-navigation-camera');
+            
+            if (userNameEl) {
+              userNameEl.textContent = userData.username || userData.email || 'User';
+            }
+            
+            if (userRoleEl) {
+              const role = userData.type === 'admin' ? 'admin' : 'user';
+              userRoleEl.textContent = role;
+              
+              // Set role attribute for CSS visibility
+              if (navContainer) {
+                navContainer.setAttribute('data-user-role', role);
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to load user data for camera navigation:', error);
+        }
+      }
+      
+      // Logout functionality
+      const logoutBtn = document.getElementById('nav-logout');
+      if (logoutBtn) {
+        logoutBtn.addEventListener('click', async () => {
+          try {
+            const response = await fetch('/logout', { method: 'GET' });
+            if (response.redirected) {
+              window.location.href = response.url;
+            } else {
+              window.location.href = '/pages/login.html';
+            }
+          } catch (error) {
+            console.error('Logout failed:', error);
+            window.location.href = '/pages/login.html';
+          }
+        });
+      }
+      
+      // Load user data
+      loadCameraUserData();
+    });
+  </script>
+
+  <!-- Camera Status Overlays -->
+  <div id="object-count-overlay" class="status-overlay">
+    <strong>Objects: <span id="object-count">0</span></strong>
   </div>
-</div>
+
+  <div id="hazard-types-overlay" class="status-overlay">
+    <strong>Hazards Detected:</strong>
+    <div id="hazard-types-list">No hazards detected</div>
+  </div>
+
+  <!-- Performance Stats -->
+  <div class="performance-overlay" id="performance-stats">
+    <h6>Performance</h6>
+    <div>FPS: <span id="fps-counter">0</span></div>
+    <div>Frame Time: <span id="frame-time">0ms</span></div>
+    <div>Inference: <span id="inference-time">0ms</span></div>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" class="loading-overlay hidden">
+    <div class="spinner-border text-light" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+    <h3>Initializing Camera...</h3>
+  </div>
+
+  <!-- Hazard Notification Template -->
+  <div id="hazard-notification-template" class="hazard-notification hidden">
+    <i class="fas fa-exclamation-triangle"></i>
+    <div class="hazard-notification-content">
+      <h3>Hazard Detected</h3>
+      <p id="hazard-message">Unknown hazard detected</p>
+    </div>
+  </div>

@@ -8,16 +8,12 @@
 
   <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  
-  <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  
-  <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  
-  <!-- Design System -->
-  <link rel="stylesheet" href="/css/design-system.css">
-  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/styles/theme.css" />
+  <link rel="stylesheet" href="/styles/layout.css" />
+  <link rel="stylesheet" href="/styles/components.css" />
+  <link rel="stylesheet" href="/styles/unified-design.css" />
   
   <style>
     /* Page-specific styles */
@@ -198,14 +194,27 @@
       margin-bottom: var(--space-lg);
     }
     
-    /* Floating Navigation Spacing */
+    #demo-canvas {
+      max-width: 100%;
+      border: 2px solid var(--primary-accent);
+      border-radius: var(--radius-lg);
+      margin: var(--space-lg) 0;
+    }
+    
+    .form-range {
+      width: 100%;
+      margin-top: var(--space-sm);
+    }
+    
+    /* Page Layout */
     body {
       padding-top: 100px;
     }
     
     @media (max-width: 768px) {
       body {
-        padding-top: 80px;
+        padding-top: 0;
+        padding-bottom: 100px;
       }
       
       .hero-content {
@@ -241,45 +250,66 @@
   </style>
 </head>
 <body>
-  <div id="floating-navigation-container"></div>
-  <script>
-    fetch('/components/navigation/floating-menu.html')
-      .then(response => response.text())
-      .then(html => {
-        document.getElementById('floating-navigation-container').innerHTML = html;
-        const script = document.createElement('script');
-        script.src = '/components/navigation/floating-menu.js';
-        document.head.appendChild(script);
-      });
-  </script>
+  <!-- Unified Navigation Container -->
+  <div id="unified-navigation-container"></div>
 
   <!-- Hero Section -->
   <section class="hero-section">
     <div class="hero-bg-animation"></div>
-    <div class="hero-content animate-fade-in-up">
-      <img src="/assets/icon.png" alt="Hazard Detection" class="hero-logo">
-      <h1 class="hero-title">Hazard Detection</h1>
-      <p class="hero-subtitle">
-        Advanced AI-powered road hazard detection system.<br>
-        Keep roads safer with real-time monitoring and intelligent alerts.
-      </p>
+    <div class="hero-content">
+      <img src="/assets/icon.png" alt="Hazard Detection Logo" class="hero-logo">
+      <h1 class="hero-title">RoadGuardian</h1>
+      <p class="hero-subtitle">AI-Powered Road Hazard Detection System</p>
       
       <div class="hero-actions">
         <div class="action-group">
-          <a href="/pages/dashboard.html" class="btn btn-primary btn-lg">
-            <i class="fas fa-chart-line"></i>
-            <span>View Dashboard</span>
+          <a href="/pages/camera.html" class="btn btn-primary btn-lg">
+            <i class="fas fa-camera"></i> Start Detection
           </a>
-          <a href="/pages/camera.html" class="btn btn-glass btn-lg">
-            <i class="fas fa-camera"></i>
-            <span>Start Detection</span>
+          <a href="/pages/dashboard.html" class="btn btn-glass btn-lg">
+            <i class="fas fa-chart-line"></i> View Dashboard
           </a>
         </div>
         
-        <button id="demo-upload-btn" class="btn btn-secondary">
-          <i class="fas fa-upload"></i>
-          <span>Try Demo Upload</span>
-        </button>
+        <div class="upload-demo">
+          <div class="upload-area" id="upload-area">
+            <div class="upload-icon">
+              <i class="fas fa-cloud-upload-alt"></i>
+            </div>
+            <h3>Upload Image for Real Detection</h3>
+            <p>Drag & drop an image or click to select</p>
+            <input type="file" id="demo-upload" accept="image/*" style="display: none;">
+            <button class="btn btn-primary" id="demo-upload-btn">
+              <i class="fas fa-upload"></i> Upload Image
+            </button>
+          </div>
+          
+          <div id="demo-results" style="display: none;">
+            <h4>AI Detection Results:</h4>
+            <canvas id="demo-canvas"></canvas>
+            <div class="mt-3">
+              <label for="demo-confidence-slider">Confidence Threshold: <span id="demo-conf-value">0.5</span></label>
+              <input type="range" id="demo-confidence-slider" class="form-range" min="0.1" max="1" step="0.1" value="0.5">
+            </div>
+            <div class="mt-3" id="save-report-section" style="display: none;">
+              <button class="btn btn-success" id="save-report-btn">
+                <i class="fas fa-save"></i> Save as Report
+              </button>
+              <p class="text-muted mt-2">
+                <i class="fas fa-info-circle"></i> 
+                Hazards detected! You can save this as an official report.
+              </p>
+            </div>
+          </div>
+          
+          <!-- Loading indicator -->
+          <div id="model-loading" style="display: none;" class="text-center mt-3">
+            <div class="spinner-border text-primary" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Loading AI model...</p>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -287,35 +317,35 @@
   <!-- Features Section -->
   <section class="feature-grid">
     <div class="container">
-      <div class="grid grid-3">
-        <div class="card feature-card animate-fade-in-scale">
-          <div class="feature-icon">
-            <i class="fas fa-eye"></i>
+      <div class="row g-4">
+        <div class="col-md-4">
+          <div class="feature-card glass-card">
+            <div class="feature-icon">
+              <i class="fas fa-eye"></i>
+            </div>
+            <h3 class="feature-title">Real-time Detection</h3>
+            <p class="feature-description">Advanced AI models detect road hazards in real-time using your camera</p>
           </div>
-          <h3 class="feature-title">Real-time Detection</h3>
-          <p class="feature-description">
-            Advanced computer vision algorithms detect road hazards in real-time using camera feeds and AI processing.
-          </p>
         </div>
         
-        <div class="card feature-card animate-fade-in-scale">
-          <div class="feature-icon">
-            <i class="fas fa-bell"></i>
+        <div class="col-md-4">
+          <div class="feature-card glass-card">
+            <div class="feature-icon">
+              <i class="fas fa-map-marker-alt"></i>
+            </div>
+            <h3 class="feature-title">GPS Location</h3>
+            <p class="feature-description">Automatically captures GPS coordinates for precise hazard reporting</p>
           </div>
-          <h3 class="feature-title">Instant Alerts</h3>
-          <p class="feature-description">
-            Get immediate notifications when hazards are detected, enabling quick response and prevention measures.
-          </p>
         </div>
         
-        <div class="card feature-card animate-fade-in-scale">
-          <div class="feature-icon">
-            <i class="fas fa-chart-area"></i>
+        <div class="col-md-4">
+          <div class="feature-card glass-card">
+            <div class="feature-icon">
+              <i class="fas fa-cloud"></i>
+            </div>
+            <h3 class="feature-title">Cloud Storage</h3>
+            <p class="feature-description">Secure cloud storage ensures your reports are always accessible</p>
           </div>
-          <h3 class="feature-title">Analytics Dashboard</h3>
-          <p class="feature-description">
-            Comprehensive analytics and reporting tools to track hazard patterns and system performance over time.
-          </p>
         </div>
       </div>
     </div>
@@ -324,22 +354,33 @@
   <!-- Stats Section -->
   <section class="stats-section">
     <div class="container">
-      <div class="grid grid-4">
-        <div class="stat-item animate-slide-in-left">
-          <div class="stat-number" data-count="1000">0</div>
-          <div class="stat-label">Hazards Detected</div>
+      <div class="row g-4 text-center">
+        <div class="col-md-3">
+          <div class="stat-item">
+            <div class="stat-number" data-count="1250">0</div>
+            <div class="stat-label">Hazards Detected</div>
+          </div>
         </div>
-        <div class="stat-item animate-slide-in-left">
-          <div class="stat-number" data-count="95">0</div>
-          <div class="stat-label">Accuracy Rate %</div>
+        
+        <div class="col-md-3">
+          <div class="stat-item">
+            <div class="stat-number" data-count="98">0</div>
+            <div class="stat-label">Accuracy Rate (%)</div>
+          </div>
         </div>
-        <div class="stat-item animate-slide-in-right">
-          <div class="stat-number" data-count="24">0</div>
-          <div class="stat-label">Hours Monitoring</div>
+        
+        <div class="col-md-3">
+          <div class="stat-item">
+            <div class="stat-number" data-count="45">0</div>
+            <div class="stat-label">Cities Covered</div>
+          </div>
         </div>
-        <div class="stat-item animate-slide-in-right">
-          <div class="stat-number" data-count="50">0</div>
-          <div class="stat-label">Active Cameras</div>
+        
+        <div class="col-md-3">
+          <div class="stat-item">
+            <div class="stat-number" data-count="2400">0</div>
+            <div class="stat-label">Active Users</div>
+          </div>
         </div>
       </div>
     </div>
@@ -347,46 +388,19 @@
 
   <!-- CTA Section -->
   <section class="cta-section">
-    <div class="container">
-      <h2 class="text-3xl text-primary" style="margin-bottom: var(--space-lg);">
-        Try Our Detection System
-      </h2>
-      <p class="text-secondary" style="margin-bottom: var(--space-2xl); max-width: 600px; margin-left: auto; margin-right: auto;">
-        Upload an image to see our AI-powered hazard detection in action. 
-        Experience the accuracy and speed of our advanced algorithms.
-      </p>
-      
-      <div class="upload-demo">
-        <div class="upload-area glass" id="upload-area">
-          <div class="upload-icon">
-            <i class="fas fa-cloud-upload-alt"></i>
-          </div>
-          <h3 class="text-lg text-primary" style="margin-bottom: var(--space-sm);">
-            Drop an image here or click to upload
-          </h3>
-          <p class="text-secondary text-sm">
-            Supports JPG, PNG, WebP formats
-          </p>
-          <input type="file" id="demo-upload" accept="image/*" style="display: none;">
-        </div>
-        
-        <div id="demo-results" style="display: none; margin-top: var(--space-2xl);">
-          <canvas id="demo-canvas" style="max-width: 100%; border-radius: var(--radius-lg);"></canvas>
-          <div style="margin-top: var(--space-lg);">
-            <div class="btn btn-success" id="demo-status">
-              <i class="fas fa-check"></i>
-              <span>Analysis Complete</span>
-            </div>
-          </div>
-        </div>
+    <div class="container text-center">
+      <h2>Ready to Make Roads Safer?</h2>
+      <p class="lead">Join thousands of users helping to create safer roads through AI-powered hazard detection</p>
+      <div class="action-group">
+        <a href="/pages/camera.html" class="btn btn-primary btn-lg">
+          <i class="fas fa-play"></i> Get Started
+        </a>
+        <a href="/pages/dashboard.html" class="btn btn-glass btn-lg">
+          <i class="fas fa-info-circle"></i> Learn More
+        </a>
       </div>
     </div>
   </section>
-
-  <!-- Bootstrap JS -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  
-  <!-- Page Scripts -->
   <script>
     (function() {
       const settings = JSON.parse(localStorage.getItem('design-settings') || '{}');
@@ -427,14 +441,91 @@
       });
     }
 
-    // Demo upload functionality
+    // Real AI Detection functionality using ONNX model
     function initDemoUpload() {
       const uploadArea = document.getElementById('upload-area');
       const uploadInput = document.getElementById('demo-upload');
       const demoBtn = document.getElementById('demo-upload-btn');
       const demoResults = document.getElementById('demo-results');
       const demoCanvas = document.getElementById('demo-canvas');
+      const saveReportSection = document.getElementById('save-report-section');
+      const saveReportBtn = document.getElementById('save-report-btn');
+      const modelLoading = document.getElementById('model-loading');
       const ctx = demoCanvas.getContext('2d');
+
+      // AI Model variables
+      let session = null;
+      let currentImage = null;
+      let detectedHazards = [];
+      let geoData = null;
+      const FIXED_SIZE = 640;
+      const classNames = ['crack', 'knocked', 'pothole', 'surface_damage'];
+      let confidenceThreshold = 0.5;
+
+      // Initialize model loading
+      loadAIModel();
+
+      async function loadAIModel() {
+        try {
+          modelLoading.style.display = 'block';
+          
+          // Wait for ONNX Runtime
+          await waitForOrt();
+          
+          const ort = window.ort;
+          ort.env.wasm.wasmPaths = "/assets/ort/";
+          ort.env.wasm.simd = true;
+          ort.env.wasm.numThreads = Math.min(navigator.hardwareConcurrency || 1, 2);
+          ort.env.logLevel = 'warning';
+          
+          const sessionOptions = {
+            executionProviders: ["wasm"],
+            graphOptimizationLevel: "all",
+            enableCpuMemArena: true,
+            enableMemPattern: true,
+            executionMode: "sequential",
+            intraOpNumThreads: 1
+          };
+          
+          console.log("Loading AI model for demo detection...");
+          session = await ort.InferenceSession.create(
+            "/assets/object_detecion_model/model 18:7.onnx",
+            sessionOptions
+          );
+          
+          console.log("✅ AI Model loaded successfully for demo");
+          modelLoading.style.display = 'none';
+          
+          // Warm up the model
+          const dummyInput = new ort.Tensor('float32', new Float32Array(3 * FIXED_SIZE * FIXED_SIZE), [1, 3, FIXED_SIZE, FIXED_SIZE]);
+          await session.run({ images: dummyInput });
+          dummyInput.dispose?.();
+          
+        } catch (error) {
+          console.error("Failed to load AI model:", error);
+          modelLoading.innerHTML = '<p class="text-danger">⚠️ Failed to load AI model. Demo detection unavailable.</p>';
+        }
+      }
+
+      function waitForOrt() {
+        return new Promise((resolve, reject) => {
+          let attempts = 0;
+          const maxAttempts = 100;
+          
+          const checkOrt = () => {
+            if (window.ort && window.ort.env && window.ort.InferenceSession) {
+              resolve(window.ort);
+            } else if (attempts < maxAttempts) {
+              attempts++;
+              setTimeout(checkOrt, 100);
+            } else {
+              reject(new Error("ONNX Runtime failed to load"));
+            }
+          };
+          
+          checkOrt();
+        });
+      }
 
       // Click handlers
       uploadArea.addEventListener('click', () => uploadInput.click());
@@ -455,7 +546,7 @@
         uploadArea.classList.remove('dragover');
         const file = e.dataTransfer.files[0];
         if (file && file.type.startsWith('image/')) {
-          processImage(file);
+          processImageWithAI(file);
         }
       });
 
@@ -463,57 +554,346 @@
       uploadInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (file) {
-          processImage(file);
+          processImageWithAI(file);
         }
       });
 
-      function processImage(file) {
+      // Confidence slider
+      const confSlider = document.getElementById('demo-confidence-slider');
+      const confValue = document.getElementById('demo-conf-value');
+      confSlider.addEventListener('input', (e) => {
+        confidenceThreshold = parseFloat(e.target.value);
+        confValue.textContent = confidenceThreshold;
+        if (currentImage && session) {
+          runAIDetection(currentImage);
+        }
+      });
+
+      async function processImageWithAI(file) {
+        if (!session) {
+          alert('AI model is still loading. Please wait...');
+          return;
+        }
+
+        console.log('Processing image with AI detection...');
+        geoData = null; // Reset geo data
+
+        // Priority 1: Try to get geolocation from image EXIF first
+        console.log('🔍 Attempting to extract location from image metadata...');
+        try {
+          const exifLocation = await getGeoDataFromImage(file);
+          if (exifLocation) {
+            geoData = JSON.stringify(exifLocation);
+            console.log('✅ Using location from image metadata:', exifLocation);
+          } else {
+            console.log('ℹ️ No location found in image metadata');
+          }
+        } catch (error) {
+          console.warn('Failed to extract EXIF location:', error);
+        }
+
+        // Priority 2: If no EXIF geo data, try to get current location
+        if (!geoData && navigator.geolocation) {
+          console.log('📍 Attempting to get current GPS location...');
+          try {
+            const position = await getCurrentPosition();
+            geoData = JSON.stringify({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude
+            });
+            console.log('✅ Using current GPS location');
+          } catch (error) {
+            console.warn('Could not get current location:', error);
+            
+            // Show user-friendly message about location
+            if (error.code === 1) {
+              console.log('📷 Location permission denied - reports will use image metadata only');
+            }
+          }
+        }
+
+        // Inform user about location status
+        if (!geoData) {
+          console.warn('⚠️ No location data available - reports may not be saved with location info');
+        }
+
         const reader = new FileReader();
         reader.onload = (e) => {
           const img = new Image();
-          img.onload = () => {
-            // Set canvas size
-            const maxWidth = 600;
-            const maxHeight = 400;
-            let { width, height } = img;
+          img.onload = async () => {
+            currentImage = img;
+            demoCanvas.width = FIXED_SIZE;
+            demoCanvas.height = FIXED_SIZE;
             
-            if (width > maxWidth) {
-              height = (height * maxWidth) / width;
-              width = maxWidth;
-            }
-            if (height > maxHeight) {
-              width = (width * maxHeight) / height;
-              height = maxHeight;
-            }
+            demoResults.style.display = 'block';
+            demoResults.scrollIntoView({ behavior: 'smooth' });
             
-            demoCanvas.width = width;
-            demoCanvas.height = height;
-            
-            // Draw image
-            ctx.drawImage(img, 0, 0, width, height);
-            
-            // Simulate detection (draw a sample bounding box)
-            setTimeout(() => {
-              ctx.strokeStyle = '#ef4444';
-              ctx.lineWidth = 3;
-              ctx.setLineDash([5, 5]);
-              ctx.strokeRect(width * 0.3, height * 0.4, width * 0.4, height * 0.3);
-              
-              // Add label
-              ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
-              ctx.fillRect(width * 0.3, height * 0.35, 100, 25);
-              ctx.fillStyle = 'white';
-              ctx.font = '14px Poppins';
-              ctx.fillText('Pothole', width * 0.3 + 5, height * 0.35 + 17);
-              
-              demoResults.style.display = 'block';
-              demoResults.scrollIntoView({ behavior: 'smooth' });
-            }, 1000);
+            await runAIDetection(img);
           };
           img.src = e.target.result;
         };
         reader.readAsDataURL(file);
       }
+
+      function getCurrentPosition() {
+        return new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject);
+        });
+      }
+
+      async function getGeoDataFromImage(file) {
+        return new Promise((resolve, reject) => {
+          if (!window.EXIF) {
+            console.warn('EXIF.js not loaded, cannot extract location from image');
+            resolve(null);
+            return;
+          }
+
+          const reader = new FileReader();
+          reader.onload = function (e) {
+            const img = new Image();
+            img.onload = function () {
+              EXIF.getData(img, function () {
+                try {
+                  const lat = EXIF.getTag(this, "GPSLatitude");
+                  const lon = EXIF.getTag(this, "GPSLongitude");
+                  const latRef = EXIF.getTag(this, "GPSLatitudeRef") || "N";
+                  const lonRef = EXIF.getTag(this, "GPSLongitudeRef") || "E";
+
+                  console.log('EXIF GPS data found:', { lat, lon, latRef, lonRef });
+
+                  if (!lat || !lon) {
+                    console.log('No GPS coordinates found in image EXIF data');
+                    resolve(null);
+                    return;
+                  }
+
+                  // Convert DMS (Degrees, Minutes, Seconds) to decimal degrees
+                  const toDecimal = (dms, ref) => {
+                    if (!Array.isArray(dms) || dms.length !== 3) {
+                      console.warn('Invalid DMS format:', dms);
+                      return null;
+                    }
+                    const [deg, min, sec] = dms;
+                    let decimal = deg + min / 60 + sec / 3600;
+                    if (ref === "S" || ref === "W") decimal *= -1;
+                    return decimal;
+                  };
+
+                  const latitude = toDecimal(lat, latRef);
+                  const longitude = toDecimal(lon, lonRef);
+
+                  if (latitude === null || longitude === null) {
+                    console.warn('Failed to convert GPS coordinates');
+                    resolve(null);
+                    return;
+                  }
+
+                  // Validate coordinates
+                  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+                    console.warn('Invalid GPS coordinates:', { latitude, longitude });
+                    resolve(null);
+                    return;
+                  }
+
+                  console.log('✅ Successfully extracted location from image EXIF:', { lat: latitude, lng: longitude });
+                  resolve({ lat: latitude, lng: longitude });
+                } catch (error) {
+                  console.error('Error extracting EXIF GPS data:', error);
+                  resolve(null);
+                }
+              });
+            };
+            img.onerror = () => {
+              console.error('Failed to load image for EXIF extraction');
+              resolve(null);
+            };
+            img.src = e.target.result;
+          };
+          reader.onerror = () => {
+            console.error('Failed to read file for EXIF extraction');
+            resolve(null);
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+
+      async function runAIDetection(imageElement) {
+        try {
+          // Prepare image for model
+          const offscreen = document.createElement("canvas");
+          offscreen.width = FIXED_SIZE;
+          offscreen.height = FIXED_SIZE;
+          const offCtx = offscreen.getContext("2d");
+
+          const imgW = imageElement.width;
+          const imgH = imageElement.height;
+          const scale = Math.min(FIXED_SIZE / imgW, FIXED_SIZE / imgH);
+          const newW = Math.round(imgW * scale);
+          const newH = Math.round(imgH * scale);
+          const offsetX = Math.floor((FIXED_SIZE - newW) / 2);
+          const offsetY = Math.floor((FIXED_SIZE - newH) / 2);
+
+          offCtx.fillStyle = "black";
+          offCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
+          offCtx.drawImage(imageElement, offsetX, offsetY, newW, newH);
+
+          const imageData = offCtx.getImageData(0, 0, FIXED_SIZE, FIXED_SIZE);
+          const { data, width, height } = imageData;
+
+          // Convert to tensor format
+          const tensorData = new Float32Array(width * height * 3);
+          for (let i = 0, j = 0; i < data.length; i += 4, j += 3) {
+            tensorData[j] = data[i] / 255;
+            tensorData[j + 1] = data[i + 1] / 255;
+            tensorData[j + 2] = data[i + 2] / 255;
+          }
+
+          const chwData = new Float32Array(3 * width * height);
+          for (let c = 0; c < 3; c++) {
+            for (let h = 0; h < height; h++) {
+              for (let w = 0; w < width; w++) {
+                chwData[c * width * height + h * width + w] =
+                  tensorData[h * width * 3 + w * 3 + c];
+              }
+            }
+          }
+
+          const tensor = new window.ort.Tensor("float32", chwData, [1, 3, height, width]);
+          const feeds = { images: tensor };
+
+          // Run inference
+          const results = await session.run(feeds);
+          const outputKey = Object.keys(results)[0];
+          const outputData = results[outputKey].data;
+
+          // Clean up tensors
+          tensor.dispose?.();
+          Object.values(results).forEach((tensor) => tensor.dispose?.());
+
+          // Parse results
+          const boxes = [];
+          for (let i = 0; i < outputData.length; i += 6) {
+            const box = outputData.slice(i, i + 6);
+            boxes.push(box);
+          }
+
+          drawDetectionResults(boxes, { offsetX, offsetY, newW, newH });
+
+        } catch (error) {
+          console.error("AI Detection failed:", error);
+          alert("Detection failed: " + error.message);
+        }
+      }
+
+      function drawDetectionResults(boxes, letterboxParams) {
+        detectedHazards = [];
+        ctx.clearRect(0, 0, demoCanvas.width, demoCanvas.height);
+        const { offsetX, offsetY, newW, newH } = letterboxParams;
+
+        ctx.fillStyle = "black";
+        ctx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
+
+        if (currentImage) {
+          ctx.drawImage(currentImage, offsetX, offsetY, newW, newH);
+        }
+
+        let hasDetections = false;
+
+        boxes.forEach((box) => {
+          let [x1, y1, x2, y2, score, classId] = box;
+          if (score < confidenceThreshold) return;
+
+          const boxW = x2 - x1;
+          const boxH = y2 - y1;
+
+          if (boxW <= 1 || boxH <= 1 || boxW > FIXED_SIZE || boxH > FIXED_SIZE) return;
+
+          hasDetections = true;
+          const labelName = classNames[Math.floor(classId)] || `Class ${classId}`;
+          const scorePerc = (score * 100).toFixed(1);
+
+          if (!detectedHazards.includes(labelName)) {
+            detectedHazards.push(labelName);
+          }
+
+          // Draw detection box
+          ctx.strokeStyle = "#00FF00";
+          ctx.lineWidth = 3;
+          ctx.strokeRect(x1, y1, boxW, boxH);
+
+          // Draw label
+          ctx.fillStyle = "#00FF00";
+          ctx.font = "bold 16px Arial";
+          const textWidth = ctx.measureText(`${labelName} (${scorePerc}%)`).width;
+          const textBgX = x1;
+          const textBgY = y1 > 20 ? y1 - 20 : y1;
+          ctx.fillRect(textBgX, textBgY, textWidth + 8, 20);
+          ctx.fillStyle = "black";
+          ctx.fillText(`${labelName} (${scorePerc}%)`, textBgX + 4, textBgY + 15);
+        });
+
+        // Show/hide save report button based on detections
+        if (hasDetections && detectedHazards.length > 0) {
+          saveReportSection.style.display = 'block';
+        } else {
+          saveReportSection.style.display = 'none';
+        }
+      }
+
+      // Save report functionality
+      saveReportBtn.addEventListener('click', async () => {
+        if (!currentImage || detectedHazards.length === 0) {
+          alert('No hazards detected to save as report');
+          return;
+        }
+
+        if (!geoData) {
+          alert('Cannot create report without location data');
+          return;
+        }
+
+        try {
+          // Convert canvas to blob
+          demoCanvas.toBlob(async (blob) => {
+            const file = new File([blob], "detection_report.jpg", { type: "image/jpeg" });
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("geoData", geoData);
+            formData.append("hazardTypes", detectedHazards.join(","));
+            formData.append("locationNote", "Demo Upload");
+
+            try {
+              const response = await fetch('/api/detections', {
+                method: 'POST',
+                body: formData,
+                credentials: 'include'
+              });
+
+              if (response.ok) {
+                const result = await response.json();
+                alert('✅ Report saved successfully!\nReport ID: ' + (result.reportId || 'Unknown'));
+                
+                // Clear the demo
+                currentImage = null;
+                detectedHazards = [];
+                demoResults.style.display = 'none';
+                uploadInput.value = '';
+              } else {
+                const error = await response.json();
+                alert('❌ Failed to save report: ' + (error.error || 'Unknown error'));
+              }
+            } catch (error) {
+              console.error('Save report error:', error);
+              alert('❌ Failed to save report: ' + error.message);
+            }
+          }, "image/jpeg", 0.95);
+
+        } catch (error) {
+          console.error('Report creation error:', error);
+          alert('❌ Failed to create report: ' + error.message);
+        }
+      });
     }
 
     // Initialize on page load
@@ -535,7 +915,38 @@
       
       // Initialize demo upload
       initDemoUpload();
+      
+      // Initialize demo confidence slider
+      const demoConfSlider = document.getElementById('demo-confidence-slider');
+      const demoConfValue = document.getElementById('demo-conf-value');
+      if (demoConfSlider && demoConfValue) {
+        demoConfSlider.addEventListener('input', (e) => {
+          demoConfValue.textContent = e.target.value;
+          // Re-run detection with new confidence if image is loaded
+          // This would require storing the last processed results
+        });
+      }
     });
+  </script>
+  <!-- EXIF.js for image metadata extraction -->
+  <script src="https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.js"></script>
+  
+  <!-- ONNX Runtime -->
+  <script src="/assets/ort/ort.min.js" onload="console.log('ONNX Runtime loaded for demo detection'); if(window.ort) { window.ort.env.wasm.wasmPaths = '/assets/ort/'; }" onerror="console.error('Failed to load ONNX Runtime')"></script>
+  
+  <!-- Load Unified Navigation -->
+  <script>
+    // Load unified navigation component
+    fetch('/components/navigation/unified-nav.html')
+      .then(response => response.text())
+      .then(html => {
+        document.getElementById('unified-navigation-container').innerHTML = html;
+        // Load navigation JavaScript
+        const script = document.createElement('script');
+        script.src = '/components/navigation/unified-nav.js';
+        document.head.appendChild(script);
+      })
+      .catch(error => console.error('Error loading navigation:', error));
   </script>
 </body>
 </html>

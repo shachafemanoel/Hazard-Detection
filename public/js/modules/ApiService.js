@@ -261,6 +261,42 @@ export class ApiService {
   }
 
   /**
+   * Gets detailed user information including role
+   * @returns {Promise} User data with role information
+   */
+  static async getCurrentUser() {
+    const response = await this.request("/api/user");
+    return response.json();
+  }
+
+  /**
+   * Gets all users from Redis (admin only)
+   * @returns {Promise} Array of users
+   */
+  static async getAllUsers() {
+    const response = await this.request("/api/users");
+    return response.json();
+  }
+
+  /**
+   * Gets user statistics
+   * @returns {Promise} User statistics
+   */
+  static async getUserStats() {
+    const response = await this.request("/api/user-stats");
+    return response.json();
+  }
+
+  /**
+   * Checks authentication status
+   * @returns {Promise} Authentication status
+   */
+  static async checkAuth() {
+    const response = await this.request("/api/auth/check");
+    return response.json();
+  }
+
+  /**
    * Updates report status
    * @param {string} reportId - Report ID
    * @param {string} status - New status

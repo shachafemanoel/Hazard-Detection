@@ -1151,6 +1151,13 @@ const OPTIMIZATION = {
         switchBtn.style.display =
           videoDevices.length > 1 ? "inline-block" : "none";
 
+        // Hide navigation menu when camera starts
+        const navigationContainer = document.getElementById("unified-navigation-container");
+        if (navigationContainer) {
+          navigationContainer.style.display = "none";
+          console.log("Navigation hidden - camera started");
+        }
+
         // Fullscreen removed - camera now uses full body layout
 
         detectedObjectCount = 0;
@@ -1215,6 +1222,13 @@ const OPTIMIZATION = {
       stopBtn.style.display = "none";
       switchBtn.style.display = "none";
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // Show navigation menu when camera stops
+      const navigationContainer = document.getElementById("unified-navigation-container");
+      if (navigationContainer) {
+        navigationContainer.style.display = "block";
+        console.log("Navigation shown - camera stopped");
+      }
       
       // Stop location tracking
       stopLocationTracking();

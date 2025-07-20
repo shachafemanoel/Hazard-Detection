@@ -1,232 +1,83 @@
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" href="/assets/icon.png" type="image/png">
-  <title>Login - Hazard Detection</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/assets/icon.png" type="image/png" />
+    <title>Login - Hazard Detection</title>
 
-  <!-- Fonts & Icons -->
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="/css/design-system.css">
-  <link rel="stylesheet" href="/css/components.css">
-  <style>
-    .login-container {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
-      position: relative;
-      padding: 2rem 0;
-    }
-    .auth-card {
-      width: 100%;
-      max-width: 420px;
-      z-index: 10;
-      position: relative;
-      animation: fadeInScale 0.6s ease-out;
-      box-shadow: 0 8px 32px rgba(31,34,53,0.18);
-      border-radius: 1.2rem;
-      background: rgba(30,30,40,0.98);
-      border: 1.5px solid rgba(255,255,255,0.08);
-    }
-    .auth-header {
-      text-align: center;
-      margin-bottom: 2.2rem;
-    }
-    .auth-logo {
-      width: 80px;
-      height: 80px;
-      margin: 0 auto 1.2rem;
-      border-radius: 1rem;
-      filter: drop-shadow(0 8px 24px rgba(247, 200, 115, 0.3));
-    }
-    .auth-title {
-      font-size: 2rem;
-      font-weight: 700;
-      color: var(--text-primary);
-      margin-bottom: 0.3rem;
-    }
-    .auth-subtitle {
-      color: var(--text-secondary);
-      font-size: 1rem;
-    }
-    .form-actions {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-      margin-top: 2rem;
-    }
-    .google-btn {
-      background: #fff;
-      color: #374151;
-      border: 1.5px solid #d1d5db;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      font-weight: 600;
-      transition: box-shadow 0.2s;
-    }
-    .google-btn:hover {
-      background: #f9fafb;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    }
-    .google-btn i {
-      color: #ea4335;
-      font-size: 1.2em;
-    }
-    .form-messages {
-      margin-bottom: 1rem;
-    }
-    .message {
-      padding: 0.75rem 1rem;
-      border-radius: 0.7rem;
-      margin-bottom: 0.5rem;
-      display: flex;
-      align-items: center;
-      gap: 0.7rem;
-      font-size: 0.95rem;
-      backdrop-filter: blur(8px);
-    }
-    .message-error {
-      background: rgba(239, 68, 68, 0.15);
-      border: 1px solid rgba(239, 68, 68, 0.3);
-      color: var(--danger-color);
-    }
-    .message-success {
-      background: rgba(34, 197, 94, 0.15);
-      border: 1px solid rgba(34, 197, 94, 0.3);
-      color: var(--success-color);
-    }
-    @media (max-width: 480px) {
-      .auth-card { max-width: 100%; margin: 1rem; }
-      .auth-logo { width: 60px; height: 60px; }
-      .auth-title { font-size: 1.3rem; }
-    }
-  </style>
-</head>
-<body>
-  <div class="login-container">
-    <div class="auth-card">
-      <div class="card-body">
-        <div class="auth-header">
-          <img src="/assets/icon.png" alt="Hazard Detection" class="auth-logo">
-          <h1 class="auth-title">Welcome Back</h1>
-          <p class="auth-subtitle">Sign in to your account</p>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles/theme.css" />
+    <link rel="stylesheet" href="/styles/layout.css" />
+    <link rel="stylesheet" href="/styles/components.css" />
+    <link rel="stylesheet" href="/styles/unified-design.css" />
+  </head>
+  <body>
+    <!-- Unified Navigation -->
+    <div id="unified-navigation-container"></div>
+    <div class="login-page page-container">
+      <div class="login-container glass animate-fade-in-scale" style="background: none; border: none; box-shadow: none;">
+        <div class="flex flex-col items-center gap-lg">
+          <img src="/assets/icon.png" alt="Hazard Detection Logo" class="login-logo mb-3" style="width: 90px; height: 90px; border-radius: 1rem; box-shadow: 0 4px 16px rgba(247,200,115,0.2);" />
+          <h1 class="text-2xl text-primary mb-2" style="font-weight:700;">Sign in to Hazard Detection</h1>
         </div>
         <div id="form-messages" class="form-messages"></div>
-        <form id="login-form" autocomplete="on">
-          <div class="form-actions">
-            <!-- Google Login Button -->
-            <button type="button" id="google-login" class="btn btn-glass google-btn" onclick="window.location.href='/auth/google'">
-              <i class="fab fa-google"></i>
-              <span>Continue with Google</span>
-            </button>
-            <!-- Demo Login Button -->
-            <button type="button" id="demo-login" class="btn btn-glass">
-              <i class="fas fa-play"></i>
-              <span>Demo Login</span>
-            </button>
-            <!-- Show Email Login Button -->
-            <button type="button" id="show-signin-fields" class="btn btn-primary btn-lg">
-              <i class="fas fa-envelope"></i>
-              <span>Sign In with Email</span>
-            </button>
-          </div>
-          <!-- Email/Password fields (hidden by default) -->
-          <div id="email-signin-fields" style="display:none; margin-top:1.5rem;">
+        <div class="button-container login-btns-glass mt-4 mb-3">
+          <button class="btn btn-primary btn-lg w-100 mb-2" id="show-email-login">
+            <i class="far fa-envelope me-2"></i>
+            Continue with Email
+          </button>
+          <button class="btn btn-secondary btn-lg w-100 mb-2" id="google-login" onclick="window.location.href='/auth/google'">
+            <i class="fab fa-google me-2"></i>
+            Continue with Google
+          </button>
+        </div>
+        <div id="email-login-form" class="form-section" style="display:none;">
+          <form id="login-form" class="login-form" autocomplete="on">
             <div class="mb-3">
-              <label for="email" class="form-label">Email Address</label>
-              <div class="input-group">
-                <span class="input-group-text"><i class="fas fa-envelope"></i></span>
-                <input type="email" id="email" name="email" class="form-control" placeholder="Enter your email" required>
-              </div>
+              <label for="email" class="form-label">Email</label>
+              <input type="email" id="email" name="email" class="form-control" placeholder="Enter your email" required />
             </div>
             <div class="mb-3">
               <label for="password" class="form-label">Password</label>
-              <div class="input-group">
-                <span class="input-group-text"><i class="fas fa-lock"></i></span>
-                <input type="password" id="password" name="password" class="form-control" placeholder="Enter your password" required>
-              </div>
+              <input type="password" id="password" name="password" class="form-control" placeholder="Enter your password" required />
             </div>
-            <div class="form-check mb-3">
-              <input class="form-check-input" type="checkbox" id="remember" name="remember">
-              <label class="form-check-label" for="remember">Remember me</label>
-            </div>
-            <button type="submit" class="btn btn-primary w-100">
-              <i class="fas fa-sign-in-alt"></i>
-              <span>Sign In</span>
+            <button type="submit" class="btn btn-primary btn-lg w-100 login-button">
+              <i class="fas fa-sign-in-alt me-2"></i>
+              Sign In
             </button>
-            <div class="text-center mt-3">
+            <div class="forgot-password text-center mt-3">
               <a href="/pages/reset-password.html" class="form-link">Forgot your password?</a>
             </div>
-          </div>
-        </form>
+          </form>
+        </div>
       </div>
     </div>
-  </div>
-  <div id="toast-container" style="position: fixed; top: 20px; right: 20px; z-index: 9999;"></div>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="/js/login.js"></script>
-  <script>
-    // Show/hide email sign-in fields
-    document.addEventListener('DOMContentLoaded', () => {
-      const showSigninBtn = document.getElementById('show-signin-fields');
-      const emailFields = document.getElementById('email-signin-fields');
-      const loginForm = document.getElementById('login-form');
-      const demoBtn = document.getElementById('demo-login');
-      const emailInput = document.getElementById('email');
-      const passwordInput = document.getElementById('password');
-      if (showSigninBtn && emailFields) {
-        showSigninBtn.addEventListener('click', () => {
-          showSigninBtn.style.display = 'none';
-          emailFields.style.display = 'block';
-        });
-      }
-      if (demoBtn && emailInput && passwordInput) {
-        demoBtn.addEventListener('click', () => {
-          emailInput.value = 'demo@roadguardian.com';
-          passwordInput.value = 'demo123';
-          showToast('Demo credentials filled. Click Sign In to continue.', 'info');
-          showSigninBtn.style.display = 'none';
-          emailFields.style.display = 'block';
-        });
-      }
-      // Prevent form submit if email fields are hidden
-      loginForm.addEventListener('submit', (e) => {
-        if (emailFields.style.display !== 'block') {
-          e.preventDefault();
-          return false;
-        }
-      });
-    });
-    // Toast notification logic
-    function showToast(message, type = 'info') {
-      const toastContainer = document.getElementById('toast-container');
-      const toastId = 'toast-' + Date.now();
-      const toastHTML = `
-        <div class="toast show" id="${toastId}" role="alert">
-          <div class="toast-header">
-            <i class="fas fa-${type === 'error' ? 'exclamation-triangle' : 'info-circle'}"></i>
-            <strong class="ms-2">Notification</strong>
-            <button type="button" class="btn-close ms-auto" onclick="removeToast('${toastId}')">
-              <i class="fas fa-times"></i>
-            </button>
-          </div>
-          <div class="toast-body">${message}</div>
-        </div>
-      `;
-      toastContainer.insertAdjacentHTML('beforeend', toastHTML);
-      setTimeout(() => removeToast(toastId), 5000);
-    }
-    function removeToast(toastId) {
-      const toast = document.getElementById(toastId);
-      if (toast) { toast.remove(); }
-    }
-  </script>
-</body>
+    <script>
+      // Toggle email login form
+      document.getElementById('show-email-login').onclick = function() {
+        document.getElementById('email-login-form').style.display = 'block';
+        this.style.display = 'none';
+      };
+    </script>
+    <script src="/js/login.js"></script>
+    
+    <!-- Load Unified Navigation -->
+    <script>
+      // Load unified navigation component
+      fetch('/components/navigation/unified-nav.html')
+        .then(response => response.text())
+        .then(html => {
+          document.getElementById('unified-navigation-container').innerHTML = html;
+          // Load navigation JavaScript
+          const script = document.createElement('script');
+          script.src = '/components/navigation/unified-nav.js';
+          document.head.appendChild(script);
+        })
+        .catch(error => console.error('Error loading navigation:', error));
+    </script>
+  </body>
 </html>
