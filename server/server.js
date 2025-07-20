@@ -3,6 +3,7 @@ import express from 'express';
 import session from 'express-session';
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import { Strategy as LocalStrategy } from 'passport-local';
 import dotenv from 'dotenv';
 import { createClient } from 'redis';
 import path from 'path';
@@ -148,6 +149,48 @@ async function connectRedis() {
   }
 connectRedis(); // קריאה לפונקציה בעת עליית השרת
 
+// --- הוספת LocalStrategy ל-Passport ---
+
+passport.use(new LocalStrategy(
+  { usernameField: 'email' },
+  async (email, password, done) => {
+    console.log('[LocalStrategy] Authentication attempt for:', email);
+    try {
+      if (!redisConnected || !client.isOpen) {
+        console.error('Redis client not connected during authentication');
+        return done(new Error('Database connection error'), false);
+      }
+
+      const userKeys = await client.keys('user:*');
+      console.log('[LocalStrategy] Checking', userKeys.length, 'users');
+      
+      for (const key of userKeys) {
+        const userData = await client.get(key);
+        if (userData) {
+          const user = JSON.parse(userData);
+          console.log('[LocalStrategy] Checking user:', user.email);
+          
+          if (user.email === email) {
+            console.log('[LocalStrategy] User found, checking password');
+            if (user.password === password) {
+              console.log('[LocalStrategy] Password correct, login successful');
+              return done(null, user);
+            } else {
+              console.log('[LocalStrategy] Password incorrect');
+              return done(null, false, { message: 'Incorrect password' });
+            }
+          }
+        }
+      }
+      
+      console.log('[LocalStrategy] User not found');
+      return done(null, false, { message: 'User not found' });
+    } catch (err) {
+      console.error('[LocalStrategy] Error during authentication:', err);
+      return done(err);
+    }
+  }
+));
 
 passport.serializeUser((user, done) => {
     console.log('[Passport] Serializing user:', user.email);
@@ -826,35 +869,34 @@ app.post('/register', async (req, res) => {
 
 
 
-app.post('/login', async (req, res) => {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-        return res.status(400).json({ success: false, error: 'Missing email or password' });
+app.post('/login', (req, res, next) => {
+  console.log('[Login] Attempting login for:', req.body.email);
+  passport.authenticate('local', (err, user, info) => {
+    if (err) {
+      console.error('[Login] Authentication error:', err);
+      return next(err);
     }
-
-    const userKeys = await client.keys('user:*');
-    for (const key of userKeys) {
-        const userData = await client.get(key);
-        const user = JSON.parse(userData);
-
-        if (user.email === email) {
-            if (user.password === password) {
-
-                // ✅ שמירה בסשן – כמו שעשית בהתחברות עם גוגל
-                req.session.user = {
-                    email: user.email,
-                    username: user.username
-                };
-
-                return res.status(200).json({ success: true, message: 'Login successful', user: { email, username: user.username } });
-            } else {
-                return res.status(401).json({ success: false, error: 'Incorrect password' });
-            }
-        }
+    if (!user) {
+      console.log('[Login] Authentication failed:', info?.message);
+      return res.status(401).json({ 
+        success: false, 
+        message: info?.message || 'Invalid email or password',
+        error: info?.message || 'Invalid email or password'
+      });
     }
-
-    return res.status(404).json({ success: false, error: 'User not found' });
+    req.login(user, (err) => {
+      if (err) {
+        console.error('[Login] Session creation error:', err);
+        return next(err);
+      }
+      console.log('[Login] Login successful for:', user.email);
+      return res.json({ 
+        success: true, 
+        message: 'Login successful',
+        redirect: '/pages/index.html' 
+      });
+    });
+  })(req, res, next);
 });
 
 
@@ -869,6 +911,7 @@ app.post('/forgot-password', async (req, res) => {
     }
 
     const { email } = req.body;
+    console.log('[ForgotPassword] Request for email:', email);
     
     if (!email) {
         return res.status(400).json({ error: 'Please enter your email address' });
@@ -876,23 +919,29 @@ app.post('/forgot-password', async (req, res) => {
 
     try {
         const userKeys = await client.keys('user:*');
+        console.log('[ForgotPassword] Found', userKeys.length, 'user keys');
+        
         let userId = null;
         let userData = null;
         
         for (const key of userKeys) {
             const data = JSON.parse(await client.get(key));
+            console.log('[ForgotPassword] Checking user:', data.email);
             if (data.email === email) {
                 userId = key;
                 userData = data;
+                console.log('[ForgotPassword] User found:', userId);
                 break;
             }
         }
 
         if (!userId || !userData) {
+            console.log('[ForgotPassword] Email not found:', email);
             return res.status(404).json({ error: 'Email not found' });
         }
 
         if (!userData.password) {
+            console.log('[ForgotPassword] Google account detected for:', email);
             return res.status(400).json({ error: 'This account uses Google login and cannot reset password' });
         }
 
@@ -912,7 +961,7 @@ app.post('/forgot-password', async (req, res) => {
         // שמירת הטוקן עם תוקף של 10 דקות
         await client.setEx(tokenKey, 600, userId);
 
-        const resetUrl = `https://hazard-detection.onrender.com/reset-password.html?token=${token}`;
+        const resetUrl = `http://localhost:3000/pages/reset-password.html?token=${token}`;
 
         const message = {
             to: email,
@@ -936,6 +985,30 @@ app.post('/forgot-password', async (req, res) => {
     } 
 });
 
+
+// בדיקת תקפות טוקן איפוס סיסמה
+app.post('/api/validate-reset-token', async (req, res) => {
+    const { token } = req.body;
+    
+    if (!token) {
+        return res.status(400).json({ error: 'Token is required' });
+    }
+
+    try {
+        const tokenKey = `reset:${token}`;
+        const userId = await client.get(tokenKey);
+
+        if (!userId) {
+            return res.status(400).json({ error: 'Invalid or expired token' });
+        }
+
+        // טוקן תקף
+        res.status(200).json({ valid: true });
+    } catch (error) {
+        console.error("Error validating reset token:", error);
+        res.status(500).json({ error: 'Server error during token validation' });
+    }
+});
 
 // איפוס סיסמה לפי טוקן
 app.post('/reset-password', async (req, res) => {
