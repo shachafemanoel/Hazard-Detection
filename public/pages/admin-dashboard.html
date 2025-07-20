@@ -1,28 +1,431 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" href="/assets/icon.png" type="image/png" />
-    <title>Admin Dashboard - RoadGuardian</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="/css/base.css" />
-    <link rel="stylesheet" href="/css/layout.css" />
-    <link rel="stylesheet" href="/css/components.css" />
-    <link rel="stylesheet" href="/css/pages/dashboard.css" />
-  </head>
-  <body>
-    <div class="container-fluid py-4">
-      <h2 class="mb-4"><i class="fas fa-shield-alt me-2"></i>Admin - Reports Management</h2>
-      <div class="mb-3 d-flex justify-content-between align-items-center">
-        <input type="text" id="admin-report-search" class="form-control w-25" placeholder="Search reports..." />
-        <button class="btn btn-primary" id="refresh-admin-reports"><i class="fas fa-sync-alt"></i> Refresh</button>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="/assets/icon.png" type="image/png">
+  <title>Admin Dashboard - RoadGuardian</title>
+
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  
+  <!-- Design System -->
+  <link rel="stylesheet" href="/css/design-system.css">
+  <link rel="stylesheet" href="/css/components.css">
+
+  <style>
+    /* Page-specific styles */
+    .admin-container {
+      min-height: 100vh;
+      padding-top: 120px;
+      padding-bottom: var(--space-3xl);
+    }
+    
+    .admin-header {
+      margin-bottom: var(--space-3xl);
+      text-align: center;
+    }
+    
+    .admin-title {
+      font-size: var(--font-size-3xl);
+      font-weight: 700;
+      margin-bottom: var(--space-md);
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-md);
+    }
+    
+    .admin-subtitle {
+      color: var(--text-secondary);
+      font-size: var(--font-size-lg);
+    }
+    
+    .admin-stats {
+      margin-bottom: var(--space-3xl);
+    }
+    
+    .stat-card {
+      text-align: center;
+      padding: var(--space-2xl);
+      height: 100%;
+    }
+    
+    .stat-icon {
+      width: 60px;
+      height: 60px;
+      margin: 0 auto var(--space-lg);
+      background: linear-gradient(135deg, var(--secondary-accent), var(--primary-accent));
+      border-radius: var(--radius-xl);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      color: #1e293b;
+      box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3);
+    }
+    
+    .stat-number {
+      font-size: var(--font-size-3xl);
+      font-weight: 700;
+      color: var(--primary-accent);
+      margin-bottom: var(--space-xs);
+    }
+    
+    .stat-label {
+      color: var(--text-secondary);
+      font-weight: 500;
+      font-size: var(--font-size-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .controls-section {
+      margin-bottom: var(--space-2xl);
+    }
+    
+    .controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-lg);
+      align-items: center;
+      justify-content: space-between;
+    }
+    
+    .search-group {
+      display: flex;
+      gap: var(--space-md);
+      align-items: center;
+      flex: 1;
+      max-width: 400px;
+    }
+    
+    .action-buttons {
+      display: flex;
+      gap: var(--space-md);
+      flex-wrap: wrap;
+    }
+    
+    .table-container {
+      backdrop-filter: var(--glass-blur);
+      background: var(--glass-bg);
+      border: var(--glass-border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--glass-shadow);
+      overflow: hidden;
+      margin-bottom: var(--space-2xl);
+    }
+    
+    .table-header {
+      padding: var(--space-xl) var(--space-2xl);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    
+    .table-title {
+      font-size: var(--font-size-xl);
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+    
+    .table-wrapper {
+      padding: 0;
+      overflow-x: auto;
+    }
+    
+    .admin-table {
+      margin: 0;
+      border: none;
+    }
+    
+    .admin-table th {
+      background: rgba(255, 255, 255, 0.05);
+      border: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-primary);
+      font-weight: 600;
+      font-size: var(--font-size-sm);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: var(--space-lg) var(--space-xl);
+    }
+    
+    .admin-table td {
+      border: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      color: var(--text-secondary);
+      padding: var(--space-lg) var(--space-xl);
+      vertical-align: middle;
+    }
+    
+    .admin-table tbody tr:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+    
+    .admin-table tbody tr:hover td {
+      color: var(--text-primary);
+    }
+    
+    .status-badge {
+      padding: var(--space-xs) var(--space-md);
+      border-radius: var(--radius-full);
+      font-size: var(--font-size-xs);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .status-open {
+      background: rgba(59, 130, 246, 0.2);
+      color: var(--info-color);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+    
+    .status-progress {
+      background: rgba(245, 158, 11, 0.2);
+      color: var(--warning-color);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+    
+    .status-resolved {
+      background: rgba(34, 197, 94, 0.2);
+      color: var(--success-color);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+    
+    .action-btn {
+      padding: var(--space-xs) var(--space-sm);
+      margin: 0 var(--space-xs);
+      border: none;
+      border-radius: var(--radius-sm);
+      font-size: var(--font-size-xs);
+      cursor: pointer;
+      transition: var(--transition-base);
+      backdrop-filter: var(--glass-blur);
+    }
+    
+    .action-btn-edit {
+      background: rgba(var(--primary-accent-rgb), 0.2);
+      color: var(--primary-accent);
+      border: 1px solid rgba(var(--primary-accent-rgb), 0.3);
+    }
+    
+    .action-btn-edit:hover {
+      background: rgba(var(--primary-accent-rgb), 0.3);
+      transform: translateY(-1px);
+    }
+    
+    .action-btn-delete {
+      background: rgba(239, 68, 68, 0.2);
+      color: var(--danger-color);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    
+    .action-btn-delete:hover {
+      background: rgba(239, 68, 68, 0.3);
+      transform: translateY(-1px);
+    }
+    
+    .loading-state {
+      text-align: center;
+      padding: var(--space-3xl);
+      color: var(--text-muted);
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: var(--space-3xl);
+      color: var(--text-muted);
+    }
+    
+    .empty-state i {
+      font-size: 3rem;
+      margin-bottom: var(--space-lg);
+      opacity: 0.5;
+    }
+    
+    @media (max-width: 768px) {
+      .admin-container {
+        padding-top: 100px;
+      }
+      
+      .admin-title {
+        font-size: var(--font-size-2xl);
+        flex-direction: column;
+        gap: var(--space-sm);
+      }
+      
+      .controls-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      
+      .search-group {
+        max-width: 100%;
+      }
+      
+      .action-buttons {
+        justify-content: center;
+      }
+      
+      .table-header {
+        flex-direction: column;
+        gap: var(--space-md);
+        align-items: stretch;
+      }
+      
+      .admin-table {
+        font-size: var(--font-size-sm);
+      }
+      
+      .admin-table th,
+      .admin-table td {
+        padding: var(--space-md);
+      }
+    }
+    
+    @media (max-width: 480px) {
+      .admin-container {
+        padding-top: 90px;
+      }
+      
+      .stat-card {
+        padding: var(--space-lg);
+      }
+      
+      .stat-icon {
+        width: 50px;
+        height: 50px;
+        font-size: 1.25rem;
+      }
+      
+      .stat-number {
+        font-size: var(--font-size-2xl);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="floating-navigation-container"></div>
+  <script>
+    fetch('/components/navigation/floating-menu.html')
+      .then(response => response.text())
+      .then(html => {
+        document.getElementById('floating-navigation-container').innerHTML = html;
+        const script = document.createElement('script');
+        script.src = '/components/navigation/floating-menu.js';
+        document.head.appendChild(script);
+      });
+  </script>
+
+  <div class="container admin-container">
+    
+    <!-- Header Section -->
+    <div class="admin-header">
+      <h1 class="admin-title">
+        <i class="fas fa-shield-alt"></i>
+        <span>Admin Dashboard</span>
+      </h1>
+      <p class="admin-subtitle">Manage reports and monitor system activity</p>
+    </div>
+
+    <!-- Stats Section -->
+    <div class="admin-stats">
+      <div class="grid grid-4">
+        <div class="card stat-card animate-fade-in-scale">
+          <div class="stat-icon">
+            <i class="fas fa-clipboard-list"></i>
+          </div>
+          <div class="stat-number" id="total-reports-count">0</div>
+          <div class="stat-label">Total Reports</div>
+        </div>
+        
+        <div class="card stat-card animate-fade-in-scale">
+          <div class="stat-icon">
+            <i class="fas fa-clock"></i>
+          </div>
+          <div class="stat-number" id="pending-reports-count">0</div>
+          <div class="stat-label">Pending</div>
+        </div>
+        
+        <div class="card stat-card animate-fade-in-scale">
+          <div class="stat-icon">
+            <i class="fas fa-cog"></i>
+          </div>
+          <div class="stat-number" id="progress-reports-count">0</div>
+          <div class="stat-label">In Progress</div>
+        </div>
+        
+        <div class="card stat-card animate-fade-in-scale">
+          <div class="stat-icon">
+            <i class="fas fa-check-circle"></i>
+          </div>
+          <div class="stat-number" id="resolved-reports-count">0</div>
+          <div class="stat-label">Resolved</div>
+        </div>
       </div>
-      <div class="table-responsive">
-        <table class="table table-hover table-bordered align-middle" id="admin-reports-table">
-          <thead class="table-dark">
+    </div>
+
+    <!-- Controls Section -->
+    <div class="controls-section">
+      <div class="controls-row">
+        <div class="search-group">
+          <div class="input-group">
+            <span class="input-group-text">
+              <i class="fas fa-search"></i>
+            </span>
+            <input 
+              type="text" 
+              id="admin-report-search" 
+              class="form-control" 
+              placeholder="Search reports by type, location, or user..."
+            >
+          </div>
+        </div>
+        
+        <div class="action-buttons">
+          <button class="btn btn-glass" id="filter-reports">
+            <i class="fas fa-filter"></i>
+            <span>Filter</span>
+          </button>
+          <button class="btn btn-primary" id="refresh-admin-reports">
+            <i class="fas fa-sync-alt"></i>
+            <span>Refresh</span>
+          </button>
+          <button class="btn btn-success" id="export-reports">
+            <i class="fas fa-download"></i>
+            <span>Export</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reports Table -->
+    <div class="table-container">
+      <div class="table-header">
+        <h3 class="table-title">
+          <i class="fas fa-table"></i>
+          <span>Reports Management</span>
+        </h3>
+        <span class="badge badge-primary" id="table-count">0 reports</span>
+      </div>
+      
+      <div class="table-wrapper">
+        <table class="table admin-table">
+          <thead>
             <tr>
               <th>ID</th>
               <th>Type</th>
@@ -34,58 +437,338 @@
             </tr>
           </thead>
           <tbody id="admin-reports-tbody">
-            <tr><td colspan="7" class="text-center text-muted"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>
+            <tr>
+              <td colspan="7" class="loading-state">
+                <div class="spinner"></div>
+                <p style="margin-top: var(--space-md);">Loading reports...</p>
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
     </div>
-    <div id="admin-modal-container"></div>
-    <!-- Modal עריכה -->
-    <div class="modal fade" id="editReportModal" tabindex="-1">
-      <div class="modal-dialog">
-        <div class="modal-content">
-          <div class="modal-header bg-primary text-white">
-            <h5 class="modal-title"><i class="fas fa-edit me-2"></i>עריכת דיווח</h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <form id="editReportForm">
-              <input type="hidden" id="edit-report-id">
-              <div class="mb-3">
-                <label for="edit-report-type" class="form-label">סוג</label>
-                <input type="text" class="form-control" id="edit-report-type" required>
-              </div>
-              <div class="mb-3">
-                <label for="edit-report-status" class="form-label">סטטוס</label>
-                <select class="form-select" id="edit-report-status">
-                  <option value="Open">פתוח</option>
-                  <option value="In Progress">בטיפול</option>
-                  <option value="Resolved">טופל</option>
-                </select>
-              </div>
-              <div class="mb-3">
-                <label for="edit-report-location" class="form-label">מיקום</label>
-                <input type="text" class="form-control" id="edit-report-location">
-              </div>
-              <div class="mb-3">
-                <label for="edit-report-user" class="form-label">מדווח</label>
-                <input type="text" class="form-control" id="edit-report-user" disabled>
-              </div>
-              <div class="mb-3">
-                <label for="edit-report-date" class="form-label">תאריך</label>
-                <input type="text" class="form-control" id="edit-report-date" disabled>
-              </div>
-            </form>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">סגור</button>
-            <button type="button" class="btn btn-primary" id="save-report-btn">שמור שינויים</button>
-          </div>
+
+  </div>
+
+  <!-- Edit Report Modal -->
+  <div class="modal fade" id="editReportModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="fas fa-edit"></i>
+            Edit Report
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <form id="editReportForm">
+            <input type="hidden" id="edit-report-id">
+            
+            <div class="form-group">
+              <label for="edit-report-type" class="form-label">Type</label>
+              <input type="text" class="form-control" id="edit-report-type" required>
+            </div>
+            
+            <div class="form-group">
+              <label for="edit-report-status" class="form-label">Status</label>
+              <select class="form-control" id="edit-report-status">
+                <option value="Open">Open</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Resolved">Resolved</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label for="edit-report-location" class="form-label">Location</label>
+              <input type="text" class="form-control" id="edit-report-location">
+            </div>
+            
+            <div class="form-group">
+              <label for="edit-report-user" class="form-label">Reporter</label>
+              <input type="text" class="form-control" id="edit-report-user" disabled>
+            </div>
+            
+            <div class="form-group">
+              <label for="edit-report-date" class="form-label">Date</label>
+              <input type="text" class="form-control" id="edit-report-date" disabled>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-glass" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="save-report-changes">
+            <i class="fas fa-save"></i>
+            Save Changes
+          </button>
         </div>
       </div>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="/js/modules/ApiService.js" type="module"></script>
-    <script src="/js/admin-dashboard.js" type="module"></script>
-  </body>
-</html> 
+  </div>
+
+  <!-- Confirm Delete Modal -->
+  <div class="modal fade" id="confirmDeleteModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="fas fa-exclamation-triangle"></i>
+            Confirm Delete
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <p>Are you sure you want to delete this report? This action cannot be undone.</p>
+          <div class="alert alert-warning">
+            <i class="fas fa-info-circle"></i>
+            Report ID: <strong id="delete-report-id"></strong>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-glass" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-danger" id="confirm-delete-report">
+            <i class="fas fa-trash"></i>
+            Delete Report
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" style="position: fixed; top: 20px; right: 20px; z-index: 9999;"></div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <!-- Admin Dashboard Scripts -->
+  <script src="/js/admin-dashboard.js"></script>
+
+  <script>
+    // Mock data and functionality for demo
+    const mockReports = [
+      {
+        id: 'RPT001',
+        type: 'Pothole',
+        location: 'Main Street, Tel Aviv',
+        status: 'Open',
+        user: 'user@example.com',
+        date: '2025-01-20'
+      },
+      {
+        id: 'RPT002',
+        type: 'Crack',
+        location: 'Highway 1, Jerusalem',
+        status: 'In Progress',
+        user: 'admin@example.com',
+        date: '2025-01-19'
+      },
+      {
+        id: 'RPT003',
+        type: 'Debris',
+        location: 'Ben Gurion Ave, Haifa',
+        status: 'Resolved',
+        user: 'reporter@example.com',
+        date: '2025-01-18'
+      }
+    ];
+
+    let currentReports = [...mockReports];
+    let currentEditingReport = null;
+
+    // Initialize page
+    document.addEventListener('DOMContentLoaded', () => {
+      loadReports();
+      updateStats();
+      bindEvents();
+    });
+
+    function bindEvents() {
+      // Search functionality
+      document.getElementById('admin-report-search').addEventListener('input', filterReports);
+      
+      // Refresh button
+      document.getElementById('refresh-admin-reports').addEventListener('click', () => {
+        showToast('Reports refreshed successfully', 'success');
+        loadReports();
+      });
+      
+      // Export button
+      document.getElementById('export-reports').addEventListener('click', () => {
+        showToast('Export functionality would be implemented here', 'info');
+      });
+      
+      // Save changes button
+      document.getElementById('save-report-changes').addEventListener('click', saveReportChanges);
+      
+      // Confirm delete button
+      document.getElementById('confirm-delete-report').addEventListener('click', confirmDeleteReport);
+    }
+
+    function loadReports() {
+      const tbody = document.getElementById('admin-reports-tbody');
+      
+      if (currentReports.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" class="empty-state">
+              <i class="fas fa-inbox"></i>
+              <h5>No reports found</h5>
+              <p>No reports match your current filters.</p>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = currentReports.map(report => `
+        <tr>
+          <td><strong>${report.id}</strong></td>
+          <td>${report.type}</td>
+          <td>${report.location}</td>
+          <td>
+            <span class="status-badge status-${report.status.toLowerCase().replace(' ', '')}">
+              ${report.status}
+            </span>
+          </td>
+          <td>${report.user}</td>
+          <td>${report.date}</td>
+          <td>
+            <button class="action-btn action-btn-edit" onclick="editReport('${report.id}')">
+              <i class="fas fa-edit"></i>
+            </button>
+            <button class="action-btn action-btn-delete" onclick="deleteReport('${report.id}')">
+              <i class="fas fa-trash"></i>
+            </button>
+          </td>
+        </tr>
+      `).join('');
+      
+      // Update table count
+      document.getElementById('table-count').textContent = `${currentReports.length} report${currentReports.length !== 1 ? 's' : ''}`;
+    }
+
+    function updateStats() {
+      const total = currentReports.length;
+      const open = currentReports.filter(r => r.status === 'Open').length;
+      const progress = currentReports.filter(r => r.status === 'In Progress').length;
+      const resolved = currentReports.filter(r => r.status === 'Resolved').length;
+      
+      document.getElementById('total-reports-count').textContent = total;
+      document.getElementById('pending-reports-count').textContent = open;
+      document.getElementById('progress-reports-count').textContent = progress;
+      document.getElementById('resolved-reports-count').textContent = resolved;
+    }
+
+    function filterReports() {
+      const searchTerm = document.getElementById('admin-report-search').value.toLowerCase();
+      
+      if (!searchTerm) {
+        currentReports = [...mockReports];
+      } else {
+        currentReports = mockReports.filter(report => 
+          report.type.toLowerCase().includes(searchTerm) ||
+          report.location.toLowerCase().includes(searchTerm) ||
+          report.user.toLowerCase().includes(searchTerm) ||
+          report.status.toLowerCase().includes(searchTerm)
+        );
+      }
+      
+      loadReports();
+      updateStats();
+    }
+
+    function editReport(reportId) {
+      const report = mockReports.find(r => r.id === reportId);
+      if (!report) return;
+      
+      currentEditingReport = reportId;
+      
+      document.getElementById('edit-report-id').value = report.id;
+      document.getElementById('edit-report-type').value = report.type;
+      document.getElementById('edit-report-status').value = report.status;
+      document.getElementById('edit-report-location').value = report.location;
+      document.getElementById('edit-report-user').value = report.user;
+      document.getElementById('edit-report-date').value = report.date;
+      
+      new bootstrap.Modal(document.getElementById('editReportModal')).show();
+    }
+
+    function deleteReport(reportId) {
+      currentEditingReport = reportId;
+      document.getElementById('delete-report-id').textContent = reportId;
+      new bootstrap.Modal(document.getElementById('confirmDeleteModal')).show();
+    }
+
+    function saveReportChanges() {
+      if (!currentEditingReport) return;
+      
+      const reportIndex = mockReports.findIndex(r => r.id === currentEditingReport);
+      if (reportIndex === -1) return;
+      
+      mockReports[reportIndex] = {
+        ...mockReports[reportIndex],
+        type: document.getElementById('edit-report-type').value,
+        status: document.getElementById('edit-report-status').value,
+        location: document.getElementById('edit-report-location').value
+      };
+      
+      currentReports = [...mockReports];
+      loadReports();
+      updateStats();
+      
+      bootstrap.Modal.getInstance(document.getElementById('editReportModal')).hide();
+      showToast('Report updated successfully', 'success');
+    }
+
+    function confirmDeleteReport() {
+      if (!currentEditingReport) return;
+      
+      const reportIndex = mockReports.findIndex(r => r.id === currentEditingReport);
+      if (reportIndex !== -1) {
+        mockReports.splice(reportIndex, 1);
+        currentReports = [...mockReports];
+        loadReports();
+        updateStats();
+      }
+      
+      bootstrap.Modal.getInstance(document.getElementById('confirmDeleteModal')).hide();
+      showToast('Report deleted successfully', 'success');
+    }
+
+    function showToast(message, type = 'info') {
+      const toastContainer = document.getElementById('toast-container');
+      const toastId = 'toast-' + Date.now();
+      
+      const toastHTML = `
+        <div class="toast show" id="${toastId}" role="alert">
+          <div class="toast-header">
+            <i class="fas fa-${type === 'error' ? 'exclamation-triangle' : type === 'success' ? 'check-circle' : 'info-circle'}"></i>
+            <strong class="ms-2">Notification</strong>
+            <button type="button" class="btn-close ms-auto" onclick="removeToast('${toastId}')">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          <div class="toast-body">${message}</div>
+        </div>
+      `;
+      
+      toastContainer.insertAdjacentHTML('beforeend', toastHTML);
+      
+      // Auto remove after 4 seconds
+      setTimeout(() => removeToast(toastId), 4000);
+    }
+    
+    function removeToast(toastId) {
+      const toast = document.getElementById(toastId);
+      if (toast) {
+        toast.remove();
+      }
+    }
+  </script>
+</body>
+</html>

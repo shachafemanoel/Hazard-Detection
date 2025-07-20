@@ -78,12 +78,12 @@ export const Constants = {
 
   // API Endpoints
   API: {
-    UPLOAD_DETECTION: "/upload-detection",
+    UPLOAD_DETECTION: "/api/detections",
     LOGIN: "/login",
     REGISTER: "/register",
     LOGOUT: "/logout",
     FORGOT_PASSWORD: "/forgot-password",
-    REPORTS: "/api/reports",
+    REPORTS: "/api/detections", // unified GET/POST endpoint
     GOOGLE_MAPS_KEY: "/api/google-maps-key",
     USER_INFO: "/api/user",
   },

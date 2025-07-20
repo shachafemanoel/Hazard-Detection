@@ -168,7 +168,7 @@
 
 /* Canvas Container */
 .canvas-container {
-  border: 2px dashed var(--border-color);
+  border: 2px dashed var(--glass-border);
   background: var(--bg-panel);
   border-radius: var(--radius);
   padding: 2rem;

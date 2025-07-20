@@ -233,7 +233,7 @@ a:hover {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border-color);
+  background: var(--glass-border);
   border-radius: 4px;
 }
 

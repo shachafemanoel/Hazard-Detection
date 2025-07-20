@@ -380,9 +380,71 @@ app.post('/api/reports', async (req, res) => {
     }
 });
 
-// שליפת כל הדיווחים
+// Helper function to sort reports
+function sortReports(reports, sortBy = 'time', sortOrder = 'desc') {
+    const validSortFields = ['time', 'status', 'type', 'location', 'reportedBy', 'id', 'createdAt'];
+    const field = validSortFields.includes(sortBy) ? sortBy : 'time';
+    const order = ['asc', 'desc'].includes(sortOrder) ? sortOrder : 'desc';
+
+    return reports.sort((a, b) => {
+        let aVal = a[field];
+        let bVal = b[field];
+
+        // Handle different data types
+        if (field === 'time' || field === 'createdAt') {
+            aVal = new Date(aVal || 0).getTime();
+            bVal = new Date(bVal || 0).getTime();
+        } else if (field === 'id') {
+            aVal = parseInt(aVal) || 0;
+            bVal = parseInt(bVal) || 0;
+        } else {
+            // String comparison (case insensitive)
+            aVal = String(aVal || '').toLowerCase();
+            bVal = String(bVal || '').toLowerCase();
+        }
+
+        if (aVal < bVal) return order === 'asc' ? -1 : 1;
+        if (aVal > bVal) return order === 'asc' ? 1 : -1;
+        return 0;
+    });
+}
+
+// Helper function to paginate results
+function paginateResults(reports, limit, offset) {
+    const totalCount = reports.length;
+    const startIndex = parseInt(offset) || 0;
+    const limitNum = parseInt(limit);
+    
+    if (limitNum && limitNum > 0) {
+        const endIndex = startIndex + limitNum;
+        return {
+            reports: reports.slice(startIndex, endIndex),
+            pagination: {
+                total: totalCount,
+                limit: limitNum,
+                offset: startIndex,
+                hasMore: endIndex < totalCount
+            }
+        };
+    }
+    
+    return {
+        reports: reports.slice(startIndex),
+        pagination: {
+            total: totalCount,
+            offset: startIndex,
+            hasMore: false
+        }
+    };
+}
+
+// שליפת כל הדיווחים - Enhanced with sorting and pagination
 app.get('/api/reports', async (req, res) => {
     const filters = req.query;
+    const sortBy = req.query.sortBy || 'time';
+    const sortOrder = req.query.sortOrder || 'desc';
+    const limit = req.query.limit;
+    const offset = req.query.offset || 0;
 
     if (filters.hazardType && typeof filters.hazardType === 'string') {
         filters.hazardType = filters.hazardType.split(',').map(type => type.trim());
@@ -446,7 +508,20 @@ app.get('/api/reports', async (req, res) => {
             }
         }
 
-        res.status(200).json(reports);
+        // Apply sorting
+        const sortedReports = sortReports(reports, sortBy, sortOrder);
+        
+        // Apply pagination if requested
+        if (limit) {
+            const paginatedResult = paginateResults(sortedReports, limit, offset);
+            res.status(200).json({
+                data: paginatedResult.reports,
+                pagination: paginatedResult.pagination
+            });
+        } else {
+            res.status(200).json(sortedReports);
+        }
+        
     } catch (err) {
         console.error('🔥 Error fetching reports:', err);
         res.status(500).json({ error: 'Error fetching reports' });
@@ -1056,12 +1131,101 @@ app.post('/api/detections', upload.single('file'), async (req, res) => {
         res.status(200).json({
             message: successMessage,
             reportId: reportId,
-            report,
-            url: result.secure_url
+            report: {
+                ...report,
+                image: result.secure_url // Ensure Cloudinary URL is always in report.image
+            },
+            url: result.secure_url,
+            storage: {
+                redis: redisConnected ? 'success' : 'failed',
+                cloudinary: 'success'
+            }
         });
     } catch (e) {
         console.error('🔥 Upload error:', e);
         res.status(500).json({ error: 'Failed to upload report' });
+    }
+});
+
+// Add GET /api/detections to return all reports (same as GET /api/reports)
+app.get('/api/detections', async (req, res) => {
+    const filters = req.query;
+    const sortBy = req.query.sortBy || 'time';
+    const sortOrder = req.query.sortOrder || 'desc';
+    const limit = req.query.limit;
+    const offset = req.query.offset || 0;
+
+    if (filters.hazardType && typeof filters.hazardType === 'string') {
+        filters.hazardType = filters.hazardType.split(',').map(type => type.trim());
+    }
+
+    try {
+        const keys = await client.keys('report:*');
+        const reports = [];
+
+        for (const key of keys) {
+            let report;
+            try {
+                report = await client.json.get(key);
+            } catch (err) {
+                console.error(`Skipping key ${key} due to Redis type error:`, err.message);
+                continue;
+            }
+            if (!report) continue;
+
+            let match = true;
+
+            // סוגי מפגעים: לפחות אחד מתוך הרשימה
+            if (filters.hazardType) {
+                const hazardArray = Array.isArray(filters.hazardType) ? filters.hazardType : [filters.hazardType];
+                const reportTypes = (report.type || '').split(',').map(t => t.trim().toLowerCase());
+                const hasMatch = hazardArray.some(type => reportTypes.includes(type.toLowerCase()));
+                if (!hasMatch) match = false;
+            }
+            // מיקום
+            if (filters.location) {
+                const reportLoc = (report.location || '').toLowerCase();
+                const pattern = filters.location.trim().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const regex = new RegExp(pattern, 'i');
+                if (!regex.test(reportLoc)) match = false;
+            }
+            // תאריך
+            if (filters.startDate && new Date(report.time) < new Date(filters.startDate)) match = false;
+            if (filters.endDate && new Date(report.time) > new Date(filters.endDate)) match = false;
+            // סטטוס
+            if (filters.status) {
+                const reportStatus = report.status.toLowerCase();
+                const filterStatus = filters.status.toLowerCase();
+                if (reportStatus !== filterStatus) match = false;
+            }
+            // מחפש לפי מדווח
+            if (filters.reportedBy) {
+                const reporter = (report.reportedBy || '').toLowerCase();
+                const search = filters.reportedBy.toLowerCase();
+                if (!reporter.includes(search)) match = false;
+            }
+            if (match) {
+                reports.push(report);
+            }
+        }
+        
+        // Apply sorting
+        const sortedReports = sortReports(reports, sortBy, sortOrder);
+        
+        // Apply pagination if requested
+        if (limit) {
+            const paginatedResult = paginateResults(sortedReports, limit, offset);
+            res.status(200).json({
+                data: paginatedResult.reports,
+                pagination: paginatedResult.pagination
+            });
+        } else {
+            res.status(200).json(sortedReports);
+        }
+        
+    } catch (err) {
+        console.error('🔥 Error fetching reports:', err);
+        res.status(500).json({ error: 'Error fetching reports' });
     }
 });
 

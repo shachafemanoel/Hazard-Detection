@@ -1,24 +1,58 @@
-<!-- Sidebar Menu Component - Icon-only navigation -->
-<div class="floating-menu" id="floatingMenu">
-  <!-- App Icon at the top -->
-  <img src="/assets/icon.png" alt="App Icon" class="floating-menu-icon" style="width: 40px; height: 40px; margin: 20px auto 24px; display: block;" />
-
-  <a href="/pages/dashboard.html" class="menu-item" data-page="dashboard" title="Dashboard">
-    <i class="fas fa-chart-line"></i>
+<!-- Floating Navigation Component - Glass morphism design -->
+<nav class="floating-navigation" id="floatingNavigation">
+  <!-- Brand Section -->
+  <a href="/pages/dashboard.html" class="floating-nav-brand">
+    <img src="/assets/icon.png" alt="Hazard Detection" class="brand-icon">
+    <span>Hazard Detection</span>
   </a>
 
-  <a href="/pages/camera.html" class="menu-item" data-page="camera" title="Camera">
-    <i class="fas fa-camera"></i>
-  </a>
+  <!-- Navigation Items -->
+  <div class="floating-nav-items">
+    <a href="/pages/index.html" class="floating-nav-item" data-page="home" title="Home">
+      <i class="fas fa-home"></i>
+      <span>Home</span>
+    </a>
 
-  <a href="/pages/index.html" class="menu-item" data-page="upload" title="Upload">
-    <i class="fas fa-upload"></i>
-  </a>
+    <a href="/pages/dashboard.html" class="floating-nav-item" data-page="dashboard" title="Dashboard">
+      <i class="fas fa-chart-line"></i>
+      <span>Dashboard</span>
+    </a>
 
-  <!-- Dynamic Menu Items (icon only) -->
-  <div id="dynamic-menu-items"></div>
+    <a href="/pages/camera.html" class="floating-nav-item" data-page="camera" title="Camera">
+      <i class="fas fa-camera"></i>
+      <span>Camera</span>
+    </a>
 
-  <a href="/logout" class="menu-item" data-action="logout" title="Logout">
-    <i class="fas fa-sign-out-alt"></i>
-  </a>
-</div>
+    <a href="/pages/admin-dashboard.html" class="floating-nav-item" data-page="admin" title="Admin Dashboard">
+      <i class="fas fa-shield-alt"></i>
+      <span>Admin</span>
+    </a>
+
+    <a href="/pages/design-showcase.html" class="floating-nav-item" data-page="design" title="Design Showcase">
+      <i class="fas fa-palette"></i>
+      <span>Design</span>
+    </a>
+
+    <!-- Dynamic Menu Items -->
+    <div id="dynamic-menu-items"></div>
+
+    <a href="/logout" class="floating-nav-item" data-action="logout" title="Logout">
+      <i class="fas fa-sign-out-alt"></i>
+      <span>Logout</span>
+    </a>
+  </div>
+
+  <!-- User Indicator & Search Section -->
+  <div class="floating-nav-user">
+    <div class="user-indicator" id="user-indicator" title="User Status">
+      <div class="user-avatar">
+        <i class="fas fa-user"></i>
+      </div>
+      <div class="user-status" id="user-status"></div>
+    </div>
+    
+    <button class="floating-search-btn" id="floating-search-btn" title="Search Reports">
+      <i class="fas fa-search"></i>
+    </button>
+  </div>
+</nav>

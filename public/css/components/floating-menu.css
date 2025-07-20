@@ -1,8 +1,179 @@
 /* ============================================
-   FLOATING-MENU.CSS - Floating menu component
+   FLOATING-MENU.CSS - Floating navigation component
    ============================================ */
 
-/* Floating Menu Button */
+/* Floating Navigation - Main Container */
+.floating-navigation {
+  position: fixed;
+  top: var(--space-xl);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-fixed);
+  backdrop-filter: var(--glass-blur);
+  background: var(--glass-bg);
+  border: var(--glass-border);
+  border-radius: var(--radius-full);
+  box-shadow: var(--glass-shadow);
+  padding: var(--space-md) var(--space-lg);
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  transition: var(--transition-base);
+  max-width: 90vw;
+  white-space: nowrap;
+}
+
+.floating-navigation:hover {
+  background: var(--glass-bg-hover);
+  box-shadow: var(--glass-shadow-hover);
+  transform: translateX(-50%) translateY(-2px);
+}
+
+/* Floating Navigation Brand */
+.floating-nav-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  text-decoration: none;
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: var(--font-size-lg);
+  transition: var(--transition-base);
+}
+
+.floating-nav-brand:hover {
+  color: var(--primary-accent);
+  transform: scale(1.05);
+}
+
+.floating-nav-brand .brand-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+}
+
+/* Navigation Items Container */
+.floating-nav-items {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+/* Navigation Item */
+.floating-nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  transition: var(--transition-base);
+  position: relative;
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.floating-nav-item:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.floating-nav-item.active {
+  color: var(--primary-accent);
+  background: rgba(247, 200, 115, 0.15);
+  border-color: rgba(247, 200, 115, 0.3);
+  box-shadow: 0 0 20px rgba(247, 200, 115, 0.2);
+}
+
+.floating-nav-item i {
+  font-size: var(--font-size-base);
+  min-width: 16px;
+  text-align: center;
+}
+
+/* User Section */
+.floating-nav-user {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding-left: var(--space-lg);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* User Indicator */
+.user-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  cursor: pointer;
+  padding: var(--space-xs);
+  border-radius: var(--radius-lg);
+  transition: var(--transition-base);
+}
+
+.user-indicator:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.user-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  background: var(--glass-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.user-status {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.user-status.online {
+  background: var(--success-color);
+}
+
+.user-status.away {
+  background: var(--warning-color);
+}
+
+.user-status.offline {
+  background: var(--text-muted);
+}
+
+/* Search Button */
+.floating-search-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--text-secondary);
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-base);
+}
+
+.floating-search-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
+}
+
+/* Legacy Menu Button (keep for compatibility) */
 .floating-menu-btn {
   position: fixed;
   left: 20px;
@@ -464,11 +635,105 @@
   }
 }
 
+/* Floating Navigation Responsive Design */
+@media (max-width: 1024px) {
+  .floating-navigation {
+    padding: var(--space-sm) var(--space-md);
+    gap: var(--space-md);
+  }
+  
+  .floating-nav-items {
+    gap: var(--space-xs);
+  }
+  
+  .floating-nav-item span {
+    display: none;
+  }
+  
+  .floating-nav-item {
+    padding: var(--space-sm);
+    min-width: 36px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .floating-navigation {
+    top: var(--space-md);
+    padding: var(--space-sm);
+    gap: var(--space-sm);
+    max-width: calc(100vw - 2rem);
+  }
+  
+  .floating-nav-brand span {
+    display: none;
+  }
+  
+  .floating-nav-user {
+    padding-left: var(--space-sm);
+  }
+  
+  .floating-nav-items {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  
+  .floating-nav-items::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .floating-navigation {
+    position: fixed;
+    bottom: var(--space-md);
+    top: auto;
+    left: var(--space-md);
+    right: var(--space-md);
+    width: auto;
+    transform: none;
+    border-radius: var(--radius-xl);
+  }
+  
+  .floating-nav-brand {
+    display: none;
+  }
+  
+  .floating-nav-items {
+    justify-content: space-around;
+    flex: 1;
+  }
+  
+  .floating-nav-item {
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--space-xs);
+    font-size: 0.7rem;
+  }
+  
+  .floating-nav-item i {
+    font-size: 1.1rem;
+  }
+  
+  .floating-nav-item span {
+    display: block;
+    font-size: 0.65rem;
+  }
+  
+  .floating-nav-user {
+    border-left: none;
+    padding-left: 0;
+  }
+}
+
 /* Reduced Motion */
 @media (prefers-reduced-motion: reduce) {
   .floating-menu,
   .floating-menu a,
-  .floating-menu-btn {
+  .floating-menu-btn,
+  .floating-navigation,
+  .floating-nav-item {
     transition: none;
   }
 

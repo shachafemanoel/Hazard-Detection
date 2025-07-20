@@ -23,7 +23,8 @@
       rel="stylesheet"
     />
 
-    <!-- Base CSS Files -->
+    <!-- Design System & Base CSS Files -->
+    <link rel="stylesheet" href="/css/design-system.css" />
     <link rel="stylesheet" href="/css/base.css" />
     <link rel="stylesheet" href="/css/layout.css" />
     <link rel="stylesheet" href="/css/components.css" />
@@ -37,6 +38,17 @@
     <title>Camera - RoadGuardian</title>
   </head>
   <body>
+    <div id="floating-navigation-container"></div>
+    <script>
+      fetch('/components/navigation/floating-menu.html')
+        .then(response => response.text())
+        .then(html => {
+          document.getElementById('floating-navigation-container').innerHTML = html;
+          const script = document.createElement('script');
+          script.src = '/components/navigation/floating-menu.js';
+          document.head.appendChild(script);
+        });
+    </script>
     <!-- Floating Menu Component -->
     <div id="floating-menu-container">
       <!-- Floating menu will be loaded here -->
@@ -69,10 +81,6 @@
     <script>
       // Load components
       document.addEventListener("DOMContentLoaded", function () {
-        loadComponent(
-          "/components/navigation/floating-menu.html",
-          "floating-menu-container",
-        );
         loadComponent(
           "/components/ui/camera-controls.html",
           "camera-controls-container",

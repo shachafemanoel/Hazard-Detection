@@ -1,175 +1,541 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="/assets/icon.png" type="image/png">
-  <title>Hazard Detection - Modern UI</title>
+  <title>Hazard Detection - Home</title>
 
-  <!-- TailwindCSS CDN with dark mode -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = { darkMode: 'class' };
-  </script>
-
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   
-  <!-- Google Fonts -->
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-  <!-- Base CSS Files -->
-  <link rel="stylesheet" href="/css/base.css">
-  <link rel="stylesheet" href="/css/layout.css">
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  
+  <!-- Design System -->
+  <link rel="stylesheet" href="/css/design-system.css">
   <link rel="stylesheet" href="/css/components.css">
   
-  <!-- Page Specific CSS -->
-  <link rel="stylesheet" href="/css/pages/upload.css">
-  
   <style>
-    body {
-      font-family: 'Poppins', sans-serif;
+    /* Page-specific styles */
+    .hero-section {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+      overflow: hidden;
     }
-    .btn-modern {
-      font-size: 0.875rem;
+    
+    .hero-bg-animation {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle at 20% 80%, rgba(247, 200, 115, 0.1) 0%, transparent 50%),
+                  radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.1) 0%, transparent 50%),
+                  radial-gradient(circle at 40% 40%, rgba(59, 130, 246, 0.05) 0%, transparent 50%);
+      animation: backgroundPulse 8s ease-in-out infinite;
+    }
+    
+    @keyframes backgroundPulse {
+      0%, 100% { opacity: 0.5; transform: scale(1); }
+      50% { opacity: 0.8; transform: scale(1.05); }
+    }
+    
+    .hero-content {
+      text-align: center;
+      z-index: 10;
+      max-width: 800px;
+      padding: var(--space-3xl);
+    }
+    
+    .hero-logo {
+      width: 120px;
+      height: 120px;
+      margin: 0 auto var(--space-3xl);
+      filter: drop-shadow(0 8px 24px rgba(247, 200, 115, 0.3));
+      animation: logoFloat 6s ease-in-out infinite;
+    }
+    
+    @keyframes logoFloat {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-10px); }
+    }
+    
+    .hero-title {
+      font-size: clamp(2.5rem, 5vw, 4rem);
+      font-weight: 700;
+      margin-bottom: var(--space-lg);
+      background: linear-gradient(135deg, var(--primary-accent), #fbbf24);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    }
+    
+    .hero-subtitle {
+      font-size: var(--font-size-xl);
+      color: var(--text-secondary);
+      margin-bottom: var(--space-3xl);
+      line-height: 1.6;
+    }
+    
+    .hero-actions {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-lg);
+      align-items: center;
+    }
+    
+    .action-group {
+      display: flex;
+      gap: var(--space-lg);
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    
+    .feature-grid {
+      padding: var(--space-3xl) 0;
+    }
+    
+    .feature-card {
+      text-align: center;
+      padding: var(--space-3xl);
+      height: 100%;
+    }
+    
+    .feature-icon {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto var(--space-2xl);
+      background: linear-gradient(135deg, var(--primary-accent), #fbbf24);
+      border-radius: var(--radius-xl);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      color: #1e293b;
+      box-shadow: 0 8px 24px rgba(247, 200, 115, 0.3);
+    }
+    
+    .feature-title {
+      font-size: var(--font-size-xl);
+      font-weight: 600;
+      margin-bottom: var(--space-md);
+      color: var(--text-primary);
+    }
+    
+    .feature-description {
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+    
+    .stats-section {
+      padding: var(--space-3xl) 0;
+      background: linear-gradient(135deg, rgba(247, 200, 115, 0.05), rgba(139, 92, 246, 0.05));
+    }
+    
+    .stat-item {
+      text-align: center;
+      padding: var(--space-2xl);
+    }
+    
+    .stat-number {
+      font-size: var(--font-size-4xl);
+      font-weight: 700;
+      color: var(--primary-accent);
+      margin-bottom: var(--space-sm);
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    }
+    
+    .stat-label {
+      color: var(--text-secondary);
       font-weight: 500;
-      letter-spacing: 0.025em;
-      transition: all 0.2s;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-size: var(--font-size-sm);
     }
-    .btn-modern:hover {
-      transform: translateY(-1px);
+    
+    .cta-section {
+      padding: var(--space-3xl) 0;
+      text-align: center;
+    }
+    
+    .upload-demo {
+      max-width: 600px;
+      margin: var(--space-3xl) auto 0;
+    }
+    
+    .upload-area {
+      padding: var(--space-3xl);
+      border: 2px dashed rgba(255, 255, 255, 0.2);
+      border-radius: var(--radius-xl);
+      background: rgba(255, 255, 255, 0.02);
+      transition: var(--transition-base);
+      cursor: pointer;
+    }
+    
+    .upload-area:hover {
+      border-color: rgba(var(--primary-accent-rgb), 0.5);
+      background: rgba(var(--primary-accent-rgb), 0.05);
+    }
+    
+    .upload-area.dragover {
+      border-color: var(--primary-accent);
+      background: rgba(var(--primary-accent-rgb), 0.1);
+      transform: scale(1.02);
+    }
+    
+    .upload-icon {
+      font-size: 3rem;
+      color: var(--primary-accent);
+      margin-bottom: var(--space-lg);
+    }
+    
+    /* Floating Navigation Spacing */
+    body {
+      padding-top: 100px;
+    }
+    
+    @media (max-width: 768px) {
+      body {
+        padding-top: 80px;
+      }
+      
+      .hero-content {
+        padding: var(--space-2xl);
+      }
+      
+      .action-group {
+        flex-direction: column;
+        width: 100%;
+      }
+      
+      .hero-logo {
+        width: 80px;
+        height: 80px;
+      }
+    }
+    
+    @media (max-width: 480px) {
+      body {
+        padding-top: 70px;
+      }
+      
+      .feature-card {
+        padding: var(--space-2xl);
+      }
+      
+      .feature-icon {
+        width: 60px;
+        height: 60px;
+        font-size: 1.5rem;
+      }
     }
   </style>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
-  <script type="module">
-    import * as ort from '/assets/ort/ort.min.mjs';
-    ort.env.wasm.wasmPaths = '/assets/ort/';
-    ort.env.wasm.numThreads = Math.min(navigator.hardwareConcurrency || 1, 2);
-    ort.env.wasm.simd = true;
-    ort.env.logLevel = 'warning';
-    window.ort = ort;
-  </script>
 </head>
-<body class="bg-gray-100 dark:bg-gray-900 dark:text-white">
-  <div class="content-wrapper">
-    <button id="logout-btn" class="fixed top-4 left-4 bg-red-500 hover:bg-red-600 text-white text-xs px-3 py-1.5 rounded-full shadow-sm z-50 uppercase tracking-wide">logout</button>
+<body>
+  <div id="floating-navigation-container"></div>
+  <script>
+    fetch('/components/navigation/floating-menu.html')
+      .then(response => response.text())
+      .then(html => {
+        document.getElementById('floating-navigation-container').innerHTML = html;
+        const script = document.createElement('script');
+        script.src = '/components/navigation/floating-menu.js';
+        document.head.appendChild(script);
+      });
+  </script>
 
-    <!-- מסך הבית -->
-    <div id="home-screen-content" class="h-full transition-all duration-300">
-      <img src="/assets/icon.png" alt="Hazard Detection Logo" class="responsive-img mb-6 rounded-lg shadow-md">
-      <h1 class="text-3xl font-bold text-gray-700 dark:text-white mb-8">Hazard Detection</h1>
-      <div class="space-y-4 w-full max-w-xs">
-        <a href="/pages/dashboard.html" class="btn-modern responsive-btn flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white py-3 px-4 rounded-xl shadow-md">
-          <i class="fas fa-chart-line text-xl mr-3"></i>
-          <span class="text-sm font-medium">View Dashboard</span>
-        </a>
-        <a href="/pages/camera.html" class="btn-modern responsive-btn flex items-center justify-center bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-xl shadow-md">
-          <i class="fas fa-camera text-xl mr-3"></i>
-          <span class="text-sm font-medium">Start Live Detection</span>
-        </a>
-        <button id="show-upload-section-btn" class="btn-modern responsive-btn flex items-center justify-center bg-indigo-500 hover:bg-indigo-600 text-white py-3 px-4 rounded-xl shadow-md">
-          <i class="fas fa-upload text-xl mr-3"></i>
-          <span class="text-sm font-medium">Upload Image for Detection</span>
+  <!-- Hero Section -->
+  <section class="hero-section">
+    <div class="hero-bg-animation"></div>
+    <div class="hero-content animate-fade-in-up">
+      <img src="/assets/icon.png" alt="Hazard Detection" class="hero-logo">
+      <h1 class="hero-title">Hazard Detection</h1>
+      <p class="hero-subtitle">
+        Advanced AI-powered road hazard detection system.<br>
+        Keep roads safer with real-time monitoring and intelligent alerts.
+      </p>
+      
+      <div class="hero-actions">
+        <div class="action-group">
+          <a href="/pages/dashboard.html" class="btn btn-primary btn-lg">
+            <i class="fas fa-chart-line"></i>
+            <span>View Dashboard</span>
+          </a>
+          <a href="/pages/camera.html" class="btn btn-glass btn-lg">
+            <i class="fas fa-camera"></i>
+            <span>Start Detection</span>
+          </a>
+        </div>
+        
+        <button id="demo-upload-btn" class="btn btn-secondary">
+          <i class="fas fa-upload"></i>
+          <span>Try Demo Upload</span>
         </button>
       </div>
     </div>
+  </section>
 
-    <!-- חלון צף במסך מלא -->
-    <div id="detection-section" style="display: none;" class="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
-      <div class="bg-white dark:bg-gray-900 w-full h-full md:h-[95vh] md:w-[95vw] md:rounded-2xl md:m-auto transform transition-all duration-300 scale-95 opacity-0 overflow-auto p-6">
-        <div class="flex justify-between items-center mb-8 border-b dark:border-gray-700 pb-4">
-          <h2 class="text-3xl font-bold text-gray-700 dark:text-white">Upload Image for Detection</h2>
-          <button id="close-upload-section-btn" class="text-gray-500 hover:text-red-500 text-3xl transition-colors duration-200 p-2">
-            <i class="fas fa-times"></i>
-          </button>
+  <!-- Features Section -->
+  <section class="feature-grid">
+    <div class="container">
+      <div class="grid grid-3">
+        <div class="card feature-card animate-fade-in-scale">
+          <div class="feature-icon">
+            <i class="fas fa-eye"></i>
+          </div>
+          <h3 class="feature-title">Real-time Detection</h3>
+          <p class="feature-description">
+            Advanced computer vision algorithms detect road hazards in real-time using camera feeds and AI processing.
+          </p>
         </div>
-        <div class="space-y-4">
-          <div>
-            <label for="image-upload" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select Image:</label>
-            <div class="flex items-center w-full">
-              <input type="file" id="image-upload" accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 file:transition-all file:duration-200 hover:file:shadow-md">
+        
+        <div class="card feature-card animate-fade-in-scale">
+          <div class="feature-icon">
+            <i class="fas fa-bell"></i>
           </div>
-          <div>
-            <label for="confidence-slider" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Confidence Threshold: <span id="conf-value" class="font-semibold text-indigo-600">0.5</span>
-            </label>
-            <input type="range" id="confidence-slider" min="0" max="1" step="0.05" value="0.5" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+          <h3 class="feature-title">Instant Alerts</h3>
+          <p class="feature-description">
+            Get immediate notifications when hazards are detected, enabling quick response and prevention measures.
+          </p>
+        </div>
+        
+        <div class="card feature-card animate-fade-in-scale">
+          <div class="feature-icon">
+            <i class="fas fa-chart-area"></i>
           </div>
-          <div class="canvas-container border-2 border-dashed border-gray-300 rounded-xl overflow-hidden bg-gray-50 flex items-center justify-center transition-all duration-200 hover:border-indigo-400 mx-auto" style="min-height: 400px; max-width: 800px;">
-            <canvas id="preview-canvas" class="max-w-full max-h-[60vh]"></canvas>
+          <h3 class="feature-title">Analytics Dashboard</h3>
+          <p class="feature-description">
+            Comprehensive analytics and reporting tools to track hazard patterns and system performance over time.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Stats Section -->
+  <section class="stats-section">
+    <div class="container">
+      <div class="grid grid-4">
+        <div class="stat-item animate-slide-in-left">
+          <div class="stat-number" data-count="1000">0</div>
+          <div class="stat-label">Hazards Detected</div>
+        </div>
+        <div class="stat-item animate-slide-in-left">
+          <div class="stat-number" data-count="95">0</div>
+          <div class="stat-label">Accuracy Rate %</div>
+        </div>
+        <div class="stat-item animate-slide-in-right">
+          <div class="stat-number" data-count="24">0</div>
+          <div class="stat-label">Hours Monitoring</div>
+        </div>
+        <div class="stat-item animate-slide-in-right">
+          <div class="stat-number" data-count="50">0</div>
+          <div class="stat-label">Active Cameras</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="cta-section">
+    <div class="container">
+      <h2 class="text-3xl text-primary" style="margin-bottom: var(--space-lg);">
+        Try Our Detection System
+      </h2>
+      <p class="text-secondary" style="margin-bottom: var(--space-2xl); max-width: 600px; margin-left: auto; margin-right: auto;">
+        Upload an image to see our AI-powered hazard detection in action. 
+        Experience the accuracy and speed of our advanced algorithms.
+      </p>
+      
+      <div class="upload-demo">
+        <div class="upload-area glass" id="upload-area">
+          <div class="upload-icon">
+            <i class="fas fa-cloud-upload-alt"></i>
           </div>
-          <button id="save-detection" class="btn-modern flex items-center justify-center w-full bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-xl shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
-            <i class="fas fa-save text-xl mr-3"></i>
-            <span class="text-sm font-medium">Save Detection</span>
-          </button>
-          <div id="tooltip" class="hidden absolute bg-gray-800 text-white text-xs rounded py-1 px-2 z-50 pointer-events-none">
-            ⚠️ No Hazard Detected. Cannot save detection
+          <h3 class="text-lg text-primary" style="margin-bottom: var(--space-sm);">
+            Drop an image here or click to upload
+          </h3>
+          <p class="text-secondary text-sm">
+            Supports JPG, PNG, WebP formats
+          </p>
+          <input type="file" id="demo-upload" accept="image/*" style="display: none;">
+        </div>
+        
+        <div id="demo-results" style="display: none; margin-top: var(--space-2xl);">
+          <canvas id="demo-canvas" style="max-width: 100%; border-radius: var(--radius-lg);"></canvas>
+          <div style="margin-top: var(--space-lg);">
+            <div class="btn btn-success" id="demo-status">
+              <i class="fas fa-check"></i>
+              <span>Analysis Complete</span>
+            </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
+  </section>
 
-  <div id="toast-notification" class="fixed top-5 right-5 p-4 rounded-md shadow-lg text-white z-[1100] hidden">
-    <div class="flex items-center">
-      <div id="toast-body" class="mr-2"></div>
-      <button type="button" class="ml-auto text-white hover:text-gray-200 rounded-lg p-1.5 inline-flex h-8 w-8" aria-label="Close" onclick="document.getElementById('toast-notification').style.display = 'none';">&times;</button>
-    </div>
-  </div>
-
-  <script type="module" src="../js/upload.js" defer></script>
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <!-- Page Scripts -->
   <script>
-    const detectionSection = document.getElementById('detection-section');
-    const showUploadSectionBtn = document.getElementById('show-upload-section-btn');
-    const closeUploadSectionBtn = document.getElementById('close-upload-section-btn');
-    const body = document.body;
-
-    if (showUploadSectionBtn && closeUploadSectionBtn && detectionSection) {
-      const modalContent = detectionSection.querySelector('.bg-white');
-      let scrollPosition;
-      
-      function lockScroll() {
-        scrollPosition = window.pageYOffset;
-        document.body.style.overflow = 'hidden';
-        document.body.style.position = 'fixed';
-        document.body.style.top = `-${scrollPosition}px`;
-        document.body.style.width = '100%';
-      }
-
-      function unlockScroll() {
-        document.body.style.removeProperty('overflow');
-        document.body.style.removeProperty('position');
-        document.body.style.removeProperty('top');
-        document.body.style.removeProperty('width');
-        window.scrollTo(0, scrollPosition);
-      }
-      
-      showUploadSectionBtn.addEventListener('click', () => {
-        lockScroll();
-        detectionSection.style.display = 'flex';
-        requestAnimationFrame(() => {
-          modalContent.classList.remove('scale-95', 'opacity-0');
-          modalContent.classList.add('scale-100', 'opacity-100');
-        });
-      });
-
-      closeUploadSectionBtn.addEventListener('click', () => {
-        modalContent.classList.remove('scale-100', 'opacity-100');
-        modalContent.classList.add('scale-95', 'opacity-0');
-        
-        setTimeout(() => {
-          detectionSection.style.display = 'none';
-          unlockScroll();
-        }, 200);
-      });
-
-      // סגירת המודל בלחיצה מחוץ לתוכן
-      detectionSection.addEventListener('click', (e) => {
-        if (e.target === detectionSection) {
-          closeUploadSectionBtn.click();
+    (function() {
+      const settings = JSON.parse(localStorage.getItem('design-settings') || '{}');
+      Object.entries(settings).forEach(([key, value]) => {
+        if (key === 'theme-mode') {
+          if (value === 'light') {
+            document.documentElement.style.setProperty('--bg-main', '#f8fafc');
+            document.documentElement.style.setProperty('--text-primary', '#1a1f2e');
+          } else {
+            document.documentElement.style.setProperty('--bg-main', '#0a0e1a');
+            document.documentElement.style.setProperty('--text-primary', '#f8fafc');
+          }
+        } else {
+          document.documentElement.style.setProperty(`--${key}`, value);
         }
       });
+    })();
+  </script>
+  <script>
+    // Counter animation
+    function animateCounters() {
+      const counters = document.querySelectorAll('[data-count]');
+      
+      counters.forEach(counter => {
+        const target = parseInt(counter.getAttribute('data-count'));
+        const duration = 2000;
+        const increment = target / (duration / 16);
+        let current = 0;
+        
+        const timer = setInterval(() => {
+          current += increment;
+          if (current >= target) {
+            current = target;
+            clearInterval(timer);
+          }
+          counter.textContent = Math.floor(current);
+        }, 16);
+      });
     }
+
+    // Demo upload functionality
+    function initDemoUpload() {
+      const uploadArea = document.getElementById('upload-area');
+      const uploadInput = document.getElementById('demo-upload');
+      const demoBtn = document.getElementById('demo-upload-btn');
+      const demoResults = document.getElementById('demo-results');
+      const demoCanvas = document.getElementById('demo-canvas');
+      const ctx = demoCanvas.getContext('2d');
+
+      // Click handlers
+      uploadArea.addEventListener('click', () => uploadInput.click());
+      demoBtn.addEventListener('click', () => uploadInput.click());
+
+      // Drag and drop
+      uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+      });
+
+      uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('dragover');
+      });
+
+      uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) {
+          processImage(file);
+        }
+      });
+
+      // File input change
+      uploadInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          processImage(file);
+        }
+      });
+
+      function processImage(file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            // Set canvas size
+            const maxWidth = 600;
+            const maxHeight = 400;
+            let { width, height } = img;
+            
+            if (width > maxWidth) {
+              height = (height * maxWidth) / width;
+              width = maxWidth;
+            }
+            if (height > maxHeight) {
+              width = (width * maxHeight) / height;
+              height = maxHeight;
+            }
+            
+            demoCanvas.width = width;
+            demoCanvas.height = height;
+            
+            // Draw image
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // Simulate detection (draw a sample bounding box)
+            setTimeout(() => {
+              ctx.strokeStyle = '#ef4444';
+              ctx.lineWidth = 3;
+              ctx.setLineDash([5, 5]);
+              ctx.strokeRect(width * 0.3, height * 0.4, width * 0.4, height * 0.3);
+              
+              // Add label
+              ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
+              ctx.fillRect(width * 0.3, height * 0.35, 100, 25);
+              ctx.fillStyle = 'white';
+              ctx.font = '14px Poppins';
+              ctx.fillText('Pothole', width * 0.3 + 5, height * 0.35 + 17);
+              
+              demoResults.style.display = 'block';
+              demoResults.scrollIntoView({ behavior: 'smooth' });
+            }, 1000);
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', () => {
+      // Animate counters when they come into view
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            animateCounters();
+            observer.disconnect();
+          }
+        });
+      });
+      
+      const statsSection = document.querySelector('.stats-section');
+      if (statsSection) {
+        observer.observe(statsSection);
+      }
+      
+      // Initialize demo upload
+      initDemoUpload();
+    });
   </script>
 </body>
 </html>

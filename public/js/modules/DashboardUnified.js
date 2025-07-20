@@ -1,6 +1,4 @@
-/* ============================================
-   DASHBOARD-UNIFIED.JS - Unified dashboard functionality
-   ============================================ */
+// קובץ זה נוקה מקוד לא רלוונטי לדשבורד הראשי
 
 import { ApiService } from './ApiService.js';
 
@@ -15,6 +13,8 @@ class DashboardUnified {
     this.currentView = 'cards';
     this.isLoading = false;
     this.searchTerm = '';
+    this.sortBy = 'date';
+    this.sortOrder = 'desc';
     
     // No need to initialize ApiService as it's a static class
     
@@ -205,7 +205,7 @@ class DashboardUnified {
   }
 
   /**
-   * Filter reports based on search term
+   * Filter and sort reports based on search term and sort options
    */
   filterReports() {
     if (!this.searchTerm) {
@@ -219,7 +219,46 @@ class DashboardUnified {
       );
     }
     
+    // Apply sorting
+    this.sortReports();
+    
     this.renderReports();
+  }
+
+  /**
+   * Sort reports based on current sort settings
+   */
+  sortReports() {
+    this.filteredReports.sort((a, b) => {
+      let aVal = a[this.sortBy];
+      let bVal = b[this.sortBy];
+      
+      // Handle different data types
+      if (this.sortBy === 'date') {
+        aVal = new Date(aVal).getTime();
+        bVal = new Date(bVal).getTime();
+      } else if (this.sortBy === 'id') {
+        aVal = parseInt(aVal) || 0;
+        bVal = parseInt(bVal) || 0;
+      } else {
+        // String comparison (case insensitive)
+        aVal = String(aVal || '').toLowerCase();
+        bVal = String(bVal || '').toLowerCase();
+      }
+      
+      if (aVal < bVal) return this.sortOrder === 'asc' ? -1 : 1;
+      if (aVal > bVal) return this.sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }
+
+  /**
+   * Change sort settings and refresh
+   */
+  changeSorting(sortBy, sortOrder = 'desc') {
+    this.sortBy = sortBy;
+    this.sortOrder = sortOrder;
+    this.filterReports();
   }
 
   /**
@@ -255,7 +294,7 @@ class DashboardUnified {
    * Render report cards
    */
   renderReportCards() {
-    const container = document.getElementById('reports-cards');
+    const container = document.getElementById('reports-container');
     if (!container) return;
 
     container.innerHTML = '';
@@ -281,55 +320,115 @@ class DashboardUnified {
    */
   createReportCard(report, index) {
     const card = document.createElement('div');
-    card.className = 'report-card';
-    card.style.animationDelay = `${index * 0.1}s`;
+    card.className = 'card glass animate-fade-in-up';
+    card.style.animationDelay = `${index * 0.05}s`;
+    card.style.marginBottom = 'var(--space-md)';
+    card.style.cursor = 'pointer';
 
-    const statusClass = this.getStatusClass(report.status);
-    const dateFormatted = report.date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
+    // Get proper badge class based on design system
+    const getBadgeClass = (status) => {
+      switch (status?.toLowerCase()) {
+        case 'resolved': return 'badge-success';
+        case 'pending': return 'badge-warning';
+        case 'open': return 'badge-danger';
+        case 'new': return 'badge-info';
+        case 'in progress': return 'badge-secondary';
+        default: return 'badge-secondary';
+      }
+    };
+
+    // Get hazard icon
+    const getHazardIcon = (type) => {
+      const icons = {
+        'Pothole': 'fas fa-exclamation-triangle',
+        'Alligator Crack': 'fas fa-project-diagram',
+        'Block Crack': 'fas fa-th-large',
+        'Transverse Crack': 'fas fa-arrows-alt-h',
+        'Longitudinal Crack': 'fas fa-arrows-alt-v',
+        'Crack': 'fas fa-bolt',
+        'Debris': 'fas fa-cube',
+        'Manhole': 'fas fa-circle',
+        'Patch Repair': 'fas fa-band-aid',
+        'Default': 'fas fa-road'
+      };
+      return icons[type] || icons['Default'];
+    };
+
+    // Format date
+    const dateFormatted = (report.date || report.time) ? 
+      new Date(report.date || report.time).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }) : 'Unknown Date';
+
+    // Truncate location for better display
+    const truncatedLocation = (report.location && report.location.length > 35) 
+      ? report.location.substring(0, 35) + '...' 
+      : (report.location || 'Unknown Location');
 
     card.innerHTML = `
-      <div class="report-content">
-        <div class="report-image">
-          ${report.image 
-            ? `<img src="${report.image}" alt="${report.type}" onerror="this.parentElement.innerHTML='<i class=\\'fas fa-image text-muted\\'></i>'">`
-            : '<i class="fas fa-image text-muted"></i>'
-          }
-        </div>
-        
-        <div class="report-details">
-          <div class="report-header">
-            <span class="report-type">${report.type}</span>
-            <span class="report-status ${statusClass}">${report.status}</span>
+      <div class="card-body" style="padding: var(--space-lg);">
+        <div class="d-flex gap-3">
+          <!-- Image Section -->
+          <div class="report-image-container" style="flex-shrink: 0;">
+            ${report.image 
+              ? `<img src="${report.image}" 
+                     alt="${report.type}" 
+                     class="report-thumbnail" 
+                     style="width: 60px; height: 60px; object-fit: cover; border-radius: var(--radius-lg); border: 2px solid rgba(255,255,255,0.1);"
+                     loading="lazy"
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                 <div class="report-image-placeholder" style="display: none; width: 60px; height: 60px; border-radius: var(--radius-lg); background: rgba(255,255,255,0.05); align-items: center; justify-content: center; border: 2px solid rgba(255,255,255,0.1);">
+                   <i class="${getHazardIcon(report.type)} text-muted"></i>
+                 </div>`
+              : `<div class="report-image-placeholder" style="width: 60px; height: 60px; border-radius: var(--radius-lg); background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; border: 2px solid rgba(255,255,255,0.1);">
+                   <i class="${getHazardIcon(report.type)} text-muted"></i>
+                 </div>`
+            }
           </div>
           
-          <div class="report-location">
-            <i class="fas fa-map-marker-alt"></i>
-            ${report.location}
+          <!-- Content Section -->
+          <div class="flex-grow-1" style="min-width: 0;">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <div class="d-flex align-items-center gap-2">
+                <i class="${getHazardIcon(report.type)}" style="color: var(--warning-color); font-size: 1rem;"></i>
+                <h6 class="text-primary mb-0" style="font-weight: 600; font-size: var(--font-size-base);">${report.type || 'Unknown Type'}</h6>
+              </div>
+              <span class="badge ${getBadgeClass(report.status)}">${report.status || 'Unknown'}</span>
+            </div>
+            
+            <!-- Location -->
+            <div class="mb-2">
+              <small class="text-secondary d-flex align-items-center gap-1">
+                <i class="fas fa-map-marker-alt" style="color: var(--info-color); font-size: 0.8rem;"></i>
+                <span title="${report.location || 'Unknown Location'}" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${truncatedLocation}</span>
+              </small>
+            </div>
+            
+            <!-- Footer -->
+            <div class="d-flex justify-content-between align-items-center">
+              <small class="text-muted d-flex align-items-center gap-1">
+                <i class="fas fa-clock" style="font-size: 0.8rem;"></i>
+                ${dateFormatted}
+              </small>
+              <button class="btn btn-glass btn-sm" onclick="event.stopPropagation(); dashboard.showReportDetails('${report.id || index}')" title="View Details">
+                <i class="fas fa-eye"></i>
+              </button>
+            </div>
           </div>
-          
-          <div class="report-date">
-            <i class="fas fa-calendar"></i>
-            ${dateFormatted}
-          </div>
-        </div>
-        
-        <div class="report-actions">
-          <button class="action-btn" onclick="dashboard.showReportDetails(${report.id})" title="View Details">
-            <i class="fas fa-eye"></i>
-          </button>
-          <button class="action-btn" onclick="dashboard.editReport(${report.id})" title="Edit">
-            <i class="fas fa-edit"></i>
-          </button>
-          <button class="action-btn" onclick="dashboard.deleteReport(${report.id})" title="Delete">
-            <i class="fas fa-trash"></i>
-          </button>
         </div>
       </div>
     `;
+
+    // Add click event to the whole card
+    card.addEventListener('click', (e) => {
+      if (!e.target.closest('button')) {
+        this.showReportDetails(report.id || index);
+      }
+    });
 
     return card;
   }

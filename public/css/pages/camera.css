@@ -71,118 +71,195 @@ html {
   background: transparent;
 }
 
-/* Camera Controls - Better Mobile Support */
-.camera-controls {
+/* Floating Camera Controls - Glass Morphism Design */
+.floating-camera-controls {
   position: fixed;
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
-  display: flex;
-  gap: 10px;
   z-index: 200;
-  background: rgba(0, 0, 0, 0.8);
-  padding: 12px;
-  border-radius: 12px;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
 }
 
-.camera-controls button {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 6px;
-  background: rgba(31, 34, 53, 0.95);
-  color: #cbd2d9;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
+/* Main Control Buttons Container */
+.camera-control-buttons {
+  backdrop-filter: blur(30px);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0px 0px 30px rgba(227, 228, 237, 0.37);
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-radius: 50px;
+  padding: 12px 24px;
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-width: 40px;
+  gap: 16px;
+  transition: all 0.3s ease;
+}
+
+.camera-control-buttons:hover {
+  transform: translateY(-2px);
+  box-shadow: 0px 5px 40px rgba(227, 228, 237, 0.5);
+}
+
+/* Individual Control Buttons */
+.camera-control-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 25px;
+  color: var(--text-main);
+  border: none;
+  font-weight: 500;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  min-width: 80px;
   justify-content: center;
 }
 
-.camera-controls button:hover {
-  background: rgba(47, 51, 73, 0.95);
+.camera-control-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
   transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(227, 228, 237, 0.3);
 }
 
-.camera-controls button:active {
+.camera-control-btn:active {
   transform: translateY(0);
 }
 
-.camera-controls button:disabled {
+.camera-control-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
   transform: none;
 }
 
-/* Additional Controls */
-.additional-controls {
+.camera-control-btn i {
+  font-size: 0.9rem;
+}
+
+/* Button Variants */
+.start-btn:hover {
+  color: #22c55e;
+  background: rgba(34, 197, 94, 0.15);
+}
+
+.stop-btn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.switch-btn:hover {
+  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.15);
+}
+
+/* Settings Panel */
+.camera-settings-panel {
+  backdrop-filter: blur(30px);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0px 0px 20px rgba(227, 228, 237, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 30px;
+  padding: 12px 20px;
+  transition: all 0.3s ease;
+}
+
+.camera-settings-panel:hover {
+  background: rgba(255, 255, 255, 0.12);
+  transform: translateY(-1px);
+}
+
+.setting-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-top: 10px;
+  gap: 12px;
 }
 
-.additional-controls label {
-  color: #cbd2d9;
-  font-size: 14px;
+.setting-item label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-main);
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
-.additional-controls input[type="range"] {
+.setting-item label i {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
+/* Confidence Slider */
+.confidence-slider {
   -webkit-appearance: none;
-  width: 120px;
-  background: transparent;
+  width: 100px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  outline: none;
   cursor: pointer;
+  transition: all 0.3s ease;
 }
 
-.additional-controls input[type="range"]::-webkit-slider-track {
-  background: var(--border-color);
-  height: 4px;
-  border-radius: 2px;
-}
-
-.additional-controls input[type="range"]::-webkit-slider-thumb {
+.confidence-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 16px;
-  height: 16px;
-  background: var(--accent);
+  width: 18px;
+  height: 18px;
+  background: rgba(247, 200, 115, 0.9);
   border-radius: 50%;
   cursor: pointer;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  transition: all 0.3s ease;
 }
 
-.additional-controls input[type="range"]::-moz-range-track {
-  background: var(--border-color);
-  height: 4px;
-  border-radius: 2px;
+.confidence-slider::-webkit-slider-thumb:hover {
+  background: #f7c873;
+  transform: scale(1.1);
+  box-shadow: 0 0 10px rgba(247, 200, 115, 0.5);
 }
 
-.additional-controls input[type="range"]::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  background: var(--accent);
+.confidence-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: rgba(247, 200, 115, 0.9);
   border-radius: 50%;
   cursor: pointer;
-  border: none;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  transition: all 0.3s ease;
 }
 
-/* Status Overlays - Enhanced for Full Screen */
+.confidence-slider::-moz-range-thumb:hover {
+  background: #f7c873;
+  transform: scale(1.1);
+}
+
+/* Status Overlays - Glass Morphism Design */
 #object-count-overlay,
 #hazard-types-overlay {
   position: fixed;
-  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(30px);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0px 0px 25px rgba(227, 228, 237, 0.3);
+  border: 2px solid rgba(255, 255, 255, 0.18);
   padding: 12px 20px;
-  border-radius: 8px;
-  color: #f7c873;
+  border-radius: 20px;
+  color: var(--text-main);
   font-size: 14px;
   z-index: 150;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+#object-count-overlay:hover,
+#hazard-types-overlay:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+  box-shadow: 0px 5px 35px rgba(227, 228, 237, 0.4);
 }
 
 #object-count-overlay {
@@ -197,21 +274,27 @@ html {
   max-width: calc(100vw - 40px);
 }
 
-/* Performance Overlay */
+/* Performance Overlay - Glass Morphism */
 .performance-overlay {
   position: fixed;
   top: 80px;
   left: 20px;
-  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(30px);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0px 0px 25px rgba(227, 228, 237, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   padding: 12px 16px;
-  border-radius: 8px;
-  color: #f7c873;
+  border-radius: 16px;
+  color: var(--text-main);
   font-size: 12px;
   z-index: 150;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
   max-width: calc(100vw - 40px);
+  transition: all 0.3s ease;
+}
+
+.performance-overlay:hover {
+  background: rgba(255, 255, 255, 0.12);
+  transform: translateY(-1px);
 }
 
 .performance-overlay h6 {
@@ -225,25 +308,32 @@ html {
   font-family: monospace;
 }
 
-/* Hazard Detection Notifications */
+/* Hazard Detection Notifications - Glass Morphism */
 .hazard-notification {
   position: fixed;
   right: 15px;
   top: 15px;
-  background: rgba(31, 34, 53, 0.95);
-  color: #f7c873;
-  padding: 8px 12px;
-  border-radius: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(30px);
+  background: rgba(239, 68, 68, 0.15);
+  box-shadow: 0px 0px 30px rgba(239, 68, 68, 0.3);
+  border: 2px solid rgba(239, 68, 68, 0.25);
+  color: #ef4444;
+  padding: 12px 16px;
+  border-radius: 20px;
   z-index: 1000;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   animation: notificationSlide 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  max-width: 280px;
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(247, 200, 115, 0.2);
+  max-width: 300px;
   transform-origin: top right;
+  transition: all 0.3s ease;
+}
+
+.hazard-notification:hover {
+  background: rgba(239, 68, 68, 0.2);
+  transform: scale(1.02);
+  box-shadow: 0px 5px 40px rgba(239, 68, 68, 0.4);
 }
 
 .hazard-notification i {
@@ -365,19 +455,45 @@ html {
     height: 100dvh; /* Dynamic viewport height for mobile */
   }
 
-  .camera-controls {
+  .floating-camera-controls {
     width: calc(100% - 20px);
-    flex-wrap: wrap;
-    bottom: 20px;
-    gap: 8px;
-    padding: 8px;
+    bottom: 15px;
+    gap: 10px;
   }
 
-  .camera-controls button {
-    flex: 1;
-    min-width: 60px;
-    padding: 12px 8px;
-    font-size: 12px;
+  .camera-control-buttons {
+    padding: 10px 16px;
+    gap: 12px;
+    border-radius: 30px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .camera-control-btn {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    min-width: 70px;
+  }
+
+  .camera-control-btn span {
+    display: none;
+  }
+
+  .camera-settings-panel {
+    padding: 10px 16px;
+    border-radius: 25px;
+  }
+
+  .setting-item {
+    gap: 8px;
+  }
+
+  .setting-item label {
+    font-size: 0.8rem;
+  }
+
+  .confidence-slider {
+    width: 80px;
   }
 
   #object-count-overlay,
@@ -438,72 +554,81 @@ html {
     height: 100dvh;
   }
   
-  .camera-controls {
+  .floating-camera-controls {
     bottom: 10px;
     width: calc(100% - 10px);
-    gap: 5px;
+    gap: 8px;
   }
   
-  .camera-controls button {
-    padding: 10px 6px;
-    font-size: 11px;
+  .camera-control-buttons {
+    padding: 8px 12px;
+    gap: 8px;
+    border-radius: 25px;
+  }
+  
+  .camera-control-btn {
+    padding: 8px 10px;
+    font-size: 0.8rem;
     min-width: 50px;
   }
-}
-
-/* Floating Menu Adjustments for Camera Page */
-.floating-menu {
-  z-index: 300 !important;
-}
-
-/* Tablet and Desktop adjustments */
-@media (min-width: 769px) {
-  .floating-menu-btn {
+  
+  .camera-control-btn span {
     display: none;
   }
-
-  .floating-menu {
-    left: 0;
+  
+  .camera-settings-panel {
+    padding: 8px 12px;
+    border-radius: 20px;
+  }
+  
+  .setting-item label span {
+    display: none;
+  }
+  
+  .confidence-slider {
     width: 60px;
-    padding-top: 60px;
-    z-index: 300;
   }
+}
 
-  .floating-menu a {
-    padding: 15px;
-    text-align: center;
+/* Floating Navigation Adjustments for Camera Page */
+.floating-navigation {
+  z-index: 300 !important;
+  top: 15px;
+}
+
+/* Ensure camera controls don't overlap with navigation */
+@media (max-width: 768px) {
+  .floating-navigation {
+    top: 10px;
   }
+}
 
-  .floating-menu a span {
-    display: none;
-  }
-
-  .floating-menu a i {
-    font-size: 24px;
-    margin-right: 0;
-  }
-
-  .floating-menu:hover {
-    width: 250px;
-  }
-
-  .floating-menu:hover a span {
-    display: inline-block;
-    margin-left: 10px;
+@media (max-width: 480px) {
+  .floating-navigation {
+    top: 5px;
+    padding: 6px 12px;
   }
 }
 
 /* Landscape orientation adjustments */
 @media (orientation: landscape) and (max-height: 600px) {
-  .camera-controls {
+  .floating-camera-controls {
     bottom: 10px;
-    gap: 6px;
-    padding: 6px;
+    gap: 8px;
   }
   
-  .camera-controls button {
-    padding: 8px 10px;
-    font-size: 12px;
+  .camera-control-buttons {
+    padding: 8px 16px;
+    gap: 10px;
+  }
+  
+  .camera-control-btn {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+  }
+  
+  .camera-settings-panel {
+    padding: 8px 16px;
   }
   
   #object-count-overlay {
@@ -525,14 +650,32 @@ html {
     height: 100%;
   }
 
-  .camera-controls {
-    gap: 15px;
+  .floating-camera-controls {
+    gap: 16px;
     bottom: 30px;
   }
 
-  .camera-controls button {
-    padding: 12px 24px;
-    font-size: 16px;
+  .camera-control-buttons {
+    padding: 14px 28px;
+    gap: 20px;
+  }
+
+  .camera-control-btn {
+    padding: 12px 20px;
+    font-size: 1rem;
+    min-width: 90px;
+  }
+
+  .camera-settings-panel {
+    padding: 14px 24px;
+  }
+
+  .setting-item label {
+    font-size: 0.9rem;
+  }
+
+  .confidence-slider {
+    width: 120px;
   }
 
   #object-count-overlay,
