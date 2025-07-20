@@ -102,38 +102,14 @@ document.addEventListener("DOMContentLoaded", async function () {
         formData.append("locationNote", "GPS");
 
         try {
-          const result = await ApiService.uploadAnonymousDetection(formData);
-          
-          // Validate Redis storage and Cloudinary upload
-          if (result && result.report) {
-            // Verify Redis storage
-            if (result.reportId || result.report.id) {
-              console.log("✅ Report saved to Redis with ID:", result.reportId || result.report.id);
-            } else {
-              console.warn("⚠️ No Redis ID found in response");
-            }
-            
-            // Verify Cloudinary image URL
-            const imageUrl = result.report?.image || result.url;
-            if (imageUrl) {
-              console.log("✅ Image uploaded to Cloudinary:", imageUrl);
-              
-              // Validate Cloudinary URL format
-              if (!imageUrl.includes('cloudinary.com')) {
-                console.warn('⚠️ Image URL does not appear to be from Cloudinary:', imageUrl);
-              }
-            } else {
-              console.warn('⚠️ No Cloudinary image URL found');
-            }
-          }
+          const result = await ApiService.uploadDetection(formData);
           
           // Handle the server response structure correctly
           const reportUrl = result.report?.image || result.url || "No URL available";
           const message = result.message || "Report uploaded successfully";
-          const redisInfo = result.reportId ? ` (Redis ID: ${result.reportId})` : '';
           
           showToast(
-            `✅ ${message}${redisInfo}\n📸 Image saved to Cloudinary`,
+            `✅ ${message}\n📸 Image saved to cloud storage`,
             "success",
           );
           

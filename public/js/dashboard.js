@@ -1,15 +1,11 @@
 import { ApiService } from './modules/ApiService.js';
 
-// Core global variables for map functionality
 let map;
 let markers = [];
-let heatmapLayer = null;
-let apiKey = null;
-let allReports = [];
-
-// State management
-let isMapInitialized = false;
-let isLoadingReports = false;
+let heatmapLayer = null; // NEW: Global heatmap layer
+let reportDetailsBootstrapModal = null; // For Bootstrap modal instance
+let apiKey = null; // Will be loaded from server
+let allReports = []; // Global array to hold all loaded reports
 
 const hazardTypes = [
   "Alligator Crack",
@@ -147,79 +143,105 @@ function getMarkerContent(hazardType) {
 }
 
 // Global sort state
-let currentSort = { field: 'time', order: 'desc' };
+let currentSort = { field: "time", order: "desc" };
 
-// Retry mechanism for network requests
-async function retryRequest(requestFn, maxRetries = 3, delay = 1000) {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      return await requestFn();
-    } catch (error) {
-      if (i === maxRetries - 1) throw error;
-      
-      console.warn(`Request failed, retrying... (${i + 1}/${maxRetries})`);
-      await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
-    }
-  }
-}
-
-// Initialize Google Map with dark theme
+// Always use dark mode for the map
 function initMap() {
   const defaultCenter = { lat: 31.7683, lng: 35.2137 };
-  
-  try {
-    // When using mapId, styles are controlled via Google Cloud Console
-    const mapOptions = {
-      zoom: 8,
-      center: defaultCenter,
-      mapId: '4e9a93216ea2103583b8af86'
-    };
-    
-    // Only add styles if no mapId is used (fallback)
-    // mapOptions.styles = darkMapStyle;
-    
-    map = new google.maps.Map(document.getElementById('map'), mapOptions);
-    
-    console.log('Map initialized successfully');
-    
-    // Try to get user location
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const userLocation = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          };
-          
-          console.log('User location:', userLocation);
-          map.setCenter(userLocation);
-          map.setZoom(12);
-          
-          // Add user location marker
-          addUserLocationMarker(userLocation, 'Your Location');
-          
-          markMapAsReady();
-        },
-        (error) => {
-          console.warn('Geolocation failed:', error.message);
-          // Use IP-based location as fallback
-          getLocationByIP();
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 300000
-        }
-      );
-    } else {
-      console.log('Geolocation not supported');
-      getLocationByIP();
-    }
-    
-  } catch (error) {
-    console.error('Error initializing map:', error);
-    handleError(error, 'initMap');
+  map = new google.maps.Map(document.getElementById("map"), {
+    zoom: 8,
+    center: defaultCenter,
+    styles: darkMapStyle,
+    mapId: "4e9a93216ea2103583b8af86", // NEW: Add your Map ID here
+  });
+
+  // Add a marker for the default center as a fallback using AdvancedMarkerElement
+  if (google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
+    new google.maps.marker.AdvancedMarkerElement({
+      map: map,
+      position: defaultCenter,
+      title: "Israel",
+      content: (() => {
+        const div = document.createElement("div");
+        div.style.width = "20px";
+        div.style.height = "20px";
+        div.style.backgroundColor = "#4285F4";
+        div.style.borderRadius = "50%";
+        div.style.border = "2px solid #fff";
+        return div;
+      })(),
+    });
   }
+
+  if (navigator.geolocation) {
+    // Enhanced geolocation options for better accuracy and timeout
+    const geoOptions = {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 300000, // 5 minutes
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const userLatLng = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+        console.log("Got user location:", userLatLng);
+        map.setCenter(userLatLng);
+        map.setZoom(14); // Higher zoom for better detail
+
+        // Use AdvancedMarkerElement for user location
+        if (google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
+          new google.maps.marker.AdvancedMarkerElement({
+            map: map,
+            position: userLatLng,
+            title: "Your Current Location",
+            content: (() => {
+              const div = document.createElement("div");
+              div.style.width = "24px";
+              div.style.height = "24px";
+              div.style.backgroundColor = "#4285F4";
+              div.style.borderRadius = "50%";
+              div.style.border = "3px solid #fff";
+              div.style.boxShadow = "0 0 12px rgba(66, 133, 244, 0.8)";
+              div.style.cursor = "pointer";
+              return div;
+            })(),
+          });
+        }
+        loadReports();
+      },
+      (error) => {
+        console.warn("Geolocation error:", error.code, error.message);
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            console.log("User denied geolocation request. Using IP fallback.");
+            break;
+          case error.POSITION_UNAVAILABLE:
+            console.log("Location information unavailable. Using IP fallback.");
+            break;
+          case error.TIMEOUT:
+            console.log("Location request timed out. Using IP fallback.");
+            break;
+        }
+        getLocationByIP();
+      },
+      geoOptions,
+    );
+  } else {
+    console.log("Geolocation not supported by browser. Using IP fallback.");
+    getLocationByIP();
+  }
+
+  // NEW: Create the legend but do not add it to map controls.
+  window.mapLegend = addMapLegend();
+  window.mapLegend.style.display = "none";
+  // Position the legend as an overlay on the map container.
+  window.mapLegend.style.position = "absolute";
+  window.mapLegend.style.bottom = "20px";
+  window.mapLegend.style.left = "20px";
+  document.getElementById("map").appendChild(window.mapLegend);
 }
 
 // NEW: Function to toggle the display of the map legend.
@@ -231,6 +253,47 @@ window.toggleLegend = function () {
     window.mapLegend.style.display = "none";
   }
 };
+
+// NEW: If geolocation is available, recenter map and show user's location
+//     if (navigator.geolocation) {
+//         navigator.geolocation.getCurrentPosition(
+//             (position) => {
+//                 const userLatLng = {
+//                     lat: position.coords.latitude,
+//                     lng: position.coords.longitude
+//                 };
+//                 // Center and zoom the map on the user's location
+//                 map.setCenter(userLatLng);
+//                 map.setZoom(12);
+//                 // NEW: Place a distinct marker for the user's location using a custom SVG icon
+//                 new google.maps.Marker({
+//                     position: userLatLng,
+//                     map: map,
+//                     title: "Your Location",
+//                     icon: {
+//                         url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24"><path fill="#4285F4" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5" fill="#fff"/></svg>`),
+//                         scaledSize: new google.maps.Size(40, 40)
+//                     }
+//                 });
+//                 // Load reports after recentering the map
+//                 loadReports();
+//             },
+//             (error) => {
+//                 console.error("Error using geolocation:", error);
+//                 loadReports();
+//             }
+//         );
+//     } else {
+//         loadReports();
+//     }
+
+//     // Add the legend to the map
+//     const legend = addMapLegend();
+//     map.controls[google.maps.ControlPosition.RIGHT_BOTTOM].push(legend);
+
+//     // נטען דיווחים רק אחרי שהמפה מוכנה
+//     loadReports();
+// }
 
 // Load API key from server
 async function loadApiKey() {
@@ -320,18 +383,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 });
 
-// Make functions available globally
+// Make initMap available globally for Google Maps API (fallback)
 window.initMap = initMap;
-window.loadReports = loadReports;
-window.showReportDetails = showReportDetails;
-window.showImageModal = showImageModal;
-window.toggleHeatmap = toggleHeatmap;
-window.centerMap = centerMap;
-window.showToast = showToast;
-window.handleError = handleError;
-window.allReports = allReports;
-window.map = map;
-window.markers = markers;
 
 // Enhanced map controls
 let heatmapVisible = false;
@@ -942,16 +995,8 @@ function createReportBlock(report) {
     );
   };
 
-  const imageUrl = report.image || report.url || "";
-  const isCloudinaryImage = imageUrl.includes('cloudinary.com');
-  const imageStatusClass = report.imageStatus === 'error' ? 'image-error' : '';
-  
   block.innerHTML = `
-        <img src="${imageUrl}" alt="Hazard image" class="report-block-image ${imageStatusClass}" onclick="openModal('${imageUrl}')" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-        <div class="image-placeholder" style="display:none; padding:20px; text-align:center; background:#f8f9fa; border-radius:4px;">
-            <i class="fas fa-image text-muted"></i><br>
-            <small class="text-muted">Image unavailable</small>
-        </div>
+        <img src="${report.image || report.url || ""}" alt="Hazard image" class="report-block-image" onclick="openModal('${report.image || report.url || ""}')">
         <div class="report-block-details">
             <div class="report-block-title">
                 <i class="fas fa-exclamation-triangle"></i> ${report.type || "Unknown Type"}
@@ -1015,536 +1060,817 @@ function createReportBlock(report) {
   return block;
 }
 
-// Enhanced sorting utilities for dashboard
-function sortReports(reports, sortBy = 'time', sortOrder = 'desc') {
-  const validSortFields = ['time', 'status', 'type', 'location', 'reportedBy', 'id', 'createdAt'];
-  const field = validSortFields.includes(sortBy) ? sortBy : 'time';
-  const order = ['asc', 'desc'].includes(sortOrder) ? sortOrder : 'desc';
+// Utility for sorting - removed duplicate, enhanced version is defined later
 
-  return [...reports].sort((a, b) => {
-    let aVal = a[field];
-    let bVal = b[field];
-
-    // Handle different data types
-    if (field === 'time' || field === 'createdAt') {
-      aVal = new Date(aVal || 0).getTime();
-      bVal = new Date(bVal || 0).getTime();
-    } else if (field === 'id') {
-      aVal = parseInt(aVal) || 0;
-      bVal = parseInt(bVal) || 0;
-    } else {
-      // String comparison (case insensitive)
-      aVal = String(aVal || '').toLowerCase();
-      bVal = String(bVal || '').toLowerCase();
-    }
-
-    if (aVal < bVal) return order === 'asc' ? -1 : 1;
-    if (aVal > bVal) return order === 'asc' ? 1 : -1;
-    return 0;
-  });
-}
-
-// Multi-field sorting for complex scenarios
-function multiSortReports(reports, sortConfig) {
-  return [...reports].sort((a, b) => {
-    for (const { field, order = 'desc' } of sortConfig) {
-      let aVal = a[field];
-      let bVal = b[field];
-
-      // Handle different data types
-      if (field === 'time' || field === 'createdAt') {
-        aVal = new Date(aVal || 0).getTime();
-        bVal = new Date(bVal || 0).getTime();
-      } else if (field === 'id') {
-        aVal = parseInt(aVal) || 0;
-        bVal = parseInt(bVal) || 0;
-      } else {
-        aVal = String(aVal || '').toLowerCase();
-        bVal = String(bVal || '').toLowerCase();
-      }
-
-      if (aVal < bVal) return order === 'asc' ? -1 : 1;
-      if (aVal > bVal) return order === 'asc' ? 1 : -1;
-    }
-    return 0;
-  });
-}
-
-// Smart sorting based on priority and relevance
-function smartSortReports(reports, searchQuery = '') {
-  const priorityWeights = {
-    'New': 3,
-    'Open': 3,
-    'In Progress': 2,
-    'Pending': 2,
-    'Resolved': 1,
-    'Closed': 0
-  };
-
-  const hazardPriority = {
-    'Pothole': 5,
-    'Alligator Crack': 4,
-    'Block Crack': 3,
-    'Transverse Crack': 3,
-    'Longitudinal Crack': 2,
-    'Patch Repair': 2,
-    'Manhole': 1,
-    'Lane Blur': 1,
-    'Crosswalk Blur': 1
-  };
-
-  return [...reports].sort((a, b) => {
-    // 1. Relevance score if search query exists
-    if (searchQuery) {
-      const aRelevance = calculateRelevanceScore(a, searchQuery);
-      const bRelevance = calculateRelevanceScore(b, searchQuery);
-      if (aRelevance !== bRelevance) return bRelevance - aRelevance;
-    }
-
-    // 2. Status priority
-    const aStatusWeight = priorityWeights[a.status] || 0;
-    const bStatusWeight = priorityWeights[b.status] || 0;
-    if (aStatusWeight !== bStatusWeight) return bStatusWeight - aStatusWeight;
-
-    // 3. Hazard type priority
-    const aHazardWeight = hazardPriority[a.type] || 0;
-    const bHazardWeight = hazardPriority[b.type] || 0;
-    if (aHazardWeight !== bHazardWeight) return bHazardWeight - aHazardWeight;
-
-    // 4. Time (most recent first)
-    const aTime = new Date(a.time || 0).getTime();
-    const bTime = new Date(b.time || 0).getTime();
-    return bTime - aTime;
-  });
-}
-
-// Calculate relevance score for search
-function calculateRelevanceScore(report, query) {
-  const searchFields = [
-    { field: 'type', weight: 3 },
-    { field: 'location', weight: 2 },
-    { field: 'reportedBy', weight: 1 },
-    { field: 'status', weight: 1 }
-  ];
-
-  let score = 0;
-  const queryLower = query.toLowerCase();
-
-  searchFields.forEach(({ field, weight }) => {
-    const fieldValue = String(report[field] || '').toLowerCase();
-    if (fieldValue.includes(queryLower)) {
-      // Exact match gets full weight
-      if (fieldValue === queryLower) {
-        score += weight * 2;
-      }
-      // Starts with query gets 1.5x weight
-      else if (fieldValue.startsWith(queryLower)) {
-        score += weight * 1.5;
-      }
-      // Contains query gets normal weight
-      else {
-        score += weight;
-      }
-    }
-  });
-
-  return score;
-}
-
-// Export sorting functions globally for use in other components
-window.sortReports = sortReports;
-window.multiSortReports = multiSortReports;
-window.smartSortReports = smartSortReports;
-window.calculateRelevanceScore = calculateRelevanceScore;
-
-// Core function to load and display reports on map
-async function loadReports(options = {}) {
-  if (isLoadingReports) {
-    console.log('Already loading reports, skipping...');
-    return;
-  }
-  
-  isLoadingReports = true;
-  
+// --- יצירת סמנים עם קיבוץ לפי קואורדינטות ---
+async function loadReports(filters = {}) {
   try {
-    console.log('Loading reports with options:', options);
-    
-    // Load reports using optimized ApiService (with Redis/Cloudinary validation)
-    const reports = await ApiService.loadReports({
-      useCache: true,
-      sortBy: options.sortBy || 'time',
-      sortOrder: options.sortOrder || 'desc',
-      ...options
-    });
-    
-    if (!reports || !Array.isArray(reports)) {
-      console.warn('No valid reports received from Redis');
-      return [];
+    showLoadingIndicator();
+    const cacheKey = JSON.stringify(filters);
+    const cachedReports = getCachedReports(cacheKey);
+    if (cachedReports) {
+      lastReports = cachedReports;
+      updateDashboardInfo(cachedReports);
+      hideLoadingIndicator();
+      return cachedReports;
     }
-    
-    // Log Redis and Cloudinary status
-    const reportsWithImages = reports.filter(r => r.image);
-    const cloudinaryImages = reportsWithImages.filter(r => r.image && r.image.includes('cloudinary.com'));
-    console.log(`📊 Loaded ${reports.length} reports from Redis`);
-    console.log(`🖼️ Found ${reportsWithImages.length} reports with images (${cloudinaryImages.length} from Cloudinary)`);
-    
-    allReports = reports;
-    
-    // Clear existing markers
+    // שימוש ב-ApiService לטעינת דיווחים
+    let reports = await ApiService.loadReports();
+    if (!document.body) return [];
+    setCachedReports(cacheKey, reports);
+    lastReports = reports;
+    allReports = reports; // Store all reports globally
     clearMarkers();
-    
-    // Add markers to map if map is ready
-    if (map && isMapInitialized) {
-      await addMarkersToMap(reports);
-    }
-    
-    // Update dashboard stats
-    updateDashboardInfo(reports);
-    
-    console.log(`Loaded ${reports.length} reports successfully`);
-    return reports;
-    
-  } catch (error) {
-    console.error('Error loading reports:', error);
-    handleError(error, 'loadReports');
-    return [];
-  } finally {
-    isLoadingReports = false;
-  }
-}
-
-// Update dashboard statistics
-function updateDashboardInfo(reports) {
-  if (!reports || !Array.isArray(reports)) {
-    console.warn('Invalid reports data for dashboard info update');
-    return;
-  }
-  
-  const stats = {
-    total: reports.length,
-    pending: reports.filter(r => (r.status || '').toLowerCase() === 'pending').length,
-    resolved: reports.filter(r => (r.status || '').toLowerCase() === 'resolved').length,
-    locations: new Set(reports.map(r => r.location).filter(Boolean)).size
-  };
-  
-  // Update DOM elements with animation
-  const updateElement = (id, value) => {
-    const element = document.getElementById(id);
-    if (element) {
-      const currentValue = parseInt(element.textContent) || 0;
-      if (currentValue !== value) {
-        element.style.transform = 'scale(1.1)';
-        element.textContent = value;
-        setTimeout(() => {
-          element.style.transform = 'scale(1)';
-        }, 200);
-      }
-    }
-  };
-  
-  updateElement('total-reports', stats.total);
-  updateElement('pending-reports', stats.pending);
-  updateElement('resolved-reports', stats.resolved);
-  updateElement('locations-count', stats.locations);
-}
-
-// Simplified marker creation for dashboard.html structure
-async function addMarkersToMap(reports) {
-  if (!map || !reports || !Array.isArray(reports)) {
-    console.warn('Cannot add markers: invalid map or reports');
-    return;
-  }
-  
-  const bounds = new google.maps.LatLngBounds();
-  let markersAdded = 0;
-  
-  for (const report of reports) {
-    try {
-      let coordinates = null;
-      
-      // Try to extract coordinates from location string
-      const coordMatch = (report.location || '').match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+    const bounds = new google.maps.LatLngBounds();
+    // --- קיבוץ דיווחים לפי קואורדינטות ---
+    const coordMap = new Map();
+    for (const report of reports) {
+      let coords = null;
+      // ננסה לחלץ קואורדינטות מהכתובת
+      const coordMatch = (report.location || "").match(
+        /(-?\d+\.\d+),\s*(-?\d+\.\d+)/,
+      );
       if (coordMatch) {
-        coordinates = {
-          lat: parseFloat(coordMatch[1]),
-          lng: parseFloat(coordMatch[2])
-        };
-      } else if (report.coordinates) {
-        coordinates = {
-          lat: parseFloat(report.coordinates.lat),
-          lng: parseFloat(report.coordinates.lng)
-        };
+        coords = `${parseFloat(coordMatch[1]).toFixed(5)},${parseFloat(coordMatch[2]).toFixed(5)}`;
       } else {
-        // Try geocoding if needed
-        const geocoded = await geocodeAddress(report.location, report);
-        if (geocoded && geocoded.position) {
-          coordinates = geocoded.position;
+        // נשתמש בגיאוקוד
+        const loc = await geocodeAddress(report.location, report);
+        if (loc && loc.position) {
+          coords = `${loc.position.lat.toFixed(5)},${loc.position.lng.toFixed(5)}`;
         }
       }
-      
-      if (coordinates && !isNaN(coordinates.lat) && !isNaN(coordinates.lng)) {
-        const marker = createMapMarker(coordinates, report);
-        if (marker) {
-          markers.push(marker);
-          bounds.extend(coordinates);
-          markersAdded++;
-        }
+      if (coords) {
+        if (!coordMap.has(coords)) coordMap.set(coords, []);
+        coordMap.get(coords).push(report);
       }
-    } catch (error) {
-      console.warn('Error creating marker for report:', report.id, error);
     }
-  }
-  
-  // Fit map to show all markers
-  if (markersAdded > 0) {
-    map.fitBounds(bounds);
-    
-    // Ensure zoom level is reasonable
-    const listener = google.maps.event.addListener(map, 'idle', function() {
-      if (map.getZoom() > 16) {
-        map.setZoom(16);
+    // יצירת סמנים
+    for (const [coords, group] of coordMap.entries()) {
+      const [lat, lng] = coords.split(",").map(Number);
+      const location = { lat, lng };
+      const mainReport = group[0];
+      let marker;
+      // סמן עם מספר אם יש יותר מאחד
+      if (google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
+        const div = document.createElement("div");
+        div.style.width = "28px";
+        div.style.height = "28px";
+        div.style.backgroundColor =
+          hazardMarkerColors[mainReport.type] || hazardMarkerColors["default"];
+        div.style.borderRadius = "50%";
+        div.style.border = "2px solid #fff";
+        div.style.display = "flex";
+        div.style.alignItems = "center";
+        div.style.justifyContent = "center";
+        div.style.color = "#fff";
+        div.style.fontWeight = "bold";
+        div.style.fontSize = "1rem";
+        if (group.length > 1) {
+          div.textContent = group.length;
+        }
+        marker = new google.maps.marker.AdvancedMarkerElement({
+          map: map,
+          position: location,
+          content: div,
+        });
+      } else {
+        marker = new google.maps.Marker({
+          position: location,
+          map: map,
+          title: `${mainReport.type} - ${mainReport.location}`,
+          label:
+            group.length > 1
+              ? {
+                  text: String(group.length),
+                  color: "#fff",
+                  fontWeight: "bold",
+                }
+              : undefined,
+          icon: {
+            url:
+              "data:image/svg+xml;charset=UTF-8," +
+              encodeURIComponent(
+                `<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'><circle cx='14' cy='14' r='12' fill='${hazardMarkerColors[mainReport.type] || hazardMarkerColors.default}' stroke='white' stroke-width='2'/></svg>`,
+              ),
+            scaledSize: new google.maps.Size(28, 28),
+          },
+        });
       }
-      google.maps.event.removeListener(listener);
-    });
-  }
-  
-  console.log(`Added ${markersAdded} markers to map`);
-}
-
-// Create individual marker
-function createMapMarker(position, report) {
-  try {
-    let marker;
-    
-    if (google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
-      // Use AdvancedMarkerElement
-      const content = getMarkerContent(report.type);
-      marker = new google.maps.marker.AdvancedMarkerElement({
-        map: map,
-        position: position,
-        content: content,
-        title: `${report.type} - ${report.location}`
+      marker.reportId = mainReport.id;
+      marker.reportsGroup = group;
+      marker.position = location;
+      // בלחיצה: פופאפ עם כל הדיווחים במיקום
+      registerMarkerClick(marker, () => {
+        markers.forEach((m) => m.infoWindow?.close && m.infoWindow.close());
+        const infowindow = new google.maps.InfoWindow({
+          content: `
+                    <div class="info-window">
+                        <h5>Hazards (${group.length})</h5>
+                        <ul style="max-height:200px;overflow:auto;padding-left:1em;">
+                        ${group
+                          .map(
+                            (r) => `
+                            <li style='margin-bottom:8px;'>
+                                <b>${r.type}</b> <span class='badge ${r.status === "Resolved" ? "bg-success" : "bg-danger"}'>${r.status}</span><br>
+                                <small>${new Date(r.time).toLocaleString()}</small><br>
+                                <button class='btn btn-sm btn-primary mt-1' onclick='showReportDetails(${JSON.stringify(r).replace(/"/g, "&quot;")})'>Details</button>
+                                ${r.image ? `<button class='btn btn-sm btn-secondary mt-1' onclick='showImageModal(\'${r.image}\')'>Image</button>` : ""}
+                            </li>
+                        `,
+                          )
+                          .join("")}
+                        </ul>
+                    </div>`,
+        });
+        marker.infoWindow = infowindow;
+        infowindow.open(map, marker);
+        map.panTo(location);
+        if (map.getZoom() < 14) map.setZoom(14);
       });
+      markers.push(marker);
+      bounds.extend(location);
+    }
+    if (markers.length > 0) {
+      map.fitBounds(bounds);
+      const listener = google.maps.event.addListener(map, "idle", function () {
+        if (map.getZoom() > 16) map.setZoom(16);
+        google.maps.event.removeListener(listener);
+      });
+    }
+    updateHeatmap();
+    console.log("loadReports: Loaded", allReports.length, "reports total");
+    if (window.filterAndRenderReports) {
+      console.log("loadReports: Calling filterAndRenderReports");
+      window.filterAndRenderReports();
     } else {
-      // Fallback to regular marker
-      marker = new google.maps.Marker({
-        position: position,
-        map: map,
-        title: `${report.type} - ${report.location}`,
-        icon: {
-          url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(
-            `<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><circle cx='12' cy='12' r='10' fill='${hazardMarkerColors[report.type] || hazardMarkerColors.default}' stroke='white' stroke-width='2'/></svg>`
-          ),
-          scaledSize: new google.maps.Size(24, 24)
-        }
-      });
+      console.error("loadReports: filterAndRenderReports function not found");
     }
-    
-    // Store report data
-    marker.reportId = report.id;
-    marker.report = report;
-    
-    // Add click event
-    registerMarkerClick(marker, () => {
-      showReportDetails(report);
-    });
-    
-    return marker;
+    updateDashboardInfo(reports);
+    hideLoadingIndicator();
+    return reports;
   } catch (error) {
-    console.error('Error creating marker:', error);
-    return null;
+    if (document.body) {
+      handleError(error, "loadReports");
+      hideLoadingIndicator();
+    }
+    return [];
   }
 }
 
-// Initialize dashboard functionality for simple HTML structure
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('Dashboard initializing...');
-  
-  // Initialize map controls
-  setupMapControls();
-  
-  // Initialize sort functionality
-  setupSortControls();
-  
-  // Initialize refresh functionality
-  setupRefreshControls();
-  
-  console.log('Dashboard initialization complete');
+// Update general info blocks
+function updateDashboardInfo(reports) {
+  // New Reports: total count
+  const newReports = reports.length;
+  // Open Hazards: status 'Open' (case-insensitive)
+  const openHazards = reports.filter(
+    (r) => (r.status || "").toLowerCase() === "open",
+  ).length;
+  // Resolved This Month: status 'Resolved' and time in current month
+  const now = new Date();
+  const thisMonth = now.getMonth();
+  const thisYear = now.getFullYear();
+  const resolvedThisMonth = reports.filter((r) => {
+    if ((r.status || "").toLowerCase() !== "resolved") return false;
+    const t = new Date(r.time);
+    return t.getMonth() === thisMonth && t.getFullYear() === thisYear;
+  }).length;
+  // Active Users: unique reportedBy
+  const users = new Set(reports.map((r) => r.reportedBy).filter(Boolean));
+  const activeUsers = users.size;
+  // Update DOM
+  const setVal = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+  };
+  setVal("new-reports-count", newReports);
+  setVal("open-hazards-count", openHazards);
+  setVal("resolved-this-month", resolvedThisMonth);
+  setVal("active-users", activeUsers);
+}
+
+// --- GLOBAL STATE ---
+let lastReports = [];
+let currentMarker = null;
+let selectedReportIds = new Set();
+
+// --- DOM ELEMENTS HOOKUP FOR NEW LAYOUT ---
+const dom = {
+  sidebar: document.querySelector(".dashboard-sidebar"),
+  mainContent: document.querySelector(".dashboard-main"),
+  dashboardContainer: document.body,
+  topButtons: document.getElementById("refresh-info-btn"),
+  reportsDiv: document.getElementById("reports-widget"),
+  sortSelect: document.getElementById("report-sort-select"),
+  toggleMapBtn: document.getElementById("map-maximize-btn"),
+  toggleReportsBtn: document.getElementById("reports-maximize-btn"),
+  imageModal: document.getElementById("image-modal"),
+  viewToggleContainer: document.getElementById("view-toggle-container"),
+  selectAll: document.getElementById("select-all-reports"),
+  bulkToolbar: document.getElementById("bulk-actions-toolbar"),
+  selectedCount: document.getElementById("selected-count"),
+  bulkStatusBtn: document.getElementById("bulk-status-btn"),
+  bulkDeleteBtn: document.getElementById("bulk-delete-btn"),
+  bulkExportBtn: document.getElementById("bulk-export-btn"),
+};
+
+// --- BUTTON LOGIC CONNECTIONS ---
+document.addEventListener("DOMContentLoaded", () => {
+  // Maximize/Minimize Map
+  if (dom.toggleMapBtn && dom.viewToggleContainer) {
+    dom.toggleMapBtn.addEventListener("click", () => {
+      if (dom.viewToggleContainer.classList.contains("map-maximized")) {
+        dom.viewToggleContainer.className = "normal-view";
+        dom.toggleMapBtn.innerHTML = '<i class="fas fa-expand-arrows-alt"></i>';
+        if (dom.toggleReportsBtn) dom.toggleReportsBtn.style.display = "";
+        if (dom.reportsDiv) dom.reportsDiv.style.display = "";
+        if (document.getElementById("map"))
+          document.getElementById("map").style.display = "";
+      } else {
+        dom.viewToggleContainer.className = "map-maximized";
+        dom.toggleMapBtn.innerHTML = '<i class="fas fa-compress-alt"></i>';
+        if (dom.toggleReportsBtn) dom.toggleReportsBtn.style.display = "none";
+        if (dom.reportsDiv) dom.reportsDiv.style.display = "none";
+        if (document.getElementById("map"))
+          document.getElementById("map").style.display = "";
+      }
+      if (typeof google !== "undefined" && typeof google.maps !== "undefined") {
+        google.maps.event.trigger(map, "resize");
+      }
+    });
+  }
+
+  // Maximize/Minimize Reports
+  if (dom.toggleReportsBtn && dom.viewToggleContainer) {
+    dom.toggleReportsBtn.addEventListener("click", () => {
+      if (dom.viewToggleContainer.classList.contains("reports-maximized")) {
+        dom.viewToggleContainer.className = "normal-view";
+        dom.toggleReportsBtn.innerHTML =
+          '<i class="fas fa-expand-arrows-alt"></i>';
+        if (dom.toggleMapBtn) dom.toggleMapBtn.style.display = "";
+        if (dom.reportsDiv) dom.reportsDiv.style.display = "";
+        if (document.getElementById("map"))
+          document.getElementById("map").style.display = "";
+      } else {
+        dom.viewToggleContainer.className = "reports-maximized";
+        dom.toggleReportsBtn.innerHTML = '<i class="fas fa-compress-alt"></i>';
+        if (dom.toggleMapBtn) dom.toggleMapBtn.style.display = "none";
+        if (dom.reportsDiv) dom.reportsDiv.style.display = "";
+        if (document.getElementById("map"))
+          document.getElementById("map").style.display = "none";
+      }
+      if (typeof google !== "undefined" && typeof google.maps !== "undefined") {
+        google.maps.event.trigger(map, "resize");
+      }
+    });
+  }
+
+  // Ensure initial button states
+  if (dom.viewToggleContainer && dom.toggleMapBtn && dom.toggleReportsBtn) {
+    if (dom.viewToggleContainer.classList.contains("normal-view")) {
+      dom.toggleMapBtn.innerHTML = '<i class="fas fa-expand-arrows-alt"></i>';
+      dom.toggleReportsBtn.innerHTML =
+        '<i class="fas fa-expand-arrows-alt"></i>';
+      dom.toggleReportsBtn.style.display = "";
+      dom.toggleMapBtn.style.display = "";
+    }
+  }
+
+  // Upgrade sort select style
+  if (dom.sortSelect) {
+    dom.sortSelect.classList.add(
+      "shadow",
+      "rounded-pill",
+      "bg-dark",
+      "text-light",
+      "border-primary",
+    );
+  }
 });
 
-// Setup map control buttons
-function setupMapControls() {
-  const heatmapBtn = document.getElementById('toggle-heatmap');
-  const centerBtn = document.getElementById('center-map');
-  const fullscreenBtn = document.getElementById('fullscreen-map');
-  
-  if (heatmapBtn) {
-    heatmapBtn.addEventListener('click', toggleHeatmap);
-  }
-  
-  if (centerBtn) {
-    centerBtn.addEventListener('click', centerMap);
-  }
-  
-  if (fullscreenBtn) {
-    fullscreenBtn.addEventListener('click', toggleMapFullscreen);
-  }
-}
-
-// Setup sort controls
-function setupSortControls() {
-  const sortSelect = document.getElementById('report-sort-select');
-  if (sortSelect) {
-    sortSelect.addEventListener('change', handleSortChange);
-  }
-}
-
-// Setup refresh controls
-function setupRefreshControls() {
-  const refreshBtn = document.getElementById('refresh-reports');
-  if (refreshBtn) {
-    refreshBtn.addEventListener('click', handleRefreshReports);
-  }
-}
-
-// Handle sort change
-function handleSortChange(event) {
-  const [field, order] = event.target.value.split('-');
-  const sortedReports = sortReports(allReports, field, order);
-  
-  // Update map markers
-  clearMarkers();
-  addMarkersToMap(sortedReports);
-  
-  // Trigger DashboardUnified to update its view
-  if (window.dashboard && window.dashboard.changeSorting) {
-    window.dashboard.changeSorting(field, order);
-  }
-}
-
-// Handle refresh reports
-function handleRefreshReports() {
-  const btn = document.getElementById('refresh-reports');
-  if (btn) {
-    const originalHTML = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-spin fa-spinner"></i>';
-    btn.disabled = true;
-    
-    loadReports().finally(() => {
-      btn.innerHTML = originalHTML;
-      btn.disabled = false;
+// --- Search/Sort Logic ---
+document.addEventListener("DOMContentLoaded", () => {
+  // Initialize hazard type checkboxes
+  const hazardContainer = document.getElementById("hazard-types-container");
+  if (hazardContainer) {
+    // generateHazardCheckboxes(); // TODO: Function not defined, using dropdown instead
+    // Listen for changes on checkboxes to trigger filtering
+    hazardContainer.addEventListener("change", () => {
+      window.filterAndRenderReports();
     });
   }
-}
 
-// Toggle map fullscreen
-function toggleMapFullscreen() {
-  const mapContainer = document.querySelector('.map-container');
-  if (mapContainer) {
-    mapContainer.classList.toggle('fullscreen');
-    
-    // Trigger map resize
-    if (map && google && google.maps) {
-      setTimeout(() => {
-        google.maps.event.trigger(map, 'resize');
-      }, 100);
-    }
-  }
-}
+  // Initialize hazard type dropdown
+  const hazardDropdownBtn = document.getElementById("hazard-type-dropdown-btn");
+  const hazardDropdownMenu = document.getElementById(
+    "hazard-type-dropdown-menu",
+  );
+  const currentHazardTypeLabel = document.getElementById(
+    "current-hazard-type-label",
+  );
 
+  if (hazardDropdownBtn && hazardDropdownMenu) {
+    // Toggle dropdown visibility
+    hazardDropdownBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      hazardDropdownMenu.classList.toggle("active");
+    });
 
-// Simple caching system
-const reportCache = new Map();
-const cacheExpiry = 5 * 60 * 1000; // 5 minutes
+    // Close dropdown when clicking outside
+    document.addEventListener("click", () => {
+      hazardDropdownMenu.classList.remove("active");
+    });
 
-function getCachedReports(key) {
-  const cached = reportCache.get(key);
-  if (cached && Date.now() - cached.timestamp < cacheExpiry) {
-    return cached.data;
-  }
-  return null;
-}
+    // Handle dropdown option selection
+    hazardDropdownMenu.addEventListener("click", (e) => {
+      if (e.target.classList.contains("hazard-type-option")) {
+        const selectedValue = e.target.getAttribute("data-value");
+        const selectedText = e.target.textContent;
 
-function setCachedReports(key, data) {
-  reportCache.set(key, {
-    data: data,
-    timestamp: Date.now()
-  });
-}
+        // Update global selected type
+        window.selectedHazardType = selectedValue;
 
-// Cleanup cache periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, value] of reportCache.entries()) {
-    if (now - value.timestamp > cacheExpiry) {
-      reportCache.delete(key);
-    }
-  }
-}, 60000); // Clean every minute
-
-// Ensure map is initialized before any operations
-function ensureMapReady() {
-  return new Promise((resolve) => {
-    if (map && isMapInitialized) {
-      resolve();
-    } else {
-      const checkMap = setInterval(() => {
-        if (map && isMapInitialized) {
-          clearInterval(checkMap);
-          resolve();
+        // Update button label
+        if (currentHazardTypeLabel) {
+          currentHazardTypeLabel.textContent = selectedText;
         }
-      }, 100);
-    }
-  });
-}
 
-// Mark map as initialized
-function markMapAsReady() {
-  isMapInitialized = true;
-  console.log('Map is ready for operations');
-  
-  // Load initial reports
-  loadReports();
-}
+        // Update visual state
+        document
+          .querySelectorAll(".hazard-type-option")
+          .forEach((opt) => opt.classList.remove("selected"));
+        e.target.classList.add("selected");
 
-// Simplified initialization completed
+        // Close dropdown
+        hazardDropdownMenu.classList.remove("active");
 
-// Essential DOM elements are handled by DashboardUnified.js
-
-// Layout management is handled by DashboardUnified.js
-
-// Filter management is handled by DashboardUnified.js
-
-// Complex layout management removed - handled by DashboardUnified.js
-
-// Simplified debounce function
-function debounce(func, wait) {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-}
-
-
-// URL parameter management (simplified)
-function updateURLParams(params) {
-  try {
-    const url = new URL(window.location);
-    Object.entries(params).forEach(([key, value]) => {
-      if (value) {
-        url.searchParams.set(key, value);
-      } else {
-        url.searchParams.delete(key);
+        // Trigger filtering
+        window.filterAndRenderReports();
       }
     });
-    window.history.replaceState({}, '', url);
-  } catch (error) {
-    console.warn('Error updating URL params:', error);
+  }
+
+  const searchInput = document.getElementById("report-search-input");
+  const areaSearchInput = document.getElementById("area-search-input");
+  const currentLocationBtn = document.getElementById("current-location-btn");
+  const sortSelect = document.getElementById("report-sort-select");
+  const dateFromInput = document.getElementById("date-from");
+  const dateToInput = document.getElementById("date-to");
+
+  // Layout toggle buttons
+  const toggleMapBlocks = document.getElementById("toggle-map-blocks");
+  const toggleMapTable = document.getElementById("toggle-map-table");
+  const toggleBlocksOnly = document.getElementById("toggle-blocks-only");
+  const toggleTableOnly = document.getElementById("toggle-table-only");
+  const toggleFullscreenTable = document.getElementById(
+    "toggle-fullscreen-table",
+  );
+
+  // Filter collapse button
+  const toggleFiltersBtn = document.getElementById("toggle-filters-btn");
+  const reportsFilters = document.getElementById("reports-filters");
+
+  // Filter collapse functionality
+  if (toggleFiltersBtn && reportsFilters) {
+    toggleFiltersBtn.addEventListener("click", () => {
+      // Check if we're in table-only or fullscreen mode - don't allow collapse
+      if (
+        window.currentLayoutMode === "table-only" ||
+        window.currentLayoutMode === "fullscreen-table"
+      ) {
+        return; // Do nothing in table-only or fullscreen mode
+      }
+
+      const isCollapsed = reportsFilters.classList.contains("collapsed");
+
+      if (isCollapsed) {
+        // Expand filters
+        reportsFilters.classList.remove("collapsed");
+        toggleFiltersBtn.classList.remove("collapsed");
+        toggleFiltersBtn.querySelector("i").className = "fas fa-chevron-up";
+        toggleFiltersBtn.title = "Minimize filters";
+      } else {
+        // Collapse filters
+        reportsFilters.classList.add("collapsed");
+        toggleFiltersBtn.classList.add("collapsed");
+        toggleFiltersBtn.querySelector("i").className = "fas fa-chevron-down";
+        toggleFiltersBtn.title = "Expand filters";
+      }
+    });
+  }
+
+  // Layout toggle functionality
+  function setLayoutMode(mode) {
+    const mainLayout = document.querySelector(".dashboard-main-layout");
+    const blocksContainer = document.getElementById("reports-blocks-container");
+    const tableContainer = document.getElementById("reports-table-container");
+    const toggleBlocksBtn = document.getElementById("toggle-blocks-view");
+    const toggleTableBtn = document.getElementById("toggle-table-view");
+
+    // Remove all layout classes
+    mainLayout.classList.remove(
+      "layout-map-hidden",
+      "layout-reports-hidden",
+      "layout-blocks-only",
+      "layout-table-only",
+      "layout-map-blocks",
+      "layout-map-table",
+      "layout-fullscreen-table",
+    );
+
+    // Remove any existing exit fullscreen button
+    removeExitFullscreenButton();
+
+    // Remove active state from all layout buttons
+    document
+      .querySelectorAll(".layout-toggle-controls .btn")
+      .forEach((btn) => btn.classList.remove("active"));
+
+    switch (mode) {
+      case "map-blocks":
+        mainLayout.classList.add("layout-map-blocks");
+        toggleMapBlocks.classList.add("active");
+        blocksContainer.style.display = "flex";
+        tableContainer.style.display = "none";
+        toggleBlocksBtn.classList.add("active");
+        toggleTableBtn.classList.remove("active");
+        break;
+
+      case "map-table":
+        mainLayout.classList.add("layout-map-table");
+        toggleMapTable.classList.add("active");
+        blocksContainer.style.display = "none";
+        tableContainer.style.display = "block";
+        toggleBlocksBtn.classList.remove("active");
+        toggleTableBtn.classList.add("active");
+        break;
+
+      case "blocks-only":
+        mainLayout.classList.add("layout-blocks-only", "layout-map-hidden");
+        toggleBlocksOnly.classList.add("active");
+        blocksContainer.style.display = "flex";
+        tableContainer.style.display = "none";
+        toggleBlocksBtn.classList.add("active");
+        toggleTableBtn.classList.remove("active");
+        break;
+
+      case "table-only":
+        mainLayout.classList.add("layout-table-only", "layout-map-hidden");
+        toggleTableOnly.classList.add("active");
+        blocksContainer.style.display = "none";
+        tableContainer.style.display = "block";
+        toggleBlocksBtn.classList.remove("active");
+        toggleTableBtn.classList.add("active");
+
+        // Ensure filters are expanded and visible in table-only mode
+        if (reportsFilters && toggleFiltersBtn) {
+          reportsFilters.classList.remove("collapsed");
+          toggleFiltersBtn.classList.remove("collapsed");
+          toggleFiltersBtn.querySelector("i").className = "fas fa-chevron-up";
+          toggleFiltersBtn.title = "Filters always visible in table mode";
+          toggleFiltersBtn.style.opacity = "0.5"; // Make it less prominent
+        }
+        break;
+
+      case "fullscreen-table":
+        mainLayout.classList.add("layout-fullscreen-table");
+        toggleFullscreenTable.classList.add("active");
+        blocksContainer.style.display = "none";
+        tableContainer.style.display = "block";
+        toggleBlocksBtn.classList.remove("active");
+        toggleTableBtn.classList.add("active");
+
+        // Add exit fullscreen button to filter header
+        addExitFullscreenButton();
+
+        // Ensure filters are expanded and visible
+        if (reportsFilters && toggleFiltersBtn) {
+          reportsFilters.classList.remove("collapsed");
+          toggleFiltersBtn.classList.remove("collapsed");
+          toggleFiltersBtn.querySelector("i").className = "fas fa-chevron-up";
+          toggleFiltersBtn.title = "Filters always visible in fullscreen mode";
+          toggleFiltersBtn.style.opacity = "0.3"; // Make it very subtle
+        }
+
+        // Hide floating menu in fullscreen
+        const floatingMenu = document.getElementById("floatingMenu");
+        const menuOverlay = document.getElementById("menuOverlay");
+        if (floatingMenu) floatingMenu.classList.remove("active");
+        if (menuOverlay) menuOverlay.classList.remove("active");
+
+        break;
+    }
+
+    // Store current layout mode
+    window.currentLayoutMode = mode;
+
+    // Restore filter button functionality for non-table-only modes
+    if (mode !== "table-only" && toggleFiltersBtn) {
+      toggleFiltersBtn.style.opacity = "1";
+      toggleFiltersBtn.title = "Minimize/Expand filters";
+    }
+
+    // Trigger re-rendering if needed
+    window.filterAndRenderReports();
+  }
+
+  // Helper functions for fullscreen mode
+  function addExitFullscreenButton() {
+    const filterHeader = document.querySelector(".filter-header");
+    if (filterHeader && !filterHeader.querySelector(".fullscreen-exit-btn")) {
+      const exitBtn = document.createElement("button");
+      exitBtn.className = "fullscreen-exit-btn";
+      exitBtn.innerHTML = '<i class="fas fa-times"></i> Exit Fullscreen';
+      exitBtn.addEventListener("click", () => setLayoutMode("table-only"));
+      filterHeader.appendChild(exitBtn);
+    }
+  }
+
+  function removeExitFullscreenButton() {
+    const exitBtn = document.querySelector(".fullscreen-exit-btn");
+    if (exitBtn) {
+      exitBtn.remove();
+    }
+  }
+
+  // Add event listeners for layout toggle buttons
+  if (toggleMapBlocks)
+    toggleMapBlocks.addEventListener("click", () =>
+      setLayoutMode("map-blocks"),
+    );
+  if (toggleMapTable)
+    toggleMapTable.addEventListener("click", () => setLayoutMode("map-table"));
+  if (toggleBlocksOnly)
+    toggleBlocksOnly.addEventListener("click", () =>
+      setLayoutMode("blocks-only"),
+    );
+  if (toggleTableOnly)
+    toggleTableOnly.addEventListener("click", () =>
+      setLayoutMode("table-only"),
+    );
+  if (toggleFullscreenTable)
+    toggleFullscreenTable.addEventListener("click", () =>
+      setLayoutMode("fullscreen-table"),
+    );
+
+  // Update existing blocks/table toggle buttons to work with new layout system
+  const toggleBlocksBtn = document.getElementById("toggle-blocks-view");
+  const toggleTableBtn = document.getElementById("toggle-table-view");
+
+  if (toggleBlocksBtn) {
+    toggleBlocksBtn.addEventListener("click", () => {
+      const currentMode = window.currentLayoutMode || "map-blocks";
+      if (currentMode.includes("map")) {
+        setLayoutMode("map-blocks");
+      } else {
+        setLayoutMode("blocks-only");
+      }
+    });
+  }
+
+  if (toggleTableBtn) {
+    toggleTableBtn.addEventListener("click", () => {
+      const currentMode = window.currentLayoutMode || "map-blocks";
+      if (currentMode.includes("map")) {
+        setLayoutMode("map-table");
+      } else {
+        setLayoutMode("table-only");
+      }
+    });
+  }
+
+  // Set default layout mode
+  window.currentLayoutMode = "map-blocks";
+
+  // Add keyboard shortcut to exit fullscreen mode
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && window.currentLayoutMode === "fullscreen-table") {
+      setLayoutMode("table-only");
+    }
+  });
+
+  // Create debounced search function
+  const debouncedSearch = debounce(() => {
+    window.filterAndRenderReports();
+  }, 300);
+
+  function filterAndRenderReports() {
+    let filtered = allReports || [];
+
+    // General search filter
+    const q = (searchInput?.value || "").toLowerCase().trim();
+    if (q) {
+      filtered = filtered.filter(
+        (r) =>
+          (r.type && r.type.toLowerCase().includes(q)) ||
+          (r.location && r.location.toLowerCase().includes(q)) ||
+          (r.status && r.status.toLowerCase().includes(q)) ||
+          (r.reportedBy && r.reportedBy.toLowerCase().includes(q)),
+      );
+    }
+
+    // Area/city search filter
+    const areaQ = (areaSearchInput?.value || "").toLowerCase().trim();
+    if (areaQ) {
+      filtered = filtered.filter(
+        (r) =>
+          (r.location && r.location.toLowerCase().includes(areaQ)) ||
+          (r.address && r.address.toLowerCase().includes(areaQ)) ||
+          (r.city && r.city.toLowerCase().includes(areaQ)) ||
+          (r.region && r.region.toLowerCase().includes(areaQ)),
+      );
+    }
+    // Filter by selected hazard types (if any)
+    const checkedHazards = Array.from(
+      document.querySelectorAll(
+        '#hazard-types-container input[type="checkbox"]:checked',
+      ),
+    ).map((el) => el.value);
+    if (checkedHazards.length > 0) {
+      filtered = filtered.filter((r) => checkedHazards.includes(r.type));
+    }
+    // Filter by hazard type dropdown
+    if (window.selectedHazardType && window.selectedHazardType !== "") {
+      filtered = filtered.filter((r) => r.type === window.selectedHazardType);
+    }
+    // Filter by date range
+    const fromDate =
+      dateFromInput && dateFromInput.value
+        ? new Date(dateFromInput.value)
+        : null;
+    const toDate =
+      dateToInput && dateToInput.value ? new Date(dateToInput.value) : null;
+    if (fromDate) {
+      filtered = filtered.filter((r) => {
+        const t = new Date(r.time);
+        return t >= fromDate;
+      });
+    }
+    if (toDate) {
+      filtered = filtered.filter((r) => {
+        const t = new Date(r.time);
+        return t <= toDate;
+      });
+    }
+    // Sort
+    if (sortSelect) {
+      const [field, order] = sortSelect.value.split("-");
+      filtered = sortReports(
+        filtered,
+        field === "reportedBy" ? "reportedBy" : field,
+        order,
+      );
+    }
+    filtered = mergeDuplicateReports(filtered);
+
+    // Update map markers to show only filtered reports
+    updateMapMarkers(filtered);
+
+    // Check current view mode and render accordingly
+    const tableContainer = document.getElementById("reports-table-container");
+    const blocksContainer = document.getElementById("reports-blocks");
+    const cardsContainer = document.getElementById("reports-cards");
+    
+    const tableDiv = tableContainer?.querySelector('.table-responsive');
+    const isTableView = tableDiv && tableDiv.style.display !== "none";
+    const isBlocksView = blocksContainer && blocksContainer.style.display !== "none";
+    const isCardsView = cardsContainer && cardsContainer.style.display !== "none";
+
+    console.log("Current layout mode:", window.currentLayoutMode);
+    console.log("Current view mode:", isTableView ? "table" : isCardsView ? "cards" : "blocks");
+    console.log("Filtered reports count:", filtered.length);
+
+    // Render based on current display mode
+    if (isTableView) {
+      renderReportTableRows(filtered);
+    } else if (isCardsView) {
+      renderReportCards(filtered);
+    } else if (isBlocksView) {
+      renderReportBlocks(filtered);
+    }
+
+    updateDashboardInfo(filtered);
+    updateURLParams({ search: q, sort: sortSelect?.value });
+  }
+
+  // Current location button functionality
+  if (currentLocationBtn) {
+    currentLocationBtn.addEventListener("click", () => {
+      if (navigator.geolocation) {
+        currentLocationBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        currentLocationBtn.disabled = true;
+
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            try {
+              const lat = position.coords.latitude;
+              const lng = position.coords.longitude;
+
+              // Use reverse geocoding to get city name
+              const geocoder = new google.maps.Geocoder();
+              geocoder.geocode(
+                { location: { lat, lng } },
+                (results, status) => {
+                  if (status === "OK" && results[0]) {
+                    // Extract city from address components
+                    const addressComponents = results[0].address_components;
+                    let city = "";
+
+                    for (let component of addressComponents) {
+                      if (
+                        component.types.includes("locality") ||
+                        component.types.includes(
+                          "administrative_area_level_2",
+                        ) ||
+                        component.types.includes("administrative_area_level_1")
+                      ) {
+                        city = component.long_name;
+                        break;
+                      }
+                    }
+
+                    if (city && areaSearchInput) {
+                      areaSearchInput.value = city;
+                      window.filterAndRenderReports();
+                    }
+                  } else {
+                    console.warn("Geocoding failed:", status);
+                  }
+
+                  // Reset button state
+                  currentLocationBtn.innerHTML =
+                    '<i class="fas fa-location-arrow"></i>';
+                  currentLocationBtn.disabled = false;
+                },
+              );
+            } catch (error) {
+              console.error("Error with geocoding:", error);
+              currentLocationBtn.innerHTML =
+                '<i class="fas fa-location-arrow"></i>';
+              currentLocationBtn.disabled = false;
+            }
+          },
+          (error) => {
+            console.warn("Geolocation error:", error);
+            currentLocationBtn.innerHTML =
+              '<i class="fas fa-location-arrow"></i>';
+            currentLocationBtn.disabled = false;
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 300000,
+          },
+        );
+      }
+    });
+  }
+
+  if (searchInput) searchInput.addEventListener("input", debouncedSearch);
+  if (areaSearchInput)
+    areaSearchInput.addEventListener("input", debouncedSearch);
+  if (sortSelect) sortSelect.addEventListener("change", filterAndRenderReports);
+  if (dateFromInput)
+    dateFromInput.addEventListener("change", filterAndRenderReports);
+  if (dateToInput)
+    dateToInput.addEventListener("change", filterAndRenderReports);
+  window.filterAndRenderReports = filterAndRenderReports;
+
+  // Load filters from URL on page load
+  loadFiltersFromURL();
+
+  // Ensure initial rendering happens when data is available
+  if (allReports && allReports.length > 0) {
+    console.log("Initial rendering of", allReports.length, "reports");
+    filterAndRenderReports();
+  }
+});
+
+// URL parameter management
+function updateURLParams(params) {
+  const url = new URL(window.location);
+  Object.entries(params).forEach(([key, value]) => {
+    if (value) {
+      url.searchParams.set(key, value);
+    } else {
+      url.searchParams.delete(key);
+    }
+  });
+  window.history.replaceState({}, "", url);
+}
+
+function loadFiltersFromURL() {
+  const url = new URL(window.location);
+  const searchParam = url.searchParams.get("search");
+  const sortParam = url.searchParams.get("sort");
+
+  if (searchParam) {
+    const searchInput = document.getElementById("report-search-input");
+    if (searchInput) searchInput.value = searchParam;
+  }
+
+  if (sortParam) {
+    const sortSelect = document.getElementById("report-sort-select");
+    if (sortSelect) sortSelect.value = sortParam;
   }
 }
 
@@ -2012,6 +2338,41 @@ if (originalFilterAndRenderReports) {
   };
 }
 
+// === ENHANCED SORTING FUNCTIONALITY ===
+function sortReports(reports, field, order = "asc") {
+  return reports.sort((a, b) => {
+    let aValue, bValue;
+
+    switch (field) {
+      case "time":
+        aValue = new Date(a.time);
+        bValue = new Date(b.time);
+        break;
+      case "type":
+        aValue = (a.type || "").toLowerCase();
+        bValue = (b.type || "").toLowerCase();
+        break;
+      case "status":
+        aValue = (a.status || "").toLowerCase();
+        bValue = (b.status || "").toLowerCase();
+        break;
+      case "location":
+        aValue = (a.location || "").toLowerCase();
+        bValue = (b.location || "").toLowerCase();
+        break;
+      case "reportedBy":
+        aValue = (a.reportedBy || "").toLowerCase();
+        bValue = (b.reportedBy || "").toLowerCase();
+        break;
+      default:
+        return 0;
+    }
+
+    if (aValue < bValue) return order === "asc" ? -1 : 1;
+    if (aValue > bValue) return order === "asc" ? 1 : -1;
+    return 0;
+  });
+}
 
 // Add CSS for active button state
 const style = document.createElement("style");
@@ -2216,32 +2577,22 @@ function renderReportCardsSkeleton(count = 6) {
 
 function createReportCard(report, index) {
   const card = document.createElement("div");
-  card.className = "carousel-card";
+  card.className = "report-card";
   card.style.animationDelay = `${index * 0.05}s`;
   card.dataset.reportId = report.id;
+  // Overlay description and all details on image
   const imageUrl = report.image || report.url || '/assets/placeholder-image.png';
-  const date = report.time ? new Date(report.time).toLocaleDateString() : '';
+  const description = report.description ? (report.description.length > 60 ? report.description.substring(0, 60) + '...' : report.description) : '';
   card.innerHTML = `
-    <div class="carousel-card-img-wrapper">
-      <img src="${imageUrl}" alt="${report.type || ''}" class="carousel-card-img" onerror="this.src='/assets/placeholder-image.png'; this.onerror=null;">
-    </div>
-    <div class="carousel-card-overlay">
-      <div class="carousel-card-details">
-        <div class="report-block-title" style="display:flex;align-items:center;gap:0.5rem;">
-          <i class="fas fa-exclamation-triangle"></i>
-          <h4 style="margin:0;font-size:1.1rem;">${report.type || 'Unknown'}</h4>
+    <div class="report-image-wrapper">
+      <img src="${imageUrl}" alt="${report.type || ''}" class="report-image" onerror="this.src='/assets/placeholder-image.png'; this.onerror=null;">
+      <div class="report-overlay">
+        <div class="report-overlay-content">
+          <span class="report-type">${report.type || ''}</span>
+          <p class="report-desc">${description}</p>
+          <span class="report-status ${getStatusBadgeClass(report.status)}">${report.status || ''}</span>
+          <span class="report-location"><i class="fas fa-map-marker-alt"></i> ${report.location || '---'}</span>
         </div>
-        <div class="report-block-meta" style="display:flex;flex-direction:column;gap:2px;margin:8px 0 4px 0;">
-          <span style="display:flex;align-items:center;gap:0.4em;font-size:0.98em;">
-            <i class="fas fa-calendar-alt"></i> ${date}
-          </span>
-          <span style="display:flex;align-items:center;gap:0.4em;font-size:0.98em;">
-            <i class="fas fa-map-marker-alt"></i> ${report.location || '---'}
-          </span>
-        </div>
-        <span class="report-status ${getStatusBadgeClass(report.status)}" style="margin-top:4px;display:inline-block;">
-          <i class="fas fa-${report.status === 'Resolved' ? 'check-circle' : report.status === 'Pending' ? 'clock' : 'exclamation-circle'}"></i> ${report.status || ''}
-        </span>
       </div>
     </div>
   `;
@@ -2846,17 +3197,6 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  // Initialize refresh reports button
-  const refreshReportsBtn = document.getElementById("refresh-reports");
-  if (refreshReportsBtn) {
-    refreshReportsBtn.addEventListener("click", () => {
-      // Clear cache and reload
-      reportCache.clear();
-      loadReports();
-      showToast("Reports refreshed", "success");
-    });
-  }
-
   // Initialize keyboard shortcuts
   initializeKeyboardShortcuts();
 
@@ -3037,6 +3377,23 @@ async function getLocationByIP() {
 }
 
 // Performance optimization functions
+let reportCache = new Map();
+let cacheExpiry = 5 * 60 * 1000; // 5 minutes
+
+function getCachedReports(key) {
+  const cached = reportCache.get(key);
+  if (cached && Date.now() - cached.timestamp < cacheExpiry) {
+    return cached.data;
+  }
+  return null;
+}
+
+function setCachedReports(key, data) {
+  reportCache.set(key, {
+    data: data,
+    timestamp: Date.now(),
+  });
+}
 
 // Loading indicator functions
 function showLoadingIndicator() {
@@ -3063,6 +3420,18 @@ function hideLoadingIndicator() {
   }
 }
 
+// Debounced search function for better performance
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
 
 // Enhanced error handling
 function handleError(error, context = "") {
@@ -3102,6 +3471,17 @@ function handleError(error, context = "") {
   }
 }
 
+// Retry mechanism for failed requests
+async function retryRequest(requestFn, maxRetries = 3, delay = 1000) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await requestFn();
+    } catch (error) {
+      if (i === maxRetries - 1) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delay * (i + 1)));
+    }
+  }
+}
 
 // --- SSE Real-Time Notifications ---
 let eventSource = null;
@@ -3133,16 +3513,11 @@ function connectSSE() {
   };
 
   eventSource.onerror = (err) => {
-    console.warn("[SSE] Connection error - server may be unavailable:", err.type || 'unknown');
+    console.error("[SSE] Connection error:", err);
     if (window.setLiveIndicator) window.setLiveIndicator(false);
-    
-    // Only attempt to reconnect if the page is still active and visible
-    if (document.visibilityState === 'visible' && !sseReconnectTimer) {
-      console.log("[SSE] Will attempt to reconnect in 5 seconds...");
-      sseReconnectTimer = setTimeout(() => {
-        console.log("[SSE] Attempting to reconnect...");
-        connectSSE();
-      }, 5000);
+    // Attempt to reconnect after delay
+    if (!sseReconnectTimer) {
+      sseReconnectTimer = setTimeout(connectSSE, 5000);
     }
   };
 }
@@ -3372,321 +3747,4 @@ window.openEditReportModal = function(report) {
   // TODO: Replace with actual modal logic
   alert("Edit Report: " + (report.id || JSON.stringify(report)));
 };
-
-// --- Carousel for Recent Reports ---
-let carouselCurrent = 0;
-let carouselReports = [];
-
-function setupCarouselArrowEvents() {
-  const leftArrow = document.getElementById('carousel-arrow-left');
-  const rightArrow = document.getElementById('carousel-arrow-right');
-  if (leftArrow && rightArrow) {
-    leftArrow.onclick = function() {
-      carouselCurrent = (carouselCurrent - 1 + carouselReports.length) % carouselReports.length;
-      renderReportsCarousel(carouselReports);
-    };
-    rightArrow.onclick = function() {
-      carouselCurrent = (carouselCurrent + 1) % carouselReports.length;
-      renderReportsCarousel(carouselReports);
-    };
-  }
-}
-
-function renderReportsCarousel(reports) {
-  carouselReports = reports;
-  const carousel = document.getElementById('reports-carousel');
-  const dotsContainer = document.getElementById('carousel-dots');
-  if (!carousel) return;
-  carousel.innerHTML = '';
-  dotsContainer.innerHTML = '';
-  if (!reports.length) {
-    carousel.innerHTML = '<div class="text-center text-muted p-4">No reports found</div>';
-    return;
-  }
-  // Only show 3 cards: left, active, right
-  for (let i = 0; i < reports.length; i++) {
-    const card = createReportCard(reports[i], i);
-    card.classList.add('carousel-card');
-    if (i === carouselCurrent) {
-      card.classList.add('active');
-    } else if (i === (carouselCurrent - 1 + reports.length) % reports.length) {
-      card.classList.add('left');
-    } else if (i === (carouselCurrent + 1) % reports.length) {
-      card.classList.add('right');
-    }
-    carousel.appendChild(card);
-  }
-  // Dots
-  for (let i = 0; i < reports.length; i++) {
-    const dot = document.createElement('span');
-    dot.className = 'dot' + (i === carouselCurrent ? ' active' : '');
-    dot.onclick = () => { carouselCurrent = i; renderReportsCarousel(carouselReports); };
-    dotsContainer.appendChild(dot);
-  }
-  setupCarouselArrowEvents();
-}
-
-// Replace renderReportCards with carousel rendering in relevant place
-// Example: after loading reports, call renderReportsCarousel(reports)
-
-// --- Modal חיפוש ---
-document.addEventListener('DOMContentLoaded', () => {
-  const openSearchBtn = document.getElementById('open-search-modal');
-  const searchModal = document.getElementById('search-modal');
-  const searchInput = document.getElementById('search-input');
-  const searchResults = document.getElementById('search-results');
-  let bsSearchModal = null;
-  if (searchModal) {
-    bsSearchModal = new bootstrap.Modal(searchModal);
-  }
-  if (openSearchBtn && bsSearchModal) {
-    openSearchBtn.addEventListener('click', () => {
-      bsSearchModal.show();
-      setTimeout(() => searchInput && searchInput.focus(), 300);
-    });
-  }
-  if (searchModal) {
-    searchModal.addEventListener('hidden.bs.modal', () => {
-      if (searchInput) searchInput.value = '';
-      if (searchResults) searchResults.innerHTML = '';
-    });
-  }
-  if (searchInput) {
-    searchInput.addEventListener('input', () => {
-      const q = searchInput.value.trim().toLowerCase();
-      if (!q) {
-        searchResults.innerHTML = '';
-        return;
-      }
-      const filtered = (allReports || []).filter(r =>
-        (r.type && r.type.toLowerCase().includes(q)) ||
-        (r.location && r.location.toLowerCase().includes(q)) ||
-        (r.status && r.status.toLowerCase().includes(q))
-      );
-      searchResults.innerHTML = filtered.length ?
-        filtered.map(r => `<div class="search-result-item" style="padding:8px 0;border-bottom:1px solid #eee;cursor:pointer;" onclick="showReportDetails(${JSON.stringify(r).replace(/"/g, '&quot;')})">
-          <b>${r.type || ''}</b> | ${r.location || ''} | <span class="badge ${getStatusBadgeClass(r.status)}">${r.status || ''}</span>
-        </div>`).join('') :
-        '<div class="text-muted">לא נמצאו תוצאות</div>';
-    });
-  }
-});
-
-// --- Render Report Cards for Images Grid ---
-function renderImagesGridCards(reports) {
-  const grid = document.getElementById('images-grid');
-  if (!grid) return;
-  grid.innerHTML = '';
-  if (!reports || !reports.length) {
-    grid.innerHTML = '<div class="text-muted">No reports found</div>';
-    return;
-  }
-  reports.forEach((report) => {
-    const card = document.createElement('div');
-    card.className = 'card glass p-0 d-flex flex-column h-100';
-    card.style.overflow = 'hidden';
-    card.style.cursor = 'pointer';
-
-    // תמונה
-    const imgWrapper = document.createElement('div');
-    imgWrapper.style.position = 'relative';
-    const img = document.createElement('img');
-    img.src = report.image || report.url || '/assets/placeholder-image.png';
-    img.alt = report.type || '';
-    img.style.width = '100%';
-    img.style.height = '180px';
-    img.style.objectFit = 'cover';
-    img.addEventListener('click', (e) => {
-      e.stopPropagation();
-      showImageModal(report.image || report.url || '/assets/placeholder-image.png');
-    });
-    imgWrapper.appendChild(img);
-    // באדג' סטטוס
-    const badge = document.createElement('span');
-    badge.className = `badge ${getStatusBadgeClass(report.status)}`;
-    badge.style.position = 'absolute';
-    badge.style.top = '12px';
-    badge.style.left = '12px';
-    badge.textContent = report.status || '';
-    imgWrapper.appendChild(badge);
-    card.appendChild(imgWrapper);
-
-    // גוף הכרטיס
-    const body = document.createElement('div');
-    body.className = 'p-3 flex-grow-1 d-flex flex-column justify-content-between';
-    // פרטי דיווח
-    const details = document.createElement('div');
-    details.innerHTML = `
-      <div class="fw-bold mb-1 text-accent"><i class="fas fa-exclamation-triangle me-1"></i> ${report.type || ''}</div>
-      <div class="text-muted mb-1" style="font-size:0.95em;"><i class="fas fa-map-marker-alt me-1"></i> ${report.location || ''}</div>
-      <div class="text-muted mb-1" style="font-size:0.95em;"><i class="fas fa-calendar-alt me-1"></i> ${report.time ? new Date(report.time).toLocaleDateString() : ''}</div>
-    `;
-    body.appendChild(details);
-    // כפתורים
-    const btns = document.createElement('div');
-    btns.className = 'mt-2 d-flex gap-2';
-    // כפתור Details
-    const detailsBtn = document.createElement('button');
-    detailsBtn.className = 'btn btn-glass btn-sm flex-fill';
-    detailsBtn.innerHTML = '<i class="fas fa-info-circle"></i>';
-    detailsBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      showReportDetails(report);
-    });
-    btns.appendChild(detailsBtn);
-    // כפתור תמונה
-    const imageBtn = document.createElement('button');
-    imageBtn.className = 'btn btn-glass btn-sm flex-fill';
-    imageBtn.innerHTML = '<i class="fas fa-image"></i>';
-    imageBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      showImageModal(report.image || report.url || '/assets/placeholder-image.png');
-    });
-    btns.appendChild(imageBtn);
-    body.appendChild(btns);
-    card.appendChild(body);
-    // כרטיס שלם
-    card.addEventListener('click', () => showReportDetails(report));
-    grid.appendChild(card);
-  });
-}
-
-// ודא שהטעינה לגריד מתבצעת אוטומטית כאשר allReports נטען
-window.renderImagesGridCards = renderImagesGridCards;
-
-// Function to render reports cards in the new dashboard structure
-function renderReportsCards(reports = []) {
-  const container = document.getElementById('reports-container');
-  if (!container) return;
-
-  // Clear existing content
-  container.innerHTML = '';
-
-  if (!reports || reports.length === 0) {
-    container.innerHTML = `
-      <div class="text-center p-4">
-        <i class="fas fa-inbox text-muted mb-3" style="font-size: 3rem;"></i>
-        <h4 class="text-muted">No Reports Found</h4>
-        <p class="text-secondary">No hazard reports available at the moment.</p>
-      </div>
-    `;
-    return;
-  }
-
-  // Show recent reports (limit to 10 for performance)
-  const recentReports = reports.slice(0, 10);
-  
-  recentReports.forEach((report, index) => {
-    const card = document.createElement('div');
-    card.className = 'report-card animate-fade-in-up';
-    card.style.animationDelay = `${index * 0.05}s`;
-    
-    const statusClass = getStatusClass(report.status || 'pending');
-    const hazardIcon = getHazardIcon(report.type || report.hazardType || 'Unknown');
-    
-    card.innerHTML = `
-      <div class="d-flex align-items-start gap-3">
-        <div class="report-icon flex-shrink-0">
-          <i class="${hazardIcon} text-warning"></i>
-        </div>
-        <div class="report-content flex-grow-1">
-          <h6 class="text-primary mb-1">${report.type || report.hazardType || 'Unknown Hazard'}</h6>
-          <p class="text-secondary mb-2 small">${truncateLocation(report.location || 'Unknown Location')}</p>
-          <div class="d-flex justify-content-between align-items-center">
-            <span class="badge ${statusClass}">${capitalizeFirst(report.status || 'pending')}</span>
-            <small class="text-muted">${formatReportDate(report.timestamp || report.date)}</small>
-          </div>
-        </div>
-      </div>
-    `;
-    
-    // Add click handler to show report details
-    card.addEventListener('click', () => showReportDetails(report));
-    container.appendChild(card);
-  });
-}
-
-// Helper functions for rendering
-function getStatusClass(status) {
-  const statusMap = {
-    'pending': 'badge-warning',
-    'resolved': 'badge-success',
-    'in_progress': 'badge-info',
-    'rejected': 'badge-danger'
-  };
-  return statusMap[status.toLowerCase()] || 'badge-warning';
-}
-
-function getHazardIcon(hazardType) {
-  const iconMap = {
-    'Pothole': 'fas fa-exclamation-triangle',
-    'Crack': 'fas fa-road',
-    'Longitudinal Crack': 'fas fa-road',
-    'Transverse Crack': 'fas fa-road',
-    'Alligator Crack': 'fas fa-road',
-    'Block Crack': 'fas fa-road',
-    'Construction Joint Crack': 'fas fa-road',
-    'Wheel Mark Crack': 'fas fa-road',
-    'Manhole': 'fas fa-circle',
-    'Patch Repair': 'fas fa-tools',
-    'Lane Blur': 'fas fa-eye-slash',
-    'Crosswalk Blur': 'fas fa-walking'
-  };
-  return iconMap[hazardType] || 'fas fa-exclamation-triangle';
-}
-
-function truncateLocation(location, maxLength = 30) {
-  if (location.length <= maxLength) return location;
-  return location.substring(0, maxLength) + '...';
-}
-
-function formatReportDate(dateInput) {
-  if (!dateInput) return 'Unknown';
-  
-  const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
-  if (isNaN(date.getTime())) return 'Unknown';
-  
-  const now = new Date();
-  const diffMs = now - date;
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
-  
-  if (diffMins < 1) return 'Just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
-  
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
-function capitalizeFirst(str) {
-  return str.charAt(0).toUpperCase() + str.slice(1);
-}
-
-// Expose the function globally
-window.renderReportsCards = renderReportsCards;
-
-// קריאה לגריד רק אחרי טעינת דיווחים
-function tryRenderImagesGridCards() {
-  if (window.allReports && Array.isArray(window.allReports) && window.allReports.length > 0) {
-    renderImagesGridCards(window.allReports);
-    return true;
-  }
-  return false;
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-  // ננסה להאזין לטעינה מאוחרת, אבל רק אם אין דיווחים
-  if (!tryRenderImagesGridCards()) {
-    let tries = 0;
-    const interval = setInterval(() => {
-      if (tryRenderImagesGridCards()) {
-        clearInterval(interval);
-      } else if (++tries > 30) {
-        clearInterval(interval);
-      }
-    }, 300);
-  }
-});
 
