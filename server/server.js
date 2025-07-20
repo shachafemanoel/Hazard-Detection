@@ -29,10 +29,15 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '.env') });
 
 // הדפסה לבדיקת טעינת משתני סביבה
-console.log("Attempting to load environment variables...");
-console.log("CLOUDINARY_CLOUD_NAME from env:", process.env.CLOUDINARY_CLOUD_NAME);
-console.log("GOOGLE_CALLBACK_URL from env:", process.env.GOOGLE_CALLBACK_URL);
-console.log("SESSION_SECRET from env:", process.env.SESSION_SECRET ? "Loaded" : "NOT LOADED");
+console.log("🔧 Environment Configuration:");
+console.log("- Redis Host:", process.env.REDIS_HOST || "localhost (default)");
+console.log("- Redis Port:", process.env.REDIS_PORT || "6379 (default)");
+console.log("- Session Secret:", process.env.SESSION_SECRET ? "✅ Loaded" : "⚠️  Using default (not secure for production)");
+console.log("- Google Maps API:", process.env.GOOGLE_MAPS_API_KEY ? "✅ Loaded" : "❌ Missing (maps won't work)");
+console.log("- Cloudinary:", process.env.CLOUDINARY_CLOUD_NAME ? "✅ Loaded" : "❌ Missing (image upload won't work)");
+console.log("- Google OAuth:", process.env.GOOGLE_CLIENT_ID ? "✅ Loaded" : "⚠️  Missing (Google login disabled)");
+console.log("- SendGrid:", process.env.SENDGRID_API_KEY ? "✅ Loaded" : "⚠️  Missing (password reset disabled)");
+console.log("");
 
 // ☁️ Cloudinary config
 cloudinary.config({
@@ -111,15 +116,20 @@ app.use(session({
   app.use(passport.session());
 
 // 📨 SendGrid API
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+if (process.env.SENDGRID_API_KEY) {
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+    console.log("✅ SendGrid configured for email sending");
+} else {
+    console.log("⚠️  SendGrid not configured - password reset won't work");
+}
 
 // 🔌 Redis client
 const client = createClient({
   username: 'default',
-  password: process.env.REDIS_PASSWORD, // מומלץ לשמור סיסמאות במשתני סביבה
+  password: process.env.REDIS_PASSWORD || undefined, // אם אין סיסמה, השתמש ב-undefined
   socket: {
-    host: process.env.REDIS_HOST,
-    port: process.env.REDIS_PORT
+    host: process.env.REDIS_HOST || 'localhost',
+    port: parseInt(process.env.REDIS_PORT) || 6379
   }
 });
 
@@ -851,6 +861,13 @@ app.post('/login', async (req, res) => {
 
 // שליחה למייל של קישור לאיפוס סיסמה
 app.post('/forgot-password', async (req, res) => {
+    // בדיקה אם SendGrid מוגדר
+    if (!process.env.SENDGRID_API_KEY) {
+        return res.status(503).json({ 
+            error: 'Email service not configured. Please contact administrator.' 
+        });
+    }
+
     const { email } = req.body;
     
     if (!email) {
@@ -957,9 +974,13 @@ app.post('/reset-password', async (req, res) => {
 // Detection upload endpoint (requires authentication)
 app.post('/api/detections', upload.single('file'), async (req, res) => {
     console.log("Detection upload requested");
-    console.log("Session:", req.session);
-    console.log("Is Authenticated:", req.isAuthenticated());
-    console.log("User:", req.user);
+    
+    // בדיקה אם Cloudinary מוגדר
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY) {
+        return res.status(503).json({ 
+            error: 'Image storage service not configured. Please contact administrator.' 
+        });
+    }
 
     // בדוק אם הקובץ הועלה
     if (!req.file) {
