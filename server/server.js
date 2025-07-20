@@ -3,6 +3,7 @@ import express from 'express';
 import session from 'express-session';
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import { Strategy as LocalStrategy } from 'passport-local';
 import dotenv from 'dotenv';
 import { createClient } from 'redis';
 import path from 'path';
@@ -138,6 +139,29 @@ async function connectRedis() {
   }
 connectRedis(); // קריאה לפונקציה בעת עליית השרת
 
+// --- הוספת LocalStrategy ל-Passport ---
+passport.use(new LocalStrategy(
+  { usernameField: 'email' },
+  async (email, password, done) => {
+    try {
+      const userKeys = await client.keys('user:*');
+      for (const key of userKeys) {
+        const userData = await client.get(key);
+        const user = JSON.parse(userData);
+        if (user.email === email) {
+          if (user.password === password) {
+            return done(null, user);
+          } else {
+            return done(null, false, { message: 'Incorrect password' });
+          }
+        }
+      }
+      return done(null, false, { message: 'User not found' });
+    } catch (err) {
+      return done(err);
+    }
+  }
+));
 
 passport.serializeUser((user, done) => {
     console.log('[Passport] Serializing user:', user.email);
@@ -793,45 +817,27 @@ app.post('/register', async (req, res) => {
         return res.status(500).json({ success: false, error: 'Internal server error' });
     }
 
-    req.session.user = {  
-        email,  
-        username  
-    };  
-
-    res.status(201).json({ success: true, message: 'User registered successfully', user: { email, username } });  
+    // התחברות אוטומטית אחרי רישום מוצלח
+    req.login(newUser, (err) => {
+        if (err) {
+            console.error('Login after registration failed:', err);
+            return res.status(500).json({ success: false, error: 'Registration successful but login failed' });
+        }
+        res.status(201).json({ success: true, message: 'User registered successfully', user: { email, username } });
+    });  
 });
 
 
 
-app.post('/login', async (req, res) => {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-        return res.status(400).json({ success: false, error: 'Missing email or password' });
-    }
-
-    const userKeys = await client.keys('user:*');
-    for (const key of userKeys) {
-        const userData = await client.get(key);
-        const user = JSON.parse(userData);
-
-        if (user.email === email) {
-            if (user.password === password) {
-
-                // ✅ שמירה בסשן – כמו שעשית בהתחברות עם גוגל
-                req.session.user = {
-                    email: user.email,
-                    username: user.username
-                };
-
-                return res.status(200).json({ success: true, message: 'Login successful', user: { email, username: user.username } });
-            } else {
-                return res.status(401).json({ success: false, error: 'Incorrect password' });
-            }
-        }
-    }
-
-    return res.status(404).json({ success: false, error: 'User not found' });
+app.post('/login', (req, res, next) => {
+  passport.authenticate('local', (err, user, info) => {
+    if (err) return next(err);
+    if (!user) return res.status(401).json({ success: false, message: info?.message || 'Invalid credentials' });
+    req.login(user, (err) => {
+      if (err) return next(err);
+      return res.json({ success: true, redirect: '/pages/index.html' });
+    });
+  })(req, res, next);
 });
 
 
