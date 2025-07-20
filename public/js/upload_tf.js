@@ -436,34 +436,19 @@ const OPTIMIZATION = {
     let locationNote;
 
     // Get current location from geolocation service
-    let currentLocation;
-    try {
-      currentLocation = await getLatestLocation();
-    } catch (error) {
-      console.log("Current location not available:", error.message);
-      currentLocation = null;
-    }
+    const currentLocation = getLatestLocation();
     
-    if (currentLocation && typeof currentLocation === 'string') {
-      try {
-        currentLocation = JSON.parse(currentLocation);
-      } catch (parseError) {
-        console.warn("Failed to parse location:", parseError);
-        currentLocation = null;
-      }
-    }
-    
-    if (currentLocation && currentLocation.lat && currentLocation.lng) {
+    if (currentLocation && currentLocation.latitude && currentLocation.longitude) {
       // Validate coordinates are reasonable
-      const lat = parseFloat(currentLocation.lat);
-      const lng = parseFloat(currentLocation.lng);
+      const lat = parseFloat(currentLocation.latitude);
+      const lng = parseFloat(currentLocation.longitude);
 
       if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
         geoData = JSON.stringify({
           lat: lat,
           lng: lng,
         });
-        locationNote = "GPS";
+        locationNote = currentLocation.source === "IP" ? "Approximate (IP)" : "GPS";
         console.log(`📍 Using ${locationNote} location for detection save:`, {
           lat,
           lng,
@@ -538,43 +523,18 @@ const OPTIMIZATION = {
         }
 
         try {
-          const result = await ApiService.uploadAnonymousDetection(formData);
-          
-          // Ensure we have proper Redis storage and Cloudinary URL
-          if (result && result.report) {
-            // Validate that the report was saved to Redis
-            if (result.reportId || result.report.id) {
-              console.log("✅ Detection saved to Redis with ID:", result.reportId || result.report.id);
-            }
-            
-            // Ensure Cloudinary image URL is present
-            if (result.url || result.report.image) {
-              const imageUrl = result.url || result.report.image;
-              console.log("✅ Image uploaded to Cloudinary:", imageUrl);
-              
-              // Validate Cloudinary URL format
-              if (!imageUrl.includes('cloudinary.com')) {
-                console.warn('⚠️ Image URL does not appear to be from Cloudinary:', imageUrl);
-              }
-            } else {
-              console.warn('⚠️ No Cloudinary image URL in response');
-            }
-          }
-          
-          // Ensure backward compatibility - populate report.image if missing
+          const result = await ApiService.uploadDetection(formData);
+          // ודא שתמיד יש report.image
           if (result.url && (!result.report || !result.report.image)) {
             result.report = result.report || {};
             result.report.image = result.url;
           }
-          
           console.log("✅ Detection saved:", result.message);
           
           // Handle successful upload response with quality info
           const qualityInfo = trackedObj ? ` (Conf: ${(trackedObj.confidence * 100).toFixed(0)}%)` : '';
-          const redisInfo = result.reportId ? ` - Redis ID: ${result.reportId}` : '';
-          
           if (result.reportId) {
-            showSuccessToast(`💾 High-quality detection saved${qualityInfo}${redisInfo}`);
+            showSuccessToast(`💾 High-quality detection saved${qualityInfo} - ID: ${result.reportId}`);
           } else {
             showSuccessToast(`💾 Detection saved (${locationNote})${qualityInfo}`);
           }

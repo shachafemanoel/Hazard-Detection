@@ -380,71 +380,9 @@ app.post('/api/reports', async (req, res) => {
     }
 });
 
-// Helper function to sort reports
-function sortReports(reports, sortBy = 'time', sortOrder = 'desc') {
-    const validSortFields = ['time', 'status', 'type', 'location', 'reportedBy', 'id', 'createdAt'];
-    const field = validSortFields.includes(sortBy) ? sortBy : 'time';
-    const order = ['asc', 'desc'].includes(sortOrder) ? sortOrder : 'desc';
-
-    return reports.sort((a, b) => {
-        let aVal = a[field];
-        let bVal = b[field];
-
-        // Handle different data types
-        if (field === 'time' || field === 'createdAt') {
-            aVal = new Date(aVal || 0).getTime();
-            bVal = new Date(bVal || 0).getTime();
-        } else if (field === 'id') {
-            aVal = parseInt(aVal) || 0;
-            bVal = parseInt(bVal) || 0;
-        } else {
-            // String comparison (case insensitive)
-            aVal = String(aVal || '').toLowerCase();
-            bVal = String(bVal || '').toLowerCase();
-        }
-
-        if (aVal < bVal) return order === 'asc' ? -1 : 1;
-        if (aVal > bVal) return order === 'asc' ? 1 : -1;
-        return 0;
-    });
-}
-
-// Helper function to paginate results
-function paginateResults(reports, limit, offset) {
-    const totalCount = reports.length;
-    const startIndex = parseInt(offset) || 0;
-    const limitNum = parseInt(limit);
-    
-    if (limitNum && limitNum > 0) {
-        const endIndex = startIndex + limitNum;
-        return {
-            reports: reports.slice(startIndex, endIndex),
-            pagination: {
-                total: totalCount,
-                limit: limitNum,
-                offset: startIndex,
-                hasMore: endIndex < totalCount
-            }
-        };
-    }
-    
-    return {
-        reports: reports.slice(startIndex),
-        pagination: {
-            total: totalCount,
-            offset: startIndex,
-            hasMore: false
-        }
-    };
-}
-
-// שליפת כל הדיווחים - Enhanced with sorting and pagination
+// שליפת כל הדיווחים
 app.get('/api/reports', async (req, res) => {
     const filters = req.query;
-    const sortBy = req.query.sortBy || 'time';
-    const sortOrder = req.query.sortOrder || 'desc';
-    const limit = req.query.limit;
-    const offset = req.query.offset || 0;
 
     if (filters.hazardType && typeof filters.hazardType === 'string') {
         filters.hazardType = filters.hazardType.split(',').map(type => type.trim());
@@ -508,20 +446,7 @@ app.get('/api/reports', async (req, res) => {
             }
         }
 
-        // Apply sorting
-        const sortedReports = sortReports(reports, sortBy, sortOrder);
-        
-        // Apply pagination if requested
-        if (limit) {
-            const paginatedResult = paginateResults(sortedReports, limit, offset);
-            res.status(200).json({
-                data: paginatedResult.reports,
-                pagination: paginatedResult.pagination
-            });
-        } else {
-            res.status(200).json(sortedReports);
-        }
-        
+        res.status(200).json(reports);
     } catch (err) {
         console.error('🔥 Error fetching reports:', err);
         res.status(500).json({ error: 'Error fetching reports' });
@@ -1016,26 +941,22 @@ app.post('/reset-password', async (req, res) => {
 });
 
 
-// Unified detection upload endpoint
+// Detection upload endpoint (requires authentication)
 app.post('/api/detections', upload.single('file'), async (req, res) => {
-    console.log("Unified detection upload requested");
-    console.log("Session:", req.session); // Debug session
-    console.log("Is Authenticated:", req.isAuthenticated()); // Debug authentication
-    console.log("User:", req.user); // Debug user object
-    console.log("Anonymous flag:", req.body.anonymous); // Debug anonymous flag
+    console.log("Detection upload requested");
+    console.log("Session:", req.session);
+    console.log("Is Authenticated:", req.isAuthenticated());
+    console.log("User:", req.user);
 
     // בדוק אם הקובץ הועלה
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // Check if this is an anonymous upload
-    const isAnonymous = req.body.anonymous === 'true';
-    
-    // אימות משתמש - רק אם זה לא anonymous
-    if (!isAnonymous && !req.isAuthenticated()) {
-        console.log("Authentication failed for non-anonymous upload"); // Debug log
-        return res.status(401).json({ error: 'Please log in again' });
+    // אימות משתמש - חובה
+    if (!req.isAuthenticated()) {
+        console.log("Authentication failed");
+        return res.status(401).json({ error: 'Please log in to upload detections' });
     }
 
     const hazardTypes = req.body.hazardTypes;
@@ -1098,14 +1019,9 @@ app.post('/api/detections', upload.single('file'), async (req, res) => {
         }
         let locationNote = req.body.locationNote || "GPS";
 
-        // קבלת שם המדווח based on authentication status
+        // קבלת שם המדווח
         let reportedBy;
-        let reportKeyPrefix = 'report:';
-        
-        if (isAnonymous) {
-            reportedBy = 'AI Camera Detection';
-            reportKeyPrefix = 'report:anon:';
-        } else if (req.session?.user?.username) {  
+        if (req.session?.user?.username) {  
           reportedBy = req.session.user.username;  
         } else if (req.user?.username) {  
           reportedBy = req.user.username;  
@@ -1115,7 +1031,7 @@ app.post('/api/detections', upload.single('file'), async (req, res) => {
         
         // שמירה ב-Redis
         const reportId = Date.now();
-        const reportKey = `${reportKeyPrefix}${reportId}`;
+        const reportKey = `report:${reportId}`;
         const createdAt = new Date().toISOString();
         
         const report = {
@@ -1128,7 +1044,6 @@ app.post('/api/detections', upload.single('file'), async (req, res) => {
             locationNote,
             reportedBy,
             createdAt,
-            isAnonymous: isAnonymous,
             coordinates: geoData ? { lat: geoData.lat, lng: geoData.lng } : null
         };
 
@@ -1139,132 +1054,23 @@ app.post('/api/detections', upload.single('file'), async (req, res) => {
                 console.log("💾 Report saved to Redis: ", reportKey);
                 
                 // Broadcast real-time event
-                const eventType = isAnonymous ? 'new_anonymous_report' : 'new_report';
-                broadcastSSEEvent({ type: eventType, report });
+                broadcastSSEEvent({ type: 'new_report', report });
             } catch (redisError) {
                 console.warn('Failed to save report to Redis:', redisError.message);
                 // Continue anyway - the upload to Cloudinary succeeded
             }
         }
-
-        const successMessage = isAnonymous ? 
-            'Anonymous detection uploaded successfully' : 
-            'Report uploaded and saved successfully';
             
         res.status(200).json({
-            message: successMessage,
+            message: 'Report uploaded and saved successfully',
             reportId: reportId,
-            report: {
-                ...report,
-                image: result.secure_url // Ensure Cloudinary URL is always in report.image
-            },
-            url: result.secure_url,
-            storage: {
-                redis: redisConnected ? 'success' : 'failed',
-                cloudinary: 'success'
-            }
+            report,
+            url: result.secure_url
         });
     } catch (e) {
         console.error('🔥 Upload error:', e);
         res.status(500).json({ error: 'Failed to upload report' });
     }
-});
-
-// Add GET /api/detections to return all reports (same as GET /api/reports)
-app.get('/api/detections', async (req, res) => {
-    const filters = req.query;
-    const sortBy = req.query.sortBy || 'time';
-    const sortOrder = req.query.sortOrder || 'desc';
-    const limit = req.query.limit;
-    const offset = req.query.offset || 0;
-
-    if (filters.hazardType && typeof filters.hazardType === 'string') {
-        filters.hazardType = filters.hazardType.split(',').map(type => type.trim());
-    }
-
-    try {
-        const keys = await client.keys('report:*');
-        const reports = [];
-
-        for (const key of keys) {
-            let report;
-            try {
-                report = await client.json.get(key);
-            } catch (err) {
-                console.error(`Skipping key ${key} due to Redis type error:`, err.message);
-                continue;
-            }
-            if (!report) continue;
-
-            let match = true;
-
-            // סוגי מפגעים: לפחות אחד מתוך הרשימה
-            if (filters.hazardType) {
-                const hazardArray = Array.isArray(filters.hazardType) ? filters.hazardType : [filters.hazardType];
-                const reportTypes = (report.type || '').split(',').map(t => t.trim().toLowerCase());
-                const hasMatch = hazardArray.some(type => reportTypes.includes(type.toLowerCase()));
-                if (!hasMatch) match = false;
-            }
-            // מיקום
-            if (filters.location) {
-                const reportLoc = (report.location || '').toLowerCase();
-                const pattern = filters.location.trim().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const regex = new RegExp(pattern, 'i');
-                if (!regex.test(reportLoc)) match = false;
-            }
-            // תאריך
-            if (filters.startDate && new Date(report.time) < new Date(filters.startDate)) match = false;
-            if (filters.endDate && new Date(report.time) > new Date(filters.endDate)) match = false;
-            // סטטוס
-            if (filters.status) {
-                const reportStatus = report.status.toLowerCase();
-                const filterStatus = filters.status.toLowerCase();
-                if (reportStatus !== filterStatus) match = false;
-            }
-            // מחפש לפי מדווח
-            if (filters.reportedBy) {
-                const reporter = (report.reportedBy || '').toLowerCase();
-                const search = filters.reportedBy.toLowerCase();
-                if (!reporter.includes(search)) match = false;
-            }
-            if (match) {
-                reports.push(report);
-            }
-        }
-        
-        // Apply sorting
-        const sortedReports = sortReports(reports, sortBy, sortOrder);
-        
-        // Apply pagination if requested
-        if (limit) {
-            const paginatedResult = paginateResults(sortedReports, limit, offset);
-            res.status(200).json({
-                data: paginatedResult.reports,
-                pagination: paginatedResult.pagination
-            });
-        } else {
-            res.status(200).json(sortedReports);
-        }
-        
-    } catch (err) {
-        console.error('🔥 Error fetching reports:', err);
-        res.status(500).json({ error: 'Error fetching reports' });
-    }
-});
-
-// Legacy endpoint redirect for backward compatibility
-app.post('/detections', upload.single('file'), (req, _res, next) => {
-    console.log('Legacy /detections endpoint called, adding anonymous flag and forwarding');
-    req.body.anonymous = 'true';
-    req.url = '/api/detections';
-    next();
-});
-
-// Legacy endpoint redirect for backward compatibility
-app.post('/upload-detection', upload.single('file'), (req, _res, next) => {
-    console.log('Legacy /upload-detection endpoint called, forwarding to unified endpoint');
-    req.url = '/api/detections';
-    next();
 });
 
 // --- SSE clients storage and broadcast ---
