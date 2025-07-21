@@ -1,0 +1,482 @@
+Attempting to load environment variables...
+CLOUDINARY_CLOUD_NAME from env: dgn5da9f8
+GOOGLE_CALLBACK_URL from env: http://localhost:3000/auth/google/callback
+SESSION_SECRET from env: Loaded
+✅ Server running locally: http://localhost:3000
+✅ Server running on your network: http://169.254.135.73:3000
+✅ Connected to Redis
+Stats endpoint called
+Found 248 report keys
+[API] Fetching reports - Page: 1, Limit: 5, Filters: { page: '1', limit: '5' }
+[API] Found 248 report keys in 157ms
+[API] Returning 5 reports (100 total matches) in 471ms
+[API] Fetching reports - Page: 1, Limit: 25, Filters: { page: '1', limit: '25' }
+[API] Found 248 report keys in 180ms
+[API] Returning 25 reports (100 total matches) in 811ms
+[API] Fetching reports - Page: 1, Limit: 25, Filters: { page: '1', limit: '25' }
+Geocoding address: איינשטיין 131, חיפה, ישראל
+[API] Found 248 report keys in 156ms
+[API] Returning 25 reports (100 total matches) in 316ms
+Geocoding address: איינשטיין 131, חיפה, ישראל
+Geocoding address: Waldbadstraße 50, 5081, אוסטריה
+Geocoding address: Waldbadstraße 50, 5081, אוסטריה
+Geocoding address: איינשטיין 88, חיפה, ישראל
+Geocoding address: איינשטיין 88, חיפה, ישראל
+Geocoding address: דוד בן גוריון 13, בני ברק, ישראל
+Geocoding address: דוד בן גוריון 13, בני ברק, ישראל
+Geocoding address: ‫דרך נמיר מרדכי 301, תל אביב-יפו, ישראל
+Geocoding address: ‫דרך נמיר מרדכי 301, תל אביב-יפו, ישראל
+Geocoding address: קריית חינוך/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: המכללה למנהל/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: המכללה למנהל/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: מכללת לוינסקי/דרך נמיר, רמת השרון, ישראל
+Geocoding address: יוניצמן, תל אביב-יפו, ישראל
+Geocoding address: יוניצמן, תל אביב-יפו, ישראל
+Geocoding address: יוניצ'מן 19, תל אביב-יפו, ישראל
+Geocoding address: יוניצ'מן 19, תל אביב-יפו, ישראל
+Geocoding address: סוקולוב 40, רמת גן, ישראל
+Geocoding address: דרך אבא הלל/רש''י, רמת גן, ישראל
+Geocoding address: המבדיל 17, רמת גן, ישראל
+Geocoding address: המבדיל 17, רמת גן, ישראל
+Geocoding address: המבדיל 12, רמת גן, ישראל
+Geocoding address: המבדיל 12, רמת גן, ישראל
+Geocoding address: דרך קיבוץ גלויות 79, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 79, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 83, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 83, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 93, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 97, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 93, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 97, תל אביב-יפו, ישראל
+[API] Fetching reports - Page: 1, Limit: 25, Filters: { page: '1', limit: '25' }
+[API] Found 248 report keys in 349ms
+[API] Returning 25 reports (100 total matches) in 1123ms
+[API] Fetching reports - Page: 1, Limit: 25, Filters: { page: '1', limit: '25' }
+Geocoding address: איינשטיין 131, חיפה, ישראל
+[API] Found 248 report keys in 179ms
+[API] Returning 25 reports (100 total matches) in 398ms
+Geocoding address: איינשטיין 131, חיפה, ישראל
+Geocoding address: Waldbadstraße 50, 5081, אוסטריה
+Geocoding address: Waldbadstraße 50, 5081, אוסטריה
+Geocoding address: איינשטיין 88, חיפה, ישראל
+Geocoding address: דוד בן גוריון 13, בני ברק, ישראל
+Geocoding address: דוד בן גוריון 13, בני ברק, ישראל
+Geocoding address: ‫דרך נמיר מרדכי 301, תל אביב-יפו, ישראל
+Geocoding address: ‫דרך נמיר מרדכי 301, תל אביב-יפו, ישראל
+Geocoding address: קריית חינוך/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: המכללה למנהל/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: המכללה למנהל/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: מכללת לוינסקי/דרך נמיר, רמת השרון, ישראל
+Geocoding address: מכללת לוינסקי/דרך נמיר, רמת השרון, ישראל
+Geocoding address: יוניצמן, תל אביב-יפו, ישראל
+Geocoding address: יוניצמן, תל אביב-יפו, ישראל
+Geocoding address: יוניצ'מן 19, תל אביב-יפו, ישראל
+Geocoding address: יוניצ'מן 19, תל אביב-יפו, ישראל
+Geocoding address: סוקולוב 40, רמת גן, ישראל
+Geocoding address: דרך אבא הלל/רש''י, רמת גן, ישראל
+Geocoding address: דרך אבא הלל/רש''י, רמת גן, ישראל
+Geocoding address: המבדיל 17, רמת גן, ישראל
+Geocoding address: המבדיל 17, רמת גן, ישראל
+Geocoding address: המבדיל 12, רמת גן, ישראל
+Geocoding address: המבדיל 12, רמת גן, ישראל
+Geocoding address: דרך קיבוץ גלויות 79, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 79, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 83, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 83, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 93, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 93, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 97, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 97, תל אביב-יפו, ישראל
+[API] Fetching reports - Page: 1, Limit: 25, Filters: { page: '1', limit: '25' }
+[API] Found 248 report keys in 155ms
+[API] Returning 25 reports (100 total matches) in 767ms
+[API] Fetching reports - Page: 1, Limit: 25, Filters: { page: '1', limit: '25' }
+Geocoding address: איינשטיין 131, חיפה, ישראל
+[API] Found 248 report keys in 288ms
+[API] Returning 25 reports (100 total matches) in 469ms
+Geocoding address: איינשטיין 131, חיפה, ישראל
+Geocoding address: Waldbadstraße 50, 5081, אוסטריה
+Geocoding address: Waldbadstraße 50, 5081, אוסטריה
+Geocoding address: איינשטיין 88, חיפה, ישראל
+Geocoding address: איינשטיין 88, חיפה, ישראל
+Geocoding address: דוד בן גוריון 13, בני ברק, ישראל
+Geocoding address: דוד בן גוריון 13, בני ברק, ישראל
+Geocoding address: ‫דרך נמיר מרדכי 301, תל אביב-יפו, ישראל
+Geocoding address: ‫דרך נמיר מרדכי 301, תל אביב-יפו, ישראל
+Geocoding address: קריית חינוך/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: המכללה למנהל/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: המכללה למנהל/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: מכללת לוינסקי/דרך נמיר, רמת השרון, ישראל
+Geocoding address: מכללת לוינסקי/דרך נמיר, רמת השרון, ישראל
+Geocoding address: יוניצמן, תל אביב-יפו, ישראל
+Geocoding address: יוניצמן, תל אביב-יפו, ישראל
+Geocoding address: יוניצ'מן 19, תל אביב-יפו, ישראל
+Geocoding address: יוניצ'מן 19, תל אביב-יפו, ישראל
+Geocoding address: סוקולוב 40, רמת גן, ישראל
+Geocoding address: דרך אבא הלל/רש''י, רמת גן, ישראל
+Geocoding address: דרך אבא הלל/רש''י, רמת גן, ישראל
+Geocoding address: המבדיל 17, רמת גן, ישראל
+Geocoding address: המבדיל 17, רמת גן, ישראל
+Geocoding address: המבדיל 12, רמת גן, ישראל
+Geocoding address: המבדיל 12, רמת גן, ישראל
+Geocoding address: דרך קיבוץ גלויות 79, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 79, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 83, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 83, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 93, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 93, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 97, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 97, תל אביב-יפו, ישראל
+[API] Fetching reports - Page: 1, Limit: 25, Filters: { page: '1', limit: '25' }
+[API] Found 248 report keys in 387ms
+[API] Returning 25 reports (100 total matches) in 779ms
+[API] Fetching reports - Page: 1, Limit: 25, Filters: { page: '1', limit: '25' }
+Geocoding address: איינשטיין 131, חיפה, ישראל
+[API] Found 248 report keys in 535ms
+[API] Returning 25 reports (100 total matches) in 694ms
+Geocoding address: איינשטיין 131, חיפה, ישראל
+Geocoding address: Waldbadstraße 50, 5081, אוסטריה
+Geocoding address: Waldbadstraße 50, 5081, אוסטריה
+Geocoding address: איינשטיין 88, חיפה, ישראל
+Geocoding address: דוד בן גוריון 13, בני ברק, ישראל
+Geocoding address: דוד בן גוריון 13, בני ברק, ישראל
+Geocoding address: ‫דרך נמיר מרדכי 301, תל אביב-יפו, ישראל
+Geocoding address: ‫דרך נמיר מרדכי 301, תל אביב-יפו, ישראל
+Geocoding address: קריית חינוך/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: המכללה למנהל/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: מכללת לוינסקי/דרך נמיר, רמת השרון, ישראל
+Geocoding address: מכללת לוינסקי/דרך נמיר, רמת השרון, ישראל
+Geocoding address: יוניצמן, תל אביב-יפו, ישראל
+Geocoding address: יוניצמן, תל אביב-יפו, ישראל
+Geocoding address: יוניצ'מן 19, תל אביב-יפו, ישראל
+Geocoding address: יוניצ'מן 19, תל אביב-יפו, ישראל
+Geocoding address: סוקולוב 40, רמת גן, ישראל
+Geocoding address: דרך אבא הלל/רש''י, רמת גן, ישראל
+Geocoding address: דרך אבא הלל/רש''י, רמת גן, ישראל
+Geocoding address: המבדיל 17, רמת גן, ישראל
+Geocoding address: המבדיל 17, רמת גן, ישראל
+Geocoding address: המבדיל 12, רמת גן, ישראל
+Geocoding address: המבדיל 12, רמת גן, ישראל
+Geocoding address: דרך קיבוץ גלויות 79, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 79, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 83, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 83, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 93, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 97, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 93, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 97, תל אביב-יפו, ישראל
+[API] Fetching reports - Page: 1, Limit: 25, Filters: { page: '1', limit: '25' }
+[API] Found 248 report keys in 202ms
+[API] Returning 25 reports (100 total matches) in 742ms
+[API] Fetching reports - Page: 1, Limit: 25, Filters: { page: '1', limit: '25' }
+Geocoding address: איינשטיין 131, חיפה, ישראל
+[API] Found 248 report keys in 360ms
+[API] Returning 25 reports (100 total matches) in 756ms
+Geocoding address: איינשטיין 131, חיפה, ישראל
+Geocoding address: Waldbadstraße 50, 5081, אוסטריה
+Geocoding address: Waldbadstraße 50, 5081, אוסטריה
+Geocoding address: איינשטיין 88, חיפה, ישראל
+Geocoding address: איינשטיין 88, חיפה, ישראל
+Geocoding address: דוד בן גוריון 13, בני ברק, ישראל
+Geocoding address: דוד בן גוריון 13, בני ברק, ישראל
+Geocoding address: ‫דרך נמיר מרדכי 301, תל אביב-יפו, ישראל
+Geocoding address: ‫דרך נמיר מרדכי 301, תל אביב-יפו, ישראל
+Geocoding address: קריית חינוך/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: המכללה למנהל/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: המכללה למנהל/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: מכללת לוינסקי/דרך נמיר, רמת השרון, ישראל
+Geocoding address: מכללת לוינסקי/דרך נמיר, רמת השרון, ישראל
+Geocoding address: יוניצמן, תל אביב-יפו, ישראל
+Geocoding address: יוניצמן, תל אביב-יפו, ישראל
+Geocoding address: יוניצ'מן 19, תל אביב-יפו, ישראל
+Geocoding address: יוניצ'מן 19, תל אביב-יפו, ישראל
+Geocoding address: סוקולוב 40, רמת גן, ישראל
+Geocoding address: דרך אבא הלל/רש''י, רמת גן, ישראל
+Geocoding address: המבדיל 17, רמת גן, ישראל
+Geocoding address: המבדיל 17, רמת גן, ישראל
+Geocoding address: המבדיל 12, רמת גן, ישראל
+Geocoding address: המבדיל 12, רמת גן, ישראל
+Geocoding address: דרך קיבוץ גלויות 79, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 79, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 83, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 83, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 93, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 93, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 97, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 97, תל אביב-יפו, ישראל
+[API] Fetching reports - Page: 1, Limit: 25, Filters: { page: '1', limit: '25' }
+[API] Found 248 report keys in 200ms
+[API] Returning 25 reports (100 total matches) in 861ms
+[API] Fetching reports - Page: 1, Limit: 25, Filters: { page: '1', limit: '25' }
+Geocoding address: איינשטיין 131, חיפה, ישראל
+[API] Found 248 report keys in 273ms
+Geocoding address: Waldbadstraße 50, 5081, אוסטריה
+[API] Returning 25 reports (100 total matches) in 510ms
+Geocoding address: Waldbadstraße 50, 5081, אוסטריה
+Geocoding address: איינשטיין 88, חיפה, ישראל
+Geocoding address: איינשטיין 88, חיפה, ישראל
+Geocoding address: דוד בן גוריון 13, בני ברק, ישראל
+Geocoding address: דוד בן גוריון 13, בני ברק, ישראל
+Geocoding address: ‫דרך נמיר מרדכי 301, תל אביב-יפו, ישראל
+Geocoding address: ‫דרך נמיר מרדכי 301, תל אביב-יפו, ישראל
+Geocoding address: קריית חינוך/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: המכללה למנהל/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: המכללה למנהל/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: מכללת לוינסקי/דרך נמיר, רמת השרון, ישראל
+Geocoding address: מכללת לוינסקי/דרך נמיר, רמת השרון, ישראל
+Geocoding address: יוניצמן, תל אביב-יפו, ישראל
+Geocoding address: יוניצמן, תל אביב-יפו, ישראל
+Geocoding address: יוניצ'מן 19, תל אביב-יפו, ישראל
+Geocoding address: יוניצ'מן 19, תל אביב-יפו, ישראל
+Geocoding address: סוקולוב 40, רמת גן, ישראל
+Geocoding address: דרך אבא הלל/רש''י, רמת גן, ישראל
+Geocoding address: המבדיל 17, רמת גן, ישראל
+Geocoding address: המבדיל 17, רמת גן, ישראל
+Geocoding address: המבדיל 12, רמת גן, ישראל
+Geocoding address: המבדיל 12, רמת גן, ישראל
+Geocoding address: דרך קיבוץ גלויות 79, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 79, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 83, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 83, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 93, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 93, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 97, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 97, תל אביב-יפו, ישראל
+[API] Fetching reports - Page: 1, Limit: 25, Filters: { page: '1', limit: '25' }
+[API] Found 248 report keys in 158ms
+[API] Returning 25 reports (100 total matches) in 783ms
+[API] Fetching reports - Page: 1, Limit: 25, Filters: { page: '1', limit: '25' }
+Geocoding address: איינשטיין 131, חיפה, ישראל
+[API] Found 248 report keys in 158ms
+[API] Returning 25 reports (100 total matches) in 399ms
+Geocoding address: איינשטיין 131, חיפה, ישראל
+Geocoding address: Waldbadstraße 50, 5081, אוסטריה
+Geocoding address: Waldbadstraße 50, 5081, אוסטריה
+Geocoding address: איינשטיין 88, חיפה, ישראל
+Geocoding address: איינשטיין 88, חיפה, ישראל
+Geocoding address: דוד בן גוריון 13, בני ברק, ישראל
+Geocoding address: דוד בן גוריון 13, בני ברק, ישראל
+Geocoding address: ‫דרך נמיר מרדכי 301, תל אביב-יפו, ישראל
+Geocoding address: ‫דרך נמיר מרדכי 301, תל אביב-יפו, ישראל
+Geocoding address: קריית חינוך/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: המכללה למנהל/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: המכללה למנהל/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: מכללת לוינסקי/דרך נמיר, רמת השרון, ישראל
+Geocoding address: מכללת לוינסקי/דרך נמיר, רמת השרון, ישראל
+Geocoding address: יוניצמן, תל אביב-יפו, ישראל
+Geocoding address: יוניצמן, תל אביב-יפו, ישראל
+Geocoding address: יוניצ'מן 19, תל אביב-יפו, ישראל
+Geocoding address: יוניצ'מן 19, תל אביב-יפו, ישראל
+Geocoding address: סוקולוב 40, רמת גן, ישראל
+Geocoding address: דרך אבא הלל/רש''י, רמת גן, ישראל
+Geocoding address: דרך אבא הלל/רש''י, רמת גן, ישראל
+Geocoding address: המבדיל 17, רמת גן, ישראל
+Geocoding address: המבדיל 17, רמת גן, ישראל
+Geocoding address: המבדיל 12, רמת גן, ישראל
+Geocoding address: המבדיל 12, רמת גן, ישראל
+Geocoding address: דרך קיבוץ גלויות 79, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 79, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 83, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 93, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 83, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 97, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 93, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 97, תל אביב-יפו, ישראל
+[API] Fetching reports - Page: 1, Limit: 25, Filters: { page: '1', limit: '25' }
+[API] Found 248 report keys in 264ms
+[API] Returning 25 reports (100 total matches) in 714ms
+[API] Fetching reports - Page: 1, Limit: 25, Filters: { page: '1', limit: '25' }
+Geocoding address: איינשטיין 131, חיפה, ישראל
+[API] Found 248 report keys in 175ms
+[API] Returning 25 reports (100 total matches) in 392ms
+Geocoding address: איינשטיין 131, חיפה, ישראל
+Geocoding address: Waldbadstraße 50, 5081, אוסטריה
+Geocoding address: Waldbadstraße 50, 5081, אוסטריה
+Geocoding address: איינשטיין 88, חיפה, ישראל
+Geocoding address: איינשטיין 88, חיפה, ישראל
+Geocoding address: דוד בן גוריון 13, בני ברק, ישראל
+Geocoding address: דוד בן גוריון 13, בני ברק, ישראל
+Geocoding address: ‫דרך נמיר מרדכי 301, תל אביב-יפו, ישראל
+Geocoding address: ‫דרך נמיר מרדכי 301, תל אביב-יפו, ישראל
+Geocoding address: קריית חינוך/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: המכללה למנהל/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: המכללה למנהל/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: מכללת לוינסקי/דרך נמיר, רמת השרון, ישראל
+Geocoding address: מכללת לוינסקי/דרך נמיר, רמת השרון, ישראל
+Geocoding address: יוניצמן, תל אביב-יפו, ישראל
+Geocoding address: יוניצמן, תל אביב-יפו, ישראל
+Geocoding address: יוניצ'מן 19, תל אביב-יפו, ישראל
+Geocoding address: יוניצ'מן 19, תל אביב-יפו, ישראל
+Geocoding address: סוקולוב 40, רמת גן, ישראל
+Geocoding address: דרך אבא הלל/רש''י, רמת גן, ישראל
+Geocoding address: דרך אבא הלל/רש''י, רמת גן, ישראל
+Geocoding address: המבדיל 17, רמת גן, ישראל
+Geocoding address: המבדיל 17, רמת גן, ישראל
+Geocoding address: המבדיל 12, רמת גן, ישראל
+Geocoding address: המבדיל 12, רמת גן, ישראל
+Geocoding address: דרך קיבוץ גלויות 79, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 79, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 83, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 83, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 93, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 93, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 97, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 97, תל אביב-יפו, ישראל
+[API] Fetching reports - Page: 1, Limit: 25, Filters: { page: '1', limit: '25' }
+[API] Found 248 report keys in 383ms
+[API] Returning 25 reports (100 total matches) in 1453ms
+[API] Fetching reports - Page: 1, Limit: 25, Filters: { page: '1', limit: '25' }
+Geocoding address: איינשטיין 131, חיפה, ישראל
+[API] Found 248 report keys in 159ms
+[API] Returning 25 reports (100 total matches) in 365ms
+Geocoding address: איינשטיין 131, חיפה, ישראל
+Geocoding address: Waldbadstraße 50, 5081, אוסטריה
+Geocoding address: Waldbadstraße 50, 5081, אוסטריה
+Geocoding address: איינשטיין 88, חיפה, ישראל
+Geocoding address: דוד בן גוריון 13, בני ברק, ישראל
+Geocoding address: דוד בן גוריון 13, בני ברק, ישראל
+Geocoding address: ‫דרך נמיר מרדכי 301, תל אביב-יפו, ישראל
+Geocoding address: ‫דרך נמיר מרדכי 301, תל אביב-יפו, ישראל
+Geocoding address: קריית חינוך/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: המכללה למנהל/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: המכללה למנהל/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: מכללת לוינסקי/דרך נמיר, רמת השרון, ישראל
+Geocoding address: מכללת לוינסקי/דרך נמיר, רמת השרון, ישראל
+Geocoding address: יוניצמן, תל אביב-יפו, ישראל
+Geocoding address: יוניצמן, תל אביב-יפו, ישראל
+Geocoding address: יוניצ'מן 19, תל אביב-יפו, ישראל
+Geocoding address: יוניצ'מן 19, תל אביב-יפו, ישראל
+Geocoding address: סוקולוב 40, רמת גן, ישראל
+Geocoding address: דרך אבא הלל/רש''י, רמת גן, ישראל
+Geocoding address: דרך אבא הלל/רש''י, רמת גן, ישראל
+Geocoding address: המבדיל 17, רמת גן, ישראל
+Geocoding address: המבדיל 17, רמת גן, ישראל
+Geocoding address: המבדיל 12, רמת גן, ישראל
+Geocoding address: המבדיל 12, רמת גן, ישראל
+Geocoding address: דרך קיבוץ גלויות 79, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 79, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 83, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 83, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 93, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 93, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 97, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 97, תל אביב-יפו, ישראל
+[API] Fetching reports - Page: 1, Limit: 25, Filters: { page: '1', limit: '25' }
+[API] Found 248 report keys in 161ms
+[API] Returning 25 reports (100 total matches) in 560ms
+[API] Fetching reports - Page: 1, Limit: 25, Filters: { page: '1', limit: '25' }
+Geocoding address: איינשטיין 131, חיפה, ישראל
+[API] Found 248 report keys in 219ms
+[API] Returning 25 reports (100 total matches) in 482ms
+Geocoding address: איינשטיין 131, חיפה, ישראל
+Geocoding address: Waldbadstraße 50, 5081, אוסטריה
+Geocoding address: Waldbadstraße 50, 5081, אוסטריה
+Geocoding address: איינשטיין 88, חיפה, ישראל
+Geocoding address: איינשטיין 88, חיפה, ישראל
+Geocoding address: דוד בן גוריון 13, בני ברק, ישראל
+Geocoding address: דוד בן גוריון 13, בני ברק, ישראל
+Geocoding address: ‫דרך נמיר מרדכי 301, תל אביב-יפו, ישראל
+Geocoding address: ‫דרך נמיר מרדכי 301, תל אביב-יפו, ישראל
+Geocoding address: קריית חינוך/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: המכללה למנהל/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: המכללה למנהל/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: מכללת לוינסקי/דרך נמיר, רמת השרון, ישראל
+Geocoding address: מכללת לוינסקי/דרך נמיר, רמת השרון, ישראל
+Geocoding address: יוניצמן, תל אביב-יפו, ישראל
+Geocoding address: יוניצמן, תל אביב-יפו, ישראל
+Geocoding address: יוניצ'מן 19, תל אביב-יפו, ישראל
+Geocoding address: יוניצ'מן 19, תל אביב-יפו, ישראל
+Geocoding address: סוקולוב 40, רמת גן, ישראל
+Geocoding address: דרך אבא הלל/רש''י, רמת גן, ישראל
+Geocoding address: דרך אבא הלל/רש''י, רמת גן, ישראל
+Geocoding address: המבדיל 17, רמת גן, ישראל
+Geocoding address: המבדיל 17, רמת גן, ישראל
+Geocoding address: המבדיל 12, רמת גן, ישראל
+Geocoding address: המבדיל 12, רמת גן, ישראל
+Geocoding address: דרך קיבוץ גלויות 79, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 79, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 83, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 83, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 93, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 93, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 97, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 97, תל אביב-יפו, ישראל
+[API] Fetching reports - Page: 1, Limit: 25, Filters: { page: '1', limit: '25' }
+[API] Found 248 report keys in 250ms
+[API] Returning 25 reports (100 total matches) in 1006ms
+[API] Fetching reports - Page: 1, Limit: 25, Filters: { page: '1', limit: '25' }
+[API] Found 248 report keys in 161ms
+Geocoding address: איינשטיין 131, חיפה, ישראל
+[API] Returning 25 reports (100 total matches) in 340ms
+Geocoding address: איינשטיין 131, חיפה, ישראל
+Geocoding address: Waldbadstraße 50, 5081, אוסטריה
+Geocoding address: Waldbadstraße 50, 5081, אוסטריה
+Geocoding address: איינשטיין 88, חיפה, ישראל
+Geocoding address: איינשטיין 88, חיפה, ישראל
+Geocoding address: דוד בן גוריון 13, בני ברק, ישראל
+Geocoding address: דוד בן גוריון 13, בני ברק, ישראל
+Geocoding address: ‫דרך נמיר מרדכי 301, תל אביב-יפו, ישראל
+Geocoding address: ‫דרך נמיר מרדכי 301, תל אביב-יפו, ישראל
+Geocoding address: קריית חינוך/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: המכללה למנהל/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: מכללת לוינסקי/דרך נמיר, רמת השרון, ישראל
+Geocoding address: מכללת לוינסקי/דרך נמיר, רמת השרון, ישראל
+Geocoding address: יוניצמן, תל אביב-יפו, ישראל
+Geocoding address: יוניצמן, תל אביב-יפו, ישראל
+Geocoding address: יוניצ'מן 19, תל אביב-יפו, ישראל
+Geocoding address: יוניצ'מן 19, תל אביב-יפו, ישראל
+Geocoding address: סוקולוב 40, רמת גן, ישראל
+Geocoding address: דרך אבא הלל/רש''י, רמת גן, ישראל
+Geocoding address: דרך אבא הלל/רש''י, רמת גן, ישראל
+Geocoding address: המבדיל 17, רמת גן, ישראל
+Geocoding address: המבדיל 17, רמת גן, ישראל
+Geocoding address: המבדיל 12, רמת גן, ישראל
+Geocoding address: המבדיל 12, רמת גן, ישראל
+Geocoding address: דרך קיבוץ גלויות 79, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 79, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 83, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 83, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 93, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 97, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 93, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 97, תל אביב-יפו, ישראל
+[API] Fetching reports - Page: 1, Limit: 25, Filters: { page: '1', limit: '25' }
+[API] Found 248 report keys in 395ms
+[API] Returning 25 reports (100 total matches) in 970ms
+[API] Fetching reports - Page: 1, Limit: 25, Filters: { page: '1', limit: '25' }
+Geocoding address: איינשטיין 131, חיפה, ישראל
+[API] Found 248 report keys in 200ms
+[API] Returning 25 reports (100 total matches) in 372ms
+Geocoding address: איינשטיין 131, חיפה, ישראל
+Geocoding address: Waldbadstraße 50, 5081, אוסטריה
+Geocoding address: Waldbadstraße 50, 5081, אוסטריה
+Geocoding address: איינשטיין 88, חיפה, ישראל
+Geocoding address: איינשטיין 88, חיפה, ישראל
+Geocoding address: דוד בן גוריון 13, בני ברק, ישראל
+Geocoding address: דוד בן גוריון 13, בני ברק, ישראל
+Geocoding address: ‫דרך נמיר מרדכי 301, תל אביב-יפו, ישראל
+Geocoding address: ‫דרך נמיר מרדכי 301, תל אביב-יפו, ישראל
+Geocoding address: קריית חינוך/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: המכללה למנהל/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: המכללה למנהל/שושנה פרסיץ, תל אביב-יפו, ישראל
+Geocoding address: מכללת לוינסקי/דרך נמיר, רמת השרון, ישראל
+Geocoding address: מכללת לוינסקי/דרך נמיר, רמת השרון, ישראל
+Geocoding address: יוניצמן, תל אביב-יפו, ישראל
+Geocoding address: יוניצמן, תל אביב-יפו, ישראל
+Geocoding address: יוניצ'מן 19, תל אביב-יפו, ישראל
+Geocoding address: יוניצ'מן 19, תל אביב-יפו, ישראל
+Geocoding address: סוקולוב 40, רמת גן, ישראל
+Geocoding address: דרך אבא הלל/רש''י, רמת גן, ישראל
+Geocoding address: דרך אבא הלל/רש''י, רמת גן, ישראל
+Geocoding address: המבדיל 17, רמת גן, ישראל
+Geocoding address: המבדיל 17, רמת גן, ישראל
+Geocoding address: המבדיל 12, רמת גן, ישראל
+Geocoding address: המבדיל 12, רמת גן, ישראל
+Geocoding address: דרך קיבוץ גלויות 79, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 79, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 83, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 83, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 93, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 93, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 97, תל אביב-יפו, ישראל
+Geocoding address: דרך קיבוץ גלויות 97, תל אביב-יפו, ישראל

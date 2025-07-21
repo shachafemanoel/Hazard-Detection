@@ -365,79 +365,221 @@ app.post('/api/reports', async (req, res) => {
     }
 });
 
-// שליפת כל הדיווחים
+// שליפת דיווחים עם pagination ביצועים משופרים
 app.get('/api/reports', async (req, res) => {
-    const filters = req.query;
-
-    if (filters.hazardType && typeof filters.hazardType === 'string') {
-        filters.hazardType = filters.hazardType.split(',').map(type => type.trim());
-    }
-
     try {
-        const keys = await client.keys('report:*');
+        const startTime = Date.now();
+        const filters = req.query;
+        
+        // Pagination parameters
+        const page = parseInt(filters.page) || 1;
+        const limit = parseInt(filters.limit) || 25; // Reduced default for better performance
+        const offset = (page - 1) * limit;
+        
+        // Convert hazardType string to array if needed
+        if (filters.hazardType && typeof filters.hazardType === 'string') {
+            filters.hazardType = filters.hazardType.split(',').map(type => type.trim());
+        }
+
+        console.log(`[API] Fetching reports - Page: ${page}, Limit: ${limit}, Filters:`, filters);
+
+        // Add timeout to Redis operations
+        const timeout = 15000; // 15 second timeout
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Redis operation timed out')), timeout)
+        );
+
+        // Get all report keys with timeout
+        const keys = await Promise.race([
+            client.keys('report:*'),
+            timeoutPromise
+        ]);
+        console.log(`[API] Found ${keys.length} report keys in ${Date.now() - startTime}ms`);
+        
+        if (keys.length === 0) {
+            return res.json({
+                reports: [],
+                pagination: {
+                    page: 1,
+                    limit,
+                    total: 0,
+                    totalPages: 0,
+                    hasNext: false,
+                    hasPrev: false
+                }
+            });
+        }
+
+        // Sort keys by timestamp (newest first) for consistent ordering
+        keys.sort((a, b) => {
+            const timeA = parseInt(a.split(':')[1]) || 0;
+            const timeB = parseInt(b.split(':')[1]) || 0;
+            return timeB - timeA; // Descending order (newest first)
+        });
+
         const reports = [];
+        let processedCount = 0;
+        let totalMatchingCount = 0;
 
-        for (const key of keys) {
-            let report;
-            try {
-                report = await client.json.get(key);
-            } catch (err) {
-                console.error(`Skipping key ${key} due to Redis type error:`, err.message);
-                continue;
-            }
-            if (!report) continue;
-
-            let match = true;
-
-            // סוגי מפגעים: לפחות אחד מתוך הרשימה
-            if (filters.hazardType) {
-                const hazardArray = Array.isArray(filters.hazardType) ? filters.hazardType : [filters.hazardType];
+        // Process reports in batches to avoid memory issues
+        const batchSize = 100;
+        for (let i = 0; i < keys.length; i += batchSize) {
+            const batchKeys = keys.slice(i, i + batchSize);
             
-                const reportTypes = (report.type || '').split(',').map(t => t.trim().toLowerCase());
-                const hasMatch = hazardArray.some(type => reportTypes.includes(type.toLowerCase()));
-                
-                if (!hasMatch) match = false;
+            // Get multiple reports in parallel
+            const batchPromises = batchKeys.map(async (key) => {
+                try {
+                    const report = await client.json.get(key);
+                    return report;
+                } catch (err) {
+                    console.warn(`Skipping key ${key}:`, err.message);
+                    return null;
+                }
+            });
+
+            const batchReports = (await Promise.all(batchPromises)).filter(report => report !== null);
+            
+            // Apply filters to batch
+            for (const report of batchReports) {
+                let match = true;
+
+                // סוגי מפגעים: לפחות אחד מתוך הרשימה
+                if (filters.hazardType && filters.hazardType.length > 0) {
+                    const reportTypes = (report.type || '').split(',').map(t => t.trim().toLowerCase());
+                    const hasMatch = filters.hazardType.some(type => 
+                        reportTypes.includes(type.toLowerCase())
+                    );
+                    if (!hasMatch) match = false;
+                }
+
+                // מיקום
+                if (match && filters.location) {
+                    const reportLoc = (report.location || '').toLowerCase();
+                    const searchTerm = filters.location.trim().toLowerCase();
+                    if (!reportLoc.includes(searchTerm)) match = false;
+                }
+
+                // תאריך
+                if (match && filters.startDate && new Date(report.time) < new Date(filters.startDate)) {
+                    match = false;
+                }
+                if (match && filters.endDate && new Date(report.time) > new Date(filters.endDate)) {
+                    match = false;
+                }
+
+                // סטטוס
+                if (match && filters.status) {
+                    const reportStatus = (report.status || '').toLowerCase();
+                    const filterStatus = filters.status.toLowerCase();
+                    if (reportStatus !== filterStatus) match = false;
+                }
+
+                // מחפש לפי מדווח
+                if (match && filters.reportedBy) {
+                    const reporter = (report.reportedBy || '').toLowerCase();
+                    const search = filters.reportedBy.toLowerCase();
+                    if (!reporter.includes(search)) match = false;
+                }
+
+                if (match) {
+                    totalMatchingCount++;
+                    // Only include in result if within pagination range
+                    if (totalMatchingCount > offset && reports.length < limit) {
+                        reports.push(report);
+                    }
+                }
             }
-                     
 
-            // מיקום
-            if (filters.location) {
-                const reportLoc = (report.location || '').toLowerCase();
-                const pattern = filters.location.trim().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const regex = new RegExp(pattern, 'i');
-                if (!regex.test(reportLoc)) match = false;
-            }
-
-            // תאריך
-            if (filters.startDate && new Date(report.time) < new Date(filters.startDate)) match = false;
-            if (filters.endDate && new Date(report.time) > new Date(filters.endDate)) match = false;
-
-            // סטטוס
-            if (filters.status) {
-                const reportStatus = report.status.toLowerCase();
-                const filterStatus = filters.status.toLowerCase();
-                if (reportStatus !== filterStatus) match = false;
-            }
-
-            // מחפש לפי מדווח
-            if (filters.reportedBy) {
-                const reporter = (report.reportedBy || '').toLowerCase();
-                const search = filters.reportedBy.toLowerCase();
-                if (!reporter.includes(search)) match = false;
-            }
-
-            if (match) {
-                reports.push(report);
+            // Early exit if we have enough reports for this page
+            if (reports.length >= limit) {
+                break;
             }
         }
 
-        res.status(200).json(reports);
+        const totalPages = Math.ceil(totalMatchingCount / limit);
+        const hasNext = page < totalPages;
+        const hasPrev = page > 1;
+
+        const response = {
+            reports,
+            pagination: {
+                page,
+                limit,
+                total: totalMatchingCount,
+                totalPages,
+                hasNext,
+                hasPrev
+            },
+            filters: filters,
+            performance: {
+                totalKeys: keys.length,
+                processedInMs: Date.now() - startTime
+            }
+        };
+
+        console.log(`[API] Returning ${reports.length} reports (${totalMatchingCount} total matches) in ${Date.now() - startTime}ms`);
+        res.json(response);
+
     } catch (err) {
         console.error('🔥 Error fetching reports:', err);
-        res.status(500).json({ error: 'Error fetching reports' });
+        res.status(500).json({ 
+            error: 'Error fetching reports', 
+            details: err.message 
+        });
     }
 });
 
+// Simple Redis test endpoint
+app.get('/api/test/redis', (req, res) => {
+    try {
+        const isConnected = client.isOpen;
+        const isReady = client.isReady;
+        
+        res.json({
+            connected: isConnected,
+            ready: isReady,
+            timestamp: new Date().toISOString(),
+            message: 'Redis connection test'
+        });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to check Redis', details: err.message });
+    }
+});
+
+// Quick reports stats endpoint (with timeout protection)
+app.get('/api/reports/stats', async (req, res) => {
+    try {
+        console.log('Stats endpoint called');
+        
+        // Add 5-second timeout
+        const timeout = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Operation timed out after 5s')), 5000)
+        );
+        
+        const keys = await Promise.race([
+            client.keys('report:*'),
+            timeout
+        ]);
+        console.log(`Found ${keys.length} report keys`);
+        
+        // Get Redis connection info
+        const isConnected = client.isOpen;
+        const redisInfo = {
+            connected: isConnected,
+            ready: client.isReady
+        };
+        
+        res.json({
+            total: keys.length,
+            timestamp: new Date().toISOString(),
+            sampleKeys: keys.slice(0, 5),
+            redis: redisInfo
+        });
+    } catch (err) {
+        console.error('Error getting report stats:', err);
+        res.status(500).json({ error: 'Failed to get stats', details: err.message });
+    }
+});
 
 // מחיקת דיווח לפי ID
 app.delete('/api/reports/:id', async (req, res) => {
@@ -486,12 +628,70 @@ app.patch('/api/reports/:id/status', async (req, res) => {
 });
 
 // API endpoint to get Google Maps API key (public endpoint)
-app.get('/api/config/maps-key', (_, res) => {
-    // Google Maps API key is public anyway, so no need for authentication
-    if (!process.env.GOOGLE_MAPS_API_KEY) {
-        return res.status(500).json({ error: 'API key not configured' });
+// Geocoding endpoint to avoid CORS issues with external services
+app.get('/api/geocode', async (req, res) => {
+    const { address } = req.query;
+    
+    if (!address) {
+        return res.status(400).json({ error: 'Address parameter is required' });
     }
-    res.json({ apiKey: process.env.GOOGLE_MAPS_API_KEY });
+    
+    try {
+        // Try OpenStreetMap Nominatim first
+        console.log(`Geocoding address: ${address}`);
+        const nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&addressdetails=1`;
+        
+        const response = await axios.get(nominatimUrl, {
+            headers: {
+                'User-Agent': 'Hazard-Detection-App/1.0 (contact@example.com)' // Required by Nominatim
+            },
+            timeout: 10000
+        });
+        
+        if (response.data && response.data.length > 0) {
+            const result = response.data[0];
+            return res.json({
+                success: true,
+                location: [parseFloat(result.lat), parseFloat(result.lon)],
+                display_name: result.display_name
+            });
+        }
+        
+        // Fallback: try with simplified address (just city/area name)
+        const simplifiedAddress = address.split(',')[0].trim();
+        if (simplifiedAddress !== address) {
+            const fallbackUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(simplifiedAddress)}&limit=1&addressdetails=1`;
+            
+            const fallbackResponse = await axios.get(fallbackUrl, {
+                headers: {
+                    'User-Agent': 'Hazard-Detection-App/1.0 (contact@example.com)'
+                },
+                timeout: 10000
+            });
+            
+            if (fallbackResponse.data && fallbackResponse.data.length > 0) {
+                const result = fallbackResponse.data[0];
+                return res.json({
+                    success: true,
+                    location: [parseFloat(result.lat), parseFloat(result.lon)],
+                    display_name: result.display_name
+                });
+            }
+        }
+        
+        // If no results found
+        return res.json({
+            success: false,
+            error: 'No location found for the given address'
+        });
+        
+    } catch (error) {
+        console.error('Geocoding error:', error.message);
+        return res.status(500).json({
+            success: false,
+            error: 'Geocoding service temporarily unavailable'
+        });
+    }
 });
 
 // עדכון דיווח (עריכה מלאה)

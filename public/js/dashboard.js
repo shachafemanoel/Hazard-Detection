@@ -1,175 +1,142 @@
 let map;
 let markers = [];
-let heatmapLayer = null; // NEW: Global heatmap layer
-let reportDetailsBootstrapModal = null; // For Bootstrap modal instance
-let apiKey = null; // Will be loaded from server
+let heatmapLayer = null;
+let reportDetailsBootstrapModal = null;
 
 const hazardTypes = [
-    'Alligator Crack', 'Block Crack', 'Construction Joint Crack', 'Crosswalk Blur',
-    'Lane Blur', 'Longitudinal Crack', 'Manhole', 'Patch Repair', 'Pothole',
-    'Transverse Crack', 'Wheel Mark Crack'
+    'crack',
+    'knocked',
+    'pothole',
+    'surface_damage'
 ];
 
-// Google Maps Dark Style
-const darkMapStyle = [
-    { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
-    { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
-    { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
-    {
-        featureType: "administrative.locality",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#d59563" }],
-    },
-    {
-        featureType: "poi",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#d59563" }],
-    },
-    {
-        featureType: "poi.park",
-        elementType: "geometry",
-        stylers: [{ color: "#263c3f" }],
-    },
-    {
-        featureType: "poi.park",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#6b9a76" }],
-    },
-    { featureType: "road", elementType: "geometry", stylers: [{ color: "#38414e" }] },
-    {
-        featureType: "road",
-        elementType: "geometry.stroke",
-        stylers: [{ color: "#212a37" }],
-    },
-    {
-        featureType: "road",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#9ca5b3" }],
-    },
-    { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#746855" }] },
-    {
-        featureType: "road.highway",
-        elementType: "geometry.stroke",
-        stylers: [{ color: "#1f2835" }],
-    },
-    {
-        featureType: "road.highway",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#f3d19c" }],
-    },
-    { featureType: "transit", elementType: "geometry", stylers: [{ color: "#2f3948" }] },
-    {
-        featureType: "transit.station",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#d59563" }],
-    },
-    { featureType: "water", elementType: "geometry", stylers: [{ color: "#17263c" }] },
-    { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#515c6d" }] },
-    {
-        featureType: "water",
-        elementType: "labels.text.stroke",
-        stylers: [{ color: "#17263c" }],
-    },
-    // New style: hide icons for a clean, modern look
-    { featureType: "all", elementType: "labels.icon", stylers: [{ visibility: "off" }] }
-];
+// Mapping old hazard types to new simplified types
+const hazardTypeMapping = {
+    // Crack-related
+    'Alligator Crack': 'crack',
+    'Block Crack': 'crack',
+    'Construction Joint Crack': 'crack',
+    'Longitudinal Crack': 'crack',
+    'Transverse Crack': 'crack',
+    'Wheel Mark Crack': 'crack',
+    'Crack': 'crack',
+    
+    // Surface damage
+    'Crosswalk Blur': 'surface_damage',
+    'Lane Blur': 'surface_damage',
+    'Patch Repair': 'surface_damage',
+    'Surface Damage': 'surface_damage',
+    
+    // Potholes
+    'Pothole': 'pothole',
+    
+    // Knocked/damaged structures
+    'Manhole': 'knocked',
+    'Knocked': 'knocked'
+};
 
-// Hazard type to marker color mapping
+// Function to normalize hazard type
+function normalizeHazardType(type) {
+    if (!type) return 'surface_damage'; // default fallback
+    return hazardTypeMapping[type] || type.toLowerCase() || 'surface_damage';
+}
+
+// Hazard type to marker color mapping (updated for new types)
 const hazardMarkerColors = {
-    'Alligator Crack': '#FF0000', // Red
-    'Block Crack': '#FF7F00', // Orange
-    'Construction Joint Crack': '#FFFF00', // Yellow
-    'Crosswalk Blur': '#00FF00', // Lime
-    'Lane Blur': '#00FFFF', // Aqua
-    'Longitudinal Crack': '#0000FF', // Blue
-    'Manhole': '#8B00FF', // Violet
-    'Patch Repair': '#FF00FF', // Fuchsia
-    'Pothole': '#FF1493', // DeepPink
-    'Transverse Crack': '#ADFF2F', // GreenYellow
-    'Wheel Mark Crack': '#7FFF00', // Chartreuse
+    'crack': '#FF0000', // Red
+    'knocked': '#FF7F00', // Orange  
+    'pothole': '#FFD700', // Gold
+    'surface_damage': '#00FF00', // Lime
     'default': '#808080' // Gray for unknown types
 };
 
-function getMarkerIcon(hazardType) {
-    // Deprecated: No longer used with AdvancedMarkerElement
-    return null;
-}
-
-// NEW: Helper to create marker content for AdvancedMarkerElement
-function getMarkerContent(hazardType) {
-	const color = hazardMarkerColors[hazardType] || hazardMarkerColors['default'];
-	const div = document.createElement('div');
-	div.style.width = '20px';
-	div.style.height = '20px';
-	div.style.backgroundColor = color;
-	div.style.borderRadius = '50%';
-	div.style.border = '2px solid #FFFFFF';
-	return div;
+// Create custom marker icon for Leaflet
+function createCustomIcon(hazardType) {
+    const color = hazardMarkerColors[hazardType] || hazardMarkerColors['default'];
+    return L.divIcon({
+        className: 'custom-marker',
+        html: `<div style="
+            width: 20px;
+            height: 20px;
+            background-color: ${color};
+            border-radius: 50%;
+            border: 2px solid #FFFFFF;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        "></div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+    });
 }
 
 // Global sort state
 let currentSort = { field: 'time', order: 'desc' };
 
 // Always use dark mode for the map
+// Initialize Leaflet map
 function initMap() {
-    const defaultCenter = { lat: 31.7683, lng: 35.2137 };
-    map = new google.maps.Map(document.getElementById("map"), {
-        zoom: 8,
+    const defaultCenter = [31.7683, 35.2137]; // Israel coordinates [lat, lng]
+    
+    // Create map with dark theme
+    map = L.map('map', {
         center: defaultCenter,
-        styles: darkMapStyle,
-        mapId: "4e9a93216ea2103583b8af86" // NEW: Add your Map ID here
+        zoom: 8,
+        zoomControl: true,
+        attributionControl: true
     });
 
-    // Add a marker for the default center as a fallback using AdvancedMarkerElement
-    if (google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
-        new google.maps.marker.AdvancedMarkerElement({
-            map: map,
-            position: defaultCenter,
-            title: "Israel",
-            content: (() => {
-                const div = document.createElement('div');
-                div.style.width = '20px';
-                div.style.height = '20px';
-                div.style.backgroundColor = '#4285F4';
-                div.style.borderRadius = '50%';
-                div.style.border = '2px solid #fff';
-                return div;
-            })()
-        });
-    }
+    // Add dark theme tile layer from CartoDB
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 19
+    }).addTo(map);
 
+    // Add fallback marker for default location
+    const defaultMarker = L.marker(defaultCenter, {
+        icon: L.divIcon({
+            className: 'default-location-marker',
+            html: `<div style="
+                width: 20px;
+                height: 20px;
+                background-color: #4285F4;
+                border-radius: 50%;
+                border: 2px solid #fff;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            "></div>`,
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+        })
+    }).addTo(map).bindPopup('Israel');
+
+    // Try to get user location
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
             (position) => {
-                const userLatLng = {
-                    lat: position.coords.latitude,
-                    lng: position.coords.longitude
-                };
-                map.setCenter(userLatLng);
-                map.setZoom(12);
-                // Use AdvancedMarkerElement for user location
-                if (google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
-                    new google.maps.marker.AdvancedMarkerElement({
-                        map: map,
-                        position: userLatLng,
-                        title: "Your Location",
-                        content: (() => {
-                            const div = document.createElement('div');
-                            div.style.width = '24px';
-                            div.style.height = '24px';
-                            div.style.backgroundColor = '#4285F4';
-                            div.style.borderRadius = '50%';
-                            div.style.border = '3px solid #fff';
-                            div.style.boxShadow = '0 0 8px #4285F4';
-                            return div;
-                        })()
-                    });
-                }
+                const userLatLng = [position.coords.latitude, position.coords.longitude];
+                map.setView(userLatLng, 12);
+                
+                // Add user location marker
+                const userMarker = L.marker(userLatLng, {
+                    icon: L.divIcon({
+                        className: 'user-location-marker',
+                        html: `<div style="
+                            width: 24px;
+                            height: 24px;
+                            background-color: #4285F4;
+                            border-radius: 50%;
+                            border: 3px solid #fff;
+                            box-shadow: 0 0 8px #4285F4;
+                            animation: pulse 2s infinite;
+                        "></div>`,
+                        iconSize: [24, 24],
+                        iconAnchor: [12, 12]
+                    })
+                }).addTo(map).bindPopup('Your Location');
+                
                 loadReports();
             },
             (error) => {
                 console.warn("Geolocation not available:", error.message);
-                // Don't show error toast for denied geolocation - it's user choice
                 getLocationByIP();
             }
         );
@@ -177,10 +144,9 @@ function initMap() {
         loadReports();
     }
 
-    // NEW: Create the legend but do not add it to map controls.
+    // Create and add legend
     window.mapLegend = addMapLegend();
     window.mapLegend.style.display = "none";
-    // Position the legend as an overlay on the map container.
     window.mapLegend.style.position = "absolute";
     window.mapLegend.style.bottom = "20px";
     window.mapLegend.style.left = "20px";
@@ -238,89 +204,17 @@ window.toggleLegend = function() {
 //     loadReports();
 // }
 
-// Load API key from server
-async function loadApiKey() {
+// Initialize the map when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
     try {
-        console.log('Attempting to load API key from server...');
-        const response = await fetch('/api/config/maps-key');
-        
-        if (response.ok) {
-            const config = await response.json();
-            if (config.apiKey) {
-                apiKey = config.apiKey;
-                console.log('API key loaded successfully');
-                return apiKey;
-            } else {
-                console.error('API key not found in response:', config);
-                return null;
-            }
-        } else {
-            const errorText = await response.text();
-            console.error('Failed to load API key:', response.status, errorText);
-            return null;
-        }
+        initMap();
     } catch (error) {
-        console.error('Error loading API key:', error);
-        return null;
-    }
-}
-
-// Load Google Maps API dynamically with the correct API key
-async function loadGoogleMapsAPI() {
-    if (!apiKey) {
-        await loadApiKey();
-    }
-    
-    // Fallback to environment variable from window object if server request failed
-    if (!apiKey && window.GOOGLE_MAPS_API_KEY) {
-        apiKey = window.GOOGLE_MAPS_API_KEY;
-        console.log('Using fallback API key from window object');
-    }
-    
-    if (!apiKey) {
-        console.error('Failed to load API key');
-        showToast('Failed to load map configuration. Please refresh the page.', 'error');
-        return;
-    }
-    
-    return new Promise((resolve, reject) => {
-        // Check if Google Maps is already loaded
-        if (window.google && window.google.maps) {
-            resolve();
-            return;
-        }
-        
-        // Set up the callback before creating the script
-        window.initGoogleMaps = () => {
-            resolve();
-            initMap();
-        };
-        
-        const script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=marker&v=weekly&callback=initGoogleMaps&loading=async`;
-        script.async = true;
-        script.defer = true;
-        script.onerror = (error) => {
-            console.error('Google Maps API failed to load:', error);
-            showToast('Failed to load Google Maps. Please refresh the page.', 'error');
-            reject(error);
-        };
-        
-        document.head.appendChild(script);
-    });
-}
-
-// Initialize the map loading process
-document.addEventListener('DOMContentLoaded', async () => {
-    try {
-        await loadGoogleMapsAPI();
-    } catch (error) {
-        console.error('Failed to load Google Maps:', error);
+        console.error('Failed to initialize map:', error);
         showToast('Failed to load map. Please refresh the page.', 'error');
     }
 });
 
-// Make initMap available globally for Google Maps API (fallback)
+// Make initMap available globally
 window.initMap = initMap;
 
 // Enhanced map controls
@@ -337,7 +231,7 @@ function toggleHeatmap() {
     if (heatmapVisible) {
         // Hide heatmap
         if (smartHeatmapLayer) {
-            smartHeatmapLayer.setMap(null);
+            map.removeLayer(smartHeatmapLayer);
             smartHeatmapLayer = null;
         }
         heatmapVisible = false;
@@ -356,21 +250,21 @@ function createSmartHeatmap() {
 
     // Clear existing heatmap
     if (smartHeatmapLayer) {
-        smartHeatmapLayer.setMap(null);
+        map.removeLayer(smartHeatmapLayer);
     }
 
-    // Create density circles around marker clusters
-    const densityCircles = [];
+    // Create layer group for density circles
+    smartHeatmapLayer = L.layerGroup();
     const gridSize = 0.01; // Approximately 1km grid
     const densityMap = new Map();
 
     // Group markers by grid cells
     markers.forEach(marker => {
-        const position = marker.position || marker.getPosition();
+        const position = marker.getLatLng();
         if (!position) return;
 
-        const lat = position.lat || position.lat();
-        const lng = position.lng || position.lng();
+        const lat = position.lat;
+        const lng = position.lng;
         const gridKey = `${Math.floor(lat / gridSize)}_${Math.floor(lng / gridSize)}`;
         
         if (!densityMap.has(gridKey)) {
@@ -411,43 +305,30 @@ function createSmartHeatmap() {
             return; // Skip single markers
         }
 
-        const circle = new google.maps.Circle({
-            strokeColor: color,
-            strokeOpacity: 0.6,
-            strokeWeight: 2,
+        const circle = L.circle([avgLat, avgLng], {
+            color: color,
             fillColor: color,
             fillOpacity: 0.2,
-            map: map,
-            center: { lat: avgLat, lng: avgLng },
-            radius: radius
+            radius: radius,
+            weight: 2,
+            opacity: 0.6
         });
 
-        // Add info window with density information
-        const infoWindow = new google.maps.InfoWindow({
-            content: `
-                <div style="padding: 8px;">
-                    <h6>Hazard Density Cluster</h6>
-                    <p><strong>Reports:</strong> ${cell.count}</p>
-                    <p><strong>Types:</strong> ${Array.from(cell.types).join(', ')}</p>
-                    <p><strong>Density Level:</strong> ${cell.count >= 10 ? 'High' : cell.count >= 5 ? 'Medium' : 'Low'}</p>
-                </div>
-            `
-        });
+        // Add popup with density information
+        circle.bindPopup(`
+            <div style="padding: 8px;">
+                <h6>Hazard Density Cluster</h6>
+                <p><strong>Reports:</strong> ${cell.count}</p>
+                <p><strong>Types:</strong> ${Array.from(cell.types).join(', ')}</p>
+                <p><strong>Density Level:</strong> ${cell.count >= 10 ? 'High' : cell.count >= 5 ? 'Medium' : 'Low'}</p>
+            </div>
+        `);
 
-        circle.addListener('click', () => {
-            infoWindow.setPosition({ lat: avgLat, lng: avgLng });
-            infoWindow.open(map);
-        });
-
-        densityCircles.push(circle);
+        smartHeatmapLayer.addLayer(circle);
     });
 
-    // Store reference for cleanup
-    smartHeatmapLayer = {
-        setMap: (map) => {
-            densityCircles.forEach(circle => circle.setMap(map));
-        }
-    };
+    // Add layer group to map
+    smartHeatmapLayer.addTo(map);
 }
 
 // Center map on user location with IP fallback
@@ -455,12 +336,8 @@ function centerMap() {
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
             (position) => {
-                const userLatLng = {
-                    lat: position.coords.latitude,
-                    lng: position.coords.longitude
-                };
-                map.setCenter(userLatLng);
-                map.setZoom(12);
+                const userLatLng = [position.coords.latitude, position.coords.longitude];
+                map.setView(userLatLng, 12);
                 showToast('Map centered on your GPS location', 'success');
                 
                 // Add user location marker
@@ -483,7 +360,6 @@ function centerMap() {
 async function centerMapByIP() {
     try {
         showToast('Getting your location...', 'info');
-        
         // Try multiple IP geolocation services for better reliability
         const ipServices = [
             { url: 'https://ipapi.co/json/', parse: (data) => ({ lat: data.latitude, lng: data.longitude, city: data.city, country: data.country }) },
@@ -493,21 +369,16 @@ async function centerMapByIP() {
                 return { lat, lng, city: data.city, country: data.country };
             }}
         ];
-        
         let locationData = null;
-        
         for (const service of ipServices) {
             try {
                 const response = await fetch(service.url, { 
                     timeout: 5000,
                     headers: { 'Accept': 'application/json' }
                 });
-                
                 if (!response.ok) continue;
-                
                 const data = await response.json();
                 locationData = service.parse(data);
-                
                 if (locationData && locationData.lat && locationData.lng && 
                     !isNaN(locationData.lat) && !isNaN(locationData.lng) &&
                     locationData.lat >= -90 && locationData.lat <= 90 &&
@@ -519,17 +390,12 @@ async function centerMapByIP() {
                 continue;
             }
         }
-        
         if (locationData) {
             const ipLatLng = { lat: locationData.lat, lng: locationData.lng };
-            map.setCenter(ipLatLng);
-            map.setZoom(10);
-            
+            map.setView([ipLatLng.lat, ipLatLng.lng], 10);
             const locationText = locationData.city && locationData.country ? 
                 `${locationData.city}, ${locationData.country}` : 'IP Location';
-            
             showToast(`Map centered on ${locationText}`, 'success');
-            
             // Add IP location marker
             addUserLocationMarker(ipLatLng, `IP Location: ${locationText}`);
         } else {
@@ -538,11 +404,9 @@ async function centerMapByIP() {
     } catch (error) {
         console.error('IP geolocation failed:', error);
         showToast('Could not determine your location. Using default location.', 'warning');
-        
         // Fallback to default Israel location
         const defaultLocation = { lat: 31.7683, lng: 35.2137 };
-        map.setCenter(defaultLocation);
-        map.setZoom(8);
+        map.setView([defaultLocation.lat, defaultLocation.lng], 8);
     }
 }
 
@@ -550,48 +414,32 @@ async function centerMapByIP() {
 function addUserLocationMarker(location, title) {
     // Remove existing user location markers
     markers.forEach((marker, index) => {
-        const markerTitle = marker.customTitle || (marker.getTitle && marker.getTitle()) || '';
+        const markerTitle = marker.customTitle || '';
         if (markerTitle.includes('Location') || markerTitle.includes('Your Location')) {
-            if (marker.map !== undefined) {
-                marker.map = null;
-            } else if (marker.setMap) {
-                marker.setMap(null);
-            }
+            map.removeLayer(marker);
             markers.splice(index, 1);
         }
     });
     
-    // Add new user location marker
-    let userMarker;
-    if (google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
-        const content = document.createElement('div');
-        content.style.width = '24px';
-        content.style.height = '24px';
-        content.style.backgroundColor = '#4285F4';
-        content.style.borderRadius = '50%';
-        content.style.border = '3px solid #fff';
-        content.style.boxShadow = '0 0 12px #4285F4';
-        content.style.animation = 'pulse 2s infinite';
-        
-        userMarker = new google.maps.marker.AdvancedMarkerElement({
-            map: map,
-            position: location,
-            content: content
-        });
-        userMarker.customTitle = title;
-    } else {
-        userMarker = new google.maps.Marker({
-            position: location,
-            map: map,
-            title: title,
-            icon: {
-                url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="#4285F4" stroke="white" stroke-width="3"/><circle cx="12" cy="12" r="3" fill="white"/></svg>`),
-                scaledSize: new google.maps.Size(24, 24)
-            },
-            animation: google.maps.Animation.DROP
-        });
-    }
+    // Add new user location marker using Leaflet
+    const userMarker = L.marker(location, {
+        icon: L.divIcon({
+            className: 'user-location-marker',
+            html: `<div style="
+                width: 24px;
+                height: 24px;
+                background-color: #4285F4;
+                border-radius: 50%;
+                border: 3px solid #fff;
+                box-shadow: 0 0 12px #4285F4;
+                animation: pulse 2s infinite;
+            "></div>`,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+        })
+    }).addTo(map).bindPopup(title);
     
+    userMarker.customTitle = title;
     markers.push(userMarker);
 }
 
@@ -611,13 +459,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function clearMarkers() {
     markers.forEach(marker => {
-        if (marker.map !== undefined) {
-            // AdvancedMarkerElement
-            marker.map = null;
-        } else if (marker.setMap) {
-            // Regular marker
-            marker.setMap(null);
-        }
+        map.removeLayer(marker);
     });
     markers = [];
 }
@@ -656,7 +498,7 @@ async function geocodeAddress(address, report) {
         const lat = parseFloat(coordMatch[1]);
         const lng = parseFloat(coordMatch[2]);
         if (!isNaN(lat) && !isNaN(lng)) {
-            const location = { lat, lng };
+            const location = [lat, lng];
             return createMarkerFromLocation(location, address, report);
         }
     }
@@ -671,35 +513,25 @@ async function geocodeAddress(address, report) {
         if (cachedLocation) {
             location = cachedLocation;
         } else {
-            // Use retry mechanism for geocoding
+            // Use our internal geocoding API (avoids CORS issues)
             const response = await retryRequest(() => 
-                fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`)
+                fetch(`/api/geocode?address=${encodeURIComponent(address)}`)
             );
             
             const data = await response.json();
             
-            if (data.status === "OK" && data.results[0]) {
-                location = data.results[0].geometry.location;
+            if (data.success && data.location) {
+                location = data.location;
                 setCachedReports(geocodeKey, location);
             } else {
-                if (data.status === "ZERO_RESULTS") {
-                    console.warn(`No geocoding results for address: ${address}`);
-                    // Skip this report rather than failing
-                    return null;
-                } else if (data.status === "OVER_QUERY_LIMIT") {
-                    console.error("Geocoding quota exceeded");
-                    handleError(new Error("Geocoding quota exceeded"), 'geocodeAddress');
-                    return null;
-                } else {
-                    console.error("Geocoding failed:", data.status, data.error_message);
-                    return null;
-                }
+                console.warn(`No geocoding results for address: ${address}`, data.error);
+                return null; // Skip this report if geocoding fails
             }
         }
         
         return createMarkerFromLocation(location, address, report);
     } catch (error) {
-        handleError(error, 'geocodeAddress');
+        console.error('Geocoding failed:', error);
         return null;
     }
 }
@@ -707,62 +539,45 @@ async function geocodeAddress(address, report) {
 // Helper function to create marker from location
 function createMarkerFromLocation(location, address, report) {
     try {
+        // Normalize the hazard type for consistent display
+        const normalizedType = normalizeHazardType(report.type);
+        const displayType = normalizedType.charAt(0).toUpperCase() + normalizedType.slice(1).replace('_', ' ');
         
-        let marker;
-        // Use AdvancedMarkerElement (modern approach) or fallback to regular marker
-        if (google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
-            marker = new google.maps.marker.AdvancedMarkerElement({
-                map: map,
-                position: location,
-                content: getMarkerContent(report.type)
-            });
-            // Store custom properties for AdvancedMarkerElement
-            marker.customTitle = `${report.type} - ${address}`;
-            marker.position = location;
-        } else {
-            // Fallback to regular marker
-            marker = new google.maps.Marker({
-                position: location,
-                map: map,
-                title: `${report.type} - ${address}`,
-                icon: {
-                    url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="${hazardMarkerColors[report.type] || hazardMarkerColors.default}" stroke="white" stroke-width="2"/></svg>`),
-                    scaledSize: new google.maps.Size(24, 24)
-                }
-            });
-        }
+        // Create Leaflet marker with custom icon
+        const marker = L.marker(location, {
+            icon: createCustomIcon(normalizedType)
+        }).addTo(map);
         
+        // Store custom properties
         marker.reportId = report.id;
         marker.report = report;
-
-        // Register first "click" callback to open infowindow and pan/zoom map
-        registerMarkerClick(marker, () => {
-            markers.forEach(m => m.infoWindow?.close && m.infoWindow.close());
-            const infowindow = new google.maps.InfoWindow({
-                content: `
-                <div class="info-window">
-                    <h5>${report.type}</h5>
-                    <p><strong>Location:</strong> ${address}</p>
-                    <p><strong>Status:</strong> <span class="badge ${report.status === 'Resolved' ? 'bg-success' : 'bg-danger'}">${report.status}</span></p>
-                    <p><strong>Reported by:</strong> ${report.reportedBy}</p>
-                    <p><strong>Time:</strong> ${new Date(report.time).toLocaleString()}</p>
-                    ${report.image ? `<img src="${report.image}" alt="Hazard" style="width:200px;height:150px;object-fit:cover;margin:10px 0;cursor:pointer;" onclick="showImageModal('${report.image}')">` : ''}
-                    <div class="mt-2">
-                        <button class="btn btn-sm btn-primary me-2" onclick="showReportDetails(${JSON.stringify(report).replace(/"/g, '&quot;')})">Details</button>
-                        <button class="btn btn-sm btn-warning" onclick="openEditReportModal(${JSON.stringify(report).replace(/"/g, '&quot;')})">Edit</button>
-                    </div>
-                </div>`
-            });
-            marker.infoWindow = infowindow;
-            infowindow.open(map, marker);
-            map.panTo(location);
-            if (map.getZoom() < 14) {
-                map.setZoom(14);
-            }
+        marker.customTitle = `${displayType} - ${address}`;
+        
+        // Create popup content
+        const popupContent = `
+            <div class="info-window" style="min-width: 250px;">
+                <h5 style="margin-bottom: 10px; color: #333;">${displayType}</h5>
+                <p><strong>Location:</strong> ${address}</p>
+                <p><strong>Status:</strong> <span class="badge ${report.status === 'Resolved' ? 'bg-success' : 'bg-danger'}" style="padding: 3px 8px; border-radius: 12px; color: white; background-color: ${report.status === 'Resolved' ? '#28a745' : '#dc3545'};">${report.status}</span></p>
+                <p><strong>Reported by:</strong> ${report.reportedBy}</p>
+                <p><strong>Time:</strong> ${new Date(report.time).toLocaleString()}</p>
+                ${report.image ? `<img src="${report.image}" alt="Hazard" style="width:200px;height:150px;object-fit:cover;margin:10px 0;cursor:pointer;border-radius:8px;" onclick="showImageModal('${report.image}')">` : ''}
+                <div style="margin-top: 10px;">
+                    <button class="btn btn-sm btn-primary" style="margin-right: 8px; padding: 4px 8px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;" onclick="openEditReportModal(${JSON.stringify(report).replace(/"/g, '&quot;')})">Edit</button>
+                </div>
+            </div>
+        `;
+        
+        marker.bindPopup(popupContent, {
+            maxWidth: 300,
+            className: 'custom-popup'
         });
-
-        // Register a second "click" callback to sync the table row highlighting
-        registerMarkerClick(marker, () => {
+        
+        // Handle click events for table row sync
+        marker.on('click', () => {
+            map.setView(location, Math.max(map.getZoom(), 14));
+            openEditReportModal(report);
+            // Sync with table
             const rows = document.querySelectorAll('#reports-table tbody tr');
             rows.forEach(row => row.classList.remove('table-active'));
             const targetRow = document.querySelector(`#reports-table tbody tr[data-report-id="${report.id}"]`);
@@ -774,19 +589,11 @@ function createMarkerFromLocation(location, address, report) {
         
         return marker;
     } catch (error) {
-        handleError(error, 'createMarkerFromLocation');
+        console.error('Error creating marker:', error);
         return null;
     }
 }
 
-// NEW: Helper function to register click events for both marker types
-function registerMarkerClick(marker, callback) {
-    if (marker.addEventListener) {
-        marker.addEventListener("click", callback);
-    } else if (marker.addListener) {
-        marker.addListener("click", callback);
-    }
-}
 
 // NEW: Function to delete an image key from Redis if its link is not available
 async function deleteImageFromRedis(url) {
@@ -846,13 +653,16 @@ function openReportModal() {
 
 // Helper to create a report block element
 function createReportBlock(report) {
+    const normalizedType = normalizeHazardType(report.type);
+    const displayType = normalizedType.charAt(0).toUpperCase() + normalizedType.slice(1).replace('_', ' ');
+    
     const block = document.createElement('div');
     block.className = 'event-log-block d-flex gap-3 align-items-start p-3 rounded shadow-sm bg-white position-relative';
     block.innerHTML = `
         <img src="${report.image}" alt="Hazard image" class="event-block-image" style="width: 80px; height: 80px; object-fit: cover; border-radius: 12px; box-shadow: 0 2px 8px #23294622; border: 2px solid #e9f0fa; background: #f4f7fb;">
         <div class="event-block-details">
             <div class="event-block-title">
-                <i class="fas fa-exclamation-triangle"></i> ${report.type}
+                <i class="fas fa-exclamation-triangle"></i> ${displayType}
             </div>
             <div class="event-block-meta">
                 <span><i class="fas fa-map-marker-alt"></i> ${report.location}</span>
@@ -873,12 +683,18 @@ function createReportBlock(report) {
     `;
     // Image modal
     block.querySelector('.view-image-btn').addEventListener('click', () => openModal(report.image));
-    // Details modal
-    block.querySelector('.view-details-btn').addEventListener('click', () => showReportDetails(report));
+    // Details modal -> פותח עריכה
+    block.querySelector('.view-details-btn').addEventListener('click', () => openEditReportModal(report));
     // Admin actions
     block.querySelector('.edit-report-btn').addEventListener('click', () => openEditReportModal(report));
     block.querySelector('.delete-report-btn').addEventListener('click', () => deleteReport(report.id));
     block.querySelector('.status-toggle-btn').addEventListener('click', () => toggleReportStatus(report));
+    // לחיצה על כל הבלוק תפתח עריכה
+    block.addEventListener('click', (e) => {
+        // אל תפתח אם לוחצים על כפתור תמונה
+        if (e.target.closest('.view-image-btn')) return;
+        openEditReportModal(report);
+    });
     return block;
 }
 
@@ -898,147 +714,231 @@ function sortReports(reports, sortField, sortOrder) {
 }
 
 // --- יצירת סמנים עם קיבוץ לפי קואורדינטות ---
-async function loadReports(filters = {}) {
+// Global pagination state
+let currentPage = 1;
+let reportsPerPage = 25; // Reasonable default for dashboard
+let totalReports = 0;
+let allLoadedReports = []; // Store all loaded reports across pages
+
+async function loadReports(filters = {}, page = 1, clearPrevious = true) {
     try {
         showLoadingIndicator();
-        const cacheKey = JSON.stringify(filters);
-        const cachedReports = getCachedReports(cacheKey);
-        if (cachedReports) {
-            lastReports = cachedReports;
-            updateDashboardInfo(cachedReports);
+        
+        // Add pagination parameters to filters
+        const paginatedFilters = {
+            ...filters,
+            page: page,
+            limit: reportsPerPage
+        };
+        
+        const cacheKey = JSON.stringify(paginatedFilters);
+        const cachedData = getCachedReports(cacheKey);
+        
+        if (cachedData && cachedData.reports) {
+            console.log('Using cached reports data');
+            const reports = cachedData.reports;
+            const pagination = cachedData.pagination;
+            
+            if (clearPrevious) {
+                allLoadedReports = reports;
+                lastReports = reports;
+            } else {
+                allLoadedReports = [...allLoadedReports, ...reports];
+                lastReports = allLoadedReports;
+            }
+            
+            updatePaginationInfo(pagination);
+            updateDashboardInfo(reports, pagination);
             hideLoadingIndicator();
-            return cachedReports;
+            return { reports, pagination };
         }
-        const queryString = Object.entries(filters)
-            .filter(([_, value]) => value)
+        
+        const queryString = Object.entries(paginatedFilters)
+            .filter(([_, value]) => value !== undefined && value !== null && value !== '')
             .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
             .join('&');
+            
+        console.log('Fetching reports:', queryString);
+        
         const response = await fetch(`/api/reports${queryString ? `?${queryString}` : ''}`, {
             method: 'GET',
             credentials: 'include',
         });
-        if (!response.ok) throw new Error('Failed to load reports');
-        let reports = await response.json();
-        if (!document.body) return [];
-        setCachedReports(cacheKey, reports);
-        lastReports = reports;
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        
+        // Handle both new paginated format and legacy array format
+        let reports, pagination;
+        if (data.reports && data.pagination) {
+            // New paginated format
+            reports = data.reports;
+            pagination = data.pagination;
+            console.log(`Loaded ${reports.length} reports (Page ${pagination.page}/${pagination.totalPages}, Total: ${pagination.total})`);
+        } else if (Array.isArray(data)) {
+            // Legacy format - convert to paginated format
+            reports = data;
+            pagination = {
+                page: 1,
+                limit: reports.length,
+                total: reports.length,
+                totalPages: 1,
+                hasNext: false,
+                hasPrev: false
+            };
+            console.log(`Loaded ${reports.length} reports (Legacy format)`);
+        } else {
+            throw new Error('Invalid API response format');
+        }
+        
+        if (!document.body) return { reports: [], pagination };
+        
+        setCachedReports(cacheKey, { reports, pagination });
+        
+        // Update global state
+        currentPage = pagination.page;
+        totalReports = pagination.total;
+        
+        if (clearPrevious) {
+            allLoadedReports = reports;
+            lastReports = reports;
+        } else {
+            allLoadedReports = [...allLoadedReports, ...reports];
+            lastReports = allLoadedReports;
+        }
+        
+        // Update map markers (only for current page to avoid performance issues)
         clearMarkers();
-        const bounds = new google.maps.LatLngBounds();
-        // --- קיבוץ דיווחים לפי קואורדינטות ---
-        const coordMap = new Map();
+        const bounds = L.latLngBounds();
+        
         for (const report of reports) {
-            let coords = null;
-            // ננסה לחלץ קואורדינטות מהכתובת
-            const coordMatch = (report.location||'').match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
-            if (coordMatch) {
-                coords = `${parseFloat(coordMatch[1]).toFixed(5)},${parseFloat(coordMatch[2]).toFixed(5)}`;
-            } else {
-                // נשתמש בגיאוקוד
-                const loc = await geocodeAddress(report.location, report);
-                if (loc && loc.position) {
-                    coords = `${loc.position.lat.toFixed(5)},${loc.position.lng.toFixed(5)}`;
+            try {
+                const marker = await geocodeAddress(report.location, report);
+                if (marker) {
+                    markers.push(marker);
+                    const position = marker.getLatLng();
+                    bounds.extend(position);
                 }
-            }
-            if (coords) {
-                if (!coordMap.has(coords)) coordMap.set(coords, []);
-                coordMap.get(coords).push(report);
+            } catch (error) {
+                console.warn('Failed to create marker for report:', report.id, error);
             }
         }
-        // יצירת סמנים
-        for (const [coords, group] of coordMap.entries()) {
-            const [lat, lng] = coords.split(',').map(Number);
-            const location = { lat, lng };
-            const mainReport = group[0];
-            let marker;
-            // סמן עם מספר אם יש יותר מאחד
-            if (google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
-                const div = document.createElement('div');
-                div.style.width = '28px';
-                div.style.height = '28px';
-                div.style.backgroundColor = hazardMarkerColors[mainReport.type] || hazardMarkerColors['default'];
-                div.style.borderRadius = '50%';
-                div.style.border = '2px solid #fff';
-                div.style.display = 'flex';
-                div.style.alignItems = 'center';
-                div.style.justifyContent = 'center';
-                div.style.color = '#fff';
-                div.style.fontWeight = 'bold';
-                div.style.fontSize = '1rem';
-                if (group.length > 1) {
-                    div.textContent = group.length;
-                }
-                marker = new google.maps.marker.AdvancedMarkerElement({
-                    map: map,
-                    position: location,
-                    content: div
-                });
-            } else {
-                marker = new google.maps.Marker({
-                    position: location,
-                    map: map,
-                    title: `${mainReport.type} - ${mainReport.location}`,
-                    label: group.length > 1 ? { text: String(group.length), color: '#fff', fontWeight: 'bold' } : undefined,
-                    icon: {
-                        url: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'><circle cx='14' cy='14' r='12' fill='${hazardMarkerColors[mainReport.type] || hazardMarkerColors.default}' stroke='white' stroke-width='2'/></svg>`),
-                        scaledSize: new google.maps.Size(28, 28)
-                    }
-                });
-            }
-            marker.reportId = mainReport.id;
-            marker.reportsGroup = group;
-            marker.position = location;
-            // בלחיצה: פופאפ עם כל הדיווחים במיקום
-            registerMarkerClick(marker, () => {
-                markers.forEach(m => m.infoWindow?.close && m.infoWindow.close());
-                const infowindow = new google.maps.InfoWindow({
-                    content: `
-                    <div class="info-window">
-                        <h5>Hazards (${group.length})</h5>
-                        <ul style="max-height:200px;overflow:auto;padding-left:1em;">
-                        ${group.map(r => `
-                            <li style='margin-bottom:8px;'>
-                                <b>${r.type}</b> <span class='badge ${r.status === 'Resolved' ? 'bg-success' : 'bg-danger'}'>${r.status}</span><br>
-                                <small>${new Date(r.time).toLocaleString()}</small><br>
-                                <button class='btn btn-sm btn-primary mt-1' onclick='showReportDetails(${JSON.stringify(r).replace(/"/g, "&quot;")})'>Details</button>
-                                ${r.image ? `<button class='btn btn-sm btn-secondary mt-1' onclick='showImageModal(\'${r.image}\')'>Image</button>` : ''}
-                            </li>
-                        `).join('')}
-                        </ul>
-                    </div>`
-                });
-                marker.infoWindow = infowindow;
-                infowindow.open(map, marker);
-                map.panTo(location);
-                if (map.getZoom() < 14) map.setZoom(14);
-            });
-            markers.push(marker);
-            bounds.extend(location);
-        }
+        
+        // Fit map to show all markers
         if (markers.length > 0) {
             map.fitBounds(bounds);
-            const listener = google.maps.event.addListener(map, 'idle', function () {
-                if (map.getZoom() > 16) map.setZoom(16);
-                google.maps.event.removeListener(listener);
-            });
+            if (map.getZoom() > 16) {
+                map.setZoom(16);
+            }
         }
+        
         updateHeatmap();
-        if (window.filterAndRenderReports) window.filterAndRenderReports();
-        updateDashboardInfo(reports);
+        updatePaginationInfo(pagination);
+        
+        // Update UI with reports from current page
+        if (window.filterAndRenderReports) {
+            window.filterAndRenderReports();
+        } else {
+            renderReportBlocksModern(reports);
+        }
+        
+        updateDashboardInfo(reports, pagination);
         hideLoadingIndicator();
-        return reports;
+        
+        return { reports, pagination };
+        
     } catch (error) {
+        console.error('Error in loadReports:', error);
         if (document.body) {
             handleError(error, 'loadReports');
             hideLoadingIndicator();
+            showToast(`Failed to load reports: ${error.message}`, 'error');
         }
-        return [];
+        return { reports: [], pagination: null };
     }
 }
 
+// Update pagination info display
+function updatePaginationInfo(pagination) {
+    if (!pagination) return;
+    
+    const paginationInfo = document.getElementById('reports-pagination-info');
+    const paginationControls = document.getElementById('reports-pagination');
+    const paginationText = document.getElementById('pagination-text');
+    const pageInfo = document.getElementById('page-info');
+    const prevBtn = document.getElementById('prev-page-btn');
+    const nextBtn = document.getElementById('next-page-btn');
+    
+    if (pagination.total > 0) {
+        // Show pagination elements
+        if (paginationInfo) paginationInfo.style.display = 'block';
+        if (paginationControls) paginationControls.style.display = 'block';
+        
+        // Update pagination text
+        const startItem = ((pagination.page - 1) * pagination.limit) + 1;
+        const endItem = Math.min(startItem + pagination.limit - 1, pagination.total);
+        if (paginationText) {
+            paginationText.textContent = `Showing ${startItem}-${endItem} of ${pagination.total} reports`;
+        }
+        
+        // Update page info
+        if (pageInfo) {
+            pageInfo.textContent = `Page ${pagination.page} of ${pagination.totalPages}`;
+        }
+        
+        // Update button states
+        if (prevBtn) {
+            prevBtn.disabled = !pagination.hasPrev;
+        }
+        if (nextBtn) {
+            nextBtn.disabled = !pagination.hasNext;
+        }
+    } else {
+        // Hide pagination elements when no reports
+        if (paginationInfo) paginationInfo.style.display = 'none';
+        if (paginationControls) paginationControls.style.display = 'none';
+    }
+}
+
+// Navigation functions
+async function goToPage(page) {
+    if (page < 1) return;
+    
+    const currentFilters = getCurrentFilters();
+    await loadReports(currentFilters, page, true);
+}
+
+async function goToNextPage() {
+    await goToPage(currentPage + 1);
+}
+
+async function goToPrevPage() {
+    await goToPage(currentPage - 1);
+}
+
+function getCurrentFilters() {
+    const searchInput = document.getElementById('report-search-input');
+    const filters = {};
+    
+    if (searchInput && searchInput.value.trim()) {
+        filters.location = searchInput.value.trim();
+    }
+    
+    // Add hazard type filter if selected
+    if (window.selectedHazardType && window.selectedHazardType !== '') {
+        filters.hazardType = window.selectedHazardType;
+    }
+    
+    return filters;
+}
+
 // Update general info blocks
-function updateDashboardInfo(reports) {
-    // New Reports: total count
-    const newReports = reports.length;
+function updateDashboardInfo(reports, pagination = null) {
+    // Use pagination total if available, otherwise use reports length
+    const totalCount = pagination ? pagination.total : reports.length;
     // Open Hazards: status 'Open' (case-insensitive)
     const openHazards = reports.filter(r => (r.status || '').toLowerCase() === 'open').length;
     // Resolved This Month: status 'Resolved' and time in current month
@@ -1058,7 +958,7 @@ function updateDashboardInfo(reports) {
         const el = document.getElementById(id);
         if (el) el.textContent = val;
     };
-    setVal('new-reports-count', newReports);
+    setVal('total-reports-count', totalCount);
     setVal('open-hazards-count', openHazards);
     setVal('resolved-this-month', resolvedThisMonth);
     setVal('active-users', activeUsers);
@@ -1107,9 +1007,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (dom.reportsDiv) dom.reportsDiv.style.display = 'none';
         if (document.getElementById('map')) document.getElementById('map').style.display = '';
       }
-      if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
-        google.maps.event.trigger(map, 'resize');
-      }
+      // Map resize handled automatically by Leaflet
     });
   }
 
@@ -1129,9 +1027,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (dom.reportsDiv) dom.reportsDiv.style.display = '';
         if (document.getElementById('map')) document.getElementById('map').style.display = 'none';
       }
-      if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
-        google.maps.event.trigger(map, 'resize');
-      }
+      // Map resize handled automatically by Leaflet
     });
   }
 
@@ -1152,6 +1048,28 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // --- Search/Sort Logic ---
+function generateHazardCheckboxes() {
+    const hazardContainer = document.getElementById('hazard-types-container');
+    if (!hazardContainer) return;
+    
+    // Clear existing checkboxes
+    hazardContainer.innerHTML = '';
+    
+    // Create checkboxes for each hazard type
+    hazardTypes.forEach(type => {
+        const displayType = type.charAt(0).toUpperCase() + type.slice(1).replace('_', ' ');
+        const checkboxContainer = document.createElement('div');
+        checkboxContainer.className = 'form-check form-check-inline';
+        
+        checkboxContainer.innerHTML = `
+            <input class="form-check-input" type="checkbox" value="${type}" id="hazard-${type}">
+            <label class="form-check-label" for="hazard-${type}">${displayType}</label>
+        `;
+        
+        hazardContainer.appendChild(checkboxContainer);
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize hazard type checkboxes
     const hazardContainer = document.getElementById('hazard-types-container');
@@ -1187,7 +1105,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Filter by selected hazard types (if any)
         const checkedHazards = Array.from(document.querySelectorAll('#hazard-types-container input[type="checkbox"]:checked')).map(el => el.value);
         if (checkedHazards.length > 0) {
-            filtered = filtered.filter(r => checkedHazards.includes(r.type));
+            filtered = filtered.filter(r => checkedHazards.includes(normalizeHazardType(r.type)));
         }
         
         // Sort
@@ -1243,8 +1161,11 @@ function loadFiltersFromURL() {
 
 // --- Report Details Modal Logic ---
 function showReportDetails(report) {
+  const normalizedType = normalizeHazardType(report.type);
+  const displayType = normalizedType.charAt(0).toUpperCase() + normalizedType.slice(1).replace('_', ' ');
+  
   document.getElementById("modal-hazard-id").textContent = report.id;
-  document.getElementById("modal-type").textContent = report.type;
+  document.getElementById("modal-type").textContent = displayType;
   document.getElementById("modal-location").textContent = report.location;
   document.getElementById("modal-time").textContent = new Date(report.time).toLocaleString();
   document.getElementById("modal-status").textContent = report.status;
@@ -1315,9 +1236,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         dom.viewToggleContainer.className = 'map-maximized';
       }
-      if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
-        google.maps.event.trigger(map, 'resize');
-      }
+      // Map resize handled automatically by Leaflet
     });
   }
   if (reportsMaxBtn && dom.viewToggleContainer) {
@@ -1327,9 +1246,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } else {
         dom.viewToggleContainer.className = 'reports-maximized';
       }
-      if (typeof google !== 'undefined' && typeof google.maps !== 'undefined') {
-        google.maps.event.trigger(map, 'resize');
-      }
+      // Map resize handled automatically by Leaflet
     });
   }
 });
@@ -1372,7 +1289,7 @@ function mergeDuplicateReports(reports) {
 
 // --- Render Report Blocks ---
 function renderReportBlocks(reports) {
-  renderReportTableRows(reports);
+  renderReportBlocksModern(reports);
 }
 
 // --- Render Report Table Rows ---
@@ -1402,7 +1319,7 @@ function renderReportTableRows(reports) {
                      onclick="showImageModal('${report.image}')" title="View full image">`
                     : '<span class="text-muted">No image</span>'}
             </td>
-            <td>${report.type}</td>
+            <td>${normalizeHazardType(report.type).charAt(0).toUpperCase() + normalizeHazardType(report.type).slice(1).replace('_', ' ')}</td>
             <td>
                 <a href="#" class="text-info location-link" onclick="focusMapLocation('${report.location}')" title="Locate on map">
                     ${report.location}
@@ -1429,18 +1346,14 @@ function renderReportTableRows(reports) {
             </td>
             <td class="text-center">
                 <div class="btn-group" role="group">
-                    <button class="btn btn-outline-primary btn-sm" title="View Details" 
-                            onclick="showReportDetails(${JSON.stringify(report)})">
-                        <i class="fas fa-info-circle"></i>
+                    <button class="btn btn-outline-primary btn-sm" title="Edit/View" 
+                            onclick="openEditReportModal(${JSON.stringify(report).replace(/"/g, '&quot;')})">
+                        <i class="fas fa-edit"></i>
                     </button>
                     <button class="btn btn-outline-secondary btn-sm" title="View Image"
                             onclick="showImageModal('${report.image}')"
                             ${!report.image ? 'disabled' : ''}>
                         <i class="fas fa-image"></i>
-                    </button>
-                    <button class="btn btn-outline-warning btn-sm" title="Edit Report"
-                            onclick="openEditReportModal(${JSON.stringify(report)})">
-                        <i class="fas fa-edit"></i>
                     </button>
                     <button class="btn btn-outline-danger btn-sm" title="Delete Report"
                             onclick="confirmDeleteReport('${report.id}')">
@@ -1454,7 +1367,6 @@ function renderReportTableRows(reports) {
             </td>
         `;
         tbody.appendChild(tr);
-
         // Add hover events to sync with map markers
         tr.addEventListener('mouseenter', () => highlightMarker(report.id));
         // Checkbox event
@@ -1472,6 +1384,11 @@ function renderReportTableRows(reports) {
                 tr.classList.toggle('selected', e.target.checked);
             });
         }
+        // לחיצה על כל השורה תפתח עריכה (לא על כפתור תמונה)
+        tr.addEventListener('click', (e) => {
+            if (e.target.closest('.btn-outline-secondary')) return;
+            openEditReportModal(report);
+        });
     });
     updateBulkToolbar();
     updateSelectAllCheckbox();
@@ -1602,10 +1519,9 @@ function focusMapLocation(location) {
         return title.includes(location);
     });
     if (marker) {
-        const position = marker.position || marker.getPosition();
+        const position = marker.getLatLng ? marker.getLatLng() : marker.position;
         if (position) {
-            map.panTo(position);
-            map.setZoom(18);
+            map.setView(position, 18);
             highlightMarker(marker.reportId);
             setTimeout(() => unhighlightMarker(marker.reportId), 2100);
             if(marker.report) {
@@ -1771,8 +1687,92 @@ async function deleteReport(reportId) {
 
 // Add missing openEditReportModal function
 function openEditReportModal(report) {
-    // Temporary stub – replace with modal integration as needed.
-    alert("Opening Edit Report modal for report: " + report.id);
+    // Populate modal fields
+    document.getElementById('edit-report-id').value = report.id || '';
+    document.getElementById('edit-report-type').value = normalizeHazardType(report.type) || '';
+    document.getElementById('edit-report-status').value = report.status || 'Open';
+    document.getElementById('edit-report-location').value = report.location || '';
+    document.getElementById('edit-report-image').value = report.image || '';
+    document.getElementById('edit-report-reportedBy').value = report.reportedBy || '';
+    // Image preview
+    const preview = document.getElementById('edit-report-image-preview');
+    if (report.image) {
+        preview.src = report.image;
+        preview.style.display = 'block';
+    } else {
+        preview.src = '';
+        preview.style.display = 'none';
+    }
+    // Show modal
+    if (window.editReportBootstrapModal) {
+        window.editReportBootstrapModal.show();
+    } else {
+        const modalEl = document.getElementById('editReportModal');
+        window.editReportBootstrapModal = new bootstrap.Modal(modalEl, {});
+        window.editReportBootstrapModal.show();
+    }
+}
+window.openEditReportModal = openEditReportModal;
+
+// Handle image URL change for preview
+const editImageInput = document.getElementById('edit-report-image');
+if (editImageInput) {
+    editImageInput.addEventListener('input', function() {
+        const url = this.value;
+        const preview = document.getElementById('edit-report-image-preview');
+        if (url) {
+            preview.src = url;
+            preview.style.display = 'block';
+        } else {
+            preview.src = '';
+            preview.style.display = 'none';
+        }
+    });
+}
+
+// Handle save changes
+const editForm = document.getElementById('edit-report-form');
+if (editForm) {
+    editForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const id = document.getElementById('edit-report-id').value;
+        const type = document.getElementById('edit-report-type').value;
+        const status = document.getElementById('edit-report-status').value;
+        const location = document.getElementById('edit-report-location').value;
+        const image = document.getElementById('edit-report-image').value;
+        // PATCH request to update report
+        try {
+            const res = await fetch(`/api/reports/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type, status, location, image })
+            });
+            if (!res.ok) throw new Error('Failed to update report');
+            showToast('Report updated successfully', 'success');
+            window.editReportBootstrapModal.hide();
+            await loadReports();
+        } catch (err) {
+            showToast('Failed to update report', 'error');
+        }
+    });
+}
+
+// Handle delete
+const deleteBtn = document.getElementById('delete-report-btn');
+if (deleteBtn) {
+    deleteBtn.addEventListener('click', async function() {
+        const id = document.getElementById('edit-report-id').value;
+        if (!confirm('Are you sure you want to delete this report?')) return;
+        try {
+            const res = await fetch(`/api/reports/${id}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Failed to delete report');
+            showToast('Report deleted', 'success');
+            window.editReportBootstrapModal.hide();
+            await loadReports();
+        } catch (err) {
+            showToast('Failed to delete report', 'error');
+        }
+    });
 }
 
 // Enhanced toast notification system
@@ -1909,8 +1909,32 @@ document.addEventListener('DOMContentLoaded', function() {
         refreshBtn.addEventListener('click', () => {
             // Clear cache and reload
             reportCache.clear();
+            currentPage = 1; // Reset to first page
             loadReports();
             showToast('Dashboard refreshed', 'success');
+        });
+    }
+    
+    // Initialize pagination controls
+    const prevBtn = document.getElementById('prev-page-btn');
+    const nextBtn = document.getElementById('next-page-btn');
+    const perPageSelect = document.getElementById('reports-per-page');
+    
+    if (prevBtn) {
+        prevBtn.addEventListener('click', goToPrevPage);
+    }
+    
+    if (nextBtn) {
+        nextBtn.addEventListener('click', goToNextPage);
+    }
+    
+    if (perPageSelect) {
+        perPageSelect.addEventListener('change', async (e) => {
+            reportsPerPage = parseInt(e.target.value);
+            currentPage = 1; // Reset to first page when changing page size
+            const currentFilters = getCurrentFilters();
+            await loadReports(currentFilters, 1, true);
+            showToast(`Changed to ${reportsPerPage} reports per page`, 'info');
         });
     }
     
@@ -1930,6 +1954,9 @@ document.addEventListener('DOMContentLoaded', function() {
     connectSSE(); // Start SSE connection on load
     requestBrowserNotificationPermission();
     preloadHighPrioritySound();
+    
+    // Load reports immediately when page loads
+    loadReports();
 });
 
 // Keyboard shortcuts
@@ -2072,8 +2099,7 @@ async function getLocationByIP() {
         const data = await response.json();
         if(data.latitude && data.longitude && !data.error) {
             const ipLatLng = { lat: parseFloat(data.latitude), lng: parseFloat(data.longitude) };
-            map.setCenter(ipLatLng);
-            map.setZoom(10); // Zoom level for region
+            map.setView([ipLatLng.lat, ipLatLng.lng], 10); // Zoom level for region
             console.log("Using IP-based location:", data.city, data.country);
         } else {
             console.warn("IP geolocation unavailable, using default location");
@@ -2233,7 +2259,7 @@ function handleIncomingEvent(data) {
     if (data.type === 'new_report' && data.report) {
         showNotificationInCenter({
             title: 'New Hazard Reported',
-            body: `${data.report.type} at ${data.report.location}`,
+            body: `${normalizeHazardType(data.report.type).charAt(0).toUpperCase() + normalizeHazardType(data.report.type).slice(1).replace('_', ' ')} at ${data.report.location}`,
             time: data.report.time,
             onClick: () => {
                 window.showNotificationCenter();
@@ -2242,20 +2268,20 @@ function handleIncomingEvent(data) {
         });
         showDesktopNotification({
             title: 'New Hazard Reported',
-            body: `${data.report.type} at ${data.report.location}`,
+            body: `${normalizeHazardType(data.report.type).charAt(0).toUpperCase() + normalizeHazardType(data.report.type).slice(1).replace('_', ' ')} at ${data.report.location}`,
             report: data.report,
             onClick: () => {
                 window.showNotificationCenter();
                 focusMapLocation(data.report.location);
             }
         });
-        if (HIGH_PRIORITY_TYPES.includes(data.report.type)) {
+        if (HIGH_PRIORITY_TYPES.includes(normalizeHazardType(data.report.type))) {
             playHighPrioritySound();
         }
     } else if (data.type === 'status_update' && data.report) {
         showNotificationInCenter({
             title: 'Report Status Updated',
-            body: `${data.report.type} at ${data.report.location} is now ${data.report.status}`,
+            body: `${normalizeHazardType(data.report.type).charAt(0).toUpperCase() + normalizeHazardType(data.report.type).slice(1).replace('_', ' ')} at ${data.report.location} is now ${data.report.status}`,
             time: data.report.time,
             onClick: () => {
                 window.showNotificationCenter();
@@ -2264,7 +2290,7 @@ function handleIncomingEvent(data) {
         });
         showDesktopNotification({
             title: 'Report Status Updated',
-            body: `${data.report.type} at ${data.report.location} is now ${data.report.status}`,
+            body: `${normalizeHazardType(data.report.type).charAt(0).toUpperCase() + normalizeHazardType(data.report.type).slice(1).replace('_', ' ')} at ${data.report.location} is now ${data.report.status}`,
             report: data.report,
             onClick: () => {
                 window.showNotificationCenter();
@@ -2426,7 +2452,7 @@ function showDesktopNotification({ title, body, report, onClick }) {
 }
 
 // --- Sound Alerts for High-Priority Items ---
-const HIGH_PRIORITY_TYPES = ['Pothole', 'Manhole', 'Transverse Crack'];
+const HIGH_PRIORITY_TYPES = ['pothole', 'knocked'];
 let highPriorityAudio = null;
 
 function preloadHighPrioritySound() {
@@ -2465,7 +2491,9 @@ class CollapsibleDashboard {
     const container = document.querySelector('.dashboard-accordion');
     if (!container) return;
     this.panelConfigs.forEach(config => {
-      const panel = container.querySelector(`[id$='${config.id}-content']`).parentElement;
+      const panelContent = container.querySelector(`[id$='${config.id}-content']`);
+      if (!panelContent) return;
+      const panel = panelContent.parentElement;
       if (config.defaultOpen) {
         panel.classList.add('active');
         panel.querySelector('.accordion-header').setAttribute('aria-expanded', 'true');
@@ -2481,7 +2509,9 @@ class CollapsibleDashboard {
   }
 
   togglePanel(panelId) {
-    const panel = document.getElementById(`${panelId}-content`).parentElement;
+    const panelContent = document.getElementById(`${panelId}-content`);
+    if (!panelContent) return;
+    const panel = panelContent.parentElement;
     const isOpen = panel.classList.contains('active');
     if (isOpen) {
       this.closePanel(panelId);
@@ -2492,7 +2522,9 @@ class CollapsibleDashboard {
   }
 
   openPanel(panelId) {
-    const panel = document.getElementById(`${panelId}-content`).parentElement;
+    const panelContent = document.getElementById(`${panelId}-content`);
+    if (!panelContent) return;
+    const panel = panelContent.parentElement;
     panel.classList.add('active');
     panel.querySelector('.accordion-header').setAttribute('aria-expanded', 'true');
     // Lazy load content if not loaded
@@ -2503,7 +2535,9 @@ class CollapsibleDashboard {
   }
 
   closePanel(panelId) {
-    const panel = document.getElementById(`${panelId}-content`).parentElement;
+    const panelContent = document.getElementById(`${panelId}-content`);
+    if (!panelContent) return;
+    const panel = panelContent.parentElement;
     panel.classList.remove('active');
     panel.querySelector('.accordion-header').setAttribute('aria-expanded', 'false');
   }
@@ -2517,7 +2551,9 @@ class CollapsibleDashboard {
 
   saveState() {
     const openPanels = this.panelConfigs.filter(cfg => {
-      const panel = document.getElementById(`${cfg.id}-content`).parentElement;
+      const panelContent = document.getElementById(`${cfg.id}-content`);
+      if (!panelContent) return false;
+      const panel = panelContent.parentElement;
       return panel.classList.contains('active');
     }).map(cfg => cfg.id);
     localStorage.setItem('dashboard-open-panels', JSON.stringify(openPanels));
@@ -2526,7 +2562,9 @@ class CollapsibleDashboard {
   loadSavedState() {
     const openPanels = JSON.parse(localStorage.getItem('dashboard-open-panels') || '[]');
     this.panelConfigs.forEach(cfg => {
-      const panel = document.getElementById(`${cfg.id}-content`).parentElement;
+      const panelContent = document.getElementById(`${cfg.id}-content`);
+      if (!panelContent) return;
+      const panel = panelContent.parentElement;
       if (openPanels.includes(cfg.id)) {
         panel.classList.add('active');
         panel.querySelector('.accordion-header').setAttribute('aria-expanded', 'true');
@@ -2623,7 +2661,7 @@ window.filterAndRenderReports = function() {
   }
   // סינון לפי סוג
   if (window.selectedHazardType && window.selectedHazardType !== '') {
-    filtered = filtered.filter(r => r.type === window.selectedHazardType);
+    filtered = filtered.filter(r => normalizeHazardType(r.type) === window.selectedHazardType);
   }
   // מיון
   const sortSelect = document.getElementById('report-sort-select');
@@ -2643,29 +2681,41 @@ function renderReportBlocksModern(reports) {
   if (!container) return;
   container.innerHTML = '';
   reports.forEach(report => {
+    const normalizedType = normalizeHazardType(report.type);
+    const displayType = normalizedType.charAt(0).toUpperCase() + normalizedType.slice(1).replace('_', ' ');
+    const statusClass = getStatusBadgeClass(report.status);
     const block = document.createElement('div');
-    block.className = 'report-block';
+    block.className = 'report-block card-visit d-flex flex-column flex-md-row align-items-stretch gap-3 p-3 mb-3';
     block.innerHTML = `
-      <img src="${report.image || ''}" alt="Hazard image" class="report-block-image">
-      <div class="report-block-details">
-        <div class="report-block-title">${report.type || ''}</div>
-        <div class="report-block-meta">
-          <span><i class="fas fa-map-marker-alt"></i> ${report.location || ''}</span>
-          <span><i class="fas fa-calendar-alt"></i> ${report.time ? new Date(report.time).toLocaleString() : ''}</span>
-          <span><i class="fas fa-user"></i> ${report.reportedBy || ''}</span>
+      <div class="report-block-image-wrap d-flex justify-content-center align-items-center mb-2 mb-md-0" style="min-width:96px;">
+        <img src="${report.image || ''}" alt="Hazard image" class="report-block-image" style="width:96px;height:96px;object-fit:cover;border-radius:14px;box-shadow:0 2px 8px #b0b8c122;border:1.5px solid #b0b8c1;background:#fff;">
+      </div>
+      <div class="report-block-info flex-grow-1 d-flex flex-column justify-content-between">
+        <div class="report-block-header d-flex flex-column flex-md-row align-items-md-center gap-2 mb-2">
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge ${statusClass}" style="font-size:1rem;">${report.status || ''}</span>
+            <span class="fw-bold report-block-title" style="color:#3a506b;font-size:1.13rem;"><i class="fas fa-exclamation-triangle me-1"></i>${displayType}</span>
+          </div>
         </div>
-        <div class="report-block-status mt-1">
-          <span class="badge ${getStatusBadgeClass(report.status)}">${report.status || ''}</span>
+        <div class="report-block-details-list d-flex flex-wrap gap-3 mb-2 pb-2 border-bottom" style="font-size:0.98rem;">
+          <span title="Location" class="d-flex align-items-center gap-1 text-truncate" style="max-width:180px;"><i class="fas fa-map-marker-alt"></i> ${report.location || ''}</span>
+          <span title="Date" class="d-flex align-items-center gap-1"><i class="fas fa-calendar-alt"></i> ${report.time ? new Date(report.time).toLocaleString() : ''}</span>
+          <span title="Reported By" class="d-flex align-items-center gap-1"><i class="fas fa-user"></i> ${report.reportedBy || ''}</span>
         </div>
-        <div class="report-block-actions mt-2 d-flex gap-2 flex-wrap">
-          <button class="btn btn-outline-primary btn-sm" onclick="showReportDetails(${JSON.stringify(report).replace(/"/g, '&quot;')})"><i class="fas fa-info-circle"></i> Details</button>
+        <div class="report-block-actions d-flex gap-2 flex-wrap mt-2">
+          <button class="btn btn-outline-primary btn-sm" onclick="openEditReportModal(${JSON.stringify(report).replace(/\"/g, '&quot;')})"><i class="fas fa-info-circle"></i> Details</button>
           <button class="btn btn-outline-secondary btn-sm" onclick="showImageModal('${report.image}')" ${!report.image ? 'disabled' : ''}><i class="fas fa-image"></i> Image</button>
-          <button class="btn btn-outline-warning btn-sm" onclick="openEditReportModal(${JSON.stringify(report).replace(/"/g, '&quot;')})"><i class="fas fa-edit"></i> Edit</button>
+          <button class="btn btn-outline-warning btn-sm" onclick="openEditReportModal(${JSON.stringify(report).replace(/\"/g, '&quot;')})"><i class="fas fa-edit"></i> Edit</button>
           <button class="btn btn-outline-danger btn-sm" onclick="confirmDeleteReport('${report.id}')"><i class="fas fa-trash"></i> Delete</button>
           <button class="btn btn-outline-${report.status === 'Resolved' ? 'danger' : 'success'} btn-sm" onclick="toggleReportStatus('${report.id}', '${report.status}')">${report.status === 'Resolved' ? 'Mark Open' : 'Mark Resolved'}</button>
         </div>
       </div>
     `;
+    // לחיצה על כל הבלוק תפתח עריכה (לא על כפתור תמונה)
+    block.addEventListener('click', (e) => {
+      if (e.target.closest('.btn-outline-secondary')) return;
+      openEditReportModal(report);
+    });
     container.appendChild(block);
   });
 }

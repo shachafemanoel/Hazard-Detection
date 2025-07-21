@@ -85,17 +85,10 @@ document.addEventListener("DOMContentLoaded", () => {
   let letterboxParams = null;
 
   const classNames = [
-    "Alligator Crack",
-    "Block Crack",
-    "Construction Joint Crack",
-    "Crosswalk Blur",
-    "Lane Blur",
-    "Longitudinal Crack",
-    "Manhole",
-    "Patch Repair",
-    "Pothole",
-    "Transverse Crack",
-    "Wheel Mark Crack",
+    'crack',
+    'knocked',
+    'pothole',
+    'surface_damage'
   ];
 
   // Object tracking function
@@ -479,7 +472,7 @@ function stopLocationTracking() {
     ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
     const EPs = ort.env.webgl?.isSupported ? ['webgl','wasm'] : ['wasm','webgl'];
     session = await ort.InferenceSession.create(
-      '/object_detecion_model/road_damage_detection_simplified.onnx',
+      '/object_detecion_model/model 18_7.onnx',
       { executionProviders: EPs, graphOptimizationLevel: 'all' }
     );
   }

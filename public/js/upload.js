@@ -164,15 +164,14 @@ saveBtn.addEventListener("click", () => {
   const FIXED_SIZE =640;
 
   // רשימת המחלקות
-  const classNames = ['Alligator Crack', 'Block Crack', 'Construction Joint Crack', 'Crosswalk Blur', 'Lane Blur', 'Longitudinal Crack', 'Manhole', 'Patch Repair', 'Pothole', 'Transverse Crack', 'Wheel Mark Crack'];
-
+  ;
   let session = null;
   
   ort.env.wasm.wasmPaths = '/ort/';  
 
   try {
     session = await ort.InferenceSession.create(
-      'object_detecion_model/last_model_train12052025.onnx',
+      'object_detecion_model/model 18_7.onnx',
       { executionProviders: ['cpu'] }
     );
     
