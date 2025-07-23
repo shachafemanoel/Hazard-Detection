@@ -2,10 +2,14 @@
 <html lang="en" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no, shrink-to-fit=no">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0a0e1a">
+    <meta name="msapplication-navbutton-color" content="#0a0e1a">
+    <meta name="apple-mobile-web-app-title" content="Hazard Detection">
+    <meta name="format-detection" content="telephone=no">
     <title>Live Detection - Hazard Detection System</title>
     <link rel="stylesheet" href="css/camera.css">
     <link rel="stylesheet" href="css/session-styles.css">\n    <link rel="stylesheet" href="css/floating-menu.css">
@@ -46,8 +50,8 @@
 
         <!-- Camera Section -->
         <div class="camera-section">
-            <div class="camera-wrapper">
-                <video id="camera-stream" autoplay playsinline></video>
+            <div class="camera-wrapper" id="camera-wrapper">
+                <video id="camera-stream" autoplay playsinline muted></video>
                 <canvas id="overlay-canvas"></canvas>
                 
                 <!-- Detection Results Overlay -->
@@ -58,6 +62,11 @@
                         <div class="corner top-right"></div>
                         <div class="corner bottom-left"></div>
                         <div class="corner bottom-right"></div>
+                    </div>
+                    <!-- Real-time detection info -->
+                    <div class="detection-info" id="detection-info">
+                        <div class="info-badge" id="detection-count-badge">0 hazards</div>
+                        <div class="info-badge" id="fps-badge">0 FPS</div>
                     </div>
                 </div>
                 

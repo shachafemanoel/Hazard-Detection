@@ -22,12 +22,45 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Hazard Detection Backend", version="1.0.0")
 
-# Enable CORS for frontend requests
+# Enable CORS for frontend requests - Enhanced mobile-friendly configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["*"],  # Allow all origins for mobile compatibility
+    allow_credentials=False,  # Set to False for mobile compatibility with wildcard origins
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
+    allow_headers=[
+        "Accept",
+        "Accept-Language", 
+        "Accept-Encoding",
+        "Accept-Charset",
+        "Content-Language",
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "Origin",
+        "Access-Control-Request-Method",
+        "Access-Control-Request-Headers",
+        "User-Agent",
+        "Cache-Control",
+        "Pragma",
+        "DNT",
+        "Sec-Fetch-Site",
+        "Sec-Fetch-Mode",
+        "Sec-Fetch-Dest",
+        # Mobile-specific headers
+        "X-Forwarded-For",
+        "X-Real-IP",
+        "X-Forwarded-Proto",
+        "X-Forwarded-Host"
+    ],
+    expose_headers=[
+        "Content-Type",
+        "Content-Length",
+        "X-Total-Count",
+        "Access-Control-Allow-Origin",
+        "Access-Control-Allow-Methods",
+        "Access-Control-Allow-Headers"
+    ]
 )
 
 # Global variables for OpenVINO model and class names
@@ -394,13 +427,34 @@ async def health_check():
         except Exception as e:
             logger.warning(f"Could not get model info: {e}")
     
+    # Get server environment info for mobile debugging
+    import os
+    import platform
+    
+    env_info = {
+        "platform": platform.system(),
+        "python_version": platform.python_version(),
+        "hostname": platform.node(),
+        "deployment_env": os.getenv("RENDER", "local") or os.getenv("DEPLOYMENT_ENV", "unknown"),
+        "port": os.getenv("PORT", "8000"),
+        "cors_enabled": True,
+        "mobile_friendly": True
+    }
+    
     return {
         "status": "healthy",
         "model_status": model_status,
         "backend_inference": True,
         "backend_type": "openvino",
         "active_sessions": len(sessions),
-        "device_info": device_info
+        "device_info": device_info,
+        "environment": env_info,
+        "endpoints": {
+            "session_start": "/session/start",
+            "session_detect": "/detect/{session_id}",
+            "legacy_detect": "/detect",
+            "batch_detect": "/detect-batch"
+        }
     }
 
 @app.post("/session/start")
