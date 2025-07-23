@@ -9992,3 +9992,1213 @@ INFO:app:Processed image: 0 detections in 314.3ms
 INFO:     127.0.0.1:65318 - "POST /detect/c780584f-87e8-4b83-8f77-1167628f5eb8 HTTP/1.1" 200 OK
 INFO:     127.0.0.1:65358 - "OPTIONS /session/c780584f-87e8-4b83-8f77-1167628f5eb8/end HTTP/1.1" 200 OK
 INFO:     127.0.0.1:65358 - "POST /session/c780584f-87e8-4b83-8f77-1167628f5eb8/end HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54459 - "OPTIONS /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54459 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54459 - "OPTIONS /session/start HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54459 - "POST /session/start HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54459 - "OPTIONS /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 428.1ms
+Speed: 16.3ms preprocess, 428.1ms inference, 5.6ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 490.99ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 354.6ms
+Speed: 7.3ms preprocess, 354.6ms inference, 4.0ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 386.0ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 321.8ms
+Speed: 8.4ms preprocess, 321.8ms inference, 1.2ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 353.38ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 348.2ms
+Speed: 8.3ms preprocess, 348.2ms inference, 1.6ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 378.89ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 308.1ms
+Speed: 8.8ms preprocess, 308.1ms inference, 3.6ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 339.03ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 337.7ms
+Speed: 8.6ms preprocess, 337.7ms inference, 3.8ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 366.77ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 336.4ms
+Speed: 8.5ms preprocess, 336.4ms inference, 1.7ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 368.06ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 317.3ms
+Speed: 8.2ms preprocess, 317.3ms inference, 2.5ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 347.07ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 320.2ms
+Speed: 8.0ms preprocess, 320.2ms inference, 1.5ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 351.29ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 310.9ms
+Speed: 8.1ms preprocess, 310.9ms inference, 1.2ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 338.81ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 301.0ms
+Speed: 7.8ms preprocess, 301.0ms inference, 1.4ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 328.68ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 327.1ms
+Speed: 8.9ms preprocess, 327.1ms inference, 3.1ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 355.81ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 304.3ms
+Speed: 6.9ms preprocess, 304.3ms inference, 1.6ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 332.61ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 311.3ms
+Speed: 9.2ms preprocess, 311.3ms inference, 1.5ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 341.05ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 308.2ms
+Speed: 8.8ms preprocess, 308.2ms inference, 1.4ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 336.98ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 302.4ms
+Speed: 8.5ms preprocess, 302.4ms inference, 2.3ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 330.32ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 297.4ms
+Speed: 6.2ms preprocess, 297.4ms inference, 1.2ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 321.64ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 304.0ms
+Speed: 7.8ms preprocess, 304.0ms inference, 1.5ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 331.71ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 305.4ms
+Speed: 5.6ms preprocess, 305.4ms inference, 1.4ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 331.63ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 301.6ms
+Speed: 8.0ms preprocess, 301.6ms inference, 1.2ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 327.29ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 334.5ms
+Speed: 7.1ms preprocess, 334.5ms inference, 1.8ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 362.25ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 322.9ms
+Speed: 5.7ms preprocess, 322.9ms inference, 1.4ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 348.05ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 304.4ms
+Speed: 7.7ms preprocess, 304.4ms inference, 1.4ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 331.99ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 292.5ms
+Speed: 7.1ms preprocess, 292.5ms inference, 3.9ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 320.87ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 299.9ms
+Speed: 6.8ms preprocess, 299.9ms inference, 1.2ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 326.66ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 297.7ms
+Speed: 8.7ms preprocess, 297.7ms inference, 2.8ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 327.33ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 310.0ms
+Speed: 9.0ms preprocess, 310.0ms inference, 1.9ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 338.39ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 295.1ms
+Speed: 6.0ms preprocess, 295.1ms inference, 1.8ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 319.85ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 1 crack, 299.0ms
+Speed: 7.9ms preprocess, 299.0ms inference, 2.9ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 1 detections in 327.91ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 295.4ms
+Speed: 6.7ms preprocess, 295.4ms inference, 1.8ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 320.86ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 1 crack, 286.0ms
+Speed: 8.8ms preprocess, 286.0ms inference, 2.0ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 1 detections in 317.49ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 1 crack, 304.2ms
+Speed: 7.9ms preprocess, 304.2ms inference, 1.9ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 1 detections in 332.45ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 300.2ms
+Speed: 7.2ms preprocess, 300.2ms inference, 1.3ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 327.33ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 297.1ms
+Speed: 8.1ms preprocess, 297.1ms inference, 1.7ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 323.98ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 1 crack, 306.2ms
+Speed: 8.0ms preprocess, 306.2ms inference, 2.0ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 1 detections in 335.35ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 294.2ms
+Speed: 7.5ms preprocess, 294.2ms inference, 2.4ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 323.83ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 313.1ms
+Speed: 8.6ms preprocess, 313.1ms inference, 1.2ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 341.9ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 1 crack, 288.4ms
+Speed: 6.9ms preprocess, 288.4ms inference, 1.9ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 1 detections in 316.35ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 355.4ms
+Speed: 8.6ms preprocess, 355.4ms inference, 2.1ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 384.48ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 343.5ms
+Speed: 7.1ms preprocess, 343.5ms inference, 1.2ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 372.84ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 1 crack, 295.9ms
+Speed: 6.3ms preprocess, 295.9ms inference, 1.8ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 1 detections in 322.65ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 282.5ms
+Speed: 8.9ms preprocess, 282.5ms inference, 1.6ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 312.8ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 286.8ms
+Speed: 8.3ms preprocess, 286.8ms inference, 1.8ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 315.16ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 277.1ms
+Speed: 7.5ms preprocess, 277.1ms inference, 1.1ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 302.28ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 292.3ms
+Speed: 8.9ms preprocess, 292.3ms inference, 3.6ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 322.05ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 288.6ms
+Speed: 8.5ms preprocess, 288.6ms inference, 1.4ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 316.71ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 277.8ms
+Speed: 8.5ms preprocess, 277.8ms inference, 1.5ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 305.06ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 290.4ms
+Speed: 8.6ms preprocess, 290.4ms inference, 1.4ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 318.75ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 304.4ms
+Speed: 9.2ms preprocess, 304.4ms inference, 1.0ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 332.19ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 318.4ms
+Speed: 8.1ms preprocess, 318.4ms inference, 1.6ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 344.75ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 1 crack, 302.4ms
+Speed: 7.4ms preprocess, 302.4ms inference, 2.1ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 1 detections in 331.52ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 316.1ms
+Speed: 9.1ms preprocess, 316.1ms inference, 1.5ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 344.77ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 1 crack, 316.2ms
+Speed: 6.5ms preprocess, 316.2ms inference, 2.5ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 1 detections in 345.17ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 325.5ms
+Speed: 13.0ms preprocess, 325.5ms inference, 1.3ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 360.98ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 302.4ms
+Speed: 6.5ms preprocess, 302.4ms inference, 1.4ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 328.32ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 1 crack, 293.2ms
+Speed: 9.1ms preprocess, 293.2ms inference, 1.8ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 1 detections in 323.69ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 307.1ms
+Speed: 8.7ms preprocess, 307.1ms inference, 1.8ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 336.2ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 316.1ms
+Speed: 6.8ms preprocess, 316.1ms inference, 1.7ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 344.45ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 306.6ms
+Speed: 6.9ms preprocess, 306.6ms inference, 1.4ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 333.39ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 331.6ms
+Speed: 9.5ms preprocess, 331.6ms inference, 1.5ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 359.24ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 1 crack, 297.8ms
+Speed: 6.9ms preprocess, 297.8ms inference, 1.9ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 1 detections in 333.65ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 1 crack, 289.3ms
+Speed: 5.9ms preprocess, 289.3ms inference, 2.0ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 1 detections in 314.1ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 338.5ms
+Speed: 8.7ms preprocess, 338.5ms inference, 1.9ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 368.56ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54459 - "GET /health HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 327.2ms
+Speed: 13.9ms preprocess, 327.2ms inference, 1.5ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 363.47ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 1 crack, 288.0ms
+Speed: 8.7ms preprocess, 288.0ms inference, 2.3ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 1 detections in 318.97ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 290.8ms
+Speed: 8.3ms preprocess, 290.8ms inference, 2.0ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 319.09ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 279.8ms
+Speed: 8.6ms preprocess, 279.8ms inference, 1.8ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 310.25ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 279.7ms
+Speed: 8.8ms preprocess, 279.7ms inference, 1.3ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 309.35ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 290.6ms
+Speed: 7.5ms preprocess, 290.6ms inference, 1.8ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 318.67ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 298.3ms
+Speed: 11.2ms preprocess, 298.3ms inference, 1.3ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 332.27ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 320.4ms
+Speed: 7.5ms preprocess, 320.4ms inference, 1.2ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 345.92ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 364.5ms
+Speed: 6.9ms preprocess, 364.5ms inference, 2.5ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 395.89ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 321.7ms
+Speed: 9.8ms preprocess, 321.7ms inference, 1.2ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 352.02ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54459 - "OPTIONS /session/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a/end HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54459 - "POST /session/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a/end HTTP/1.1" 200 OK
+
+0: 640x640 (no detections), 295.1ms
+Speed: 7.8ms preprocess, 295.1ms inference, 1.7ms postprocess per image at shape (1, 3, 640, 640)
+INFO:app:Processed image: 0 detections in 332.39ms
+INFO:     127.0.0.1:54459 - "POST /detect/beb4b8ce-1d30-4185-a5d2-4a8b8bf8e48a HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59485 - "OPTIONS /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59485 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62115 - "GET /health HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'app.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [39770]
+INFO:     Started server process [53024]
+INFO:     Waiting for application startup.
+INFO:app:Loading YOLO model...
+ERROR:app:❌ Failed to load YOLO model: 'server/best_openvino_model' does not exist
+ERROR:    Traceback (most recent call last):
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 692, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 669, in startup
+    await handler()
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 53, in load_model
+    raise e
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 49, in load_model
+    model = YOLO("server/best_openvino_model")
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/models/yolo/model.py", line 79, in __init__
+    super().__init__(model=model, task=task, verbose=verbose)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/engine/model.py", line 151, in __init__
+    self._load(model, task=task)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/engine/model.py", line 300, in _load
+    weights = checks.check_file(weights)  # runs in all cases, not redundant with above call
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/utils/checks.py", line 568, in check_file
+    raise FileNotFoundError(f"'{file}' does not exist")
+FileNotFoundError: 'server/best_openvino_model' does not exist
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  StatReload detected changes in 'app.py'. Reloading...
+INFO:     Started server process [53063]
+INFO:     Waiting for application startup.
+INFO:app:Loading YOLO model...
+WARNING:  StatReload detected changes in 'app.py'. Reloading...
+WARNING ⚠️ Unable to automatically guess model task, assuming 'task=detect'. Explicitly define task for your model, i.e. 'task=detect', 'segment', 'classify','pose' or 'obb'.
+INFO:app:✅ YOLO model loaded successfully
+INFO:     Application startup complete.
+INFO:     Started server process [53074]
+INFO:     Waiting for application startup.
+INFO:app:Loading YOLO model...
+WARNING ⚠️ Unable to automatically guess model task, assuming 'task=detect'. Explicitly define task for your model, i.e. 'task=detect', 'segment', 'classify','pose' or 'obb'.
+INFO:app:✅ YOLO model loaded successfully
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'start_backend.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [53074]
+INFO:     Started server process [53172]
+INFO:     Waiting for application startup.
+INFO:app:Loading YOLO model...
+WARNING ⚠️ Unable to automatically guess model task, assuming 'task=detect'. Explicitly define task for your model, i.e. 'task=detect', 'segment', 'classify','pose' or 'obb'.
+INFO:app:✅ YOLO model loaded successfully
+INFO:     Application startup complete.
+WARNING:  StatReload detected changes in 'app.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [53172]
+Process SpawnProcess-9:
+Traceback (most recent call last):
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/_subprocess.py", line 80, in subprocess_started
+    target(sockets=sockets)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 66, in run
+    return asyncio.run(self.serve(sockets=sockets))
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/asyncio/runners.py", line 44, in run
+    return loop.run_until_complete(main)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/asyncio/base_events.py", line 649, in run_until_complete
+    return future.result()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 70, in serve
+    await self._serve(sockets)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 77, in _serve
+    config.load()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/config.py", line 435, in load
+    self.loaded_app = import_from_string(self.app)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/importer.py", line 19, in import_from_string
+    module = importlib.import_module(module_str)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 879, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1017, in get_code
+  File "<frozen importlib._bootstrap_external>", line 947, in source_to_code
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 49
+    model = YOLO")
+                ^
+SyntaxError: unterminated string literal (detected at line 49)
+WARNING:  StatReload detected changes in 'app.py'. Reloading...
+WARNING:  StatReload detected changes in 'app.py'. Reloading...
+INFO:     Started server process [53974]
+INFO:     Waiting for application startup.
+INFO:app:Loading YOLO model...
+WARNING ⚠️ Unable to automatically guess model task, assuming 'task=detect'. Explicitly define task for your model, i.e. 'task=detect', 'segment', 'classify','pose' or 'obb'.
+INFO:app:✅ YOLO model loaded successfully
+INFO:     Application startup complete.
+INFO:     Started server process [53984]
+INFO:     Waiting for application startup.
+INFO:app:Loading YOLO model...
+ERROR:app:❌ Failed to load YOLO model: '/best_openvino_model' does not exist
+ERROR:    Traceback (most recent call last):
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 692, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 669, in startup
+    await handler()
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 53, in load_model
+    raise e
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 49, in load_model
+    model = YOLO("/best_openvino_model")
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/models/yolo/model.py", line 79, in __init__
+    super().__init__(model=model, task=task, verbose=verbose)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/engine/model.py", line 151, in __init__
+    self._load(model, task=task)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/engine/model.py", line 300, in _load
+    weights = checks.check_file(weights)  # runs in all cases, not redundant with above call
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/utils/checks.py", line 568, in check_file
+    raise FileNotFoundError(f"'{file}' does not exist")
+FileNotFoundError: '/best_openvino_model' does not exist
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  StatReload detected changes in 'start_backend.py'. Reloading...
+INFO:     Started server process [54075]
+INFO:     Waiting for application startup.
+INFO:app:Loading YOLO model...
+ERROR:app:❌ Failed to load YOLO model: '/best_openvino_model' does not exist
+ERROR:    Traceback (most recent call last):
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 692, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 669, in startup
+    await handler()
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 53, in load_model
+    raise e
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 49, in load_model
+    model = YOLO("/best_openvino_model")
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/models/yolo/model.py", line 79, in __init__
+    super().__init__(model=model, task=task, verbose=verbose)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/engine/model.py", line 151, in __init__
+    self._load(model, task=task)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/engine/model.py", line 300, in _load
+    weights = checks.check_file(weights)  # runs in all cases, not redundant with above call
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/utils/checks.py", line 568, in check_file
+    raise FileNotFoundError(f"'{file}' does not exist")
+FileNotFoundError: '/best_openvino_model' does not exist
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  StatReload detected changes in 'app.py'. Reloading...
+INFO:     Started server process [54559]
+INFO:     Waiting for application startup.
+INFO:app:Loading YOLO model...
+ERROR:app:❌ Failed to load YOLO model: 'server/best_openvino_model/best.xml' does not exist
+ERROR:    Traceback (most recent call last):
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 692, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 669, in startup
+    await handler()
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 53, in load_model
+    raise e
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 49, in load_model
+    model = YOLO("server/best_openvino_model/best.xml")
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/models/yolo/model.py", line 79, in __init__
+    super().__init__(model=model, task=task, verbose=verbose)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/engine/model.py", line 151, in __init__
+    self._load(model, task=task)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/engine/model.py", line 300, in _load
+    weights = checks.check_file(weights)  # runs in all cases, not redundant with above call
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/utils/checks.py", line 568, in check_file
+    raise FileNotFoundError(f"'{file}' does not exist")
+FileNotFoundError: 'server/best_openvino_model/best.xml' does not exist
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  StatReload detected changes in 'app.py'. Reloading...
+WARNING:  StatReload detected changes in 'app.py'. Reloading...
+INFO:     Started server process [54900]
+INFO:     Waiting for application startup.
+INFO:app:Loading YOLO model...
+ERROR:app:❌ Failed to load YOLO model: 's/best_openvino_model/best.xml' does not exist
+ERROR:    Traceback (most recent call last):
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 692, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 669, in startup
+    await handler()
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 53, in load_model
+    raise e
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 49, in load_model
+    model = YOLO("/best_openvino_model/best.xml")
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/models/yolo/model.py", line 79, in __init__
+    super().__init__(model=model, task=task, verbose=verbose)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/engine/model.py", line 151, in __init__
+    self._load(model, task=task)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/engine/model.py", line 300, in _load
+    weights = checks.check_file(weights)  # runs in all cases, not redundant with above call
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/utils/checks.py", line 568, in check_file
+    raise FileNotFoundError(f"'{file}' does not exist")
+FileNotFoundError: 's/best_openvino_model/best.xml' does not exist
+
+ERROR:    Application startup failed. Exiting.
+INFO:     Started server process [54914]
+INFO:     Waiting for application startup.
+INFO:app:Loading YOLO model...
+ERROR:app:❌ Failed to load YOLO model: '/best_openvino_model/best.xml' does not exist
+ERROR:    Traceback (most recent call last):
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 692, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 669, in startup
+    await handler()
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 53, in load_model
+    raise e
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 49, in load_model
+    model = YOLO("/best_openvino_model/best.xml")
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/models/yolo/model.py", line 79, in __init__
+    super().__init__(model=model, task=task, verbose=verbose)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/engine/model.py", line 151, in __init__
+    self._load(model, task=task)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/engine/model.py", line 300, in _load
+    weights = checks.check_file(weights)  # runs in all cases, not redundant with above call
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/utils/checks.py", line 568, in check_file
+    raise FileNotFoundError(f"'{file}' does not exist")
+FileNotFoundError: '/best_openvino_model/best.xml' does not exist
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  StatReload detected changes in 'start_backend.py'. Reloading...
+INFO:     Started server process [55005]
+INFO:     Waiting for application startup.
+INFO:app:Loading YOLO model...
+ERROR:app:❌ Failed to load YOLO model: '/best_openvino_model/best.xml' does not exist
+ERROR:    Traceback (most recent call last):
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 692, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 669, in startup
+    await handler()
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 53, in load_model
+    raise e
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 49, in load_model
+    model = YOLO("/best_openvino_model/best.xml")
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/models/yolo/model.py", line 79, in __init__
+    super().__init__(model=model, task=task, verbose=verbose)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/engine/model.py", line 151, in __init__
+    self._load(model, task=task)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/engine/model.py", line 300, in _load
+    weights = checks.check_file(weights)  # runs in all cases, not redundant with above call
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/utils/checks.py", line 568, in check_file
+    raise FileNotFoundError(f"'{file}' does not exist")
+FileNotFoundError: '/best_openvino_model/best.xml' does not exist
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  StatReload detected changes in 'start_backend.py'. Reloading...
+INFO:     Started server process [55203]
+INFO:     Waiting for application startup.
+INFO:app:Loading YOLO model...
+ERROR:app:❌ Failed to load YOLO model: '/best_openvino_model/best.xml' does not exist
+ERROR:    Traceback (most recent call last):
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 692, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 669, in startup
+    await handler()
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 53, in load_model
+    raise e
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 49, in load_model
+    model = YOLO("/best_openvino_model/best.xml")
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/models/yolo/model.py", line 79, in __init__
+    super().__init__(model=model, task=task, verbose=verbose)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/engine/model.py", line 151, in __init__
+    self._load(model, task=task)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/engine/model.py", line 300, in _load
+    weights = checks.check_file(weights)  # runs in all cases, not redundant with above call
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/utils/checks.py", line 568, in check_file
+    raise FileNotFoundError(f"'{file}' does not exist")
+FileNotFoundError: '/best_openvino_model/best.xml' does not exist
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  StatReload detected changes in 'start_backend.py'. Reloading...
+INFO:     Started server process [55642]
+INFO:     Waiting for application startup.
+INFO:app:Loading YOLO model...
+ERROR:app:❌ Failed to load YOLO model: '/best_openvino_model/best.xml' does not exist
+ERROR:    Traceback (most recent call last):
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 692, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 669, in startup
+    await handler()
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 53, in load_model
+    raise e
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 49, in load_model
+    model = YOLO("/best_openvino_model/best.xml")
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/models/yolo/model.py", line 79, in __init__
+    super().__init__(model=model, task=task, verbose=verbose)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/engine/model.py", line 151, in __init__
+    self._load(model, task=task)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/engine/model.py", line 300, in _load
+    weights = checks.check_file(weights)  # runs in all cases, not redundant with above call
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/utils/checks.py", line 568, in check_file
+    raise FileNotFoundError(f"'{file}' does not exist")
+FileNotFoundError: '/best_openvino_model/best.xml' does not exist
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  StatReload detected changes in 'start_backend.py'. Reloading...
+INFO:     Started server process [55839]
+INFO:     Waiting for application startup.
+INFO:app:Loading YOLO model...
+ERROR:app:❌ Failed to load YOLO model: '/best_openvino_model/best.xml' does not exist
+ERROR:    Traceback (most recent call last):
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 692, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 669, in startup
+    await handler()
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 53, in load_model
+    raise e
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 49, in load_model
+    model = YOLO("/best_openvino_model/best.xml")
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/models/yolo/model.py", line 79, in __init__
+    super().__init__(model=model, task=task, verbose=verbose)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/engine/model.py", line 151, in __init__
+    self._load(model, task=task)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/engine/model.py", line 300, in _load
+    weights = checks.check_file(weights)  # runs in all cases, not redundant with above call
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/utils/checks.py", line 568, in check_file
+    raise FileNotFoundError(f"'{file}' does not exist")
+FileNotFoundError: '/best_openvino_model/best.xml' does not exist
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  StatReload detected changes in 'app.py'. Reloading...
+INFO:     Started server process [57671]
+INFO:     Waiting for application startup.
+INFO:app:Loading YOLO model...
+ERROR:app:❌ Failed to load YOLO model: '/best_openvino_model/best.xml' does not exist
+ERROR:    Traceback (most recent call last):
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 692, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 669, in startup
+    await handler()
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 54, in load_model
+    raise e
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 50, in load_model
+    model = YOLO("/best_openvino_model/best.xml")
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/models/yolo/model.py", line 79, in __init__
+    super().__init__(model=model, task=task, verbose=verbose)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/engine/model.py", line 151, in __init__
+    self._load(model, task=task)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/engine/model.py", line 300, in _load
+    weights = checks.check_file(weights)  # runs in all cases, not redundant with above call
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/ultralytics/utils/checks.py", line 568, in check_file
+    raise FileNotFoundError(f"'{file}' does not exist")
+FileNotFoundError: '/best_openvino_model/best.xml' does not exist
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  StatReload detected changes in 'app.py'. Reloading...
+INFO:     Started server process [58226]
+INFO:     Waiting for application startup.
+INFO:app:Loading OpenVINO model...
+ERROR:app:❌ Failed to load OpenVINO model: Exception from src/inference/src/cpp/core.cpp:95:
+Check 'util::directory_exists(path) || util::file_exists(path)' failed at src/frontends/common/src/frontend.cpp:117:
+FrontEnd API failed with GeneralFailure:
+ir: Could not open the file: "server/best_openvino_model/best.xml"
+
+
+ERROR:    Traceback (most recent call last):
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 692, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 669, in startup
+    await handler()
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 75, in load_model
+    raise e
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 59, in load_model
+    model = core.read_model(model=model_path)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/openvino/_ov_api.py", line 554, in read_model
+    return Model(super().read_model(model, config=config))
+RuntimeError: Exception from src/inference/src/cpp/core.cpp:95:
+Check 'util::directory_exists(path) || util::file_exists(path)' failed at src/frontends/common/src/frontend.cpp:117:
+FrontEnd API failed with GeneralFailure:
+ir: Could not open the file: "server/best_openvino_model/best.xml"
+
+
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  StatReload detected changes in 'app.py'. Reloading...
+Process SpawnProcess-22:
+Traceback (most recent call last):
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/_subprocess.py", line 80, in subprocess_started
+    target(sockets=sockets)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 66, in run
+    return asyncio.run(self.serve(sockets=sockets))
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/asyncio/runners.py", line 44, in run
+    return loop.run_until_complete(main)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/asyncio/base_events.py", line 649, in run_until_complete
+    return future.result()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 70, in serve
+    await self._serve(sockets)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 77, in _serve
+    config.load()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/config.py", line 435, in load
+    self.loaded_app = import_from_string(self.app)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/importer.py", line 19, in import_from_string
+    module = importlib.import_module(module_str)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 879, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1017, in get_code
+  File "<frozen importlib._bootstrap_external>", line 947, in source_to_code
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 410
+    if confidence >= MIN_CONFIDENCE_FOR_REPORT:
+IndentationError: unexpected indent
+WARNING:  StatReload detected changes in 'app.py'. Reloading...
+Process SpawnProcess-23:
+Traceback (most recent call last):
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/_subprocess.py", line 80, in subprocess_started
+    target(sockets=sockets)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 66, in run
+    return asyncio.run(self.serve(sockets=sockets))
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/asyncio/runners.py", line 44, in run
+    return loop.run_until_complete(main)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/asyncio/base_events.py", line 649, in run_until_complete
+    return future.result()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 70, in serve
+    await self._serve(sockets)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 77, in _serve
+    config.load()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/config.py", line 435, in load
+    self.loaded_app = import_from_string(self.app)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/importer.py", line 19, in import_from_string
+    module = importlib.import_module(module_str)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 879, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1017, in get_code
+  File "<frozen importlib._bootstrap_external>", line 947, in source_to_code
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 410
+    if confidence >= MIN_CONFIDENCE_FOR_REPORT:
+IndentationError: unexpected indent
+WARNING:  StatReload detected changes in 'start_backend.py'. Reloading...
+Process SpawnProcess-24:
+Traceback (most recent call last):
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/_subprocess.py", line 80, in subprocess_started
+    target(sockets=sockets)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 66, in run
+    return asyncio.run(self.serve(sockets=sockets))
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/asyncio/runners.py", line 44, in run
+    return loop.run_until_complete(main)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/asyncio/base_events.py", line 649, in run_until_complete
+    return future.result()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 70, in serve
+    await self._serve(sockets)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 77, in _serve
+    config.load()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/config.py", line 435, in load
+    self.loaded_app = import_from_string(self.app)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/importer.py", line 19, in import_from_string
+    module = importlib.import_module(module_str)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 879, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1017, in get_code
+  File "<frozen importlib._bootstrap_external>", line 947, in source_to_code
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 410
+    if confidence >= MIN_CONFIDENCE_FOR_REPORT:
+IndentationError: unexpected indent
+WARNING:  StatReload detected changes in 'app.py'. Reloading...
+Process SpawnProcess-25:
+Traceback (most recent call last):
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/_subprocess.py", line 80, in subprocess_started
+    target(sockets=sockets)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 66, in run
+    return asyncio.run(self.serve(sockets=sockets))
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/asyncio/runners.py", line 44, in run
+    return loop.run_until_complete(main)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/asyncio/base_events.py", line 649, in run_until_complete
+    return future.result()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 70, in serve
+    await self._serve(sockets)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 77, in _serve
+    config.load()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/config.py", line 435, in load
+    self.loaded_app = import_from_string(self.app)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/importer.py", line 19, in import_from_string
+    module = importlib.import_module(module_str)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 879, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1017, in get_code
+  File "<frozen importlib._bootstrap_external>", line 947, in source_to_code
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 415
+    if confidence >= MIN_CONFIDENCE_FOR_REPORT:
+IndentationError: unexpected indent
+WARNING:  StatReload detected changes in 'app.py'. Reloading...
+Process SpawnProcess-26:
+Traceback (most recent call last):
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/_subprocess.py", line 80, in subprocess_started
+    target(sockets=sockets)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 66, in run
+    return asyncio.run(self.serve(sockets=sockets))
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/asyncio/runners.py", line 44, in run
+    return loop.run_until_complete(main)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/asyncio/base_events.py", line 649, in run_until_complete
+    return future.result()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 70, in serve
+    await self._serve(sockets)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 77, in _serve
+    config.load()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/config.py", line 435, in load
+    self.loaded_app = import_from_string(self.app)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/importer.py", line 19, in import_from_string
+    module = importlib.import_module(module_str)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 879, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1017, in get_code
+  File "<frozen importlib._bootstrap_external>", line 947, in source_to_code
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 425
+    if confidence >= MIN_CONFIDENCE_FOR_REPORT:
+IndentationError: unexpected indent
+WARNING:  StatReload detected changes in 'app.py'. Reloading...
+Process SpawnProcess-27:
+Traceback (most recent call last):
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/_subprocess.py", line 80, in subprocess_started
+    target(sockets=sockets)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 66, in run
+    return asyncio.run(self.serve(sockets=sockets))
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/asyncio/runners.py", line 44, in run
+    return loop.run_until_complete(main)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/asyncio/base_events.py", line 649, in run_until_complete
+    return future.result()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 70, in serve
+    await self._serve(sockets)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 77, in _serve
+    config.load()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/config.py", line 435, in load
+    self.loaded_app = import_from_string(self.app)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/importer.py", line 19, in import_from_string
+    module = importlib.import_module(module_str)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 879, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1017, in get_code
+  File "<frozen importlib._bootstrap_external>", line 947, in source_to_code
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 487
+    if confidence >= MIN_CONFIDENCE_FOR_REPORT:
+IndentationError: unexpected indent
+WARNING:  StatReload detected changes in 'app.py'. Reloading...
+Process SpawnProcess-28:
+Traceback (most recent call last):
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/_subprocess.py", line 80, in subprocess_started
+    target(sockets=sockets)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 66, in run
+    return asyncio.run(self.serve(sockets=sockets))
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/asyncio/runners.py", line 44, in run
+    return loop.run_until_complete(main)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/asyncio/base_events.py", line 649, in run_until_complete
+    return future.result()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 70, in serve
+    await self._serve(sockets)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 77, in _serve
+    config.load()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/config.py", line 435, in load
+    self.loaded_app = import_from_string(self.app)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/importer.py", line 19, in import_from_string
+    module = importlib.import_module(module_str)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 879, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1017, in get_code
+  File "<frozen importlib._bootstrap_external>", line 947, in source_to_code
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 487
+    if confidence >= MIN_CONFIDENCE_FOR_REPORT:
+IndentationError: unexpected indent
+WARNING:  StatReload detected changes in 'app.py'. Reloading...
+Process SpawnProcess-29:
+Traceback (most recent call last):
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/_subprocess.py", line 80, in subprocess_started
+    target(sockets=sockets)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 66, in run
+    return asyncio.run(self.serve(sockets=sockets))
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/asyncio/runners.py", line 44, in run
+    return loop.run_until_complete(main)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/asyncio/base_events.py", line 649, in run_until_complete
+    return future.result()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 70, in serve
+    await self._serve(sockets)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 77, in _serve
+    config.load()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/config.py", line 435, in load
+    self.loaded_app = import_from_string(self.app)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/importer.py", line 19, in import_from_string
+    module = importlib.import_module(module_str)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 879, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1017, in get_code
+  File "<frozen importlib._bootstrap_external>", line 947, in source_to_code
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 490
+    if confidence >= MIN_CONFIDENCE_FOR_REPORT:
+IndentationError: unexpected indent
+WARNING:  StatReload detected changes in 'app.py'. Reloading...
+Process SpawnProcess-30:
+Traceback (most recent call last):
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/_subprocess.py", line 80, in subprocess_started
+    target(sockets=sockets)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 66, in run
+    return asyncio.run(self.serve(sockets=sockets))
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/asyncio/runners.py", line 44, in run
+    return loop.run_until_complete(main)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/asyncio/base_events.py", line 649, in run_until_complete
+    return future.result()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 70, in serve
+    await self._serve(sockets)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 77, in _serve
+    config.load()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/config.py", line 435, in load
+    self.loaded_app = import_from_string(self.app)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/importer.py", line 19, in import_from_string
+    module = importlib.import_module(module_str)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 879, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1017, in get_code
+  File "<frozen importlib._bootstrap_external>", line 947, in source_to_code
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 490
+    if confidence >= MIN_CONFIDENCE_FOR_REPORT:
+IndentationError: unexpected indent
+WARNING:  StatReload detected changes in 'app.py'. Reloading...
+Process SpawnProcess-31:
+Traceback (most recent call last):
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/_subprocess.py", line 80, in subprocess_started
+    target(sockets=sockets)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 66, in run
+    return asyncio.run(self.serve(sockets=sockets))
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/asyncio/runners.py", line 44, in run
+    return loop.run_until_complete(main)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/asyncio/base_events.py", line 649, in run_until_complete
+    return future.result()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 70, in serve
+    await self._serve(sockets)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/server.py", line 77, in _serve
+    config.load()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/config.py", line 435, in load
+    self.loaded_app = import_from_string(self.app)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/uvicorn/importer.py", line 19, in import_from_string
+    module = importlib.import_module(module_str)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 879, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1017, in get_code
+  File "<frozen importlib._bootstrap_external>", line 947, in source_to_code
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 513
+    else:
+         ^
+IndentationError: unindent does not match any outer indentation level
+WARNING:  StatReload detected changes in 'app.py'. Reloading...
+INFO:     Started server process [59397]
+INFO:     Waiting for application startup.
+INFO:app:Loading OpenVINO model...
+ERROR:app:❌ Failed to load OpenVINO model: Exception from src/inference/src/cpp/core.cpp:95:
+Check 'util::directory_exists(path) || util::file_exists(path)' failed at src/frontends/common/src/frontend.cpp:117:
+FrontEnd API failed with GeneralFailure:
+ir: Could not open the file: "server/best_openvino_model/best.xml"
+
+
+ERROR:    Traceback (most recent call last):
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 692, in lifespan
+    async with self.lifespan_context(app) as maybe_state:
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 569, in __aenter__
+    await self._router.startup()
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/starlette/routing.py", line 669, in startup
+    await handler()
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 80, in load_model
+    raise e
+  File "/Users/shachafemanoel/Documents/Hazard-Detection/server/app.py", line 59, in load_model
+    original_model = core.read_model(model=model_path)
+  File "/Users/shachafemanoel/.pyenv/versions/3.10.10/lib/python3.10/site-packages/openvino/_ov_api.py", line 554, in read_model
+    return Model(super().read_model(model, config=config))
+RuntimeError: Exception from src/inference/src/cpp/core.cpp:95:
+Check 'util::directory_exists(path) || util::file_exists(path)' failed at src/frontends/common/src/frontend.cpp:117:
+FrontEnd API failed with GeneralFailure:
+ir: Could not open the file: "server/best_openvino_model/best.xml"
+
+
+
+ERROR:    Application startup failed. Exiting.
+WARNING:  StatReload detected changes in 'app.py'. Reloading...
+INFO:     Started server process [59468]
+INFO:     Waiting for application startup.
+INFO:app:Loading OpenVINO model...
+INFO:app:Model has dynamic input shape, setting to 640x640
+INFO:app:✅ OpenVINO model loaded successfully
+INFO:app:Input shape: [1,3,640,640]
+INFO:app:Output shape: [1,300,6]
+INFO:     Application startup complete.
+INFO:     127.0.0.1:50247 - "OPTIONS /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50411 - "OPTIONS /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50418 - "OPTIONS /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50429 - "OPTIONS /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50436 - "OPTIONS /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "OPTIONS /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50247 - "OPTIONS /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50411 - "OPTIONS /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50418 - "OPTIONS /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50429 - "OPTIONS /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50436 - "OPTIONS /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "OPTIONS /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50247 - "OPTIONS /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50411 - "OPTIONS /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50418 - "OPTIONS /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50429 - "OPTIONS /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50436 - "OPTIONS /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59446 - "GET /health HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [59468]
+INFO:     Stopping reloader process [35081]

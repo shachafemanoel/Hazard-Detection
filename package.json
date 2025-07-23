@@ -5,8 +5,12 @@
   "main": "server/server.js",
   "type": "module",
   "scripts": {
-    "start": "node server/server.js",
-    "dev": "nodemon --watch server --ignore public/object_detecion_model server/server.js"
+    "start": "npm run check-env && npm run start-backend && node server/server.js",
+    "start-backend": "cd server && python start_backend.py &",
+    "start-frontend": "node server/server.js",
+    "check-env": "node scripts/check-environment.js",
+    "dev": "nodemon --watch server --ignore public/object_detecion_model server/server.js",
+    "dev-python": "cd server && python start_backend.py"
   },
   "keywords": [],
   "author": "",

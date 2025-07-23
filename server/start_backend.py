@@ -15,7 +15,8 @@ def check_requirements():
     required_packages = {
         'fastapi': 'fastapi',
         'uvicorn': 'uvicorn',
-        'ultralytics': 'ultralytics',
+        'openvino': 'openvino',  # OpenVINO runtime
+        'opencv-python': 'cv2',  # OpenCV for image processing
         'pillow': 'PIL',  # pillow package imports as PIL
         'numpy': 'numpy',
         'python-multipart': 'multipart'  # Required for FastAPI file uploads
@@ -39,14 +40,23 @@ def check_requirements():
     return True
 
 def check_model_file():
-    """Check if the model file exists"""
-    model_path = "best.pt"
-    if not os.path.exists(model_path):
-        print(f"❌ Model file not found: {model_path}")
-        print("Please ensure the YOLO model file is in the correct location.")
+    """Check if the OpenVINO model files exist"""
+    model_xml = "best_openvino_model/best.xml"
+    model_bin = "best_openvino_model/best.bin"
+    
+    if not os.path.exists(model_xml):
+        print(f"❌ Model XML file not found: {model_xml}")
+        print("Please ensure the OpenVINO model files are in the correct location.")
+        return False
+        
+    if not os.path.exists(model_bin):
+        print(f"❌ Model BIN file not found: {model_bin}")
+        print("Please ensure the OpenVINO model files are in the correct location.")
         return False
     
-    print(f"✅ Model file found: {model_path}")
+    print(f"✅ OpenVINO model files found:")
+    print(f"   - {model_xml}")
+    print(f"   - {model_bin}")
     return True
 
 def start_server():
@@ -55,6 +65,7 @@ def start_server():
     print("📍 Server will be available at: http://localhost:8000")
     print("📊 Health check endpoint: http://localhost:8000/health")
     print("🔍 Detection endpoint: http://localhost:8000/detect")
+    print("🤖 Backend: OpenVINO Runtime")
     print("\nPress Ctrl+C to stop the server\n")
     
     try:
@@ -84,8 +95,8 @@ def main():
         sys.exit(1)
     print("✅ All required packages are installed")
     
-    # Check model file
-    print("\n🤖 Checking model file...")
+    # Check model files
+    print("\n🤖 Checking OpenVINO model files...")
     if not check_model_file():
         sys.exit(1)
     
