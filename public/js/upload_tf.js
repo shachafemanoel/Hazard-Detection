@@ -3,18 +3,649 @@ import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/fireba
 import { storage } from "./firebaseConfig.js";
 
 document.addEventListener("DOMContentLoaded", () => {
+  // UI Elements
   const startBtn = document.getElementById("start-camera");
   const stopBtn = document.getElementById("stop-camera");
   const switchBtn = document.getElementById("switch-camera");
   const video = document.getElementById("camera-stream");
   const canvas = document.getElementById("overlay-canvas");
   const ctx = canvas.getContext("2d");
-  const objectCountOverlay = document.getElementById('object-count-overlay');
-  // Get reference to the hazard types overlay element
-  const loadingOverlay = document.getElementById('loading-overlay'); // הפניה לאלמנט הטעינה
-  const hazardTypesOverlay = document.getElementById('hazard-types-overlay');
   
-  const FIXED_SIZE = 416; // increased resolution for better accuracy
+  // New Professional UI Elements
+  const cameraWrapper = document.querySelector('.camera-wrapper');
+  const connectionStatus = document.getElementById('connection-status');
+  const statusText = connectionStatus.querySelector('.status-text');
+  const loadingOverlay = document.getElementById('loading-overlay');
+  const loadingStatus = document.getElementById('loading-status');
+  const loadingProgressBar = document.getElementById('loading-progress-bar');
+  const sensitivitySlider = document.getElementById('sensitivity-slider');
+  const settingsPanel = document.getElementById('settings-panel');
+  const notificationsContainer = document.getElementById('notifications-container');
+  const hazardAlertModal = document.getElementById('hazard-alert-modal');
+  const alertDescription = document.getElementById('alert-description');
+  const alertClose = document.getElementById('alert-close');
+  
+  // Performance and detection displays
+  const fpsDisplay = document.getElementById('fps-display');
+  const processingTime = document.getElementById('processing-time');
+  const frameCountDisplay = document.getElementById('frame-count');
+  const currentDetections = document.getElementById('current-detections');
+  const sessionDetections = document.getElementById('session-detections');
+  const hazardTypesList = document.getElementById('hazard-types-list');
+
+  // Sound notification setup
+  let detectionSound = null;
+  try {
+    detectionSound = new Audio('mixkit-elevator-tone-2863.wav');
+    detectionSound.preload = 'auto';
+    detectionSound.volume = 0.7; // Set volume to 70%
+  } catch (error) {
+    console.warn('Could not load detection sound:', error);
+  }
+
+  // Professional UI Management Functions
+  function updateConnectionStatus(status, message) {
+    if (connectionStatus && statusText) {
+      const indicator = connectionStatus.querySelector('.status-indicator');
+      statusText.textContent = message || status;
+      
+      // Remove existing status classes
+      connectionStatus.classList.remove('connected', 'disconnected', 'processing');
+      indicator.classList.remove('connected', 'disconnected', 'processing');
+      
+      // Add new status class
+      connectionStatus.classList.add(status);
+      indicator.classList.add(status);
+    }
+  }
+
+  function showLoadingOverlay(message = 'Loading...', progress = null) {
+    if (loadingOverlay) {
+      loadingOverlay.style.display = 'flex';
+      if (loadingStatus) loadingStatus.textContent = message;
+      if (loadingProgressBar && progress !== null) {
+        loadingProgressBar.style.width = `${progress}%`;
+      }
+    }
+  }
+
+  function hideLoadingOverlay() {
+    if (loadingOverlay) {
+      loadingOverlay.style.display = 'none';
+    }
+  }
+
+  function createNotification(message, type = 'info', duration = 5000) {
+    if (!notificationsContainer) return;
+
+    const notification = document.createElement('div');
+    notification.className = `notification ${type}`;
+    notification.innerHTML = `
+      <div class="notification-content">
+        <i class="fas ${getNotificationIcon(type)}"></i>
+        <span>${message}</span>
+      </div>
+      <button class="notification-close" onclick="this.parentElement.remove()">
+        <i class="fas fa-times"></i>
+      </button>
+    `;
+
+    notificationsContainer.appendChild(notification);
+
+    // Auto remove after duration
+    if (duration > 0) {
+      setTimeout(() => {
+        if (notification.parentElement) {
+          notification.style.animation = 'slideOut 0.3s ease-in';
+          setTimeout(() => notification.remove(), 300);
+        }
+      }, duration);
+    }
+
+    return notification;
+  }
+
+  // Sound notification function
+  function playDetectionSound() {
+    if (detectionSound) {
+      try {
+        // Reset the audio to beginning in case it was played recently
+        detectionSound.currentTime = 0;
+        detectionSound.play().catch(err => {
+          console.warn('Could not play detection sound:', err);
+        });
+      } catch (error) {
+        console.warn('Error playing detection sound:', error);
+      }
+    }
+  }
+
+  function getNotificationIcon(type) {
+    switch (type) {
+      case 'success': return 'fa-check-circle';
+      case 'warning': return 'fa-exclamation-triangle';
+      case 'error': return 'fa-times-circle';
+      case 'info': return 'fa-info-circle';
+      default: return 'fa-bell';
+    }
+  }
+
+  function showHazardAlert(hazardType, confidence, location) {
+    if (!hazardAlertModal || !alertDescription) return;
+
+    const alertContent = `
+      <strong>Hazard Detected: ${hazardType}</strong><br>
+      Confidence: ${(confidence * 100).toFixed(1)}%<br>
+      ${location ? `Location: ${location}` : 'Location: Unknown'}
+    `;
+
+    alertDescription.innerHTML = alertContent;
+    hazardAlertModal.style.display = 'flex';
+
+    // Auto-hide after 10 seconds
+    setTimeout(() => {
+      if (hazardAlertModal.style.display === 'flex') {
+        hazardAlertModal.style.display = 'none';
+      }
+    }, 10000);
+  }
+
+  function updatePerformanceDisplays() {
+    if (fpsDisplay) fpsDisplay.textContent = currentFps;
+    if (frameCountDisplay) frameCountDisplay.textContent = frameCount.toLocaleString();
+    if (currentDetections) currentDetections.textContent = detectedObjectCount;
+    if (sessionDetections) sessionDetections.textContent = sessionStats.totalDetections || sessionDetectionCount;
+    if (processingTime && frameTimes.length > 0) {
+      const avgTime = frameTimes.reduce((a, b) => a + b, 0) / frameTimes.length;
+      const modeIndicator = inferenceMode === 'backend' ? '🌐' : '💻';
+      processingTime.textContent = `${avgTime.toFixed(1)}ms ${modeIndicator}`;
+    }
+    if (hazardTypesList && uniqueHazardTypes.length > 0) {
+      hazardTypesList.innerHTML = uniqueHazardTypes.map(type => 
+        `<span class="hazard-type-tag">${type}</span>`
+      ).join('');
+    }
+    
+    // Update connection status with inference mode details
+    if (detecting) {
+      const sessionInfo = currentSessionId ? ` | Session: ${currentSessionId.substring(0, 8)}...` : '';
+      const modeText = inferenceMode === 'backend' ? 
+        `Backend Inference Active${sessionInfo}` : 
+        'Local Inference Active (Offline Mode)';
+      updateConnectionStatus('connected', modeText);
+    }
+  }
+  
+  function updateSessionUI() {
+    // Update session-related UI elements
+    const sessionStatsEl = document.getElementById('session-stats');
+    if (sessionStatsEl && sessionStats) {
+      sessionStatsEl.innerHTML = `
+        <div class="stat-item">Unique Hazards: ${sessionStats.uniqueHazards || 0}</div>
+        <div class="stat-item">Pending Reports: ${sessionStats.pendingReports || 0}</div>
+      `;
+    }
+  }
+  
+  function showNewReportsNotification(newReports) {
+    if (newReports.length === 0) return;
+    
+    const hazardTypes = newReports.map(r => r.detection.class_name).join(', ');
+    const message = `New hazard${newReports.length > 1 ? 's' : ''} detected: ${hazardTypes}`;
+    createNotification(message, 'warning', 5000);
+    
+    // Update UI to show pending reports
+    updateSessionUI();
+  }
+  
+  function showSessionSummary(summary) {
+    if (!summary || !summary.reports) return;
+    
+    const reportsHtml = summary.reports.map(report => {
+      const hasImage = report.frame_info && report.frame_info.has_image;
+      const imageHtml = hasImage ? 
+        `<div class="report-image">
+          <img src="data:image/jpeg;base64,${report.image_data}" 
+               alt="Detection frame" 
+               class="detection-frame"
+               onclick="showFullImage('${report.report_id}', '${report.image_data}')" />
+          <div class="image-overlay">
+            <span class="image-size">${(report.frame_info.image_size / 1024).toFixed(1)}KB</span>
+          </div>
+        </div>` : 
+        '<div class="no-image">No frame captured</div>';
+      
+      return `
+        <div class="report-item ${report.status}" data-report-id="${report.report_id}">
+          <div class="report-content">
+            <div class="report-header">
+              <span class="hazard-type">${report.detection.class_name}</span>
+              <span class="confidence">${(report.detection.confidence * 100).toFixed(1)}%</span>
+              <span class="status">${report.status}</span>
+            </div>
+            <div class="report-details">
+              <p><strong>Location:</strong> (${Math.round(report.location.center[0])}, ${Math.round(report.location.center[1])})</p>
+              <p><strong>Size:</strong> ${Math.round(report.detection.width)}×${Math.round(report.detection.height)} px</p>
+              <p><strong>Time:</strong> ${new Date(report.timestamp).toLocaleTimeString()}</p>
+            </div>
+            <div class="report-actions">
+              <button onclick="confirmReport('${report.report_id}')" ${report.status === 'confirmed' ? 'disabled' : ''}>
+                ✓ Confirm
+              </button>
+              <button onclick="dismissReport('${report.report_id}')" ${report.status === 'dismissed' ? 'disabled' : ''}>
+                ✗ Dismiss
+              </button>
+            </div>
+          </div>
+          ${imageHtml}
+        </div>
+      `;
+    }).join('');
+    
+    const modalHtml = `
+      <div id="session-summary-modal" class="modal" style="display: flex;">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2>Detection Session Summary</h2>
+            <button onclick="closeSessionSummary()" class="close-btn">×</button>
+          </div>
+          <div class="modal-body">
+            <div class="session-overview">
+              <p><strong>Total Detections:</strong> ${summary.detection_count}</p>
+              <p><strong>Unique Hazards:</strong> ${summary.unique_hazards}</p>
+              <p><strong>Reports Generated:</strong> ${summary.reports.length}</p>
+              <p><strong>With Frames:</strong> ${summary.reports.filter(r => r.frame_info?.has_image).length}</p>
+            </div>
+            <div class="reports-list">
+              <h3>Review Detection Reports</h3>
+              ${reportsHtml || '<p>No reports generated</p>'}
+            </div>
+            <div class="modal-actions">
+              <button onclick="submitConfirmedReports()" class="primary-btn">Submit Confirmed Reports</button>
+              <button onclick="closeSessionSummary()" class="secondary-btn">Close</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    // Remove existing modal if any
+    const existingModal = document.getElementById('session-summary-modal');
+    if (existingModal) existingModal.remove();
+    
+    // Add new modal
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+  }
+  
+  // Function to show full-size image
+  function showFullImage(reportId, imageData) {
+    const fullImageModal = `
+      <div id="full-image-modal" class="modal" style="display: flex; z-index: 20000;">
+        <div class="modal-content" style="max-width: 90vw; max-height: 90vh;">
+          <div class="modal-header">
+            <h3>Detection Frame - Report ${reportId.substring(0, 8)}</h3>
+            <button onclick="closeFullImage()" class="close-btn">×</button>
+          </div>
+          <div class="modal-body" style="text-align: center; padding: 20px;">
+            <img src="data:image/jpeg;base64,${imageData}" 
+                 alt="Full detection frame" 
+                 style="max-width: 100%; max-height: 70vh; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);" />
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', fullImageModal);
+  }
+  
+  function closeFullImage() {
+    const modal = document.getElementById('full-image-modal');
+    if (modal) modal.remove();
+  }
+
+  // Close modal handlers
+  if (alertClose) {
+    alertClose.addEventListener('click', () => {
+      if (hazardAlertModal) hazardAlertModal.style.display = 'none';
+    });
+  }
+
+  // Click outside modal to close
+  if (hazardAlertModal) {
+    hazardAlertModal.addEventListener('click', (e) => {
+      if (e.target === hazardAlertModal) {
+        hazardAlertModal.style.display = 'none';
+      }
+    });
+  }
+
+  // Report management functions
+  async function confirmReport(reportId) {
+    if (!currentSessionId) return;
+    
+    try {
+      const response = await fetch(`${backendUrl}/session/${currentSessionId}/report/${reportId}/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (response.ok) {
+        createNotification('Report confirmed for submission', 'success', 3000);
+        // Update UI
+        const reportEl = document.querySelector(`[data-report-id="${reportId}"]`);
+        if (reportEl) {
+          reportEl.classList.add('confirmed');
+          reportEl.querySelector('.status').textContent = 'confirmed';
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to confirm report:', error);
+      createNotification('Failed to confirm report', 'error', 3000);
+    }
+  }
+  
+  async function dismissReport(reportId) {
+    if (!currentSessionId) return;
+    
+    try {
+      const response = await fetch(`${backendUrl}/session/${currentSessionId}/report/${reportId}/dismiss`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (response.ok) {
+        createNotification('Report dismissed', 'info', 3000);
+        // Update UI
+        const reportEl = document.querySelector(`[data-report-id="${reportId}"]`);
+        if (reportEl) {
+          reportEl.classList.add('dismissed');
+          reportEl.querySelector('.status').textContent = 'dismissed';
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to dismiss report:', error);
+      createNotification('Failed to dismiss report', 'error', 3000);
+    }
+  }
+  
+  function closeSessionSummary() {
+    const modal = document.getElementById('session-summary-modal');
+    if (modal) modal.remove();
+  }
+  
+  function submitConfirmedReports() {
+    createNotification('Confirmed reports will be submitted to the main system', 'success', 4000);
+    closeSessionSummary();
+  }
+  
+  // Manual inference mode toggle (for testing and debugging)
+  function toggleInferenceMode() {
+    if (inferenceMode === 'backend') {
+      inferenceMode = 'frontend';
+      backendAvailable = false;
+      // End current session when switching to frontend
+      if (currentSessionId) {
+        endDetectionSession();
+      }
+      updateConnectionStatus('connected', 'Switched to Frontend Inference');
+      createNotification('Switched to local inference mode', 'info', 3000);
+    } else {
+      // Try to switch back to backend
+      checkBackendHealth().then(success => {
+        if (success) {
+          createNotification('Switched to backend inference mode', 'success', 3000);
+          // Start new session when switching to backend
+          startDetectionSession();
+        } else {
+          createNotification('Backend not available - staying in local mode', 'warning', 3000);
+        }
+      });
+    }
+  }
+  
+  // Make functions globally available for HTML onclick handlers
+  window.confirmReport = confirmReport;
+  window.dismissReport = dismissReport;
+  window.closeSessionSummary = closeSessionSummary;
+  window.submitConfirmedReports = submitConfirmedReports;
+  window.showFullImage = showFullImage;
+  window.closeFullImage = closeFullImage;
+
+  // Add keyboard shortcut for testing (Ctrl+I)
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.key === 'i') {
+      e.preventDefault();
+      toggleInferenceMode();
+    }
+  });
+
+  // Backend health check and management functions
+  async function checkBackendHealth() {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      
+      const response = await fetch(`${backendUrl}/health`, {
+        method: 'GET',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (response.ok) {
+        const data = await response.json();
+        backendAvailable = data.status === 'healthy' && data.model_status === 'loaded';
+        lastBackendCheck = Date.now();
+        
+        if (backendAvailable) {
+          inferenceMode = 'backend';
+          updateConnectionStatus('connected', `Backend Inference (${backendUrl})`);
+          console.log('✅ Backend inference available');
+          return true;
+        } else {
+          throw new Error('Backend model not ready');
+        }
+      } else {
+        throw new Error(`Backend responded with status: ${response.status}`);
+      }
+    } catch (error) {
+      backendAvailable = false;
+      lastBackendCheck = Date.now();
+      console.warn('⚠️ Backend inference unavailable:', error.message);
+      
+      // Switch to frontend inference
+      if (session) {
+        inferenceMode = 'frontend';
+        updateConnectionStatus('connected', 'Frontend Inference (Offline Mode)');
+        createNotification('Using local inference - backend unavailable', 'warning', 3000);
+      }
+      return false;
+    }
+  }
+
+  // Session management functions
+  async function startDetectionSession() {
+    if (currentSessionId) return currentSessionId; // Session already active
+    
+    try {
+      const response = await fetch(`${backendUrl}/session/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        currentSessionId = data.session_id;
+        sessionReports = [];
+        sessionStats = { totalDetections: 0, uniqueHazards: 0, pendingReports: 0 };
+        console.log('✅ Detection session started:', currentSessionId);
+        return currentSessionId;
+      }
+    } catch (error) {
+      console.warn('Failed to start session:', error);
+    }
+    return null;
+  }
+  
+  async function endDetectionSession() {
+    if (!currentSessionId) return null;
+    
+    try {
+      const response = await fetch(`${backendUrl}/session/${currentSessionId}/end`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📊 Session ended with summary:', data.summary);
+        showSessionSummary(data.summary);
+        currentSessionId = null;
+        return data.summary;
+      }
+    } catch (error) {
+      console.warn('Failed to end session:', error);
+    }
+    currentSessionId = null;
+    return null;
+  }
+  
+  // Enhanced backend detection function with session support
+  async function runBackendInference(imageBlob) {
+    try {
+      // Ensure we have an active session
+      if (!currentSessionId) {
+        await startDetectionSession();
+      }
+      
+      if (!currentSessionId) {
+        // If session creation failed, fall back to legacy endpoint
+        return await runLegacyBackendInference(imageBlob);
+      }
+      
+      const formData = new FormData();
+      formData.append('file', imageBlob, 'frame.jpg');
+      
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      const response = await fetch(`${backendUrl}/detect/${currentSessionId}`, {
+        method: 'POST',
+        body: formData,
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`Backend detection failed: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      
+      if (result.success && result.detections) {
+        // Update session stats
+        if (result.session_stats) {
+          sessionStats = result.session_stats;
+          updateSessionUI();
+        }
+        
+        // Process new reports
+        if (result.new_reports && result.new_reports.length > 0) {
+          sessionReports.push(...result.new_reports);
+          showNewReportsNotification(result.new_reports);
+        }
+        
+        return {
+          success: true,
+          detections: result.detections,
+          processingTime: result.processing_time_ms,
+          source: 'backend-enhanced',
+          newReports: result.new_reports || [],
+          sessionStats: result.session_stats
+        };
+      } else {
+        throw new Error('Invalid backend response format');
+      }
+    } catch (error) {
+      console.warn('Enhanced backend inference failed:', error.message);
+      
+      // Try legacy endpoint as fallback
+      try {
+        return await runLegacyBackendInference(imageBlob);
+      } catch (legacyError) {
+        // Mark backend as unavailable and switch to frontend
+        backendAvailable = false;
+        inferenceMode = 'frontend';
+        updateConnectionStatus('connected', 'Frontend Inference (Backend Failed)');
+        throw error;
+      }
+    }
+  }
+  
+  // Legacy backend detection for compatibility
+  async function runLegacyBackendInference(imageBlob) {
+    const formData = new FormData();
+    formData.append('file', imageBlob, 'frame.jpg');
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
+    const response = await fetch(`${backendUrl}/detect`, {
+      method: 'POST',
+      body: formData,
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      throw new Error(`Legacy backend detection failed: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    
+    if (result.success && result.detections) {
+      return {
+        success: true,
+        detections: result.detections,
+        processingTime: result.processing_time_ms,
+        source: 'backend-legacy'
+      };
+    } else {
+      throw new Error('Invalid legacy backend response format');
+    }
+  }
+
+  // Convert backend detections to frontend format
+  function convertBackendDetections(backendDetections, videoWidth, videoHeight) {
+    const boxes = [];
+    const scores = [];
+    const classes = [];
+    
+    for (const detection of backendDetections) {
+      const [x1, y1, x2, y2] = detection.bbox;
+      
+      // Scale coordinates to video dimensions
+      const scaleX = videoWidth / 640; // Assuming backend processes at 640px
+      const scaleY = videoHeight / 640;
+      
+      boxes.push([
+        x1 * scaleX,
+        y1 * scaleY, 
+        x2 * scaleX,
+        y2 * scaleY
+      ]);
+      scores.push(detection.confidence);
+      classes.push(detection.class_id);
+    }
+    
+    return { boxes, scores, classes };
+  }
+  
+  const FIXED_SIZE = 640; // increased resolution for better accuracy
   let stream = null;
   let detecting = false;
   let session = null;
@@ -26,8 +657,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentCamIndex = 0;
   let prevImageData = null;
   const DIFF_THRESHOLD = 30000; // Optimized for better motion detection
-  let skipFrames = 3;                       // Balanced for performance
-  const targetFps = 15;                     // Optimized target FPS
+  let skipFrames = 1;                       // Balanced for performance
+  const targetFps = 12;                     // Optimized target FPS
   const frameTimes = [];                    // Frame time history
   const maxHistory = 5;                     // Reduced for faster adaptation    
   let detectedObjectCount = 0; // Initialize object count
@@ -38,6 +669,28 @@ document.addEventListener("DOMContentLoaded", () => {
   let fpsCounter = 0;
   let lastFpsTime = Date.now();
   let currentFps = 0;
+  
+  // Enhanced detection persistence
+  let persistentDetections = []; // Keep detections visible longer
+  let detectionDisplayDuration = 3000; // Show detections for 3 seconds
+  let lastDetectionTime = 0;
+  
+  // Backend inference configuration
+  let backendAvailable = false;
+  let useBackendInference = true;
+  let backendUrl = 'http://localhost:8000'; // FastAPI backend URL
+  let lastBackendCheck = 0;
+  let backendCheckInterval = 30000; // Check backend every 30 seconds
+  let inferenceMode = 'unknown'; // 'backend', 'frontend', 'unknown'
+  
+  // Enhanced session management
+  let currentSessionId = null;
+  let sessionReports = [];
+  let sessionStats = {
+    totalDetections: 0,
+    uniqueHazards: 0,
+    pendingReports: 0
+  };
   // ────────────────────────────────────────────────────────────────────────────────
   //  📸  Enumerate devices once on load
   // ────────────────────────────────────────────────────────────────────────────────
@@ -52,23 +705,41 @@ document.addEventListener("DOMContentLoaded", () => {
       console.warn("⚠️ Could not enumerate video devices:", err);
     }
 
-    // --- טעינת המודל מיד עם טעינת הדף ---
+    // --- Initialize inference system (backend first, then frontend fallback) ---
     (async () => {
-      if (loadingOverlay) loadingOverlay.style.display = 'flex'; // הצג את ה-overlay
+      showLoadingOverlay('Initializing AI Detection System...', 10);
+      updateConnectionStatus('processing', 'Checking Backend...');
+      
       try {
+        // First, try to connect to backend
+        showLoadingOverlay('Checking backend inference...', 25);
+        const backendSuccess = await checkBackendHealth();
+        
+        if (backendSuccess) {
+          console.log("✅ Backend inference system ready");
+          createNotification('Backend AI inference system ready', 'success', 3000);
+          hideLoadingOverlay();
+          return;
+        }
+        
+        // Backend failed, load frontend model as fallback
+        showLoadingOverlay('Loading local AI model (fallback)...', 50);
+        updateConnectionStatus('processing', 'Loading Local Model...');
+        
         await loadModel();
-        console.log("✅ מודל נטען בהצלחה (בטעינת הדף)");
-        // אין צורך ב-toast כאן, המשתמש עוד לא התחיל אינטראקציה
+        console.log("✅ Frontend model loaded successfully");
+        inferenceMode = 'frontend';
+        updateConnectionStatus('connected', 'Frontend Inference Ready');
+        createNotification('Local AI inference ready (offline mode)', 'info', 4000);
+        hideLoadingOverlay();
+        
       } catch (err) {
-        console.error("❌ שגיאה בטעינת המודל (בטעינת הדף):", err);
-        if (loadingOverlay) loadingOverlay.innerHTML = `<p class="text-danger">Error loading model. Please check console.</p>`; // הצג הודעת שגיאה ב-overlay
-        // alert("⚠️ שגיאה קריטית בטעינת מודל הזיהוי. ייתכן שהאפליקציה לא תעבוד כראוי. בדוק את הקונסול לפרטים.");
-        // אפשר לשקול להשבית את כפתור ה-start אם המודל לא נטען
+        console.error("❌ Both backend and frontend inference failed:", err);
+        updateConnectionStatus('disconnected', 'Inference System Failed');
+        createNotification('AI inference system failed. Please check your setup.', 'error', 0);
+        showLoadingOverlay('Inference System Failed - Please Refresh', null);
         if (startBtn) startBtn.disabled = true;
-        return; // עצור כאן אם הטעינה נכשלה
-      } finally {
-        // הסתר את ה-overlay רק אם לא הייתה שגיאה קריטית שהשאירה הודעה
-        if (loadingOverlay && !startBtn.disabled) loadingOverlay.style.display = 'none';
+        return;
       }
     })();
   })();
@@ -349,7 +1020,7 @@ function stopLocationTracking() {
   }
 
   function showSuccessToast(message = "💾 Detected and saved!") {
-    showToast(message, "success");
+    createNotification(message, "success", 3000);
   }
 
   async function saveDetection(canvas, label = "Unknown", retryCount = 0) {
@@ -432,14 +1103,14 @@ function stopLocationTracking() {
         
         const result = await res.json();
         console.log("✅ Detection saved:", result.message);
-        showSuccessToast(`💾 Detection saved (${locationNote})`);
+        createNotification(`Detection saved successfully (${locationNote})`, "success", 3000);
       } catch (err) {
         console.error("❌ Failed to save detection:", err);
         
         // Retry logic for network errors
         if (retryCount < 2 && (err.message.includes("network") || err.message.includes("timeout"))) {
           console.log(`Retrying save detection... (${retryCount + 1}/2)`);
-          showToast(`🔄 Retrying save... (${retryCount + 1}/2)`, "warning");
+          createNotification(`Retrying save... (${retryCount + 1}/2)`, "warning", 2000);
           setTimeout(() => saveDetection(canvas, label, retryCount + 1), 1000);
           return;
         }
@@ -455,7 +1126,7 @@ function stopLocationTracking() {
           }
         }
         
-        showToast(`❌ ${errorMessage}`, "error");
+        createNotification(errorMessage, "error", 5000);
       }
     }, "image/jpeg", 0.9);
   }
@@ -489,7 +1160,7 @@ function stopLocationTracking() {
 
 
 async function detectLoop() {
-  if (!detecting || !session) return;
+  if (!detecting) return;
 
   // Only resize canvas if video dimensions changed
   if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
@@ -508,12 +1179,19 @@ async function detectLoop() {
     return;
   }
 
-  const t0 = performance.now();
+  // Periodic backend health check
+  const now = Date.now();
+  if (now - lastBackendCheck > backendCheckInterval && useBackendInference) {
+    checkBackendHealth().catch(() => {}); // Silent check
+  }
 
+  const t0 = performance.now();
+  
+  // Prepare image data for inference
   if (!letterboxParams) computeLetterboxParams();
   offCtx.fillStyle = 'black';
   offCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
-  offCtx.filter = 'none'; // Remove contrast/brightness filter for raw input
+  offCtx.filter = 'none';
 
   // Draw video frame into letterboxed area
   offCtx.drawImage(
@@ -523,121 +1201,146 @@ async function detectLoop() {
     letterboxParams.newW, letterboxParams.newH
   );
 
-  // Prepare input for model
   const curr = offCtx.getImageData(0, 0, FIXED_SIZE, FIXED_SIZE);
 
+  // Motion detection for performance optimization
   if (prevImageData) {
     let sum = 0;
     const d1 = curr.data, d2 = prevImageData.data;
-    const step = 16; // Sample every 4th pixel for faster computation
+    const step = 16;
     
     for (let i = 0; i < d1.length; i += step) {
       sum += Math.abs(d1[i] - d2[i]) + Math.abs(d1[i+1] - d2[i+1]) + Math.abs(d1[i+2] - d2[i+2]);
     }
     
-    // Adjust threshold for sampling
     const adjustedThreshold = DIFF_THRESHOLD / 4;
     
-    // Smart stabilization - check for significant change or lack of movement
     if (sum < adjustedThreshold / 2) {
-      // Almost no change → skip
       prevImageData = curr;
       requestAnimationFrame(detectLoop);
       return;
     } else if (sum > adjustedThreshold * 3) {
-      // Sharp movement → don't skip frames
       skipFrames = 1;
     } else {
-      // Normal movement → return to default
       skipFrames = 2;
     }
   }
 
   prevImageData = curr;
 
-  // Optimized conversion to float32, normalize to [0,1], and CHW format
-  const { data, width, height } = curr;
-  const inv255 = 1.0 / 255.0; // Pre-calculate division
-  
-  // Combined loop for better performance
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const pixelIndex = (y * width + x) * 4;
-      const outputIndex = y * width + x;
-      
-      // Convert RGB to CHW format in one pass
-      chwData[outputIndex] = data[pixelIndex] * inv255; // R
-      chwData[width * height + outputIndex] = data[pixelIndex + 1] * inv255; // G
-      chwData[2 * width * height + outputIndex] = data[pixelIndex + 2] * inv255; // B
-    }
-  }
+  let boxes = [];
+  let scores = [];
+  let classes = [];
 
-  const inputTensor = new ort.Tensor('float32', chwData, [1, 3, height, width]);
-  let results;
   try {
-    results = await session.run({ images: inputTensor });
-  } catch (err) {
-    console.error("ONNX inference error:", err);
-    inputTensor.dispose?.(); // Clean up tensor
+    // Try backend inference first if available
+    if (backendAvailable && useBackendInference && inferenceMode === 'backend') {
+      try {
+        // Convert canvas to blob for backend
+        const imageBlob = await new Promise(resolve => {
+          offscreen.toBlob(resolve, 'image/jpeg', 0.8);
+        });
+        
+        const backendResult = await runBackendInference(imageBlob);
+        const converted = convertBackendDetections(backendResult.detections, video.videoWidth, video.videoHeight);
+        
+        boxes = converted.boxes;
+        scores = converted.scores;
+        classes = converted.classes;
+        
+        // Handle enhanced backend features
+        if (backendResult.source === 'backend-enhanced') {
+          // Process new reports from enhanced backend
+          if (backendResult.newReports && backendResult.newReports.length > 0) {
+            console.log(`📄 Generated ${backendResult.newReports.length} new reports`);
+          }
+          
+          // Update session statistics
+          if (backendResult.sessionStats) {
+            sessionStats = backendResult.sessionStats;
+          }
+        }
+        
+        const modeLabel = backendResult.source === 'backend-enhanced' ? 'Enhanced' : 'Legacy';
+        console.log(`🌐 Backend inference (${modeLabel}): ${boxes.length} detections in ${backendResult.processingTime}ms`);
+        
+      } catch (backendError) {
+        console.warn('Backend inference failed, falling back to frontend:', backendError.message);
+        
+        // Fallback to frontend inference
+        if (!session) {
+          // If no session, try to load model now
+          try {
+            await loadModel();
+            inferenceMode = 'frontend';
+            updateConnectionStatus('connected', 'Frontend Inference (Backend Failed)');
+          } catch (modelError) {
+            console.error('Failed to load frontend model:', modelError);
+            requestAnimationFrame(detectLoop);
+            return;
+          }
+        }
+        
+        // Run frontend inference
+        const frontendResult = await runFrontendInference(curr);
+        boxes = frontendResult.boxes;
+        scores = frontendResult.scores;
+        classes = frontendResult.classes;
+      }
+    } else {
+      // Use frontend inference
+      if (!session) {
+        requestAnimationFrame(detectLoop);
+        return;
+      }
+      
+      const frontendResult = await runFrontendInference(curr);
+      boxes = frontendResult.boxes;
+      scores = frontendResult.scores;
+      classes = frontendResult.classes;
+    }
+  } catch (error) {
+    console.error('Inference error:', error);
     requestAnimationFrame(detectLoop);
     return;
   }
-  const outputData = results[Object.keys(results)[0]].data;
-  
-  // Clean up tensors to prevent memory leaks
-  inputTensor.dispose?.();
-  if (results) {
-    Object.values(results).forEach(tensor => tensor.dispose?.());
-  }
 
-  // --- DEBUG: Log output shape and sample values ---
-  // console.log("Model output:", outputData);
-
-  // Parse detections
-  const boxes = [];
-  const scores = [];
-  const classes = [];
-
-  // Optimized detection parsing with early termination
-  const threshold = 0.5;
-  const maxDetections = 50; // Limit detections for performance
-  
-  for (let i = 0; i < outputData.length && boxes.length < maxDetections; i += 6) {
-    const score = outputData[i + 4];
-    if (score >= threshold) {
-      boxes.push([outputData[i], outputData[i + 1], outputData[i + 2], outputData[i + 3]]);
-      scores.push(score);
-      classes.push(outputData[i + 5]);
-    }
-  }
-
-  // --- DEBUG: Log number of detections ---
-  // console.log("Detections:", boxes.length);
-
+  // Clear canvas and redraw video
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-  // Reset frame counters for overlays
+  // Process detections
   detectedObjectCount = 0;
   const frameHazardTypes = [];
 
-  // Process all detections directly without NMS
   for (let i = 0; i < boxes.length; i++) {
     const [x1, y1, x2, y2] = boxes[i];
     const score = scores[i];
     const cls = classes[i];
 
-    // Undo letterbox scaling - correct coordinate transformation
-    const left = (x1 - letterboxParams.offsetX) / letterboxParams.scale;
-    const top = (y1 - letterboxParams.offsetY) / letterboxParams.scale;
-    const right = (x2 - letterboxParams.offsetX) / letterboxParams.scale;
-    const bottom = (y2 - letterboxParams.offsetY) / letterboxParams.scale;
+    let left, top, right, bottom;
+
+    // Handle coordinate transformation based on inference mode
+    if (inferenceMode === 'backend') {
+      // Backend already provides coordinates in video space
+      left = x1;
+      top = y1;
+      right = x2;
+      bottom = y2;
+    } else {
+      // Frontend inference needs letterbox scaling
+      left = (x1 - letterboxParams.offsetX) / letterboxParams.scale;
+      top = (y1 - letterboxParams.offsetY) / letterboxParams.scale;
+      right = (x2 - letterboxParams.offsetX) / letterboxParams.scale;
+      bottom = (y2 - letterboxParams.offsetY) / letterboxParams.scale;
+    }
+
     const w = right - left;
     const h = bottom - top;
 
     // Ensure coordinates are within bounds
     if (left < 0 || top < 0 || right > video.videoWidth || bottom > video.videoHeight) {
-      continue; // Skip invalid detections
+      continue;
     }
     
     detectedObjectCount++;
@@ -656,19 +1359,34 @@ async function detectLoop() {
       uniqueHazardTypes.push(hazardName);
     }
 
-    const label = `${hazardName} (${(score * 100).toFixed(1)}%)`;
+    // Enhanced detection labeling
+    const trackingInfo = currentSessionId ? ` [Session]` : '';
+    const label = `${hazardName} (${(score * 100).toFixed(1)}%)${trackingInfo}`;
     
     // Ensure positive width and height
     const drawW = Math.max(w, 1);
     const drawH = Math.max(h, 1);
     
+    // Enhanced color coding for different modes
+    let strokeColor, fillColor;
+    if (inferenceMode === 'backend' && currentSessionId) {
+      strokeColor = '#FF6B35'; // Orange for enhanced backend with session
+      fillColor = '#FF6B35';
+    } else if (inferenceMode === 'backend') {
+      strokeColor = '#00FFFF'; // Cyan for regular backend
+      fillColor = '#00FFFF';
+    } else {
+      strokeColor = '#00FF00'; // Green for frontend
+      fillColor = '#00FF00';
+    }
+    
     // Draw bounding box
-    ctx.strokeStyle = '#00FF00';
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = currentSessionId ? 4 : 3; // Thicker border for session mode
     ctx.strokeRect(Math.max(0, left), Math.max(0, top), drawW, drawH);
 
     // Draw label background and text
-    ctx.fillStyle = '#00FF00';
+    ctx.fillStyle = fillColor;
     ctx.font = 'bold 16px Arial';
     const textWidth = ctx.measureText(label).width;
     const labelY = top > 20 ? top - 20 : top + drawH + 20;
@@ -679,27 +1397,42 @@ async function detectLoop() {
     // Save detection only for new tracked objects
     if (trackedObjects.get(objectKey).isNew) {
       trackedObjects.get(objectKey).isNew = false;
-      sessionDetectionCount++;
-      await saveDetection(canvas, hazardName);
+      
+      // Only save to Firebase if not using enhanced backend (which handles its own reporting)
+      if (!currentSessionId) {
+        sessionDetectionCount++;
+        await saveDetection(canvas, hazardName);
+      }
     }
   }
+  
+  // Draw all persistent detections (both current and recent)
+  drawPersistentDetections();
 
   // Update FPS counter
   fpsCounter++;
-  const now = Date.now();
   if (now - lastFpsTime >= 1000) {
     currentFps = Math.round((fpsCounter * 1000) / (now - lastFpsTime));
     fpsCounter = 0;
     lastFpsTime = now;
+    
+    // Update professional UI displays
+    updatePerformanceDisplays();
   }
 
-  if (objectCountOverlay) {
-    objectCountOverlay.textContent = `Frame: ${detectedObjectCount} | Session: ${sessionDetectionCount} | FPS: ${currentFps}`;
-  }
-  if (hazardTypesOverlay) {
-    hazardTypesOverlay.textContent = frameHazardTypes.length > 0
-      ? `Hazards: ${frameHazardTypes.join(', ')}`
-      : 'Hazards: None';
+  // Show hazard alert for new high-confidence detections
+  if (detectedObjectCount > 0 && frameHazardTypes.length > 0) {
+    const highConfidenceHazards = [];
+    for (let i = 0; i < boxes.length; i++) {
+      if (scores[i] > 0.8) {
+        const hazardIdx = Math.floor(classes[i]);
+        const hazardName = (hazardIdx >= 0 && hazardIdx < classNames.length) ? classNames[hazardIdx] : `Unknown`;
+        if (!highConfidenceHazards.includes(hazardName)) {
+          highConfidenceHazards.push(hazardName);
+          showHazardAlert(hazardName, scores[i], _lastCoords ? 'GPS Available' : 'Location Unknown');
+        }
+      }
+    }
   }
 
   const t1 = performance.now();
@@ -708,6 +1441,7 @@ async function detectLoop() {
   if (frameTimes.length > maxHistory) frameTimes.shift();
   const avgTime = frameTimes.reduce((a, b) => a + b, 0) / frameTimes.length;
   const idealInterval = 1000 / targetFps;
+  
   // Dynamic frame skipping based on performance
   if (avgTime > idealInterval * 1.5) {
     skipFrames = Math.min(skipFrames + 1, 5);
@@ -720,7 +1454,7 @@ async function detectLoop() {
     cleanupTrackedObjects();
   }
 
-  // Use requestAnimationFrame for smoother preview
+  // Continue detection loop
   if (video.requestVideoFrameCallback && detecting) {
     video.requestVideoFrameCallback(() => detectLoop());
   } else {
@@ -728,95 +1462,276 @@ async function detectLoop() {
   }
 }
 
+// Draw persistent detections function
+function drawPersistentDetections() {
+  const now = Date.now();
+  
+  for (const detection of persistentDetections) {
+    const age = now - detection.timestamp;
+    if (age > detectionDisplayDuration) continue;
+    
+    // Calculate fade effect based on age
+    const fadeRatio = Math.max(0, 1 - (age / detectionDisplayDuration));
+    const alpha = 0.3 + (fadeRatio * 0.7); // Fade from 1.0 to 0.3
+    
+    const [left, top, right, bottom] = detection.bbox;
+    const w = right - left;
+    const h = bottom - top;
+    
+    // Enhanced detection labeling
+    const trackingInfo = currentSessionId ? ` [Session]` : '';
+    const ageInfo = age > 1000 ? ` (${Math.round(age/1000)}s)` : '';
+    const label = `${detection.hazardName} (${(detection.score * 100).toFixed(1)}%)${trackingInfo}${ageInfo}`;
+    
+    // Ensure positive width and height
+    const drawW = Math.max(w, 1);
+    const drawH = Math.max(h, 1);
+    
+    // Enhanced color coding for different modes
+    let strokeColor, fillColor;
+    if (detection.inferenceMode === 'backend' && currentSessionId) {
+      strokeColor = '#FF6B35'; // Orange for enhanced backend with session
+      fillColor = '#FF6B35';
+    } else if (detection.inferenceMode === 'backend') {
+      strokeColor = '#00FFFF'; // Cyan for regular backend
+      fillColor = '#00FFFF';
+    } else {
+      strokeColor = '#00FF00'; // Green for frontend
+      fillColor = '#00FF00';
+    }
+    
+    // Apply alpha for fading effect
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    
+    // Draw bounding box
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = currentSessionId ? 4 : 3;
+    if (detection.isNew) {
+      ctx.lineWidth += 2; // Extra thick for new detections
+      ctx.setLineDash([5, 5]); // Dashed line for new detections
+    }
+    ctx.strokeRect(Math.max(0, left), Math.max(0, top), drawW, drawH);
+    ctx.setLineDash([]); // Reset line dash
+
+    // Draw label background and text
+    ctx.fillStyle = fillColor;
+    ctx.font = 'bold 16px Arial';
+    const textWidth = ctx.measureText(label).width;
+    const labelY = top > 20 ? top - 20 : top + drawH + 20;
+    ctx.fillRect(Math.max(0, left), labelY, textWidth + 8, 20);
+    ctx.fillStyle = 'black';
+    ctx.fillText(label, Math.max(4, left + 4), labelY + 15);
+    
+    ctx.restore();
+  }
+}
+
+// Frontend inference function (extracted from original detectLoop)
+async function runFrontendInference(imageData) {
+  const { data, width, height } = imageData;
+  const inv255 = 1.0 / 255.0;
+  
+  // Convert to CHW format
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const pixelIndex = (y * width + x) * 4;
+      const outputIndex = y * width + x;
+      
+      chwData[outputIndex] = data[pixelIndex] * inv255; // R
+      chwData[width * height + outputIndex] = data[pixelIndex + 1] * inv255; // G
+      chwData[2 * width * height + outputIndex] = data[pixelIndex + 2] * inv255; // B
+    }
+  }
+
+  const inputTensor = new ort.Tensor('float32', chwData, [1, 3, height, width]);
+  let results;
+  
+  try {
+    results = await session.run({ images: inputTensor });
+  } catch (err) {
+    console.error("ONNX inference error:", err);
+    throw err;
+  } finally {
+    inputTensor.dispose?.();
+  }
+  
+  const outputData = results[Object.keys(results)[0]].data;
+  
+  // Clean up tensors
+  if (results) {
+    Object.values(results).forEach(tensor => tensor.dispose?.());
+  }
+
+  // Parse detections
+  const boxes = [];
+  const scores = [];
+  const classes = [];
+  const threshold = 0.5;
+  const maxDetections = 50;
+  
+  for (let i = 0; i < outputData.length && boxes.length < maxDetections; i += 6) {
+    const score = outputData[i + 4];
+    if (score >= threshold) {
+      boxes.push([outputData[i], outputData[i + 1], outputData[i + 2], outputData[i + 3]]);
+      scores.push(score);
+      classes.push(outputData[i + 5]);
+    }
+  }
+
+  return { boxes, scores, classes };
+}
+
 
 
   startBtn.addEventListener("click", async () => {
-  // Wait for the initial location to be found.
-  const initialCoords = await initLocationTracking();
-  if (initialCoords) {
-    console.log("📍 Location preloaded:", initialCoords);
-  } else {
-    console.warn("⚠️ Could not get initial location. Detections may not be saved.");
-    // Optionally, alert the user or prevent starting.
-  }
-
-  try {
-    // בדיקה מחדש של המצלמות בכל התחלה
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    videoDevices = devices.filter((d) => d.kind === "videoinput");
-
-    const selectedDeviceId = videoDevices[currentCamIndex]?.deviceId;
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
-        frameRate: { ideal: 30, max: 30 }, // Reduced for better performance
-        width: { ideal: 1280, max: 1920 },
-        height: { ideal: 720, max: 1080 },
-        facingMode: selectedDeviceId ? undefined : "environment"
+    showLoadingOverlay('Initializing Camera System...', 25);
+    updateConnectionStatus('processing', 'Starting Camera...');
+    
+    // Wait for the initial location to be found
+    try {
+      const initialCoords = await initLocationTracking();
+      if (initialCoords) {
+        console.log("📍 Location preloaded:", initialCoords);
+        createNotification('Location tracking enabled', 'success', 2000);
+      } else {
+        console.warn("⚠️ Could not get initial location. Detections may not be saved.");
+        createNotification('Location unavailable - detections will be saved without GPS', 'warning', 4000);
       }
-    });
-
-
-    video.srcObject = stream;
-    startBtn.style.display = "none";
-    stopBtn.style.display = "inline-block";
-    switchBtn.style.display = videoDevices.length > 1 ? "inline-block" : "none";
-
-    detectedObjectCount = 0;
-    uniqueHazardTypes = [];
-
-    video.addEventListener(
-      "loadeddata",
-      () => {
-        computeLetterboxParams();
-        detecting = true;
-        detectLoop();
-      },
-      { once: true }
-    );
-  } catch (err) {
-    console.error("❌ שגיאה בגישה למצלמה:", err);
-    alert("⚠️ לא ניתן לגשת למצלמה. יש לבדוק הרשאות בדפדפן.");
-  }
-});
-
-  
-  
-switchBtn.addEventListener("click", async () => {
-  try {
-    if (!videoDevices.length || videoDevices.length < 2) return;
-
-    // עצור את הזרם הנוכחי
-    if (stream) {
-      stream.getTracks().forEach((t) => t.stop());
+    } catch (err) {
+      console.warn("Location error:", err);
+      createNotification('Location services unavailable', 'warning', 3000);
     }
 
-    // עבור למצלמה הבאה
-    currentCamIndex = (currentCamIndex + 1) % videoDevices.length;
-    const newDeviceId = videoDevices[currentCamIndex].deviceId;
+    try {
+      showLoadingOverlay('Accessing Camera...', 50);
+      
+      // Re-check cameras on each start
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      videoDevices = devices.filter((d) => d.kind === "videoinput");
 
-    // בקש את המצלמה החדשה
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { deviceId: { exact: newDeviceId } },
-    });
+      const selectedDeviceId = videoDevices[currentCamIndex]?.deviceId;
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
+          frameRate: { ideal: 30, max: 30 },
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 },
+          facingMode: selectedDeviceId ? undefined : "environment"
+        }
+      });
 
-    // הצמד את הווידאו לזרם החדש
-    video.srcObject = stream;
-    letterboxParams = null; // כדי לחשב מחדש בפריים הבא
+      showLoadingOverlay('Initializing Detection...', 75);
 
-    console.log(`📷 Switched to camera index ${currentCamIndex}`);
-  } catch (err) {
-    console.error("❌ Failed to switch camera:", err);
-    alert("⚠️ לא ניתן להחליף מצלמה. בדוק הרשאות.");
-  }
-});
+      video.srcObject = stream;
+      startBtn.style.display = "none";
+      stopBtn.style.display = "inline-block";
+      switchBtn.style.display = videoDevices.length > 1 ? "inline-block" : "none";
 
-  stopBtn.addEventListener("click", () => {
+      // Reset counters and start session if backend available
+      detectedObjectCount = 0;
+      sessionDetectionCount = 0;
+      uniqueHazardTypes = [];
+      frameCount = 0;
+      fpsCounter = 0;
+      lastFpsTime = Date.now();
+      currentFps = 0;
+      
+      // Start detection session if using backend
+      if (inferenceMode === 'backend' && backendAvailable) {
+        try {
+          await startDetectionSession();
+          createNotification('Detection session started - tracking unique hazards', 'success', 3000);
+        } catch (error) {
+          console.warn('Failed to start session, using legacy mode:', error);
+        }
+      }
+
+      video.addEventListener(
+        "loadeddata",
+        () => {
+          computeLetterboxParams();
+          detecting = true;
+          
+          const modeText = inferenceMode === 'backend' ? 
+            'Live Detection Active (Backend)' : 
+            'Live Detection Active (Offline)';
+          
+          updateConnectionStatus('connected', modeText);
+          createNotification(`Live hazard detection started (${inferenceMode} mode)`, 'success', 3000);
+          hideLoadingOverlay();
+          detectLoop();
+        },
+        { once: true }
+      );
+    } catch (err) {
+      console.error("❌ Camera access error:", err);
+      updateConnectionStatus('disconnected', 'Camera Access Failed');
+      createNotification('Unable to access camera. Please check browser permissions.', 'error', 0);
+      hideLoadingOverlay();
+    }
+  });
+
+  
+  
+  switchBtn.addEventListener("click", async () => {
+    try {
+      if (!videoDevices.length || videoDevices.length < 2) return;
+
+      updateConnectionStatus('processing', 'Switching Camera...');
+      showLoadingOverlay('Switching to next camera...', null);
+
+      // Stop current stream
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop());
+      }
+
+      // Switch to next camera
+      currentCamIndex = (currentCamIndex + 1) % videoDevices.length;
+      const newDeviceId = videoDevices[currentCamIndex].deviceId;
+
+      // Request new camera
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: { exact: newDeviceId } },
+      });
+
+      // Attach video to new stream
+      video.srcObject = stream;
+      letterboxParams = null; // Recalculate on next frame
+
+      updateConnectionStatus('connected', 'Live Detection Active');
+      createNotification(`Switched to camera ${currentCamIndex + 1}`, 'info', 2000);
+      hideLoadingOverlay();
+      
+      console.log(`📷 Switched to camera index ${currentCamIndex}`);
+    } catch (err) {
+      console.error("❌ Failed to switch camera:", err);
+      updateConnectionStatus('disconnected', 'Camera Switch Failed');
+      createNotification('Unable to switch camera. Check permissions.', 'error', 4000);
+      hideLoadingOverlay();
+    }
+  });
+
+  stopBtn.addEventListener("click", async () => {
     detecting = false;
+    updateConnectionStatus('processing', 'Stopping Detection...');
+    
+    // End detection session if active
+    if (currentSessionId) {
+      try {
+        showLoadingOverlay('Ending detection session...', 50);
+        await endDetectionSession();
+      } catch (error) {
+        console.warn('Failed to properly end session:', error);
+        createNotification('Session data may not be saved', 'warning', 3000);
+      }
+    }
+    
     if (stream) {
       stream.getTracks().forEach((track) => track.stop());
       stream = null;
     }
+    
     video.srcObject = null;
     startBtn.style.display = "inline-block";
     stopBtn.style.display = "none";
@@ -836,10 +1751,18 @@ switchBtn.addEventListener("click", async () => {
     lastFpsTime = Date.now();
     currentFps = 0;
     
-    // Clear overlays
-    if (objectCountOverlay) objectCountOverlay.textContent = "Frame: 0 | Session: 0 | FPS: 0";
-    if (hazardTypesOverlay) hazardTypesOverlay.textContent = "Hazards: None";
+    // Reset session data
+    sessionStats = { totalDetections: 0, uniqueHazards: 0, pendingReports: 0 };
+    sessionReports = [];
     
+    // Update professional UI displays
+    updatePerformanceDisplays();
+    updateSessionUI();
+    if (hazardTypesList) hazardTypesList.innerHTML = '';
+    
+    updateConnectionStatus('disconnected', 'Detection Stopped');
+    hideLoadingOverlay();
+    createNotification('Detection system stopped', 'info', 2000);
     console.log("Camera stopped and memory cleaned");
   });
 });
