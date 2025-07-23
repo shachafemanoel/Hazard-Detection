@@ -166,6 +166,17 @@ document.addEventListener("DOMContentLoaded", () => {
       ).join('');
     }
     
+    // Update detection info badges
+    const detectionCountBadge = document.getElementById('detection-count-badge');
+    const fpsBadge = document.getElementById('fps-badge');
+    if (detectionCountBadge) {
+      const count = persistentDetections.length || detectedObjectCount;
+      detectionCountBadge.textContent = `${count} hazard${count !== 1 ? 's' : ''}`;
+    }
+    if (fpsBadge) {
+      fpsBadge.textContent = `${currentFps} FPS`;
+    }
+    
     // Update connection status with inference mode details
     if (detecting) {
       const sessionInfo = currentSessionId ? ` | Session: ${currentSessionId.substring(0, 8)}...` : '';
@@ -418,50 +429,94 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Backend health check and management functions
+  // Backend health check and management functions  
   async function checkBackendHealth() {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-      
-      const response = await fetch(`${backendUrl}/health`, {
-        method: 'GET',
-        signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (response.ok) {
-        const data = await response.json();
-        backendAvailable = data.status === 'healthy' && data.model_status === 'loaded';
-        lastBackendCheck = Date.now();
+    const candidates = getBackendUrlCandidates();
+    let lastError = null;
+    
+    console.log(`🔍 Testing ${candidates.length} backend URL candidates...`);
+    
+    for (const candidateUrl of candidates) {
+      try {
+        console.log(`🔗 Trying backend URL: ${candidateUrl}`);
         
-        if (backendAvailable) {
-          inferenceMode = 'backend';
-          updateConnectionStatus('connected', `Backend Inference (${backendUrl})`);
-          console.log('✅ Backend inference available');
-          return true;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout for mobile
+        
+        const response = await fetch(`${candidateUrl}/health`, {
+          method: 'GET',
+          signal: controller.signal,
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            // Add mobile-friendly headers
+            'User-Agent': navigator.userAgent,
+            'Cache-Control': 'no-cache'
+          },
+          // Add credentials for CORS if needed
+          credentials: 'omit',
+          // Ensure redirect handling
+          redirect: 'follow'
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+          const data = await response.json();
+          const isHealthy = data.status === 'healthy' && data.model_status === 'loaded';
+          
+          if (isHealthy) {
+            // Success! Update global backend URL and status
+            backendUrl = candidateUrl;
+            backendAvailable = true;
+            lastBackendCheck = Date.now();
+            inferenceMode = 'backend';
+            
+            updateConnectionStatus('connected', `Backend Inference (${getShortUrl(backendUrl)})`);
+            console.log(`✅ Backend inference available at: ${candidateUrl}`);
+            
+            // Store successful URL for future use
+            if (typeof localStorage !== 'undefined') {
+              localStorage.setItem('lastWorkingBackendUrl', candidateUrl);
+            }
+            
+            return true;
+          } else {
+            console.warn(`⚠️ Backend at ${candidateUrl} is not ready:`, data);
+            lastError = new Error(`Backend model not ready at ${candidateUrl}`);
+          }
         } else {
-          throw new Error('Backend model not ready');
+          console.warn(`⚠️ Backend at ${candidateUrl} responded with status:`, response.status);
+          lastError = new Error(`Backend responded with status: ${response.status}`);
         }
-      } else {
-        throw new Error(`Backend responded with status: ${response.status}`);
+      } catch (error) {
+        console.warn(`⚠️ Failed to connect to backend at ${candidateUrl}:`, error.message);
+        lastError = error;
       }
-    } catch (error) {
-      backendAvailable = false;
-      lastBackendCheck = Date.now();
-      console.warn('⚠️ Backend inference unavailable:', error.message);
-      
-      // Switch to frontend inference
-      if (session) {
-        inferenceMode = 'frontend';
-        updateConnectionStatus('connected', 'Frontend Inference (Offline Mode)');
-        createNotification('Using local inference - backend unavailable', 'warning', 3000);
-      }
-      return false;
+    }
+    
+    // All candidates failed
+    backendAvailable = false;
+    lastBackendCheck = Date.now();
+    console.error('❌ All backend URL candidates failed. Last error:', lastError?.message);
+    
+    // Switch to frontend inference
+    if (session) {
+      inferenceMode = 'frontend';
+      updateConnectionStatus('connected', 'Frontend Inference (Offline Mode)');
+      createNotification('Using local inference - backend unavailable', 'warning', 4000);
+    }
+    
+    return false;
+  }
+  
+  // Helper function to shorten URLs for display
+  function getShortUrl(url) {
+    try {
+      const urlObj = new URL(url);
+      return `${urlObj.hostname}${urlObj.port ? ':' + urlObj.port : ''}`;
+    } catch {
+      return url;
     }
   }
 
@@ -645,7 +700,7 @@ document.addEventListener("DOMContentLoaded", () => {
     return { boxes, scores, classes };
   }
   
-  const FIXED_SIZE = 640; // increased resolution for better accuracy
+  const FIXED_SIZE = 720; // increased resolution for better accuracy
   let stream = null;
   let detecting = false;
   let session = null;
@@ -658,9 +713,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let prevImageData = null;
   const DIFF_THRESHOLD = 30000; // Optimized for better motion detection
   let skipFrames = 1;                       // Balanced for performance
-  const targetFps = 12;                     // Optimized target FPS
+  const targetFps = 15;                     // Increased target FPS for better responsiveness
   const frameTimes = [];                    // Frame time history
-  const maxHistory = 5;                     // Reduced for faster adaptation    
+  const maxHistory = 8;                     // Increased for better averaging    
   let detectedObjectCount = 0; // Initialize object count
   let sessionDetectionCount = 0; // Total detections in session
   let uniqueHazardTypes = []; // Initialize array for unique hazard types
@@ -672,16 +727,127 @@ document.addEventListener("DOMContentLoaded", () => {
   
   // Enhanced detection persistence
   let persistentDetections = []; // Keep detections visible longer
-  let detectionDisplayDuration = 3000; // Show detections for 3 seconds
+  let detectionDisplayDuration = 5000; // Show detections for 5 seconds (increased)
   let lastDetectionTime = 0;
+  let detectionHistory = new Map(); // Track detection history for better persistence
   
   // Backend inference configuration
   let backendAvailable = false;
   let useBackendInference = true;
-  let backendUrl = 'http://localhost:8000'; // FastAPI backend URL
   let lastBackendCheck = 0;
   let backendCheckInterval = 30000; // Check backend every 30 seconds
   let inferenceMode = 'unknown'; // 'backend', 'frontend', 'unknown'
+  
+  // Dynamic backend URL detection for different environments
+  function getBackendUrl() {
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+    
+    // If we're on localhost, use localhost backend
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:8000';
+    }
+    
+    // If we're on a deployed domain, construct backend URL
+    // For Render.com deployments, typically the backend is on a different subdomain or port
+    if (hostname.includes('render.com') || hostname.includes('onrender.com')) {
+      // Replace 'www' or frontend subdomain with 'api' or use same domain with different port
+      const backendHost = hostname.replace('www.', '').replace('-frontend', '-backend');
+      return `${protocol}//${backendHost}`;
+    }
+    
+    // For other deployments, try same domain with common backend ports
+    const commonPorts = ['8000', '3001', '5000'];
+    return `${protocol}//${hostname}:8000`; // Default fallback
+  }
+
+  // Generate multiple backend URL candidates for mobile deployment
+  function getBackendUrlCandidates() {
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+    const candidates = [];
+    
+    // First, try the last working URL from localStorage
+    if (typeof localStorage !== 'undefined') {
+      const lastWorkingUrl = localStorage.getItem('lastWorkingBackendUrl');
+      if (lastWorkingUrl) {
+        candidates.push(lastWorkingUrl);
+        console.log(`🔄 Trying last working URL first: ${lastWorkingUrl}`);
+      }
+    }
+    
+    // Local development
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      candidates.push('http://localhost:8000');
+      candidates.push('http://127.0.0.1:8000');
+      return [...new Set(candidates)];
+    }
+    
+    // Render.com specific patterns
+    if (hostname.includes('render.com') || hostname.includes('onrender.com')) {
+      // Try backend subdomain variations
+      const backendHost1 = hostname.replace('-frontend', '-backend');
+      const backendHost2 = hostname.replace('www.', 'api.');
+      const backendHost3 = hostname.replace('app.', 'api.');
+      const backendHost4 = hostname.replace('frontend', 'backend');
+      
+      candidates.push(`${protocol}//${backendHost1}`);
+      candidates.push(`${protocol}//${backendHost2}`);
+      candidates.push(`${protocol}//${backendHost3}`);
+      candidates.push(`${protocol}//${backendHost4}`);
+      
+      // Try same domain with different paths (for single service deployments)
+      candidates.push(`${protocol}//${hostname}/api`);
+      candidates.push(`${protocol}//${hostname}/backend`);
+      
+      // Try different ports (for non-standard deployments)
+      if (protocol === 'https:') {
+        candidates.push(`https://${hostname}:8000`);
+        candidates.push(`https://${hostname}:3001`);
+        candidates.push(`https://${hostname}:5000`);
+      }
+    }
+    
+    // Generic deployment patterns
+    candidates.push(`${protocol}//${hostname}:8000`);
+    candidates.push(`${protocol}//${hostname}:3001`);
+    candidates.push(`${protocol}//${hostname}:5000`);
+    candidates.push(`${protocol}//api.${hostname}`);
+    candidates.push(`${protocol}//backend.${hostname}`);
+    candidates.push(`${protocol}//${hostname}/api`);
+    candidates.push(`${protocol}//${hostname}/backend`);
+    
+    // HTTPS variants for mobile compatibility (force HTTPS for secure contexts)
+    if (protocol === 'http:' && hostname !== 'localhost' && hostname !== '127.0.0.1') {
+      candidates.push(`https://${hostname}:8000`);
+      candidates.push(`https://${hostname}:3001`);
+      candidates.push(`https://${hostname}/api`);
+      candidates.push(`https://${hostname}/backend`);
+      candidates.push(`https://api.${hostname}`);
+      candidates.push(`https://backend.${hostname}`);
+    }
+    
+    // Environment-specific URLs from window object (if set by deployment)
+    if (typeof window !== 'undefined' && window.BACKEND_URL) {
+      candidates.unshift(window.BACKEND_URL); // Add to beginning
+    }
+    
+    return [...new Set(candidates)]; // Remove duplicates
+  }
+  
+  let backendUrl = getBackendUrl();
+  console.log(`🔗 Backend URL detected: ${backendUrl}`);
+  
+  // Alternative backend URLs to try if primary fails
+  const fallbackUrls = [
+    backendUrl,
+    `${window.location.protocol}//${window.location.hostname}:8000`,
+    `${window.location.protocol}//${window.location.hostname}:3001`,
+    `${window.location.protocol}//${window.location.hostname}:5000`
+  ];
+  
+  // Remove duplicates from fallback URLs
+  const uniqueFallbackUrls = [...new Set(fallbackUrls)];
   
   // Enhanced session management
   let currentSessionId = null;
@@ -1203,25 +1369,32 @@ async function detectLoop() {
 
   const curr = offCtx.getImageData(0, 0, FIXED_SIZE, FIXED_SIZE);
 
-  // Motion detection for performance optimization
+  // Enhanced motion detection for better performance
   if (prevImageData) {
     let sum = 0;
     const d1 = curr.data, d2 = prevImageData.data;
-    const step = 16;
+    const step = 12; // Smaller step for better motion detection
     
     for (let i = 0; i < d1.length; i += step) {
       sum += Math.abs(d1[i] - d2[i]) + Math.abs(d1[i+1] - d2[i+1]) + Math.abs(d1[i+2] - d2[i+2]);
     }
     
-    const adjustedThreshold = DIFF_THRESHOLD / 4;
+    const adjustedThreshold = DIFF_THRESHOLD / 3;
     
-    if (sum < adjustedThreshold / 2) {
-      prevImageData = curr;
-      requestAnimationFrame(detectLoop);
-      return;
-    } else if (sum > adjustedThreshold * 3) {
+    // More nuanced motion-based frame skipping
+    if (sum < adjustedThreshold / 3) {
+      // Very little motion - skip more frames but still update display
+      skipFrames = Math.min(skipFrames + 1, 4);
+      if (frameCount % 3 !== 0) {
+        prevImageData = curr;
+        requestAnimationFrame(detectLoop);
+        return;
+      }
+    } else if (sum > adjustedThreshold * 2) {
+      // High motion - process more frames
       skipFrames = 1;
     } else {
+      // Medium motion - balanced approach
       skipFrames = 2;
     }
   }
@@ -1359,40 +1532,85 @@ async function detectLoop() {
       uniqueHazardTypes.push(hazardName);
     }
 
-    // Enhanced detection labeling
+    // Enhanced detection labeling with better visibility
     const trackingInfo = currentSessionId ? ` [Session]` : '';
-    const label = `${hazardName} (${(score * 100).toFixed(1)}%)${trackingInfo}`;
+    const confidenceText = `${(score * 100).toFixed(1)}%`;
+    const label = `${hazardName} ${confidenceText}${trackingInfo}`;
     
     // Ensure positive width and height
     const drawW = Math.max(w, 1);
     const drawH = Math.max(h, 1);
     
-    // Enhanced color coding for different modes
-    let strokeColor, fillColor;
+    // Enhanced color coding for different modes with better visibility
+    let strokeColor, fillColor, shadowColor;
     if (inferenceMode === 'backend' && currentSessionId) {
       strokeColor = '#FF6B35'; // Orange for enhanced backend with session
       fillColor = '#FF6B35';
+      shadowColor = 'rgba(255, 107, 53, 0.5)';
     } else if (inferenceMode === 'backend') {
       strokeColor = '#00FFFF'; // Cyan for regular backend
       fillColor = '#00FFFF';
+      shadowColor = 'rgba(0, 255, 255, 0.5)';
     } else {
       strokeColor = '#00FF00'; // Green for frontend
       fillColor = '#00FF00';
+      shadowColor = 'rgba(0, 255, 0, 0.5)';
     }
     
-    // Draw bounding box
+    // Add detection to persistent list for better visibility
+    const detectionKey = `${hazardName}_${Math.round(centerX)}_${Math.round(centerY)}`;
+    const existingIndex = persistentDetections.findIndex(d => d.key === detectionKey);
+    const detectionData = {
+      key: detectionKey,
+      bbox: [left, top, right, bottom],
+      hazardName,
+      score,
+      inferenceMode,
+      timestamp: Date.now(),
+      isNew: existingIndex === -1
+    };
+    
+    if (existingIndex !== -1) {
+      persistentDetections[existingIndex] = detectionData;
+    } else {
+      persistentDetections.push(detectionData);
+    }
+    
+    // Draw enhanced bounding box with shadow
+    ctx.save();
+    ctx.shadowColor = shadowColor;
+    ctx.shadowBlur = 8;
     ctx.strokeStyle = strokeColor;
-    ctx.lineWidth = currentSessionId ? 4 : 3; // Thicker border for session mode
+    ctx.lineWidth = currentSessionId ? 5 : 4; // Thicker border for better visibility
     ctx.strokeRect(Math.max(0, left), Math.max(0, top), drawW, drawH);
+    ctx.restore();
 
-    // Draw label background and text
+    // Draw enhanced label with better readability
+    ctx.save();
+    ctx.font = 'bold 14px Inter, Arial, sans-serif';
+    const textMetrics = ctx.measureText(label);
+    const textWidth = textMetrics.width;
+    const textHeight = 16;
+    const padding = 6;
+    const labelY = top > 30 ? top - 30 : top + drawH + 30;
+    
+    // Draw label background with shadow
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.shadowBlur = 4;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+    ctx.fillRect(Math.max(0, left), labelY - textHeight, textWidth + padding * 2, textHeight + padding);
+    
+    // Draw label border
+    ctx.strokeStyle = fillColor;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(Math.max(0, left), labelY - textHeight, textWidth + padding * 2, textHeight + padding);
+    
+    // Draw label text
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.shadowBlur = 2;
     ctx.fillStyle = fillColor;
-    ctx.font = 'bold 16px Arial';
-    const textWidth = ctx.measureText(label).width;
-    const labelY = top > 20 ? top - 20 : top + drawH + 20;
-    ctx.fillRect(Math.max(0, left), labelY, textWidth + 8, 20);
-    ctx.fillStyle = 'black';
-    ctx.fillText(label, Math.max(4, left + 4), labelY + 15);
+    ctx.fillText(label, Math.max(padding, left + padding), labelY - 4);
+    ctx.restore();
 
     // Save detection only for new tracked objects
     if (trackedObjects.get(objectKey).isNew) {
@@ -1406,8 +1624,18 @@ async function detectLoop() {
     }
   }
   
-  // Draw all persistent detections (both current and recent)
+  // Always draw persistent detections for better visibility
   drawPersistentDetections();
+  
+  // Update camera wrapper class for visual effects
+  const cameraWrapper = document.getElementById('camera-wrapper');
+  if (cameraWrapper) {
+    if (persistentDetections.length > 0) {
+      cameraWrapper.classList.add('detecting');
+    } else {
+      cameraWrapper.classList.remove('detecting');
+    }
+  }
 
   // Update FPS counter
   fpsCounter++;
@@ -1442,11 +1670,21 @@ async function detectLoop() {
   const avgTime = frameTimes.reduce((a, b) => a + b, 0) / frameTimes.length;
   const idealInterval = 1000 / targetFps;
   
-  // Dynamic frame skipping based on performance
-  if (avgTime > idealInterval * 1.5) {
-    skipFrames = Math.min(skipFrames + 1, 5);
-  } else if (avgTime < idealInterval * 0.8) {
+  // Enhanced dynamic frame skipping based on performance
+  if (avgTime > idealInterval * 1.8) {
+    skipFrames = Math.min(skipFrames + 1, 6);
+  } else if (avgTime < idealInterval * 0.6) {
     skipFrames = Math.max(skipFrames - 1, 1);
+  }
+  
+  // Adaptive quality based on device performance
+  if (avgTime > idealInterval * 2.5 && frameCount > 100) {
+    // Reduce quality for very slow devices
+    if (canvas.width > 640) {
+      canvas.width = Math.max(640, canvas.width * 0.8);
+      canvas.height = Math.max(480, canvas.height * 0.8);
+      computeLetterboxParams();
+    }
   }
 
   // Cleanup old tracked objects periodically
@@ -1454,76 +1692,128 @@ async function detectLoop() {
     cleanupTrackedObjects();
   }
 
-  // Continue detection loop
-  if (video.requestVideoFrameCallback && detecting) {
-    video.requestVideoFrameCallback(() => detectLoop());
-  } else {
-    requestAnimationFrame(detectLoop);
+  // Optimized detection loop continuation
+  if (detecting) {
+    // Use the most efficient animation method available
+    if (video.requestVideoFrameCallback && typeof video.requestVideoFrameCallback === 'function') {
+      video.requestVideoFrameCallback(() => detectLoop());
+    } else if (window.requestIdleCallback && avgTime < idealInterval * 0.5) {
+      // Use idle callback for very efficient systems
+      requestAnimationFrame(detectLoop);
+    } else {
+      requestAnimationFrame(detectLoop);
+    }
   }
 }
 
-// Draw persistent detections function
+// Draw persistent detections function with enhanced visibility
 function drawPersistentDetections() {
   const now = Date.now();
   
+  // Clean up old detections first
+  persistentDetections = persistentDetections.filter(detection => {
+    const age = now - detection.timestamp;
+    return age <= detectionDisplayDuration;
+  });
+  
   for (const detection of persistentDetections) {
     const age = now - detection.timestamp;
-    if (age > detectionDisplayDuration) continue;
     
-    // Calculate fade effect based on age
+    // Enhanced fade effect - detections stay more visible longer
     const fadeRatio = Math.max(0, 1 - (age / detectionDisplayDuration));
-    const alpha = 0.3 + (fadeRatio * 0.7); // Fade from 1.0 to 0.3
+    const alpha = 0.5 + (fadeRatio * 0.5); // Fade from 1.0 to 0.5 (more visible)
     
     const [left, top, right, bottom] = detection.bbox;
     const w = right - left;
     const h = bottom - top;
     
-    // Enhanced detection labeling
-    const trackingInfo = currentSessionId ? ` [Session]` : '';
-    const ageInfo = age > 1000 ? ` (${Math.round(age/1000)}s)` : '';
-    const label = `${detection.hazardName} (${(detection.score * 100).toFixed(1)}%)${trackingInfo}${ageInfo}`;
+    // Enhanced detection labeling with age info
+    const trackingInfo = currentSessionId ? ` [S]` : '';
+    const ageInfo = age > 2000 ? ` (${Math.round(age/1000)}s)` : '';
+    const confidenceText = `${(detection.score * 100).toFixed(1)}%`;
+    const label = `${detection.hazardName} ${confidenceText}${trackingInfo}${ageInfo}`;
     
     // Ensure positive width and height
     const drawW = Math.max(w, 1);
     const drawH = Math.max(h, 1);
     
-    // Enhanced color coding for different modes
-    let strokeColor, fillColor;
+    // Enhanced color coding with pulsing effect for new detections
+    let strokeColor, fillColor, shadowColor;
     if (detection.inferenceMode === 'backend' && currentSessionId) {
-      strokeColor = '#FF6B35'; // Orange for enhanced backend with session
+      strokeColor = '#FF6B35';
       fillColor = '#FF6B35';
+      shadowColor = 'rgba(255, 107, 53, 0.6)';
     } else if (detection.inferenceMode === 'backend') {
-      strokeColor = '#00FFFF'; // Cyan for regular backend
+      strokeColor = '#00FFFF';
       fillColor = '#00FFFF';
+      shadowColor = 'rgba(0, 255, 255, 0.6)';
     } else {
-      strokeColor = '#00FF00'; // Green for frontend
+      strokeColor = '#00FF00';
       fillColor = '#00FF00';
+      shadowColor = 'rgba(0, 255, 0, 0.6)';
     }
     
     // Apply alpha for fading effect
     ctx.save();
     ctx.globalAlpha = alpha;
     
-    // Draw bounding box
+    // Enhanced bounding box with glow effect
+    ctx.shadowColor = shadowColor;
+    ctx.shadowBlur = detection.isNew ? 12 : 6;
     ctx.strokeStyle = strokeColor;
-    ctx.lineWidth = currentSessionId ? 4 : 3;
-    if (detection.isNew) {
-      ctx.lineWidth += 2; // Extra thick for new detections
-      ctx.setLineDash([5, 5]); // Dashed line for new detections
+    
+    // Dynamic line width based on age and newness
+    let lineWidth = currentSessionId ? 5 : 4;
+    if (detection.isNew && age < 1000) {
+      lineWidth += 2; // Extra thick for new detections
+      // Pulsing effect for very new detections
+      const pulsePhase = (age / 200) % 1;
+      const pulseSize = 1 + Math.sin(pulsePhase * Math.PI * 2) * 0.3;
+      lineWidth *= pulseSize;
     }
+    
+    ctx.lineWidth = lineWidth;
+    
+    // Dashed pattern for older detections
+    if (age > 2000) {
+      ctx.setLineDash([8, 4]);
+    } else if (detection.isNew && age < 500) {
+      ctx.setLineDash([12, 6]);
+    }
+    
     ctx.strokeRect(Math.max(0, left), Math.max(0, top), drawW, drawH);
     ctx.setLineDash([]); // Reset line dash
-
-    // Draw label background and text
+    
+    // Enhanced label with better visibility
+    ctx.font = 'bold 13px Inter, Arial, sans-serif';
+    const textMetrics = ctx.measureText(label);
+    const textWidth = textMetrics.width;
+    const textHeight = 15;
+    const padding = 5;
+    const labelY = top > 35 ? top - 35 : top + drawH + 35;
+    
+    // Enhanced label background
+    ctx.shadowBlur = 6;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+    ctx.fillRect(Math.max(0, left), labelY - textHeight, textWidth + padding * 2, textHeight + padding);
+    
+    // Label border with detection color
+    ctx.strokeStyle = fillColor;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(Math.max(0, left), labelY - textHeight, textWidth + padding * 2, textHeight + padding);
+    
+    // Label text with shadow
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+    ctx.shadowBlur = 3;
     ctx.fillStyle = fillColor;
-    ctx.font = 'bold 16px Arial';
-    const textWidth = ctx.measureText(label).width;
-    const labelY = top > 20 ? top - 20 : top + drawH + 20;
-    ctx.fillRect(Math.max(0, left), labelY, textWidth + 8, 20);
-    ctx.fillStyle = 'black';
-    ctx.fillText(label, Math.max(4, left + 4), labelY + 15);
+    ctx.fillText(label, Math.max(padding, left + padding), labelY - 3);
     
     ctx.restore();
+    
+    // Mark as no longer new after 1 second
+    if (age > 1000) {
+      detection.isNew = false;
+    }
   }
 }
 

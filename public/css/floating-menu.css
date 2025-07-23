@@ -2,7 +2,7 @@
   position: fixed;
   left: 20px;
   top: 20px;
-  z-index: 1000;
+  z-index: 1001; /* Increased to be above notifications container */
   background: rgba(31, 34, 53, 0.95);
   color: #f7c873;
   border: none;
