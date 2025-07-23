@@ -1,29 +1,29 @@
 FROM node:18
 WORKDIR /app
 
-# build tools for native deps
 RUN apt-get update && \
     apt-get install -y python3 make g++ curl && \
     rm -rf /var/lib/apt/lists/*
 
-# הגדרת משתני סביבה לonnxruntime
+ENV npm_config_onnxruntime_node_gpu=0
 ENV npm_config_onnxruntime_binary_platform=linux-x64
 ENV npm_config_build_from_source=true
 ENV npm_config_target_arch=x64
 ENV npm_config_target_platform=linux
 ENV NODE_ENV=production
-ENV npm_config_onnxruntime_node_gpu=0
 
-# התקנת תלויות
 COPY package*.json ./
-RUN npm cache clean --force && \
-    npm install --no-optional --production --unsafe-perm
 
-# העתקת המודל
-COPY public/object_detecion_model/road_damage_detection_last_version.onnx \
-     public/object_detecion_model/road_damage_detection_last_version.onnx
+RUN npm cache clean --force
 
-# שאר הקוד
+# התקנת onnxruntime-node בלי סקריפטים (כדי למנוע טעויות CUDA)
+RUN npm install onnxruntime-node@1.22.0 --no-optional --ignore-scripts
+
+# התקנת שאר התלויות ללא סקריפטים
+RUN npm install --production --unsafe-perm
+
+COPY public/object_detecion_model/model\ 18_7.onnx public/object_detecion_model/model\ 18_7.onnx
+
 COPY . .
 
 EXPOSE 3000
