@@ -1309,7 +1309,7 @@ function stopLocationTracking() {
     ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
     const EPs = ort.env.webgl?.isSupported ? ['webgl','wasm'] : ['wasm','webgl'];
     session = await ort.InferenceSession.create(
-      '/object_detecion_model/model 18_7.onnx',
+      '/object_detecion_model/model_18_7.onnx',
       { executionProviders: EPs, graphOptimizationLevel: 'all' }
     );
   }
