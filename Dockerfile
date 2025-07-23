@@ -22,7 +22,8 @@ RUN npm install onnxruntime-node@1.22.0 --no-optional --ignore-scripts
 # התקנת שאר התלויות ללא סקריפטים
 RUN npm install --production --unsafe-perm
 
-COPY public/object_detecion_model/model\ 18_7.onnx public/object_detecion_model/model\ 18_7.onnx
+COPY "public/object_detecion_model/model 18_7.onnx" "public/object_detecion_model/model 18_7.onnx"
+
 
 COPY . .
 
