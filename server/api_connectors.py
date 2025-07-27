@@ -169,28 +169,56 @@ class RedisConnector(BaseAPIConnector):
     """Redis connector for caching and session management"""
     
     def __init__(self):
-        import redis.asyncio as redis
-        self.redis_client = redis.Redis(
-            host=os.getenv('REDIS_HOST'),
-            port=int(os.getenv('REDIS_PORT', 6379)),
-            password=os.getenv('REDIS_PASSWORD'),
-            decode_responses=True
-        )
+        try:
+            import redis.asyncio as redis
+            
+            # Check if Redis credentials are available
+            redis_host = os.getenv('REDIS_HOST')
+            redis_port = os.getenv('REDIS_PORT', '6379')
+            redis_password = os.getenv('REDIS_PASSWORD')
+            
+            if not redis_host:
+                logger.warning("Redis not configured - using in-memory fallback")
+                self.redis_client = None
+                return
+                
+            self.redis_client = redis.Redis(
+                host=redis_host,
+                port=int(redis_port),
+                password=redis_password,
+                username=os.getenv('REDIS_USERNAME', 'default'),
+                decode_responses=True,
+                socket_timeout=5,
+                socket_connect_timeout=5,
+                retry_on_timeout=True,
+                health_check_interval=30
+            )
+        except Exception as e:
+            logger.warning(f"Redis initialization failed: {e}")
+            self.redis_client = None
     
     async def set_data(self, key: str, value: str, expiry: int = 3600) -> APIResponse:
         """Set data in Redis with expiry"""
+        if not self.redis_client:
+            return APIResponse(success=False, error="Redis not available")
+            
         try:
             await self.redis_client.setex(key, expiry, value)
             return APIResponse(success=True, data="Data stored successfully")
         except Exception as e:
+            logger.error(f"Redis set failed: {e}")
             return APIResponse(success=False, error=str(e))
     
     async def get_data(self, key: str) -> APIResponse:
         """Get data from Redis"""
+        if not self.redis_client:
+            return APIResponse(success=False, error="Redis not available")
+            
         try:
             data = await self.redis_client.get(key)
             return APIResponse(success=True, data=data)
         except Exception as e:
+            logger.error(f"Redis get failed: {e}")
             return APIResponse(success=False, error=str(e))
 
 class RenderAPIConnector(BaseAPIConnector):
@@ -262,8 +290,11 @@ class APIConnectorManager:
         
         # Test Redis
         try:
-            response = await self.redis.set_data("health_check", "ok", 60)
-            health_status['redis'] = response.success
+            if self.redis.redis_client:
+                response = await self.redis.set_data("health_check", "ok", 60)
+                health_status['redis'] = response.success
+            else:
+                health_status['redis'] = False
         except:
             health_status['redis'] = False
         

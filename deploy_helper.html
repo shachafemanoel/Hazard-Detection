@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Render Deployment Helper</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .service-card {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            background: #f9f9f9;
+        }
+        .copy-btn {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        .env-var {
+            font-family: monospace;
+            background: #f0f0f0;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .step {
+            margin: 20px 0;
+            padding: 15px;
+            border-left: 4px solid #007acc;
+            background: #f8f9fa;
+        }
+        .success {
+            color: #28a745;
+        }
+        .url-box {
+            background: #e7f3ff;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 Hazard Detection - Render Deployment Helper</h1>
+    
+    <div class="service-card">
+        <h2>📡 Deployment Status</h2>
+        <p>Your GitHub repository is ready for deployment: <strong>https://github.com/NirelJano/Hazard-Detection</strong></p>
+        <p>All changes have been committed and pushed successfully.</p>
+        
+        <button onclick="window.open('https://dashboard.render.com', '_blank')" style="background: #007acc; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer;">
+            Open Render Dashboard
+        </button>
+    </div>
+
+    <div class="step">
+        <h3>Step 1: Deploy Backend Service (Python/FastAPI)</h3>
+        <ol>
+            <li>Go to <a href="https://dashboard.render.com" target="_blank">Render Dashboard</a></li>
+            <li>Click <strong>New → Web Service</strong></li>
+            <li>Select <strong>Build and deploy from a Git repository</strong></li>
+            <li>Connect GitHub and select: <code>NirelJano/Hazard-Detection</code></li>
+        </ol>
+        
+        <h4>Backend Configuration:</h4>
+        <pre>Name: hazard-detection-backend
+Environment: Python
+Branch: master
+Build Command: pip install -r requirements.txt
+Start Command: cd server && python app.py
+Plan: Free</pre>
+        
+        <h4>Environment Variables:</h4>
+        <div style="background: #fff; padding: 10px; border-radius: 5px;">
+            <div><span class="env-var">PYTHONPATH=/opt/render/project/src/server</span> <button class="copy-btn" onclick="copyText('/opt/render/project/src/server')">Copy</button></div>
+            <div><span class="env-var">PORT=8000</span> <button class="copy-btn" onclick="copyText('8000')">Copy</button></div>
+            <div><span class="env-var">RENDER=true</span> <button class="copy-btn" onclick="copyText('true')">Copy</button></div>
+        </div>
+    </div>
+
+    <div class="step">
+        <h3>Step 2: Deploy Frontend Service (Node.js)</h3>
+        <ol>
+            <li>In Render Dashboard, click <strong>New → Web Service</strong> again</li>
+            <li>Select the same repository: <code>NirelJano/Hazard-Detection</code></li>
+        </ol>
+        
+        <h4>Frontend Configuration:</h4>
+        <pre>Name: hazard-detection-frontend
+Environment: Node
+Branch: master
+Build Command: npm install
+Start Command: npm start
+Plan: Free</pre>
+        
+        <h4>Environment Variables:</h4>
+        <div style="background: #fff; padding: 10px; border-radius: 5px; max-height: 300px; overflow-y: auto;">
+            <div><span class="env-var">NODE_ENV=production</span> <button class="copy-btn" onclick="copyText('production')">Copy</button></div>
+            <div><span class="env-var">SESSION_SECRET=aVeryStrongAndRandomSecretKeyForYourSessionManagement123!@#$</span> <button class="copy-btn" onclick="copyText('aVeryStrongAndRandomSecretKeyForYourSessionManagement123!@#$')">Copy</button></div>
+            <div><span class="env-var">GOOGLE_CLIENT_ID=46375555882-rmivba20noas9slfskb3cfvugssladrr.apps.googleusercontent.com</span> <button class="copy-btn" onclick="copyText('46375555882-rmivba20noas9slfskb3cfvugssladrr.apps.googleusercontent.com')">Copy</button></div>
+            <div><span class="env-var">GOOGLE_CLIENT_SECRET=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</span> <button class="copy-btn" onclick="copyText('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')">Copy</button></div>
+            <div><span class="env-var">GOOGLE_CALLBACK_URL=https://hazard-detection-frontend.onrender.com/auth/google/callback</span> <button class="copy-btn" onclick="copyText('https://hazard-detection-frontend.onrender.com/auth/google/callback')">Copy</button></div>
+            <div><span class="env-var">SENDGRID_API_KEY=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</span> <button class="copy-btn" onclick="copyText('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')">Copy</button></div>
+            <div><span class="env-var">CLOUDINARY_CLOUD_NAME=dgn5da9f8</span> <button class="copy-btn" onclick="copyText('dgn5da9f8')">Copy</button></div>
+            <div><span class="env-var">CLOUDINARY_API_KEY=688173149321172</span> <button class="copy-btn" onclick="copyText('688173149321172')">Copy</button></div>
+            <div><span class="env-var">CLOUDINARY_API_SECRET=Mb_3IFGPoWA1_AM-XzOd6AH_Pyg</span> <button class="copy-btn" onclick="copyText('Mb_3IFGPoWA1_AM-XzOd6AH_Pyg')">Copy</button></div>
+            <div style="color: #666; font-style: italic;">Redis (Optional - Skip these if no Redis service):</div>
+            <div><span class="env-var">REDIS_HOST=your-redis-host</span> <button class="copy-btn" onclick="copyText('')">Skip</button></div>
+            <div><span class="env-var">REDIS_PORT=6379</span> <button class="copy-btn" onclick="copyText('6379')">Copy</button></div>
+            <div><span class="env-var">REDIS_USERNAME=default</span> <button class="copy-btn" onclick="copyText('default')">Copy</button></div>
+            <div><span class="env-var">REDIS_PASSWORD=your-redis-password</span> <button class="copy-btn" onclick="copyText('')">Skip</button></div>
+            <div><span class="env-var">GOOGLE_GEOCODING_API_KEY=AIzaSyAJ4073PjQ5koFcU9O3WCt8IsK43NNMPcc</span> <button class="copy-btn" onclick="copyText('AIzaSyAJ4073PjQ5koFcU9O3WCt8IsK43NNMPcc')">Copy</button></div>
+            <div><span class="env-var">GOOGLE_MAPS_API_KEY=AIzaSyAJ4073PjQ5koFcU9O3WCt8IsK43NNMPcc</span> <button class="copy-btn" onclick="copyText('AIzaSyAJ4073PjQ5koFcU9O3WCt8IsK43NNMPcc')">Copy</button></div>
+        </div>
+    </div>
+
+    <div class="step">
+        <h3>Step 3: Create Redis Database (Optional)</h3>
+        <ol>
+            <li>In Render Dashboard, click <strong>New → Redis</strong></li>
+            <li>Choose <strong>Free</strong> plan</li>
+            <li>Name: <code>hazard-detection-redis</code></li>
+            <li>After creation, go to the Redis service page</li>
+            <li>Copy the <strong>Internal Redis URL</strong></li>
+            <li>Update frontend environment variables:
+                <ul>
+                    <li><code>REDIS_HOST</code> = hostname from URL</li>
+                    <li><code>REDIS_PORT</code> = port from URL</li>
+                    <li><code>REDIS_PASSWORD</code> = password from URL</li>
+                </ul>
+            </li>
+        </ol>
+        <p><em>Note: App works without Redis - it will use in-memory storage instead.</em></p>
+    </div>
+
+    <div class="step">
+        <h3>Step 4: Monitor Deployment</h3>
+        <p>After creating both services:</p>
+        <ul>
+            <li>Watch the build logs in each service's "Logs" tab</li>
+            <li>Backend build time: ~3-5 minutes</li>
+            <li>Frontend build time: ~2-3 minutes</li>
+        </ul>
+    </div>
+
+    <div class="url-box">
+        <h3 class="success">🎉 Your App URLs (after deployment)</h3>
+        <p><strong>Frontend:</strong> <code>https://hazard-detection-frontend.onrender.com</code></p>
+        <p><strong>Backend API:</strong> <code>https://hazard-detection-backend.onrender.com</code></p>
+        <p><strong>Health Check:</strong> <code>https://hazard-detection-backend.onrender.com/health</code></p>
+    </div>
+
+    <div class="service-card">
+        <h3>🔧 API Connectors Included</h3>
+        <p>Your deployment includes the following API integrations:</p>
+        <ul>
+            <li><strong>Google Maps:</strong> Geocoding and location services</li>
+            <li><strong>Cloudinary:</strong> Image storage and processing</li>
+            <li><strong>SendGrid:</strong> Email notifications</li>
+            <li><strong>Redis:</strong> Caching and session management</li>
+            <li><strong>Render API:</strong> Deployment management</li>
+        </ul>
+        <p>Check API health at: <code>/api/health</code></p>
+    </div>
+
+    <script>
+        function copyText(text) {
+            navigator.clipboard.writeText(text).then(function() {
+                // Find the button that was clicked and show feedback
+                event.target.textContent = 'Copied!';
+                setTimeout(() => {
+                    event.target.textContent = 'Copy';
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>
