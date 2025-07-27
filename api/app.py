@@ -123,8 +123,16 @@ async def load_model():
             device_name = core.get_property(device, props.device.full_name)
             logger.info(f"{device}: {device_name}")
         
-        # Load model from XML file
+        # Try to load model from XML file
         model_path = "best_openvino_model/best.xml"
+        logger.info(f"Checking for model at: {model_path}")
+        
+        import os
+        if not os.path.exists(model_path):
+            logger.warning(f"Model file not found at {model_path}. API will run in health-check only mode.")
+            logger.info("To enable AI inference, upload the model files to the deployment.")
+            return
+        
         logger.info(f"Reading model from: {model_path}")
         model = core.read_model(model=model_path)
         
