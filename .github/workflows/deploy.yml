@@ -1,0 +1,27 @@
+name: Deploy to Render
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy Services
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Deploy API Service
+        run: |
+          curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_API }}"
+          
+      - name: Deploy Web Service
+        run: |
+          curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_WEB }}"
+          
+      - name: Deployment Status
+        run: |
+          echo "✅ Deployment webhooks triggered successfully"
+          echo "🔗 API Service: Deploying..."
+          echo "🔗 Web Service: Deploying..."
+          echo "⏳ Check Render dashboard for deployment status"

@@ -1,0 +1,21 @@
+{
+  "name": "hazard-detection-web",
+  "version": "1.0.0",
+  "description": "Web frontend service for Hazard Detection",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "keywords": ["hazard-detection", "web", "frontend"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.21.2",
+    "dotenv": "^16.6.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
