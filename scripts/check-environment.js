@@ -10,7 +10,9 @@ console.log('=' .repeat(50));
 // Check Python installation
 function checkPython() {
     return new Promise((resolve) => {
-        const python = spawn('python', ['--version']);
+        // Try python3 first, then python
+        const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+        const python = spawn(pythonCmd, ['--version']);
         
         python.stdout.on('data', (data) => {
             console.log('✅ Python found:', data.toString().trim());
@@ -39,7 +41,8 @@ function checkPython() {
 // Check OpenVINO installation
 function checkOpenVINO() {
     return new Promise((resolve) => {
-        const pip = spawn('python', ['-c', 'import openvino; print(f"OpenVINO {openvino.__version__}")']);
+        const pythonCmd = process.platform === 'win32' ? 'venv\\Scripts\\python' : 'venv/bin/python3';
+        const pip = spawn(pythonCmd, ['-c', 'import openvino; print(f"OpenVINO {openvino.__version__}")']);
         
         pip.stdout.on('data', (data) => {
             console.log('✅', data.toString().trim());
@@ -70,7 +73,8 @@ function checkOpenVINO() {
 function checkPythonPackages() {
     return new Promise((resolve) => {
         const packages = ['fastapi', 'uvicorn', 'pillow', 'numpy', 'python-multipart'];
-        const pip = spawn('python', ['-c', `
+        const pythonCmd = process.platform === 'win32' ? 'venv\\Scripts\\python' : 'venv/bin/python3';
+        const pip = spawn(pythonCmd, ['-c', `
 import sys
 packages = ${JSON.stringify(packages)}
 missing = []

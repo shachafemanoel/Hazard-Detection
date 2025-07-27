@@ -22,11 +22,32 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Hazard Detection Backend", version="1.0.0")
 
-# Enable CORS for frontend requests - Enhanced mobile-friendly configuration
+# Enhanced CORS configuration for Render deployment
+import os
+
+# Determine allowed origins based on environment
+if os.getenv("RENDER"):
+    # Production on Render
+    allowed_origins = [
+        os.getenv("RENDER_EXTERNAL_URL", "https://hazard-detection.onrender.com"),
+        "https://hazard-detection.onrender.com",
+        "https://*.onrender.com"
+    ]
+    allow_credentials = True
+else:
+    # Development
+    allowed_origins = [
+        "http://localhost:3000",
+        "http://localhost:8000", 
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:8000"
+    ]
+    allow_credentials = True
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for mobile compatibility
-    allow_credentials=False,  # Set to False for mobile compatibility with wildcard origins
+    allow_origins=allowed_origins,
+    allow_credentials=allow_credentials,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
     allow_headers=[
         "Accept",
@@ -47,7 +68,7 @@ app.add_middleware(
         "Sec-Fetch-Site",
         "Sec-Fetch-Mode",
         "Sec-Fetch-Dest",
-        # Mobile-specific headers
+        # Mobile and deployment headers
         "X-Forwarded-For",
         "X-Real-IP",
         "X-Forwarded-Proto",
@@ -832,3 +853,21 @@ async def detect_hazards_legacy(file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"Legacy detection error: {e}")
         raise HTTPException(status_code=500, detail=f"Detection failed: {str(e)}")
+
+# Add main entry point for Render deployment
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", 8000))
+    
+    # Log startup information
+    logger.info(f"Starting FastAPI server on port {port}")
+    logger.info(f"Environment: {'Production (Render)' if os.getenv('RENDER') else 'Development'}")
+    logger.info(f"Allowed origins: {allowed_origins}")
+    
+    uvicorn.run(
+        "app:app",
+        host="0.0.0.0",
+        port=port,
+        log_level="info",
+        access_log=True
+    )

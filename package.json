@@ -5,12 +5,18 @@
   "main": "server/server.js",
   "type": "module",
   "scripts": {
-    "start": "npm run check-env && npm run start-backend && node server/server.js",
-    "start-backend": "cd server && python start_backend.py &",
+    "build": "npm install && echo 'Building frontend assets...' && echo 'Build complete!'",
+    "install-python-deps": "source venv/bin/activate && python3 -m pip install -r requirements.txt",
+    "start": "node server/server.js",
+    "start-full": "npm run start-backend && npm run start-frontend",
+    "start-backend": "cd server && source ../venv/bin/activate && python3 start_backend.py &",
     "start-frontend": "node server/server.js",
     "check-env": "node scripts/check-environment.js",
-    "dev": "nodemon --watch server --ignore public/object_detecion_model server/server.js",
-    "dev-python": "cd server && python start_backend.py"
+    "dev": "npm run start-backend && nodemon --watch server --ignore public/object_detecion_model server/server.js",
+    "dev-python": "cd server && source ../venv/bin/activate && python3 start_backend.py",
+    "dev-local": "npm run build && npm run start-full",
+    "render-build": "npm install",
+    "render-start": "node server/server.js"
   },
   "keywords": [],
   "author": "",

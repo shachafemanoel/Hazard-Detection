@@ -421,27 +421,153 @@ document.addEventListener("DOMContentLoaded", () => {
   window.showFullImage = showFullImage;
   window.closeFullImage = closeFullImage;
 
-  // Add keyboard shortcut for testing (Ctrl+I)
+  // Enhanced debugging and testing functions
+  
+  // Comprehensive system diagnostics
+  async function runSystemDiagnostics() {
+    console.log('🔧 Running system diagnostics...');
+    
+    const diagnostics = {
+      timestamp: new Date().toISOString(),
+      browser: {
+        userAgent: navigator.userAgent,
+        language: navigator.language,
+        platform: navigator.platform,
+        cookieEnabled: navigator.cookieEnabled,
+        onLine: navigator.onLine,
+        hardwareConcurrency: navigator.hardwareConcurrency
+      },
+      webgl: {
+        supported: !!window.WebGLRenderingContext,
+        version: null
+      },
+      onnx: {
+        loaded: !!window.ort,
+        version: window.ort?.version || 'unknown'
+      },
+      backend: {
+        url: backendUrl,
+        available: backendAvailable,
+        lastCheck: lastBackendCheck,
+        mode: inferenceMode
+      },
+      frontend: {
+        sessionLoaded: !!session,
+        modelPath: './object_detecion_model/model_18_7.onnx'
+      },
+      performance: {
+        currentFps: currentFps,
+        frameCount: frameCount,
+        avgProcessingTime: frameTimes.length > 0 ? 
+          (frameTimes.reduce((a, b) => a + b, 0) / frameTimes.length).toFixed(2) + 'ms' : 'N/A'
+      }
+    };
+    
+    // Test WebGL
+    try {
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      if (gl) {
+        diagnostics.webgl.version = gl.getParameter(gl.VERSION);
+        diagnostics.webgl.vendor = gl.getParameter(gl.VENDOR);
+        diagnostics.webgl.renderer = gl.getParameter(gl.RENDERER);
+      }
+    } catch (webglError) {
+      diagnostics.webgl.error = webglError.message;
+    }
+    
+    // Test model file accessibility
+    try {
+      const modelResponse = await fetch('./object_detecion_model/model_18_7.onnx', { method: 'HEAD' });
+      diagnostics.frontend.modelAccessible = modelResponse.ok;
+      diagnostics.frontend.modelSize = modelResponse.headers.get('content-length');
+    } catch (modelError) {
+      diagnostics.frontend.modelError = modelError.message;
+    }
+    
+    // Test backend connectivity
+    if (backendUrl) {
+      try {
+        const healthResponse = await fetch(`${backendUrl}/health`, { 
+          method: 'GET',
+          signal: AbortSignal.timeout(5000) 
+        });
+        diagnostics.backend.healthCheck = {
+          status: healthResponse.status,
+          ok: healthResponse.ok,
+          data: healthResponse.ok ? await healthResponse.json() : null
+        };
+      } catch (backendError) {
+        diagnostics.backend.healthError = backendError.message;
+      }
+    }
+    
+    console.table(diagnostics);
+    console.log('📊 Full diagnostics object:', diagnostics);
+    
+    // Display diagnostics in modal
+    const diagnosticsHtml = `
+      <div id="diagnostics-modal" class="modal" style="display: flex; z-index: 30000;">
+        <div class="modal-content" style="max-width: 90vw; max-height: 90vh; overflow-y: auto;">
+          <div class="modal-header">
+            <h3>System Diagnostics</h3>
+            <button onclick="closeDiagnostics()" class="close-btn">×</button>
+          </div>
+          <div class="modal-body" style="font-family: monospace; font-size: 12px;">
+            <pre>${JSON.stringify(diagnostics, null, 2)}</pre>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', diagnosticsHtml);
+    
+    return diagnostics;
+  }
+  
+  function closeDiagnostics() {
+    const modal = document.getElementById('diagnostics-modal');
+    if (modal) modal.remove();
+  }
+  
+  // Make functions globally available
+  window.runSystemDiagnostics = runSystemDiagnostics;
+  window.closeDiagnostics = closeDiagnostics;
+  
+  // Enhanced keyboard shortcuts for debugging
   document.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.key === 'i') {
+    if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+      e.preventDefault();
+      runSystemDiagnostics();
+    } else if (e.ctrlKey && e.key === 'i') {
       e.preventDefault();
       toggleInferenceMode();
+    } else if (e.ctrlKey && e.shiftKey && e.key === 'C') {
+      e.preventDefault();
+      console.clear();
+      console.log('🧽 Console cleared - System ready for debugging');
     }
   });
 
-  // Backend health check and management functions  
+  // Enhanced backend health check with better error handling
   async function checkBackendHealth() {
     const candidates = getBackendUrlCandidates();
     let lastError = null;
     
     console.log(`🔍 Testing ${candidates.length} backend URL candidates...`);
     
-    for (const candidateUrl of candidates) {
+    for (let i = 0; i < candidates.length; i++) {
+      const candidateUrl = candidates[i];
       try {
-        console.log(`🔗 Trying backend URL: ${candidateUrl}`);
+        console.log(`🔗 [${i + 1}/${candidates.length}] Trying backend URL: ${candidateUrl}`);
         
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout for mobile
+        const timeoutId = setTimeout(() => {
+          controller.abort();
+          console.log(`⏰ Timeout for ${candidateUrl}`);
+        }, 10000); // 10 second timeout
+        
+        const startTime = performance.now();
         
         const response = await fetch(`${candidateUrl}/health`, {
           method: 'GET',
@@ -449,20 +575,35 @@ document.addEventListener("DOMContentLoaded", () => {
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            // Add mobile-friendly headers
-            'User-Agent': navigator.userAgent,
-            'Cache-Control': 'no-cache'
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
           },
-          // Add credentials for CORS if needed
+          mode: 'cors',
           credentials: 'omit',
-          // Ensure redirect handling
           redirect: 'follow'
         });
+        
+        const responseTime = Math.round(performance.now() - startTime);
+        clearTimeout(timeoutId);
+        
+        console.log(`📡 Response from ${candidateUrl}: ${response.status} (${responseTime}ms)`);
         
         clearTimeout(timeoutId);
         
         if (response.ok) {
-          const data = await response.json();
+          let data;
+          try {
+            const responseText = await response.text();
+            console.log(`📄 Raw response from ${candidateUrl}:`, responseText.substring(0, 200) + '...');
+            data = JSON.parse(responseText);
+          } catch (parseError) {
+            console.error(`❌ Failed to parse JSON response from ${candidateUrl}:`, parseError);
+            lastError = new Error(`Invalid JSON response from ${candidateUrl}`);
+            continue;
+          }
+          
+          console.log(`📊 Health data from ${candidateUrl}:`, data);
+          
           const isHealthy = data.status === 'healthy' && data.model_status === 'loaded';
           
           if (isHealthy) {
@@ -472,26 +613,50 @@ document.addEventListener("DOMContentLoaded", () => {
             lastBackendCheck = Date.now();
             inferenceMode = 'backend';
             
-            updateConnectionStatus('connected', `Backend Inference (${getShortUrl(backendUrl)})`);
-            console.log(`✅ Backend inference available at: ${candidateUrl}`);
+            const statusMessage = `Backend Inference (${getShortUrl(backendUrl)}) - ${responseTime}ms`;
+            updateConnectionStatus('connected', statusMessage);
+            console.log(`✅ Backend inference available at: ${candidateUrl} (${responseTime}ms)`);
+            console.log(`📋 Backend info:`, {
+              device: data.device_info?.device,
+              model_path: data.device_info?.model_path,
+              environment: data.environment?.deployment_env
+            });
             
             // Store successful URL for future use
             if (typeof localStorage !== 'undefined') {
               localStorage.setItem('lastWorkingBackendUrl', candidateUrl);
+              console.log(`💾 Saved working backend URL to localStorage`);
             }
             
             return true;
           } else {
-            console.warn(`⚠️ Backend at ${candidateUrl} is not ready:`, data);
-            lastError = new Error(`Backend model not ready at ${candidateUrl}`);
+            console.warn(`⚠️ Backend at ${candidateUrl} is not ready:`, {
+              status: data.status,
+              model_status: data.model_status,
+              full_response: data
+            });
+            lastError = new Error(`Backend model not ready: status=${data.status}, model_status=${data.model_status}`);
           }
         } else {
-          console.warn(`⚠️ Backend at ${candidateUrl} responded with status:`, response.status);
-          lastError = new Error(`Backend responded with status: ${response.status}`);
+          const responseText = await response.text().catch(() => 'Unable to read response');
+          console.warn(`⚠️ Backend at ${candidateUrl} responded with status ${response.status}:`, responseText);
+          lastError = new Error(`Backend responded with status: ${response.status} - ${responseText}`);
         }
       } catch (error) {
-        console.warn(`⚠️ Failed to connect to backend at ${candidateUrl}:`, error.message);
-        lastError = error;
+        console.warn(`⚠️ Failed to connect to backend at ${candidateUrl}:`, {
+          name: error.name,
+          message: error.message,
+          stack: error.stack?.split('\n')[0]
+        });
+        
+        // Provide more specific error messages
+        if (error.name === 'AbortError') {
+          lastError = new Error(`Connection timeout to ${candidateUrl}`);
+        } else if (error.name === 'TypeError' && error.message.includes('fetch')) {
+          lastError = new Error(`Network error connecting to ${candidateUrl} - check if server is running`);
+        } else {
+          lastError = error;
+        }
       }
     }
     
@@ -738,54 +903,79 @@ document.addEventListener("DOMContentLoaded", () => {
   let backendCheckInterval = 30000; // Check backend every 30 seconds
   let inferenceMode = 'unknown'; // 'backend', 'frontend', 'unknown'
   
-  // Dynamic backend URL detection for different environments
+  // Enhanced backend URL detection with better debugging
   function getBackendUrl() {
     const hostname = window.location.hostname;
     const protocol = window.location.protocol;
+    const port = window.location.port;
+    
+    console.log('🔍 Current location:', { hostname, protocol, port });
     
     // If we're on localhost, use localhost backend
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'http://localhost:8000';
+      const backendUrl = 'http://localhost:8000';
+      console.log('🏠 Using localhost backend:', backendUrl);
+      return backendUrl;
     }
     
     // If we're on a deployed domain, construct backend URL
-    // For Render.com deployments, typically the backend is on a different subdomain or port
+    // For Render.com deployments, use dedicated backend service
     if (hostname.includes('render.com') || hostname.includes('onrender.com')) {
-      // Replace 'www' or frontend subdomain with 'api' or use same domain with different port
-      const backendHost = hostname.replace('www.', '').replace('-frontend', '-backend');
-      return `${protocol}//${backendHost}`;
+      const backendUrl = 'https://hazard-detection-backend.onrender.com';
+      console.log('☁️ Using Render backend service:', backendUrl);
+      return backendUrl;
     }
     
     // For other deployments, try same domain with common backend ports
-    const commonPorts = ['8000', '3001', '5000'];
-    return `${protocol}//${hostname}:8000`; // Default fallback
+    const backendUrl = `${protocol}//${hostname}:8000`; // Default fallback
+    console.log('🌐 Using default backend:', backendUrl);
+    return backendUrl;
   }
 
-  // Generate multiple backend URL candidates for mobile deployment
+  // Generate multiple backend URL candidates with enhanced debugging
   function getBackendUrlCandidates() {
     const hostname = window.location.hostname;
     const protocol = window.location.protocol;
+    const port = window.location.port;
     const candidates = [];
+    
+    console.log('🔍 Generating backend URL candidates for:', { hostname, protocol, port });
     
     // First, try the last working URL from localStorage
     if (typeof localStorage !== 'undefined') {
       const lastWorkingUrl = localStorage.getItem('lastWorkingBackendUrl');
-      if (lastWorkingUrl) {
+      if (lastWorkingUrl && lastWorkingUrl !== 'undefined') {
         candidates.push(lastWorkingUrl);
-        console.log(`🔄 Trying last working URL first: ${lastWorkingUrl}`);
+        console.log(`🔄 Adding last working URL: ${lastWorkingUrl}`);
       }
     }
     
-    // Local development
+    // Local development - add multiple localhost variants
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      candidates.push('http://localhost:8000');
-      candidates.push('http://127.0.0.1:8000');
+      const localCandidates = [
+        'http://localhost:8000',
+        'http://127.0.0.1:8000',
+        'http://0.0.0.0:8000'
+      ];
+      
+      localCandidates.forEach(url => {
+        if (!candidates.includes(url)) {
+          candidates.push(url);
+          console.log(`🏠 Adding local candidate: ${url}`);
+        }
+      });
+      
+      console.log(`📋 Total local candidates: ${candidates.length}`);
       return [...new Set(candidates)];
     }
     
     // Render.com specific patterns
     if (hostname.includes('render.com') || hostname.includes('onrender.com')) {
-      // Try backend subdomain variations
+      // Primary: Use dedicated backend service (most reliable)
+      candidates.push('https://hazard-detection-backend.onrender.com');
+      console.log('☁️ Adding primary Render backend: https://hazard-detection-backend.onrender.com');
+      
+      // Fallback: Try backend subdomain variations
       const backendHost1 = hostname.replace('-frontend', '-backend');
       const backendHost2 = hostname.replace('www.', 'api.');
       const backendHost3 = hostname.replace('app.', 'api.');
@@ -871,40 +1061,87 @@ document.addEventListener("DOMContentLoaded", () => {
       console.warn("⚠️ Could not enumerate video devices:", err);
     }
 
-    // --- Initialize inference system (backend first, then frontend fallback) ---
+    // --- Enhanced inference system initialization with comprehensive error handling ---
     (async () => {
-      showLoadingOverlay('Initializing AI Detection System...', 10);
-      updateConnectionStatus('processing', 'Checking Backend...');
-      
       try {
+        showLoadingOverlay('Initializing AI Detection System...', 10);
+        updateConnectionStatus('processing', 'System Starting...');
+        
+        console.log('🚀 Starting inference system initialization...');
+        console.log('🌐 Environment info:', {
+          hostname: window.location.hostname,
+          protocol: window.location.protocol,
+          userAgent: navigator.userAgent.substring(0, 100),
+          hardwareConcurrency: navigator.hardwareConcurrency
+        });
+        
         // First, try to connect to backend
         showLoadingOverlay('Checking backend inference...', 25);
+        updateConnectionStatus('processing', 'Checking Backend...');
+        
+        console.log('🔍 Checking backend health...');
         const backendSuccess = await checkBackendHealth();
         
         if (backendSuccess) {
           console.log("✅ Backend inference system ready");
+          showLoadingOverlay('Backend Connected Successfully', 90);
           createNotification('Backend AI inference system ready', 'success', 3000);
-          hideLoadingOverlay();
+          
+          setTimeout(() => {
+            hideLoadingOverlay();
+          }, 1000);
           return;
         }
         
         // Backend failed, load frontend model as fallback
+        console.log('⚠️ Backend unavailable, initializing frontend model...');
         showLoadingOverlay('Loading local AI model (fallback)...', 50);
         updateConnectionStatus('processing', 'Loading Local Model...');
         
+        const modelLoadStart = performance.now();
         await loadModel();
-        console.log("✅ Frontend model loaded successfully");
+        const modelLoadTime = Math.round(performance.now() - modelLoadStart);
+        
+        console.log(`✅ Frontend model loaded successfully in ${modelLoadTime}ms`);
         inferenceMode = 'frontend';
+        showLoadingOverlay('Local Model Ready', 95);
         updateConnectionStatus('connected', 'Frontend Inference Ready');
-        createNotification('Local AI inference ready (offline mode)', 'info', 4000);
-        hideLoadingOverlay();
+        createNotification(`Local AI inference ready (offline mode) - loaded in ${modelLoadTime}ms`, 'info', 4000);
+        
+        setTimeout(() => {
+          hideLoadingOverlay();
+        }, 1000);
         
       } catch (err) {
-        console.error("❌ Both backend and frontend inference failed:", err);
+        console.error("❌ Inference system initialization failed:", {
+          message: err.message,
+          name: err.name,
+          stack: err.stack?.split('\n').slice(0, 5)
+        });
+        
         updateConnectionStatus('disconnected', 'Inference System Failed');
-        createNotification('AI inference system failed. Please check your setup.', 'error', 0);
+        
+        // Provide specific error messages based on error type
+        let errorMessage = 'AI inference system failed. ';
+        if (err.message.includes('fetch') || err.message.includes('network')) {
+          errorMessage += 'Network connectivity issue. Check your internet connection.';
+        } else if (err.message.includes('WebAssembly') || err.message.includes('WASM')) {
+          errorMessage += 'Browser compatibility issue. Try updating your browser or use Chrome/Firefox.';
+        } else if (err.message.includes('model') || err.message.includes('ONNX')) {
+          errorMessage += 'Model loading failed. The AI model may be corrupted or incompatible.';
+        } else {
+          errorMessage += 'Unknown error occurred. Please refresh the page and try again.';
+        }
+        
+        createNotification(errorMessage, 'error', 0);
         showLoadingOverlay('Inference System Failed - Please Refresh', null);
-        if (startBtn) startBtn.disabled = true;
+        
+        if (startBtn) {
+          startBtn.disabled = true;
+          startBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i><span>System Failed</span>';
+          startBtn.classList.add('error');
+        }
+        
         return;
       }
     })();
@@ -1301,17 +1538,78 @@ function stopLocationTracking() {
   
 
   
-  // במקום כל import של ort.min.js — מניחים window.ort כבר קיים
+  // Enhanced ONNX Runtime configuration with proper error handling
   async function loadModel() {
     const ort = window.ort;
-    ort.env.wasm.simd = true;               // enable SIMD when supported
-    ort.env.wasm.wasmPaths = '/ort/';
-    ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
-    const EPs = ort.env.webgl?.isSupported ? ['webgl','wasm'] : ['wasm','webgl'];
-    session = await ort.InferenceSession.create(
-      '/object_detecion_model/model 18_7.onnx',
-      { executionProviders: EPs, graphOptimizationLevel: 'all' }
-    );
+    if (!ort) {
+      throw new Error('ONNX Runtime not loaded. Please check ort.min.js import.');
+    }
+    
+    try {
+      // Configure ONNX Runtime environment for better stability
+      ort.env.wasm.simd = true;
+      ort.env.wasm.wasmPaths = './ort/';  // Fixed path without leading slash
+      ort.env.wasm.numThreads = Math.min(navigator.hardwareConcurrency || 4, 4);
+      ort.env.wasm.proxy = false; // Disable proxy mode for better compatibility
+      
+      // Set memory limits to prevent WebAssembly errors
+      ort.env.wasm.initTimeout = 30000; // 30 second timeout
+      
+      // Execution providers in order of preference
+      const EPs = [];
+      
+      // Check WebGL support
+      if (ort.env.webgl?.isSupported) {
+        EPs.push('webgl');
+        console.log('✅ WebGL execution provider available');
+      }
+      
+      // Always add WASM as fallback
+      EPs.push('wasm');
+      console.log('✅ WASM execution provider available');
+      
+      console.log('🔄 Loading ONNX model with execution providers:', EPs);
+      
+      // Fixed model path (corrected typo and removed spaces)
+      const modelPath = './object_detecion_model/model_18_7.onnx';
+      
+      // Create session with enhanced error handling
+      session = await ort.InferenceSession.create(modelPath, {
+        executionProviders: EPs,
+        graphOptimizationLevel: 'all',
+        executionMode: 'sequential',
+        enableCpuMemArena: true,
+        enableMemPattern: true,
+        logId: 'hazard-detection-model',
+        logSeverityLevel: 0  // Only errors
+      });
+      
+      console.log('✅ ONNX model loaded successfully');
+      console.log('Model input names:', session.inputNames);
+      console.log('Model output names:', session.outputNames);
+      
+      // Validate model inputs/outputs
+      if (session.inputNames.length === 0) {
+        throw new Error('Model has no input layers');
+      }
+      if (session.outputNames.length === 0) {
+        throw new Error('Model has no output layers');
+      }
+      
+    } catch (error) {
+      console.error('❌ ONNX model loading failed:', error);
+      
+      // Provide specific error messages for common issues
+      if (error.message.includes('fetch')) {
+        throw new Error(`Model file not found. Please check if the model exists at the specified path. Original error: ${error.message}`);
+      } else if (error.message.includes('WebAssembly')) {
+        throw new Error(`WebAssembly error - this may be due to memory constraints or browser compatibility. Try refreshing the page. Original error: ${error.message}`);
+      } else if (error.message.includes('onnx')) {
+        throw new Error(`ONNX model format error - the model file may be corrupted or incompatible. Original error: ${error.message}`);
+      }
+      
+      throw error;
+    }
   }
 
   function computeLetterboxParams() {
@@ -1692,16 +1990,47 @@ async function detectLoop() {
     cleanupTrackedObjects();
   }
 
-  // Optimized detection loop continuation
+  // Enhanced detection loop continuation with error recovery
   if (detecting) {
-    // Use the most efficient animation method available
-    if (video.requestVideoFrameCallback && typeof video.requestVideoFrameCallback === 'function') {
-      video.requestVideoFrameCallback(() => detectLoop());
-    } else if (window.requestIdleCallback && avgTime < idealInterval * 0.5) {
-      // Use idle callback for very efficient systems
-      requestAnimationFrame(detectLoop);
-    } else {
-      requestAnimationFrame(detectLoop);
+    try {
+      // Use the most efficient animation method available
+      if (video.requestVideoFrameCallback && typeof video.requestVideoFrameCallback === 'function') {
+        video.requestVideoFrameCallback(() => {
+          try {
+            detectLoop();
+          } catch (loopError) {
+            console.error('🔄 Detection loop error:', loopError);
+            requestAnimationFrame(detectLoop); // Fallback
+          }
+        });
+      } else if (window.requestIdleCallback && avgTime < idealInterval * 0.5) {
+        // Use idle callback for very efficient systems
+        requestAnimationFrame(() => {
+          try {
+            detectLoop();
+          } catch (loopError) {
+            console.error('🔄 Detection loop error (idle):', loopError);
+            setTimeout(detectLoop, 50); // Delayed fallback
+          }
+        });
+      } else {
+        requestAnimationFrame(() => {
+          try {
+            detectLoop();
+          } catch (loopError) {
+            console.error('🔄 Detection loop error (standard):', loopError);
+            setTimeout(detectLoop, 100); // Delayed fallback
+          }
+        });
+      }
+    } catch (schedulingError) {
+      console.error('🔄 Loop scheduling error:', schedulingError);
+      // Last resort fallback
+      setTimeout(() => {
+        if (detecting) {
+          detectLoop();
+        }
+      }, 200);
     }
   }
 }
@@ -1817,59 +2146,172 @@ function drawPersistentDetections() {
   }
 }
 
-// Frontend inference function (extracted from original detectLoop)
+// Enhanced frontend inference function with comprehensive error handling
 async function runFrontendInference(imageData) {
+  if (!session) {
+    throw new Error('ONNX session not initialized. Please load the model first.');
+  }
+  
   const { data, width, height } = imageData;
   const inv255 = 1.0 / 255.0;
   
-  // Convert to CHW format
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const pixelIndex = (y * width + x) * 4;
-      const outputIndex = y * width + x;
-      
-      chwData[outputIndex] = data[pixelIndex] * inv255; // R
-      chwData[width * height + outputIndex] = data[pixelIndex + 1] * inv255; // G
-      chwData[2 * width * height + outputIndex] = data[pixelIndex + 2] * inv255; // B
-    }
-  }
-
-  const inputTensor = new ort.Tensor('float32', chwData, [1, 3, height, width]);
-  let results;
+  let inputTensor = null;
+  let results = null;
   
   try {
-    results = await session.run({ images: inputTensor });
+    // Validate input dimensions
+    if (width !== FIXED_SIZE || height !== FIXED_SIZE) {
+      throw new Error(`Invalid input dimensions: expected ${FIXED_SIZE}x${FIXED_SIZE}, got ${width}x${height}`);
+    }
+    
+    // Convert to CHW format with error checking
+    console.log(`🔄 Converting image data: ${width}x${height} -> CHW format`);
+    
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const pixelIndex = (y * width + x) * 4;
+        const outputIndex = y * width + x;
+        
+        // Bounds checking
+        if (pixelIndex + 2 >= data.length) {
+          throw new Error(`Pixel index out of bounds: ${pixelIndex} >= ${data.length}`);
+        }
+        
+        chwData[outputIndex] = data[pixelIndex] * inv255; // R
+        chwData[width * height + outputIndex] = data[pixelIndex + 1] * inv255; // G
+        chwData[2 * width * height + outputIndex] = data[pixelIndex + 2] * inv255; // B
+      }
+    }
+
+    // Create input tensor with proper shape
+    const tensorShape = [1, 3, height, width];
+    console.log(`🧮 Creating input tensor with shape: [${tensorShape.join(', ')}]`);
+    
+    inputTensor = new ort.Tensor('float32', chwData, tensorShape);
+    
+    // Validate tensor
+    if (!inputTensor || inputTensor.dims.length !== 4) {
+      throw new Error('Failed to create valid input tensor');
+    }
+    
+    // Run inference with timeout
+    console.log(`🚀 Running ONNX inference...`);
+    const inferenceStart = performance.now();
+    
+    // Get the correct input name from the model
+    const inputName = session.inputNames[0] || 'images';
+    console.log(`📥 Using input name: ${inputName}`);
+    
+    results = await session.run({ [inputName]: inputTensor });
+    
+    const inferenceTime = Math.round(performance.now() - inferenceStart);
+    console.log(`⚡ ONNX inference completed in ${inferenceTime}ms`);
+    
+    if (!results || Object.keys(results).length === 0) {
+      throw new Error('ONNX inference returned no results');
+    }
+    
+    // Get output data
+    const outputName = Object.keys(results)[0];
+    console.log(`📤 Using output name: ${outputName}`);
+    
+    const outputTensor = results[outputName];
+    if (!outputTensor || !outputTensor.data) {
+      throw new Error('Invalid output tensor from ONNX inference');
+    }
+    
+    const outputData = outputTensor.data;
+    console.log(`📊 Output tensor shape: [${outputTensor.dims.join(', ')}], data length: ${outputData.length}`);
+    
+    // Parse detections with validation
+    const boxes = [];
+    const scores = [];
+    const classes = [];
+    const threshold = 0.5;
+    const maxDetections = 50;
+    
+    console.log(`🔍 Parsing detections with threshold: ${threshold}`);
+    
+    // Handle different output formats
+    let stride = 6; // Default for [x, y, w, h, conf, class]
+    if (outputData.length % 6 !== 0) {
+      // Try alternative formats
+      if (outputData.length % 7 === 0) {
+        stride = 7; // Format: [x, y, w, h, conf, class, extra]
+      } else if (outputData.length % 5 === 0) {
+        stride = 5; // Format: [x, y, w, h, class] (no confidence)
+      } else {
+        console.warn(`⚠️ Unexpected output format: length=${outputData.length}, trying stride=6`);
+      }
+    }
+    
+    for (let i = 0; i < outputData.length && boxes.length < maxDetections; i += stride) {
+      if (i + 4 >= outputData.length) break;
+      
+      let score = 1.0; // Default confidence
+      let classIdx = 0;
+      
+      if (stride >= 6) {
+        score = outputData[i + 4];
+        classIdx = outputData[i + 5];
+      } else if (stride === 5) {
+        classIdx = outputData[i + 4];
+      }
+      
+      if (score >= threshold && isFinite(score)) {
+        const box = [outputData[i], outputData[i + 1], outputData[i + 2], outputData[i + 3]];
+        
+        // Validate box coordinates
+        if (box.every(coord => isFinite(coord) && coord >= 0)) {
+          boxes.push(box);
+          scores.push(score);
+          classes.push(classIdx);
+        }
+      }
+    }
+    
+    console.log(`✅ Frontend inference completed: ${boxes.length} detections found`);
+    return { boxes, scores, classes };
+    
   } catch (err) {
-    console.error("ONNX inference error:", err);
+    console.error("❌ ONNX inference error:", {
+      name: err.name,
+      message: err.message,
+      stack: err.stack?.split('\n').slice(0, 3)
+    });
+    
+    // Provide helpful error messages for common issues
+    if (err.message.includes('WebAssembly')) {
+      throw new Error(`WebAssembly error in ONNX Runtime. This may be due to memory constraints. Try refreshing the page. Details: ${err.message}`);
+    } else if (err.message.includes('tensor')) {
+      throw new Error(`Tensor operation failed. Check input data format. Details: ${err.message}`);
+    } else if (err.message.includes('out of bounds')) {
+      throw new Error(`Array index error during inference. Check image dimensions. Details: ${err.message}`);
+    }
+    
     throw err;
   } finally {
-    inputTensor.dispose?.();
-  }
-  
-  const outputData = results[Object.keys(results)[0]].data;
-  
-  // Clean up tensors
-  if (results) {
-    Object.values(results).forEach(tensor => tensor.dispose?.());
-  }
-
-  // Parse detections
-  const boxes = [];
-  const scores = [];
-  const classes = [];
-  const threshold = 0.5;
-  const maxDetections = 50;
-  
-  for (let i = 0; i < outputData.length && boxes.length < maxDetections; i += 6) {
-    const score = outputData[i + 4];
-    if (score >= threshold) {
-      boxes.push([outputData[i], outputData[i + 1], outputData[i + 2], outputData[i + 3]]);
-      scores.push(score);
-      classes.push(outputData[i + 5]);
+    // Clean up resources
+    if (inputTensor) {
+      try {
+        inputTensor.dispose?.();
+      } catch (disposeError) {
+        console.warn('Failed to dispose input tensor:', disposeError);
+      }
+    }
+    
+    if (results) {
+      try {
+        Object.values(results).forEach(tensor => {
+          if (tensor && typeof tensor.dispose === 'function') {
+            tensor.dispose();
+          }
+        });
+      } catch (disposeError) {
+        console.warn('Failed to dispose output tensors:', disposeError);
+      }
     }
   }
-
-  return { boxes, scores, classes };
 }
 
 

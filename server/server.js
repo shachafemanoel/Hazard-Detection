@@ -45,7 +45,6 @@ cloudinary.config({
 const upload = multer();
 
 // 🚀 Initialize Express app
-// 🚀 Initialize Express app
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -86,7 +85,26 @@ app.use(
   
   /* ───── Core middleware ───── */
   app.use(cors({
-    origin: ['https://hazard-detection.onrender.com', 'http://localhost:3000'],
+    origin: function(origin, callback) {
+      // Allow requests with no origin (mobile apps, Postman, etc.)
+      if (!origin) return callback(null, true);
+      
+      // List of allowed origins
+      const allowedOrigins = [
+        'https://hazard-detection.onrender.com',
+        'http://localhost:3000',
+        'http://localhost:8000',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:8000'
+      ];
+      
+      // Check if the origin is in the allowed list or is a Render preview URL
+      if (allowedOrigins.includes(origin) || origin.includes('.onrender.com')) {
+        return callback(null, true);
+      }
+      
+      return callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with']
@@ -179,7 +197,7 @@ passport.serializeUser((user, done) => {
 passport.use(new GoogleStrategy({
     clientID:  process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.GOOGLE_CALLBACK_URL || "http://localhost:3000/auth/google/callback"
+    callbackURL: process.env.GOOGLE_CALLBACK_URL || `${process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000'}/auth/google/callback`
 
     },
     async (accessToken, refreshToken, profile, done) => {
@@ -756,20 +774,25 @@ app.get('/api/reports/:id', async (req, res) => {
 
 // הרצת השרת
 app.listen(port, '0.0.0.0', () => {
-    const networkInterfaces = os.networkInterfaces();
-    let localIp = 'localhost';
-    
-    for (const interfaceKey of Object.keys(networkInterfaces)) {
-      for (const net of networkInterfaces[interfaceKey]) {
-        if (net.family === 'IPv4' && !net.internal) {
-          localIp = net.address;
+    if (process.env.NODE_ENV === 'production') {
+        console.log(`✅ Server running in production on port ${port}`);
+        console.log(`✅ External URL: ${process.env.RENDER_EXTERNAL_URL || 'Not set'}`);
+    } else {
+        const networkInterfaces = os.networkInterfaces();
+        let localIp = 'localhost';
+        
+        for (const interfaceKey of Object.keys(networkInterfaces)) {
+          for (const net of networkInterfaces[interfaceKey]) {
+            if (net.family === 'IPv4' && !net.internal) {
+              localIp = net.address;
+            }
+          }
         }
-      }
+      
+        console.log(`✅ Server running locally: http://localhost:${port}`);
+        console.log(`✅ Server running on your network: http://${localIp}:${port}`);
     }
-  
-    console.log(`✅ Server running locally: http://localhost:${port}`);
-    console.log(`✅ Server running on your network: http://${localIp}:${port}`);
-  });
+});
 
 // To run the server in debug mode, execute in terminal:
 //   node --inspect server.js
@@ -906,7 +929,7 @@ app.post('/forgot-password', async (req, res) => {
     // שמירת הטוקן עם תוקף של 10 דקות
     await client.setEx(tokenKey, 600, userId); // 600 שניות = 10 דקות
 
-    const resetUrl = `https://hazard-detection.onrender.com/reset-password.html?token=${token}`;
+    const resetUrl = `${process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000'}/reset-password.html?token=${token}`;
 
     const message = {
         to: email,
