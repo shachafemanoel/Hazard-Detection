@@ -132,29 +132,72 @@ app.use(session({
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 // 🔌 Redis client
-const client = createClient({
-  username: 'default',
-  password: process.env.REDIS_PASSWORD, // מומלץ לשמור סיסמאות במשתני סביבה
-  socket: {
-    host: process.env.REDIS_HOST,
-    port: process.env.REDIS_PORT
-  }
-});
+let client = null;
+let redisConnected = false;
 
-let redisConnected = false; // דגל למעקב אחר מצב החיבור
-
-async function connectRedis() {
-    try {
-      await client.connect();
-      redisConnected = true;
-      console.log('✅ Connected to Redis');
-    } catch (err) {
-      redisConnected = false;
-      console.error('🔥 Failed to connect to Redis:', err);
-      // אולי תחליט להמתין ולטעון מחדש, או להריץ fallback
+async function initializeRedis() {
+  try {
+    // Check if Redis credentials are available
+    if (!process.env.REDIS_HOST || !process.env.REDIS_PASSWORD) {
+      console.log('⚠️ Redis credentials not available - running without Redis');
+      return;
     }
+
+    client = createClient({
+      username: process.env.REDIS_USERNAME || 'default',
+      password: process.env.REDIS_PASSWORD,
+      socket: {
+        host: process.env.REDIS_HOST,
+        port: parseInt(process.env.REDIS_PORT) || 6379,
+        connectTimeout: 10000,
+        lazyConnect: true
+      }
+    });
+
+    await client.connect();
+    redisConnected = true;
+    console.log('✅ Connected to Redis');
+  } catch (err) {
+    redisConnected = false;
+    console.error('🔥 Failed to connect to Redis:', err);
+    client = null;
   }
-connectRedis(); // קריאה לפונקציה בעת עליית השרת
+}
+
+// Initialize Redis connection
+initializeRedis();
+
+// Helper functions for safe Redis operations
+async function safeRedisGet(key) {
+  if (!client || !redisConnected) return null;
+  try {
+    return await client.get(key);
+  } catch (err) {
+    console.error(`Redis get error for key ${key}:`, err);
+    return null;
+  }
+}
+
+async function safeRedisSet(key, value, options = {}) {
+  if (!client || !redisConnected) return false;
+  try {
+    await client.set(key, value, options);
+    return true;
+  } catch (err) {
+    console.error(`Redis set error for key ${key}:`, err);
+    return false;
+  }
+}
+
+async function safeRedisKeys(pattern) {
+  if (!client || !redisConnected) return [];
+  try {
+    return await client.keys(pattern);
+  } catch (err) {
+    console.error(`Redis keys error for pattern ${pattern}:`, err);
+    return [];
+  }
+}
 
 
 passport.serializeUser((user, done) => {
@@ -164,16 +207,16 @@ passport.serializeUser((user, done) => {
   
   passport.deserializeUser(async (email, done) => {
     console.log('[Passport] Attempting to deserialize user:', email);
-    if (!redisConnected || !client.isOpen) { // בדיקה אם הלקוח מחובר ופתוח
-        console.error("❌ Redis client not connected or not open in deserializeUser.");
-        // חשוב להחזיר שגיאה ברורה כאן
-        return done(new Error("Redis client not available for deserialization"), null);
+    if (!client || !redisConnected || !client.isOpen) {
+        console.log("⚠️ Redis not available for user deserialization - using fallback");
+        // Fallback: create a minimal user object
+        return done(null, { email: email, type: 'user' });
     }
     try {
-      const keys = await client.keys('user:*');
+      const keys = await safeRedisKeys('user:*');
       console.log('[Passport] Found keys for deserialization:', keys.length);
       for (const key of keys) {
-        const userStr = await client.get(key);
+        const userStr = await safeRedisGet(key);
         if (userStr) {
             const user = JSON.parse(userStr);
             if (user.email === email) {
@@ -187,7 +230,7 @@ passport.serializeUser((user, done) => {
       console.log('[Passport] User not found for deserialization:', email);
       done(null, false);
     } catch (err) {
-      console.error("❌ Error in deserializeUser:", err);  // הוספת לוג
+      console.error("❌ Error in deserializeUser:", err);
       done(err, null);
     }
   });
@@ -197,7 +240,9 @@ passport.serializeUser((user, done) => {
 passport.use(new GoogleStrategy({
     clientID:  process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.GOOGLE_CALLBACK_URL || `${process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000'}/auth/google/callback`
+    callbackURL: process.env.NODE_ENV === 'production' 
+        ? 'https://hazard-detection-frontend.onrender.com/auth/google/callback'
+        : process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/auth/google/callback'
 
     },
     async (accessToken, refreshToken, profile, done) => {
