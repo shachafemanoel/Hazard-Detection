@@ -75,16 +75,17 @@ async function deployBackend(existingService = null) {
     console.log('🚀 Deploying backend service...');
     
     const serviceConfig = {
-        name: 'hazard-detection-backend',
         type: 'web_service',
-        ownerID: OWNER_ID,
+        name: 'hazard-detection-backend',
+        ownerId: OWNER_ID,
         serviceDetails: {
-            repo: 'https://github.com/NirelJano/Hazard-Detection.git',
+            name: 'hazard-detection-backend',
+            runtime: 'python',
+            repo: 'https://github.com/shachafemanoel/Hazard-Detection.git',
             branch: 'master',
             buildCommand: 'pip install -r requirements.txt',
             startCommand: 'cd server && python app.py',
             plan: 'starter',
-            env: 'python',
             envVars: [
                 { key: 'PYTHONPATH', value: '/opt/render/project/src/server' },
                 { key: 'PORT', value: '8000' },
@@ -117,16 +118,17 @@ async function deployFrontend(existingService = null) {
     console.log('🚀 Deploying frontend service...');
     
     const serviceConfig = {
-        name: 'hazard-detection-frontend',
         type: 'web_service',
-        ownerID: OWNER_ID,
+        name: 'hazard-detection-frontend',
+        ownerId: OWNER_ID,
         serviceDetails: {
-            repo: 'https://github.com/NirelJano/Hazard-Detection.git',
+            name: 'hazard-detection-frontend',
+            runtime: 'node',
+            repo: 'https://github.com/shachafemanoel/Hazard-Detection.git',
             branch: 'master',
             buildCommand: 'npm install',
             startCommand: 'npm start',
             plan: 'starter',
-            env: 'node',
             envVars: [
                 { key: 'NODE_ENV', value: 'production' },
                 { key: 'SESSION_SECRET', value: 'aVeryStrongAndRandomSecretKeyForYourSessionManagement123!@#$' },

@@ -15,6 +15,7 @@ from typing import Dict, List, Optional
 import math
 from collections import defaultdict
 import base64
+from api_connectors import api_manager, geocode_location, upload_detection_image, cache_detection_result
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -462,6 +463,9 @@ async def health_check():
         "mobile_friendly": True
     }
     
+    # Check external API connectivity
+    api_health = await api_manager.health_check()
+    
     return {
         "status": "healthy",
         "model_status": model_status,
@@ -470,11 +474,15 @@ async def health_check():
         "active_sessions": len(sessions),
         "device_info": device_info,
         "environment": env_info,
+        "api_connectors": api_health,
         "endpoints": {
             "session_start": "/session/start",
             "session_detect": "/detect/{session_id}",
             "legacy_detect": "/detect",
-            "batch_detect": "/detect-batch"
+            "batch_detect": "/detect-batch",
+            "api_health": "/api/health",
+            "geocode": "/api/geocode",
+            "reverse_geocode": "/api/reverse-geocode"
         }
     }
 
@@ -853,6 +861,90 @@ async def detect_hazards_legacy(file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"Legacy detection error: {e}")
         raise HTTPException(status_code=500, detail=f"Detection failed: {str(e)}")
+
+# API Connector Endpoints
+@app.get("/api/health")
+async def api_health_check():
+    """Check health of all external API services"""
+    try:
+        health_status = await api_manager.health_check()
+        return {
+            "success": True,
+            "services": health_status,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"API health check failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Health check failed: {str(e)}")
+
+@app.post("/api/geocode")
+async def geocode_address_endpoint(address: str):
+    """Geocode an address to coordinates"""
+    try:
+        response = await geocode_location(address)
+        if response.success:
+            return {
+                "success": True,
+                "data": response.data,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            raise HTTPException(status_code=400, detail=response.error)
+    except Exception as e:
+        logger.error(f"Geocoding failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Geocoding failed: {str(e)}")
+
+@app.post("/api/reverse-geocode")
+async def reverse_geocode_endpoint(lat: float, lng: float):
+    """Reverse geocode coordinates to address"""
+    try:
+        from api_connectors import reverse_geocode_location
+        response = await reverse_geocode_location(lat, lng)
+        if response.success:
+            return {
+                "success": True,
+                "data": response.data,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            raise HTTPException(status_code=400, detail=response.error)
+    except Exception as e:
+        logger.error(f"Reverse geocoding failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Reverse geocoding failed: {str(e)}")
+
+@app.post("/api/cache-detection")
+async def cache_detection_endpoint(detection_id: str, detection_data: dict):
+    """Cache detection result"""
+    try:
+        response = await cache_detection_result(detection_id, detection_data)
+        if response.success:
+            return {
+                "success": True,
+                "message": "Detection cached successfully",
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            raise HTTPException(status_code=400, detail=response.error)
+    except Exception as e:
+        logger.error(f"Caching failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Caching failed: {str(e)}")
+
+@app.get("/api/render/status")
+async def render_status():
+    """Get Render deployment status"""
+    try:
+        response = await api_manager.render.get_services()
+        if response.success:
+            return {
+                "success": True,
+                "services": response.data,
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            raise HTTPException(status_code=400, detail=response.error)
+    except Exception as e:
+        logger.error(f"Render status check failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Status check failed: {str(e)}")
 
 # Add main entry point for Render deployment
 if __name__ == "__main__":
