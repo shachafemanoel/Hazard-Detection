@@ -25,6 +25,16 @@ COPY . .
 ENV MODEL_DIR=/app/best_openvino_model
 ENV PYTHONPATH=/app
 
+# Debug: List files in working directory
+RUN ls -la /app
+
+# Debug: Check if app.py exists and is readable
+RUN test -f /app/app.py && echo "app.py found" || echo "app.py NOT found"
+
+# Debug: Try to import the module
+RUN python -c "import sys; print('Python path:', sys.path)" || true
+RUN python -c "import app; print('app module imported successfully')" || echo "Failed to import app module"
+
 # Expose port
 EXPOSE 8000
 
