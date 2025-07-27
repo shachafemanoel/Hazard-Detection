@@ -6,12 +6,12 @@
  * This script uses the Render API to deploy both frontend and backend services
  */
 
-import fetch from 'node-fetch';
 import fs from 'fs';
 import path from 'path';
 
 const RENDER_API_KEY = 'rnd_I7eVgXVX1Aln4TrRWVjhZviyv2X0';
 const RENDER_API_BASE = 'https://api.render.com/v1';
+const OWNER_ID = 'tea-cvohm79r0fns739nih30';
 
 // Helper function to make API calls
 async function renderAPI(endpoint, method = 'GET', data = null) {
@@ -77,17 +77,20 @@ async function deployBackend(existingService = null) {
     const serviceConfig = {
         name: 'hazard-detection-backend',
         type: 'web_service',
-        repo: 'https://github.com/shachafemanoel/Hazard-Detection.git',
-        branch: 'main', // or master
-        buildCommand: 'pip install -r requirements.txt',
-        startCommand: 'cd server && python app.py',
-        plan: 'free',
-        env: 'python',
-        envVars: [
-            { key: 'PYTHONPATH', value: '/opt/render/project/src/server' },
-            { key: 'PORT', value: '8000' },
-            { key: 'RENDER', value: 'true' }
-        ]
+        ownerID: OWNER_ID,
+        serviceDetails: {
+            repo: 'https://github.com/NirelJano/Hazard-Detection.git',
+            branch: 'master',
+            buildCommand: 'pip install -r requirements.txt',
+            startCommand: 'cd server && python app.py',
+            plan: 'starter',
+            env: 'python',
+            envVars: [
+                { key: 'PYTHONPATH', value: '/opt/render/project/src/server' },
+                { key: 'PORT', value: '8000' },
+                { key: 'RENDER', value: 'true' }
+            ]
+        }
     };
 
     try {
@@ -116,29 +119,32 @@ async function deployFrontend(existingService = null) {
     const serviceConfig = {
         name: 'hazard-detection-frontend',
         type: 'web_service',
-        repo: 'https://github.com/shachafemanoel/Hazard-Detection.git',
-        branch: 'main', // or master
-        buildCommand: 'npm install',
-        startCommand: 'npm start',
-        plan: 'free',
-        env: 'node',
-        envVars: [
-            { key: 'NODE_ENV', value: 'production' },
-            { key: 'SESSION_SECRET', value: 'aVeryStrongAndRandomSecretKeyForYourSessionManagement123!@#$' },
-            { key: 'GOOGLE_CLIENT_ID', value: '46375555882-rmivba20noas9slfskb3cfvugssladrr.apps.googleusercontent.com' },
-            { key: 'GOOGLE_CLIENT_SECRET', value: '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' },
-            { key: 'GOOGLE_CALLBACK_URL', value: 'https://hazard-detection-frontend.onrender.com/auth/google/callback' },
-            { key: 'SENDGRID_API_KEY', value: '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' },
-            { key: 'CLOUDINARY_CLOUD_NAME', value: 'dgn5da9f8' },
-            { key: 'CLOUDINARY_API_KEY', value: '688173149321172' },
-            { key: 'CLOUDINARY_API_SECRET', value: 'Mb_3IFGPoWA1_AM-XzOd6AH_Pyg' },
-            { key: 'REDIS_HOST', value: 'redis-13437.c44.us-east-1-2.ec2.redns.redis-cloud.com' },
-            { key: 'REDIS_PORT', value: '13437' },
-            { key: 'REDIS_USERNAME', value: 'default' },
-            { key: 'REDIS_PASSWORD', value: 'e7uFJGU10TYEVhTJFoOkyPog0fBMhJMG' },
-            { key: 'GOOGLE_GEOCODING_API_KEY', value: 'AIzaSyAJ4073PjQ5koFcU9O3WCt8IsK43NNMPcc' },
-            { key: 'GOOGLE_MAPS_API_KEY', value: 'AIzaSyAJ4073PjQ5koFcU9O3WCt8IsK43NNMPcc' }
-        ]
+        ownerID: OWNER_ID,
+        serviceDetails: {
+            repo: 'https://github.com/NirelJano/Hazard-Detection.git',
+            branch: 'master',
+            buildCommand: 'npm install',
+            startCommand: 'npm start',
+            plan: 'starter',
+            env: 'node',
+            envVars: [
+                { key: 'NODE_ENV', value: 'production' },
+                { key: 'SESSION_SECRET', value: 'aVeryStrongAndRandomSecretKeyForYourSessionManagement123!@#$' },
+                { key: 'GOOGLE_CLIENT_ID', value: '46375555882-rmivba20noas9slfskb3cfvugssladrr.apps.googleusercontent.com' },
+                { key: 'GOOGLE_CLIENT_SECRET', value: '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' },
+                { key: 'GOOGLE_CALLBACK_URL', value: 'https://hazard-detection-frontend.onrender.com/auth/google/callback' },
+                { key: 'SENDGRID_API_KEY', value: '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' },
+                { key: 'CLOUDINARY_CLOUD_NAME', value: 'dgn5da9f8' },
+                { key: 'CLOUDINARY_API_KEY', value: '688173149321172' },
+                { key: 'CLOUDINARY_API_SECRET', value: 'Mb_3IFGPoWA1_AM-XzOd6AH_Pyg' },
+                { key: 'REDIS_HOST', value: 'redis-13437.c44.us-east-1-2.ec2.redns.redis-cloud.com' },
+                { key: 'REDIS_PORT', value: '13437' },
+                { key: 'REDIS_USERNAME', value: 'default' },
+                { key: 'REDIS_PASSWORD', value: 'e7uFJGU10TYEVhTJFoOkyPog0fBMhJMG' },
+                { key: 'GOOGLE_GEOCODING_API_KEY', value: 'AIzaSyAJ4073PjQ5koFcU9O3WCt8IsK43NNMPcc' },
+                { key: 'GOOGLE_MAPS_API_KEY', value: 'AIzaSyAJ4073PjQ5koFcU9O3WCt8IsK43NNMPcc' }
+            ]
+        }
     };
 
     try {
