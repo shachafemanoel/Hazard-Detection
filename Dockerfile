@@ -1,30 +1,41 @@
-FROM node:18
+# —— Build stage —— 
+FROM node:20-alpine AS builder
+
 WORKDIR /app
 
-# build tools for native deps
-RUN apt-get update && \
-    apt-get install -y python3 make g++ curl && \
-    rm -rf /var/lib/apt/lists/*
+# 1) העתק את כל התיקיות
+COPY frontend/ ./frontend/
+COPY server/   ./server/
+COPY api/      ./api/
 
-# הגדרת משתני סביבה לonnxruntime
-ENV npm_config_onnxruntime_binary_platform=linux-x64
-ENV npm_config_build_from_source=true
-ENV npm_config_target_arch=x64
-ENV npm_config_target_platform=linux
-ENV NODE_ENV=production
-ENV npm_config_onnxruntime_node_gpu=0
+# 2) התקן תלויות Node ל-Express (server)
+WORKDIR /app/server
+COPY server/package*.json ./
+RUN npm ci --omit=dev
 
-# התקנת תלויות
-COPY package*.json ./
-RUN npm cache clean --force && \
-    npm install --no-optional --production --unsafe-perm
+# 3) התקן תלויות Python ל-FastAPI (api)
+WORKDIR /app/api
+COPY api/requirements.txt ./
+RUN apk add --no-cache python3 py3-pip build-base \
+  && pip3 install --no-cache-dir -r requirements.txt
 
-# העתקת המודל
-COPY public/object_detecion_model/road_damage_detection_last_version.onnx \
-     public/object_detecion_model/road_damage_detection_last_version.onnx
+# —— Runtime stage —— 
+FROM node:20-alpine
 
-# שאר הקוד
-COPY . .
+WORKDIR /app
 
+# העתק מה-builder
+COPY --from=builder /app/server ./server
+COPY --from=builder /app/api    ./api
+COPY --from=builder /app/frontend ./frontend
+
+# התקן פרוקסי להרצת שני התהליכים יחד
+WORKDIR /app/server
+RUN npm install --production npm-run-all http-proxy-middleware
+
+# חשוף את פורט Railway יקשיב לו
+ENV PORT=3000
 EXPOSE 3000
-CMD ["npm", "start"]
+
+# הרץ במקביל FastAPI על 8001 ו־Express על 3000
+CMD ["sh","-c","npm run start:api & npm run start:web"]
