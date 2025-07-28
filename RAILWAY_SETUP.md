@@ -15,7 +15,7 @@ Go to [Railway](https://railway.app) and create a new project.
 #### For API Service:
 ```bash
 # Required environment variables
-MODEL_DIR=/app/best_openvino_model
+MODEL_DIR=/app/api/best_openvino_model
 REDIS_URL=redis://redis:6379  # Will be provided by Railway Redis service
 PYTHONPATH=/app
 PORT=8000  # Railway will override this

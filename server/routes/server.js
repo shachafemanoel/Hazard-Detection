@@ -1,7 +1,19 @@
 // 📦 External dependencies
 import express from 'express';
 import session from 'express-session';
-import connectRedis from 'connect-redis';
+import { createRequire } from 'module';
+
+// Some environments bundle different versions of connect-redis. Use createRequire
+// so we can support both CommonJS and ESM variants gracefully.
+const require = createRequire(import.meta.url);
+let connectRedis;
+try {
+  const pkg = require('connect-redis');
+  connectRedis = pkg.default || pkg;
+} catch (err) {
+  console.warn('⚠️ connect-redis module not found or incompatible:', err.message);
+  connectRedis = null;
+}
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import dotenv from 'dotenv';
@@ -132,7 +144,7 @@ app.use('/api/v1', createProxyMiddleware({
 let client = null;
 let redisConnected = false;
 
-if (process.env.REDIS_HOST && process.env.REDIS_PASSWORD) {
+if (process.env.REDIS_HOST && process.env.REDIS_PASSWORD && connectRedis) {
     const RedisStore = connectRedis(session);
     client = createClient({
         username: process.env.REDIS_USERNAME || 'default',
@@ -168,7 +180,7 @@ if (process.env.REDIS_HOST && process.env.REDIS_PASSWORD) {
         proxy: process.env.NODE_ENV === 'production'
     }));
 } else {
-    console.log('⚠️ Redis credentials not available - using MemoryStore for sessions');
+    console.log('⚠️ Redis not configured or connect-redis unavailable - using MemoryStore for sessions');
     app.use(session({
         secret: process.env.SESSION_SECRET || 'your-secret-key',
         resave: false,
