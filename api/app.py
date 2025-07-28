@@ -161,10 +161,22 @@ async def load_model():
         output_layer = compiled_model.output(0)
         
         logger.info(f"✅ OpenVINO model loaded successfully")
-        logger.info(f"Input layer name: {input_layer.any_name}")
+        
+        # Safely get layer names (some models don't have named tensors)
+        try:
+            input_name = input_layer.any_name
+        except:
+            input_name = f"input_{input_layer.get_index()}"
+            
+        try:
+            output_name = output_layer.any_name
+        except:
+            output_name = f"output_{output_layer.get_index()}"
+        
+        logger.info(f"Input layer name: {input_name}")
         logger.info(f"Input shape: {input_layer.shape}")
         logger.info(f"Input type: {input_layer.element_type}")
-        logger.info(f"Output layer name: {output_layer.any_name}")
+        logger.info(f"Output layer name: {output_name}")
         logger.info(f"Output shape: {output_layer.shape}")
         logger.info(f"Output type: {output_layer.element_type}")
         
