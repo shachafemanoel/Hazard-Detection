@@ -6,7 +6,9 @@ WORKDIR /app
 
 # Install Node.js dependencies
 COPY package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+# Use npm install instead of npm ci to avoid failures when package-lock.json
+# is not in sync with package.json (e.g., when adding new dependencies)
+RUN npm install --omit=dev && npm cache clean --force
 
 # Stage 2: Python Builder
 FROM python:3.10-slim AS python-builder
