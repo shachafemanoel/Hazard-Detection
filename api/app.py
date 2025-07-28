@@ -134,14 +134,20 @@ async def load_model():
             logger.info(f"{device}: {device_name}")
         
         # Load model from XML file
-        model_path = "best_openvino_model/best.xml"
+        import os
+        model_dir = os.getenv('MODEL_DIR', 'api/best_openvino_model')
+        model_path = os.path.join(model_dir, "best.xml")
         logger.info(f"Reading model from: {model_path}")
         
         # Check if model file exists
-        import os
         if not os.path.exists(model_path):
             logger.warning(f"Model file not found at {model_path}. API will run in health-check only mode.")
             logger.info("To enable AI inference, upload the model files to the deployment.")
+            logger.info(f"Checked paths: {model_path}")
+            logger.info(f"Current working directory: {os.getcwd()}")
+            logger.info(f"Directory contents: {os.listdir('.')}")
+            if os.path.exists('api'):
+                logger.info(f"API directory contents: {os.listdir('api/')}")
             return
         
         model = core.read_model(model=model_path)
@@ -157,7 +163,7 @@ async def load_model():
         config = {}
         if CACHE_ENABLED:
             import os
-            cache_dir = "best_openvino_model/cache"
+            cache_dir = os.path.join(model_dir, "cache")
             os.makedirs(cache_dir, exist_ok=True)
             config["CACHE_DIR"] = cache_dir
             logger.info(f"Model caching enabled: {cache_dir}")
@@ -462,7 +468,7 @@ async def health_check():
                 "device": DEVICE_NAME,
                 "input_shape": list(input_layer.shape),
                 "output_shape": list(output_layer.shape),
-                "model_path": "best_openvino_model/best.xml",
+                "model_path": os.path.join(os.getenv('MODEL_DIR', 'api/best_openvino_model'), "best.xml"),
                 "cache_enabled": CACHE_ENABLED
             }
         except Exception as e:
