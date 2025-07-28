@@ -1,0 +1,16 @@
+path: /Users/shachafemanoel/Documents/Hazard-Detection/public/object_detecion_model/dashcamera
+train: images/train
+val: images/val
+test: images/test
+nc: 10
+names:
+  - Alligator Crack
+  - Block Crack
+  - Crosswalk Blur
+  - Lane Blur
+  - Longitudinal Crack
+  - Manhole
+  - Patch Repair
+  - Pothole
+  - Transverse Crack
+  - Wheel Mark Crack
