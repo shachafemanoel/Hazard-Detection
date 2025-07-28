@@ -27,5 +27,5 @@ ENV PYTHONPATH=/app
 # Expose port
 EXPOSE 8000
 
-# Start the application
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start the application (Railway uses PORT environment variable)
+CMD ["sh", "-c", "uvicorn app:app --host 0.0.0.0 --port ${PORT:-8000}"]

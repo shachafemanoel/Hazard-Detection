@@ -11,8 +11,7 @@ RUN npm install --omit=dev
 COPY server/ ./
 COPY public/ ./public/
 
-# Set environment variables
-ENV PORT=3000
+# Set environment variables (Railway will override PORT)
 ENV NODE_ENV=production
 
 # Expose port

@@ -1,0 +1,54 @@
+#! api-deployment.yaml
+# Generated code, do not edit
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+    name: api
+    namespace: hazard-detection
+    labels:
+        com.docker.compose.project: hazard-detection
+        com.docker.compose.service: api
+spec:
+    replicas: 1
+    selector:
+        matchLabels:
+            com.docker.compose.project: hazard-detection
+            com.docker.compose.service: api
+    strategy:
+        type: Recreate
+    template:
+        metadata:
+            labels:
+                com.docker.compose.project: hazard-detection
+                com.docker.compose.service: api
+                com.docker.compose.network.default: "true"
+        spec:
+            restartPolicy: unless-stopped
+            containers:
+                - name: api
+                  image: hazard-detection-api
+                  imagePullPolicy: IfNotPresent
+                  env:
+                    - name: MODEL_DIR
+                      value: "/app/best_openvino_model"
+                    - name: REDIS_URL
+                      value: "redis://redis:6379"
+                  livenessProbe:
+                    exec:
+                        command: ['curl -f http://localhost:8000/health']
+                    periodSeconds: 30
+                    initialDelaySeconds: 40
+                    timeoutSeconds: 10
+                    failureThreshold: 3
+                  ports:
+                    - name: api-8000
+                      containerPort: 8000
+                  volumeMounts:
+                    - name: app-best-openvino-model
+                      mountPath: /app/best_openvino_model
+                      readOnly: true
+            volumes:
+                - name: app-best-openvino-model
+                  hostPath:
+                    path: /Users/shachafemanoel/Documents/Hazard-Detection/api/best_openvino_model
+                  readOnly: true
