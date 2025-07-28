@@ -15,7 +15,7 @@ from typing import Dict, List, Optional
 import math
 from collections import defaultdict
 import base64
-from api_connectors import api_manager, geocode_location, upload_detection_image, cache_detection_result
+from api.api_connectors import api_manager, geocode_location, upload_detection_image, cache_detection_result
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -27,14 +27,12 @@ app = FastAPI(title="Hazard Detection Backend", version="1.0.0")
 import os
 
 # Determine allowed origins based on environment
-if os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RENDER"):
-    # Production on Railway or Render
+if os.getenv("RENDER"):
+    # Production on Render
     allowed_origins = [
-        "https://hazard-detection-production.up.railway.app",
         os.getenv("RENDER_EXTERNAL_URL", "https://hazard-detection.onrender.com"),
         "https://hazard-detection.onrender.com",
-        "https://*.onrender.com",
-        "https://*.railway.app"
+        "https://*.onrender.com"
     ]
     allow_credentials = True
 else:
@@ -125,16 +123,8 @@ async def load_model():
             device_name = core.get_property(device, props.device.full_name)
             logger.info(f"{device}: {device_name}")
         
-        # Try to load model from XML file
+        # Load model from XML file
         model_path = "best_openvino_model/best.xml"
-        logger.info(f"Checking for model at: {model_path}")
-        
-        import os
-        if not os.path.exists(model_path):
-            logger.warning(f"Model file not found at {model_path}. API will run in health-check only mode.")
-            logger.info("To enable AI inference, upload the model files to the deployment.")
-            return
-        
         logger.info(f"Reading model from: {model_path}")
         model = core.read_model(model=model_path)
         
@@ -163,22 +153,10 @@ async def load_model():
         output_layer = compiled_model.output(0)
         
         logger.info(f"✅ OpenVINO model loaded successfully")
-        
-        # Safely get layer names (some models don't have named tensors)
-        try:
-            input_name = input_layer.any_name
-        except:
-            input_name = f"input_{input_layer.get_index()}"
-            
-        try:
-            output_name = output_layer.any_name
-        except:
-            output_name = f"output_{output_layer.get_index()}"
-        
-        logger.info(f"Input layer name: {input_name}")
+        logger.info(f"Input layer name: {input_layer.any_name}")
         logger.info(f"Input shape: {input_layer.shape}")
         logger.info(f"Input type: {input_layer.element_type}")
-        logger.info(f"Output layer name: {output_name}")
+        logger.info(f"Output layer name: {output_layer.any_name}")
         logger.info(f"Output shape: {output_layer.shape}")
         logger.info(f"Output type: {output_layer.element_type}")
         
