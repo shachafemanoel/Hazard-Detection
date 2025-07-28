@@ -164,14 +164,19 @@ saveBtn.addEventListener("click", () => {
   const FIXED_SIZE =640;
 
   // רשימת המחלקות
-  ;
+  const classNames = [
+    'crack',
+    'knocked', 
+    'pothole',
+    'surface_damage'
+  ];
   let session = null;
   
   ort.env.wasm.wasmPaths = '/ort/';  
 
   try {
     session = await ort.InferenceSession.create(
-      'objec§t_detecion_model/model 18_7.onnx',
+      'object_detecion_model/road_damage_detection_simplified.onnx',
       { executionProviders: ['cpu'] }
     );
     
