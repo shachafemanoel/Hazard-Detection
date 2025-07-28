@@ -133,11 +133,13 @@ async def load_model():
             device_name = core.get_property(device, props.device.full_name)
             logger.info(f"{device}: {device_name}")
         
-        # Load model from XML file
+        # Load model from XML file  
         import os
         model_dir = os.getenv('MODEL_DIR', 'api/best_openvino_model')
         model_path = os.path.join(model_dir, "best.xml")
-        logger.info(f"Reading model from: {model_path}")
+        logger.info(f"🔍 MODEL_DIR environment variable: {os.getenv('MODEL_DIR', 'NOT SET')}")
+        logger.info(f"🎯 Resolved model directory: {model_dir}")
+        logger.info(f"📄 Reading model from: {model_path}")
         
         # Check if model file exists
         if not os.path.exists(model_path):
