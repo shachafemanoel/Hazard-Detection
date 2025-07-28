@@ -115,19 +115,20 @@ else:
 
 // Check OpenVINO model files
 function checkModelFiles() {
-    const modelXml = join(process.cwd(), 'server', 'best_openvino_model', 'best.xml');
-    const modelBin = join(process.cwd(), 'server', 'best_openvino_model', 'best.bin');
+    const modelXml = join(process.cwd(), 'api', 'best_openvino_model', 'best.xml');
+    const modelBin = join(process.cwd(), 'api', 'best_openvino_model', 'best.bin');
     
     console.log('\\n🤖 Checking OpenVINO model files...');
     
     if (existsSync(modelXml) && existsSync(modelBin)) {
         console.log('✅ OpenVINO model files found:');
-        console.log('   - best.xml');
-        console.log('   - best.bin');
+        console.log('   - api/best_openvino_model/best.xml');
+        console.log('   - api/best_openvino_model/best.bin');
         return true;
     } else {
-        console.log('❌ OpenVINO model files not found in server/best_openvino_model/');
-        console.log('   Expected: best.xml and best.bin');
+        console.log('❌ OpenVINO model files not found in api/best_openvino_model/');
+        console.log('   Expected: api/best_openvino_model/best.xml and api/best_openvino_model/best.bin');
+        console.log('   Please ensure the model files are in the correct location.');
         return false;
     }
 }

@@ -44,8 +44,8 @@ start_web() {
     cd /app
     
     # Check if web service requirements are met
-    if [ ! -f "server/server.js" ]; then
-        echo "❌ Web server.js not found"
+    if [ ! -f "server/routes/server.js" ]; then
+        echo "❌ Web server.js not found at server/routes/server.js"
         return 1
     fi
     

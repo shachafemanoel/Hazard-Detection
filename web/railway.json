@@ -6,7 +6,7 @@
   },
   "deploy": {
     "numReplicas": 1,
-    "startCommand": "node server.js",
+    "startCommand": "node routes/server.js",
     "healthcheckPath": "/",
     "healthcheckTimeout": 300
   }

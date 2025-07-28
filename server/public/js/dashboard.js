@@ -2441,7 +2441,7 @@ function showDesktopNotification({ title, body, report, onClick }) {
     if (!canShowDesktopNotification()) return;
     const notification = new Notification(title, {
         body: body,
-        icon: '/public/icon.png', // Use your app icon
+        icon: '/icon.png', // Use your app icon
         tag: report && report.id ? `report-${report.id}` : undefined
     });
     notification.onclick = function(event) {
