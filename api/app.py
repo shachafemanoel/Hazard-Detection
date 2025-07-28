@@ -136,6 +136,14 @@ async def load_model():
         # Load model from XML file
         model_path = "best_openvino_model/best.xml"
         logger.info(f"Reading model from: {model_path}")
+        
+        # Check if model file exists
+        import os
+        if not os.path.exists(model_path):
+            logger.warning(f"Model file not found at {model_path}. API will run in health-check only mode.")
+            logger.info("To enable AI inference, upload the model files to the deployment.")
+            return
+        
         model = core.read_model(model=model_path)
         
         # Handle dynamic input shapes - set to standard YOLO size
@@ -172,7 +180,8 @@ async def load_model():
         
     except Exception as e:
         logger.error(f"❌ Failed to load OpenVINO model: {e}")
-        raise e
+        logger.warning("API will continue to run in health-check only mode without AI inference")
+        # Don't raise the exception - allow API to start without model
 
 @app.get("/")
 async def root():
