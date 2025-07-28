@@ -121,6 +121,14 @@ MIN_CONFIDENCE_FOR_REPORT = 0.6
 async def load_model():
     global core, compiled_model, input_layer, output_layer
     try:
+        print("🚀 FASTAPI STARTUP - Model loading begins...")
+        print(f"🔍 Current working directory: {os.getcwd()}")
+        print(f"🌍 MODEL_DIR environment: {os.getenv('MODEL_DIR', 'NOT SET')}")
+        import os
+        if os.path.exists('.'):
+            print(f"📁 Root directory contents: {os.listdir('.')}")
+        if os.path.exists('api'):
+            print(f"📁 API directory contents: {os.listdir('api')}")
         logger.info("Initializing OpenVINO Runtime...")
         
         # Initialize OpenVINO Core
