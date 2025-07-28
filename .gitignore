@@ -17,15 +17,12 @@ yarn-error.log*
 *.swp
 *.swo
 
-# Model files and datasets
-*.pt
-*.pb
+# Model files and datasets (keep essential models, exclude training data)
 *.npy
 *.h5
 *.tflite
 *.keras
 *.weights
-*.bin
 calibration_image_sample_data*
 
 # Images and media files
@@ -47,15 +44,9 @@ calibration_image_sample_data*
 api/venv/
 venv/
 
-# Large model files (exclude from deployment)
-api/best_openvino_model/
-server/best_openvino_model/
-public/object_detecion_model/*.pt
-public/object_detecion_model/*.pb
-public/object_detecion_model/*.onnx
-server/public/object_detecion_model/*.pt
-server/public/object_detecion_model/*.pb
-server/public/object_detecion_model/*.onnx
+# Keep OpenVINO models for deployment
+# api/best_openvino_model/ - now included
+# server/best_openvino_model/ - now included
 
 # Logs
 server/server.log
