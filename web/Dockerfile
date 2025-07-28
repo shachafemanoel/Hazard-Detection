@@ -15,7 +15,7 @@ COPY public/ ./public/
 ENV NODE_ENV=production
 
 # Expose port
-EXPOSE 3000
+EXPOSE 8080
 
 # Start the application
 CMD ["node", "routes/server.js"]

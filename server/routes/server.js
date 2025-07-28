@@ -60,7 +60,7 @@ const upload = multer();
 
 // 🚀 Initialize Express app
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 8080;
 
 // Serving static files from the "public" directory
 // Make sure to set index: false to prevent serving index.html by default
@@ -109,8 +109,10 @@ app.use(
         'https://hazard-detection-production.up.railway.app',
         'http://localhost:3000',
         'http://localhost:8000',
+        'http://localhost:8080',
         'http://127.0.0.1:3000',
-        'http://127.0.0.1:8000'
+        'http://127.0.0.1:8000',
+        'http://127.0.0.1:8080'
       ];
       
       // Check if the origin is in the allowed list or is Railway/Render URL
@@ -128,7 +130,7 @@ app.use(
 app.use(express.json());
 
 // 🔗 Proxy FastAPI requests to backend
-const API_URL = process.env.API_URL || 'http://localhost:8001';
+const API_URL = process.env.API_URL || 'http://localhost:8000';
 app.use('/api/v1', createProxyMiddleware({
     target: API_URL,
     changeOrigin: true,

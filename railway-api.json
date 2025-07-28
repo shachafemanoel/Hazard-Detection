@@ -13,6 +13,7 @@
   },
   "variables": {
     "MODEL_DIR": "/app/best_openvino_model",
-    "PYTHONPATH": "/app"
+    "PYTHONPATH": "/app",
+    "PORT": "8000"
   }
 }
