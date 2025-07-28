@@ -15,7 +15,17 @@ from typing import Dict, List, Optional
 import math
 from collections import defaultdict
 import base64
-from api.api_connectors import api_manager, geocode_location, upload_detection_image, cache_detection_result
+try:
+    from api.api_connectors import api_manager, geocode_location, upload_detection_image, cache_detection_result
+except ImportError:
+    try:
+        from api_connectors import api_manager, geocode_location, upload_detection_image, cache_detection_result
+    except ImportError:
+        logger.warning("api_connectors module not found, running in basic mode")
+        api_manager = None
+        geocode_location = None
+        upload_detection_image = None  
+        cache_detection_result = None
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
