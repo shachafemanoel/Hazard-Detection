@@ -109,7 +109,14 @@ sleep 5
 # Start Express server on PORT (default 3000)
 echo "🌐 Starting Express server on port \${PORT:-3000}..."
 cd /app/server/routes
-node server.js &
+if [ -f "server.js" ]; then
+    node server.js &
+else
+    echo "❌ server.js not found in $(pwd)"
+    echo "📁 Available files:"
+    ls -la
+    exit 1
+fi
 WEB_PID=\$!
 
 echo "✅ Both services started successfully!"
