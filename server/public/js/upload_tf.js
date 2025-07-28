@@ -453,7 +453,7 @@ document.addEventListener("DOMContentLoaded", () => {
       },
       frontend: {
         sessionLoaded: !!session,
-        modelPath: './object_detecion_model/model_18_7.onnx'
+        modelPath: './object_detecion_model/model 18_7.onnx'
       },
       performance: {
         currentFps: currentFps,
@@ -478,7 +478,7 @@ document.addEventListener("DOMContentLoaded", () => {
     
     // Test model file accessibility
     try {
-      const modelResponse = await fetch('./object_detecion_model/model_18_7.onnx', { method: 'HEAD' });
+      const modelResponse = await fetch('./object_detecion_model/model 18_7.onnx', { method: 'HEAD' });
       diagnostics.frontend.modelAccessible = modelResponse.ok;
       diagnostics.frontend.modelSize = modelResponse.headers.get('content-length');
     } catch (modelError) {
@@ -1602,7 +1602,7 @@ function stopLocationTracking() {
       
       console.log('🔄 Loading ONNX model with execution providers:', EPs);
       
-      // Fixed model path (corrected typo and removed spaces)
+      // Fixed model path (using model 18_7.onnx)
       const modelPath = 'object_detecion_model/model 18_7.onnx';
       
       // Create session with enhanced error handling

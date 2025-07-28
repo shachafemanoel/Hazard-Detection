@@ -124,7 +124,6 @@ async def load_model():
         print("🚀 FASTAPI STARTUP - Model loading begins...")
         print(f"🔍 Current working directory: {os.getcwd()}")
         print(f"🌍 MODEL_DIR environment: {os.getenv('MODEL_DIR', 'NOT SET')}")
-        import os
         if os.path.exists('.'):
             print(f"📁 Root directory contents: {os.listdir('.')}")
         if os.path.exists('api'):
@@ -141,8 +140,7 @@ async def load_model():
             device_name = core.get_property(device, props.device.full_name)
             logger.info(f"{device}: {device_name}")
         
-        # Load model from XML file  
-        import os
+        # Load model from XML file
         model_dir = os.getenv('MODEL_DIR', 'api/best_openvino_model')
         model_path = os.path.join(model_dir, "best.xml")
         logger.info(f"🔍 MODEL_DIR environment variable: {os.getenv('MODEL_DIR', 'NOT SET')}")
@@ -172,7 +170,6 @@ async def load_model():
         # Enable model caching for faster subsequent loads
         config = {}
         if CACHE_ENABLED:
-            import os
             cache_dir = os.path.join(model_dir, "cache")
             os.makedirs(cache_dir, exist_ok=True)
             config["CACHE_DIR"] = cache_dir
@@ -186,11 +183,16 @@ async def load_model():
         input_layer = compiled_model.input(0)
         output_layer = compiled_model.output(0)
         
-        logger.info(f"✅ OpenVINO model loaded successfully")
+        logger.info("✅ OpenVINO model loaded successfully")
         logger.info(f"Input layer name: {input_layer.any_name}")
         logger.info(f"Input shape: {input_layer.shape}")
         logger.info(f"Input type: {input_layer.element_type}")
-        logger.info(f"Output layer name: {output_layer.any_name}")
+        try:
+            output_name = output_layer.any_name
+        except Exception:
+            output_name = "unnamed"
+            logger.warning("Output tensor has no name")
+        logger.info(f"Output layer name: {output_name}")
         logger.info(f"Output shape: {output_layer.shape}")
         logger.info(f"Output type: {output_layer.element_type}")
         
@@ -485,7 +487,6 @@ async def health_check():
             logger.warning(f"Could not get model info: {e}")
     
     # Get server environment info for mobile debugging
-    import os
     import platform
     
     env_info = {

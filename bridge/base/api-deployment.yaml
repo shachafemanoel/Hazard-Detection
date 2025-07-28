@@ -30,7 +30,7 @@ spec:
                   imagePullPolicy: IfNotPresent
                   env:
                     - name: MODEL_DIR
-                      value: "/app/best_openvino_model"
+                      value: "/app/api/best_openvino_model"
                     - name: REDIS_URL
                       value: "redis://redis:6379"
                   livenessProbe:
@@ -45,7 +45,7 @@ spec:
                       containerPort: 8000
                   volumeMounts:
                     - name: app-best-openvino-model
-                      mountPath: /app/best_openvino_model
+                      mountPath: /app/api/best_openvino_model
                       readOnly: true
             volumes:
                 - name: app-best-openvino-model

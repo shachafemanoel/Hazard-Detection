@@ -175,8 +175,9 @@ saveBtn.addEventListener("click", () => {
   ort.env.wasm.wasmPaths = '/ort/';  
 
   try {
+    // Load the same ONNX model used in the server version
     session = await ort.InferenceSession.create(
-      'object_detecion_model/road_damage_detection_simplified.onnx',
+      'object_detecion_model/model 18_7.onnx',
       { executionProviders: ['cpu'] }
     );
     

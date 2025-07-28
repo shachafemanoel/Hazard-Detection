@@ -1,6 +1,19 @@
 // 📦 External dependencies
 import express from 'express';
 import session from 'express-session';
+import { createRequire } from 'module';
+
+// Some environments bundle different versions of connect-redis. Use createRequire
+// so we can support both CommonJS and ESM variants gracefully.
+const require = createRequire(import.meta.url);
+let connectRedis;
+try {
+  const pkg = require('connect-redis');
+  connectRedis = pkg.default || pkg;
+} catch (err) {
+  console.warn('⚠️ connect-redis module not found or incompatible:', err.message);
+  connectRedis = null;
+}
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import dotenv from 'dotenv';
@@ -128,61 +141,65 @@ app.use('/api/v1', createProxyMiddleware({
     }
 }));
 
-app.use(session({
-    secret: process.env.SESSION_SECRET || 'your-secret-key',
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-        secure: process.env.NODE_ENV === 'production',
-        httpOnly: true,
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours
-    },
-    proxy: process.env.NODE_ENV === 'production'
-}));
+let client = null;
+let redisConnected = false;
+
+if (process.env.REDIS_HOST && process.env.REDIS_PASSWORD && connectRedis) {
+    const RedisStore = connectRedis(session);
+    client = createClient({
+        username: process.env.REDIS_USERNAME || 'default',
+        password: process.env.REDIS_PASSWORD,
+        socket: {
+            host: process.env.REDIS_HOST,
+            port: parseInt(process.env.REDIS_PORT) || 6379,
+            connectTimeout: 10000
+        }
+    });
+
+    client.connect()
+        .then(() => {
+            redisConnected = true;
+            console.log('✅ Connected to Redis');
+        })
+        .catch(err => {
+            redisConnected = false;
+            console.error('🔥 Failed to connect to Redis:', err);
+        });
+
+    app.use(session({
+        store: new RedisStore({ client }),
+        secret: process.env.SESSION_SECRET || 'your-secret-key',
+        resave: false,
+        saveUninitialized: false,
+        cookie: {
+            secure: process.env.NODE_ENV === 'production',
+            httpOnly: true,
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            maxAge: 24 * 60 * 60 * 1000 // 24 hours
+        },
+        proxy: process.env.NODE_ENV === 'production'
+    }));
+} else {
+    console.log('⚠️ Redis not configured or connect-redis unavailable - using MemoryStore for sessions');
+    app.use(session({
+        secret: process.env.SESSION_SECRET || 'your-secret-key',
+        resave: false,
+        saveUninitialized: false,
+        cookie: {
+            secure: process.env.NODE_ENV === 'production',
+            httpOnly: true,
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            maxAge: 24 * 60 * 60 * 1000 // 24 hours
+        },
+        proxy: process.env.NODE_ENV === 'production'
+    }));
+}
 
   app.use(passport.initialize());
   app.use(passport.session());
 
 // 📨 SendGrid API
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-
-// 🔌 Redis client
-let client = null;
-let redisConnected = false;
-
-async function initializeRedis() {
-  try {
-    // Check if Redis credentials are available
-    if (!process.env.REDIS_HOST || !process.env.REDIS_PASSWORD) {
-      console.log('⚠️ Redis credentials not available - running without Redis (demo mode)');
-      redisConnected = false;
-      return;
-    }
-
-    client = createClient({
-      username: process.env.REDIS_USERNAME || 'default',
-      password: process.env.REDIS_PASSWORD,
-      socket: {
-        host: process.env.REDIS_HOST,
-        port: parseInt(process.env.REDIS_PORT) || 6379,
-        connectTimeout: 10000,
-        lazyConnect: true
-      }
-    });
-
-    await client.connect();
-    redisConnected = true;
-    console.log('✅ Connected to Redis');
-  } catch (err) {
-    redisConnected = false;
-    console.error('🔥 Failed to connect to Redis:', err);
-    client = null;
-  }
-}
-
-// Initialize Redis connection
-initializeRedis();
 
 // Helper functions for safe Redis operations
 async function safeRedisGet(key) {

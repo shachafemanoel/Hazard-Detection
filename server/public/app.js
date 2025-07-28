@@ -8,6 +8,7 @@ class HazardDetectionApp {
     this.isConnected = false;
     this.session = null;
     this.detecting = false;
+    this.healthCheckTimer = null;
     
     this.init();
   }
@@ -37,6 +38,9 @@ class HazardDetectionApp {
       
       // Initialize inference system
       await this.initInferenceSystem();
+
+      // Start periodic health monitoring to switch modes automatically
+      this.startHealthMonitor();
       
       // Setup UI event listeners
       this.setupUI();
@@ -123,8 +127,8 @@ class HazardDetectionApp {
 
     // Try multiple model paths
     const modelPaths = [
-      '/object_detecion_model/model_18_7.onnx',
-      './object_detecion_model/model_18_7.onnx'
+      '/object_detecion_model/model 18_7.onnx',
+      './object_detecion_model/model 18_7.onnx'
     ];
 
     for (const path of modelPaths) {
@@ -145,6 +149,51 @@ class HazardDetectionApp {
     }
     
     throw new Error('No model file found');
+  }
+
+  // Start periodic backend health monitoring
+  startHealthMonitor(interval = 60000) {
+    if (this.healthCheckTimer) {
+      clearInterval(this.healthCheckTimer);
+    }
+    this.healthCheckTimer = setInterval(() => this.monitorBackend(), interval);
+  }
+
+  // Check backend health and switch inference mode if needed
+  async monitorBackend() {
+    try {
+      const response = await fetch(`${this.backendUrl}/health`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(5000)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const healthy = data.status === 'healthy' && data.model_status === 'loaded';
+        if (healthy && this.inferenceMode !== 'backend') {
+          console.log('🔁 Backend available, switching to server inference');
+          await this.initInferenceSystem();
+          return;
+        }
+        if (healthy) return;
+      }
+      throw new Error('Unhealthy response');
+    } catch (err) {
+      if (this.inferenceMode === 'backend') {
+        console.warn('⚠️ Backend unreachable, falling back to local model');
+        try {
+          if (!this.session) {
+            await this.loadONNXModel();
+          }
+          this.inferenceMode = 'frontend';
+          this.updateStatus('connected', 'Local AI Ready');
+        } catch (e) {
+          console.error('❌ Failed to load local model:', e);
+          this.inferenceMode = 'disabled';
+          this.updateStatus('disconnected', 'AI Detection Unavailable');
+        }
+      }
+    }
   }
 
   // Setup UI event listeners
