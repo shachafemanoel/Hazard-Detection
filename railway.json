@@ -18,7 +18,6 @@
       },
       "variables": {
         "NODE_ENV": "production",
-        "PORT": "${{RAILWAY_PORT}}",
         "MODEL_DIR": "/app/api/best_openvino_model",
         "API_URL": "http://localhost:8001"
       }
