@@ -34,9 +34,23 @@ calibration_image_sample_data*
 /public/object_detecion_model/**/*.png
 /public/object_detecion_model/**/*.webp
 /public/object_detecion_model/**/*.gif
+/server/public/object_detecion_model/**/*.jpg
+/server/public/object_detecion_model/**/*.jpeg
+/server/public/object_detecion_model/**/*.png
+/server/public/object_detecion_model/**/*.webp
+/server/public/object_detecion_model/**/*.gif
 
 # Environment variables and sensitive files
 .env
+
+# Virtual environments
+api/venv/
+venv/
+
+# Logs
+server/server.log
+*.log
+
 # Large directories
 /patchs.v2i.yolov12/
 /public/object_detecion_model/public/object_detecion_model/dashcamera.zip

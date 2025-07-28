@@ -13,6 +13,7 @@ import crypto from 'crypto';
 import axios from 'axios';
 import cors from 'cors';
 import os from 'os'; // מייבאים את המודול os
+import { createProxyMiddleware } from 'http-proxy-middleware';
 
 // 📦 Firebase & Cloudinary
 import { v2 as cloudinary } from 'cloudinary';
@@ -112,6 +113,20 @@ app.use(
 }));
 
 app.use(express.json());
+
+// 🔗 Proxy FastAPI requests to backend
+const API_URL = process.env.API_URL || 'http://localhost:8001';
+app.use('/api/v1', createProxyMiddleware({
+    target: API_URL,
+    changeOrigin: true,
+    pathRewrite: {
+        '^/api/v1': '', // Remove /api/v1 prefix when forwarding to FastAPI
+    },
+    onError: (err, req, res) => {
+        console.error('Proxy error:', err.message);
+        res.status(502).json({ error: 'Backend service unavailable' });
+    }
+}));
 
 app.use(session({
     secret: process.env.SESSION_SECRET || 'your-secret-key',

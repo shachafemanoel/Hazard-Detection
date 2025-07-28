@@ -2,11 +2,11 @@
   "name": "hazard-detection",
   "version": "1.0.0",
   "description": "Hazard Detection Project",
-  "main": "server/server.js",
+  "main": "server/routes/server.js",
   "type": "module",
   "scripts": {
-    "start:web": "cd server && node simple-server.js",
-    "start:web:full": "cd server && node server.js",
+    "start:web": "cd server/routes && node simple-server.js",
+    "start:web:full": "cd server/routes && node server.js",
     "start": "npm run start:web"
   },
 
@@ -26,7 +26,9 @@
     "redis": "^4.7.1",
     "streamifier": "^0.1.1",
     "uuid": "^11.1.0",
-    "axios": "^1.6.0"
+    "axios": "^1.6.0",
+    "http-proxy-middleware": "^3.0.0",
+    "concurrently": "^8.2.2"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.21",
