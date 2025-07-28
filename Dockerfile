@@ -104,7 +104,9 @@ cd /app
 echo "📁 Current directory: \$(pwd)"
 echo "📂 API directory contents: \$(ls -la api/ 2>/dev/null || echo 'API directory not found')"
 echo "🎯 Model directory contents: \$(ls -la api/best_openvino_model/ 2>/dev/null || echo 'Model directory not found')"
-PYTHONPATH=/app python -m uvicorn api.app:app --host 0.0.0.0 --port 8001 --workers 1 &
+echo "🌍 MODEL_DIR environment: \${MODEL_DIR:-NOT SET}"
+echo "🔗 API_URL environment: \${API_URL:-NOT SET}"
+MODEL_DIR=/app/api/best_openvino_model API_URL=http://localhost:8001 PYTHONPATH=/app python -m uvicorn api.app:app --host 0.0.0.0 --port 8001 --workers 1 &
 API_PID=\$!
 
 # Wait for API to start
