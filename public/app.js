@@ -118,13 +118,13 @@ class HazardDetectionApp {
     
     // Configure ONNX Runtime
     ort.env.wasm.simd = true;
-    ort.env.wasm.wasmPaths = '/ort/';
+    ort.env.wasm.wasmPaths = './ort/';
     ort.env.wasm.numThreads = Math.min(navigator.hardwareConcurrency || 4, 4);
 
     // Try multiple model paths
     const modelPaths = [
-      '/object_detecion_model/model_18_7.onnx',
-      './object_detecion_model/model_18_7.onnx'
+      './object_detecion_model/model 18_7.onnx',
+      '/object_detecion_model/model 18_7.onnx'
     ];
 
     for (const path of modelPaths) {

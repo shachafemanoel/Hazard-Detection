@@ -38,7 +38,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
   <script type="module">
     import * as ort from '/ort/ort.min.mjs';
-    ort.env.wasm.wasmPaths = '/ort/';
+    ort.env.wasm.wasmPaths = './ort/';
     ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
     window.ort = ort;
   </script>

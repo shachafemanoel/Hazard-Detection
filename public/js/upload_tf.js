@@ -453,7 +453,7 @@ document.addEventListener("DOMContentLoaded", () => {
       },
       frontend: {
         sessionLoaded: !!session,
-        modelPath: './object_detecion_model/road_damage_detection_simplified.onnx'
+        modelPath: './object_detecion_model/model 18_7.onnx'
       },
       performance: {
         currentFps: currentFps,
@@ -478,7 +478,7 @@ document.addEventListener("DOMContentLoaded", () => {
     
     // Test model file accessibility
     try {
-      const modelResponse = await fetch('./object_detecion_model/road_damage_detection_simplified.onnx', { method: 'HEAD' });
+      const modelResponse = await fetch('./object_detecion_model/model 18_7.onnx', { method: 'HEAD' });
       diagnostics.frontend.modelAccessible = modelResponse.ok;
       diagnostics.frontend.modelSize = modelResponse.headers.get('content-length');
     } catch (modelError) {
@@ -983,11 +983,16 @@ document.addEventListener("DOMContentLoaded", () => {
     
     // Railway deployment patterns
     if (hostname.includes('railway.app')) {
-      // For Railway, try same domain variations (shared networking)
+      // Railway typically runs both services in same container
+      // Try same domain first (most common Railway pattern)
+      candidates.push(`https://${hostname}`);
       candidates.push(`${protocol}//${hostname}`);
-      candidates.push(`https://${hostname}`); // Force HTTPS for Railway
       
-      // Try backend subdomain variations
+      // Try API paths on same domain (single service deployment)
+      candidates.push(`https://${hostname}/api`);
+      candidates.push(`https://${hostname}/backend`);
+      
+      // Only try subdomain variations as fallback
       const backendHost1 = hostname.replace('-frontend', '-backend');
       const backendHost2 = hostname.replace('www.', 'api.');
       const backendHost3 = hostname.replace('app.', 'api.');
@@ -997,10 +1002,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if (backendHost2 !== hostname) candidates.push(`https://${backendHost2}`);
       if (backendHost3 !== hostname) candidates.push(`https://${backendHost3}`);
       if (backendHost4 !== hostname) candidates.push(`https://${backendHost4}`);
-      
-      // Try API paths on same domain
-      candidates.push(`https://${hostname}/api`);
-      candidates.push(`https://${hostname}/backend`);
       
       console.log(`🚂 Added Railway candidates for: ${hostname}`);
     }
@@ -1602,8 +1603,8 @@ function stopLocationTracking() {
       
       console.log('🔄 Loading ONNX model with execution providers:', EPs);
       
-      // Fixed model path (using simplified model without spaces)
-      const modelPath = 'object_detecion_model/road_damage_detection_simplified.onnx';
+      // Fixed model path (using model 18_7.onnx)
+      const modelPath = './object_detecion_model/model 18_7.onnx';
       
       // Create session with enhanced error handling
       session = await ort.InferenceSession.create(modelPath, {
