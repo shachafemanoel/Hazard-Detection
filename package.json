@@ -24,6 +24,7 @@
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "redis": "^4.7.1",
+    "connect-redis": "^8.0.3",
     "streamifier": "^0.1.1",
     "uuid": "^11.1.0",
     "axios": "^1.6.0",
