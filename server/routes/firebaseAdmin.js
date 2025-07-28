@@ -12,11 +12,12 @@ let serviceAccount;
 try {
   // Try to read from multiple possible locations
   const possiblePaths = [
+    process.env.FIREBASE_SERVICE_ACCOUNT_PATH,
     path.join(__dirname, "../serviceAccountKey.json"),
     path.join(__dirname, "../../serviceAccountKey.json"),
     "./serviceAccountKey.json"
-  ];
-  
+  ].filter(Boolean);
+
   let serviceAccountPath = null;
   for (const filePath of possiblePaths) {
     try {

@@ -21,7 +21,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Set environment variables
-ENV MODEL_DIR=/app/best_openvino_model
+ENV MODEL_DIR=/app/api/best_openvino_model
 ENV PYTHONPATH=/app
 
 # Expose port

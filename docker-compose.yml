@@ -7,10 +7,10 @@ services:
       - "8000:8000"
     restart: unless-stopped
     environment:
-      - MODEL_DIR=/app/best_openvino_model
+      - MODEL_DIR=/app/api/best_openvino_model
       - REDIS_URL=${REDIS_URL:-redis://redis:6379}
     volumes:
-      - ./api/best_openvino_model:/app/best_openvino_model:ro
+      - ./api/best_openvino_model:/app/api/best_openvino_model:ro
 
   web:
     build:
