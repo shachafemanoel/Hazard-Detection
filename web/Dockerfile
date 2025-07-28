@@ -4,8 +4,8 @@ FROM node:20-alpine
 WORKDIR /usr/src/app
 
 # Copy package files and install dependencies
-COPY web/package*.json ./
-RUN npm ci --omit=dev
+COPY web/package.json ./
+RUN npm install --omit=dev
 
 # Copy application code and static assets
 COPY server/ ./
