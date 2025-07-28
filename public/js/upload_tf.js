@@ -943,8 +943,8 @@ document.addEventListener("DOMContentLoaded", () => {
     
     // Primary: Always try the correct Render backend URL first
     if (hostname.includes('render.com') || hostname.includes('onrender.com')) {
-      candidates.push('https://hazard-detection-backend.onrender.com');
-      console.log('☁️ Adding primary Render backend: https://hazard-detection-backend.onrender.com');
+      candidates.push('https://hazard-detection-api.onrender.com');
+      console.log('☁️ Adding primary Render backend: https://hazard-detection-api.onrender.com');
     }
     
     // Second: Try last working URL from localStorage
@@ -977,8 +977,8 @@ document.addEventListener("DOMContentLoaded", () => {
     
     // Additional Render.com patterns (as fallbacks only)
     if (hostname.includes('render.com') || hostname.includes('onrender.com')) {
-      // Remove problematic patterns that create invalid URLs
-      const backendHost1 = hostname.replace('hazard-detection-frontend', 'hazard-detection-backend');
+      // Try replacing web service name with api service name
+      const backendHost1 = hostname.replace('hazard-detection-web', 'hazard-detection-api');
       
       if (backendHost1 !== hostname && !candidates.includes(`${protocol}//${backendHost1}`)) {
         candidates.push(`${protocol}//${backendHost1}`);

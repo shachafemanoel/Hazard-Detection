@@ -25,9 +25,14 @@ yarn-error.log*
 *.tflite
 *.keras
 *.weights
+*.onnx
+*.bin
+*.xml
 /runs/
-/public/object_detecion_model/RDD2022-3/
-/public/object_detecion_model/dashcamera/
+/public/object_detecion_model/
+/public/object_detection_model/
+/server/best_openvino_model/
+/api/best_openvino_model/
 calibration_image_sample_data*
 
 # Images and media files
@@ -37,7 +42,11 @@ calibration_image_sample_data*
 /public/object_detecion_model/**/*.webp
 /public/object_detecion_model/**/*.gif
 
-# Certificates and sensitive files
+# Environment variables and sensitive files
+.env
+.env.local
+.env.production
+.env.staging
 *.pem
 serviceAccountKey.json
 
