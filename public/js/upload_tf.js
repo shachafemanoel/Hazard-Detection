@@ -919,10 +919,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     
     // If we're on a deployed domain, construct backend URL
-    // For Render.com deployments, use dedicated backend service
+    // For Render.com deployments, typically the backend is on a different subdomain or port
     if (hostname.includes('render.com') || hostname.includes('onrender.com')) {
-      const backendUrl = 'https://hazard-detection-backend.onrender.com';
-      console.log('☁️ Using Render backend service:', backendUrl);
+      // Replace 'www' or frontend subdomain with 'api' or use same domain with different port
+      const backendHost = hostname.replace('www.', '').replace('-frontend', '-backend');
+      const backendUrl = `${protocol}//${backendHost}`;
+      console.log('☁️ Using cloud backend:', backendUrl);
       return backendUrl;
     }
     
@@ -941,16 +943,10 @@ document.addEventListener("DOMContentLoaded", () => {
     
     console.log('🔍 Generating backend URL candidates for:', { hostname, protocol, port });
     
-    // Primary: Always try the correct Render backend URL first
-    if (hostname.includes('render.com') || hostname.includes('onrender.com')) {
-      candidates.push('https://hazard-detection-api.onrender.com');
-      console.log('☁️ Adding primary Render backend: https://hazard-detection-api.onrender.com');
-    }
-    
-    // Second: Try last working URL from localStorage
+    // First, try the last working URL from localStorage
     if (typeof localStorage !== 'undefined') {
       const lastWorkingUrl = localStorage.getItem('lastWorkingBackendUrl');
-      if (lastWorkingUrl && lastWorkingUrl !== 'undefined' && !candidates.includes(lastWorkingUrl)) {
+      if (lastWorkingUrl && lastWorkingUrl !== 'undefined') {
         candidates.push(lastWorkingUrl);
         console.log(`🔄 Adding last working URL: ${lastWorkingUrl}`);
       }
@@ -975,14 +971,28 @@ document.addEventListener("DOMContentLoaded", () => {
       return [...new Set(candidates)];
     }
     
-    // Additional Render.com patterns (as fallbacks only)
+    // Render.com specific patterns
     if (hostname.includes('render.com') || hostname.includes('onrender.com')) {
-      // Try replacing web service name with api service name
-      const backendHost1 = hostname.replace('hazard-detection-web', 'hazard-detection-api');
+      // Try backend subdomain variations
+      const backendHost1 = hostname.replace('-frontend', '-backend');
+      const backendHost2 = hostname.replace('www.', 'api.');
+      const backendHost3 = hostname.replace('app.', 'api.');
+      const backendHost4 = hostname.replace('frontend', 'backend');
       
-      if (backendHost1 !== hostname && !candidates.includes(`${protocol}//${backendHost1}`)) {
-        candidates.push(`${protocol}//${backendHost1}`);
-        console.log(`🔄 Adding hostname variant: ${protocol}//${backendHost1}`);
+      candidates.push(`${protocol}//${backendHost1}`);
+      candidates.push(`${protocol}//${backendHost2}`);
+      candidates.push(`${protocol}//${backendHost3}`);
+      candidates.push(`${protocol}//${backendHost4}`);
+      
+      // Try same domain with different paths (for single service deployments)
+      candidates.push(`${protocol}//${hostname}/api`);
+      candidates.push(`${protocol}//${hostname}/backend`);
+      
+      // Try different ports (for non-standard deployments)
+      if (protocol === 'https:') {
+        candidates.push(`https://${hostname}:8000`);
+        candidates.push(`https://${hostname}:3001`);
+        candidates.push(`https://${hostname}:5000`);
       }
     }
     
@@ -1081,35 +1091,20 @@ document.addEventListener("DOMContentLoaded", () => {
           return;
         }
         
-        // Backend failed, try to load frontend model as fallback
-        console.log('⚠️ Backend unavailable, attempting to load local AI model...');
+        // Backend failed, load frontend model as fallback
+        console.log('⚠️ Backend unavailable, initializing frontend model...');
         showLoadingOverlay('Loading local AI model (fallback)...', 50);
         updateConnectionStatus('processing', 'Loading Local Model...');
         
-        try {
-          const modelLoadStart = performance.now();
-          await loadModel();
-          const modelLoadTime = Math.round(performance.now() - modelLoadStart);
-          
-          console.log(`✅ Frontend model loaded successfully in ${modelLoadTime}ms`);
-          inferenceMode = 'frontend';
-          showLoadingOverlay('Local Model Ready', 95);
-          updateConnectionStatus('connected', 'Frontend Inference Ready');
-          createNotification(`Local AI inference ready (offline mode) - loaded in ${modelLoadTime}ms`, 'info', 4000);
-        } catch (modelError) {
-          console.error('❌ Frontend model loading also failed:', modelError);
-          
-          // Complete fallback - disable detection but keep camera working
-          inferenceMode = 'disabled';
-          updateConnectionStatus('disconnected', 'AI Detection Unavailable');
-          createNotification('AI detection unavailable. Camera preview only.', 'warning', 0);
-          
-          // Enable camera-only mode
-          if (startBtn) {
-            startBtn.innerHTML = '<i class="fas fa-video"></i><span>Camera Only</span>';
-            startBtn.classList.add('camera-only');
-          }
-        }
+        const modelLoadStart = performance.now();
+        await loadModel();
+        const modelLoadTime = Math.round(performance.now() - modelLoadStart);
+        
+        console.log(`✅ Frontend model loaded successfully in ${modelLoadTime}ms`);
+        inferenceMode = 'frontend';
+        showLoadingOverlay('Local Model Ready', 95);
+        updateConnectionStatus('connected', 'Frontend Inference Ready');
+        createNotification(`Local AI inference ready (offline mode) - loaded in ${modelLoadTime}ms`, 'info', 4000);
         
         setTimeout(() => {
           hideLoadingOverlay();
@@ -1551,7 +1546,7 @@ function stopLocationTracking() {
     try {
       // Configure ONNX Runtime environment for better stability
       ort.env.wasm.simd = true;
-      ort.env.wasm.wasmPaths = '/ort/';  // Correct path for deployed assets
+      ort.env.wasm.wasmPaths = './ort/';  // Fixed path without leading slash
       ort.env.wasm.numThreads = Math.min(navigator.hardwareConcurrency || 4, 4);
       ort.env.wasm.proxy = false; // Disable proxy mode for better compatibility
       
@@ -1573,32 +1568,8 @@ function stopLocationTracking() {
       
       console.log('🔄 Loading ONNX model with execution providers:', EPs);
       
-      // Try multiple model paths for better compatibility
-      const modelPaths = [
-        '/object_detecion_model/model_18_7.onnx',
-        './object_detecion_model/model_18_7.onnx',
-        '/public/object_detecion_model/model_18_7.onnx'
-      ];
-      
-      let modelPath = null;
-      
-      // Test which model path is accessible
-      for (const path of modelPaths) {
-        try {
-          const testResponse = await fetch(path, { method: 'HEAD' });
-          if (testResponse.ok) {
-            modelPath = path;
-            console.log(`✅ Found model at: ${path}`);
-            break;
-          }
-        } catch (e) {
-          console.log(`❌ Model not found at: ${path}`);
-        }
-      }
-      
-      if (!modelPath) {
-        throw new Error('Model file not found at any expected location. Please check if the model exists.');
-      }
+      // Fixed model path (corrected typo and removed spaces)
+      const modelPath = './object_detection_model/model_18_7.onnx';
       
       // Create session with enhanced error handling
       session = await ort.InferenceSession.create(modelPath, {
@@ -1670,20 +1641,10 @@ async function detectLoop() {
     return;
   }
 
-  // Periodic backend health check and retry
+  // Periodic backend health check
   const now = Date.now();
-  if (now - lastBackendCheck > backendCheckInterval) {
-    if (inferenceMode === 'disabled' || inferenceMode === 'frontend') {
-      // Try to reconnect to backend periodically
-      checkBackendHealth().then(success => {
-        if (success && inferenceMode !== 'backend') {
-          console.log('🔄 Backend reconnected! Switching from', inferenceMode, 'to backend');
-          createNotification('Backend AI reconnected!', 'success', 3000);
-        }
-      }).catch(() => {}); // Silent check
-    } else if (useBackendInference && inferenceMode === 'backend') {
-      checkBackendHealth().catch(() => {}); // Silent check
-    }
+  if (now - lastBackendCheck > backendCheckInterval && useBackendInference) {
+    checkBackendHealth().catch(() => {}); // Silent check
   }
 
   const t0 = performance.now();
@@ -1741,13 +1702,6 @@ async function detectLoop() {
   let classes = [];
 
   try {
-    // Skip inference if disabled (camera-only mode)
-    if (inferenceMode === 'disabled') {
-      // Just continue the loop for camera preview
-      requestAnimationFrame(detectLoop);
-      return;
-    }
-    
     // Try backend inference first if available
     if (backendAvailable && useBackendInference && inferenceMode === 'backend') {
       try {
