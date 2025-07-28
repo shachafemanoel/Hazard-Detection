@@ -183,11 +183,16 @@ async def load_model():
         input_layer = compiled_model.input(0)
         output_layer = compiled_model.output(0)
         
-        logger.info(f"✅ OpenVINO model loaded successfully")
+        logger.info("✅ OpenVINO model loaded successfully")
         logger.info(f"Input layer name: {input_layer.any_name}")
         logger.info(f"Input shape: {input_layer.shape}")
         logger.info(f"Input type: {input_layer.element_type}")
-        logger.info(f"Output layer name: {output_layer.any_name}")
+        try:
+            output_name = output_layer.any_name
+        except Exception:
+            output_name = "unnamed"
+            logger.warning("Output tensor has no name")
+        logger.info(f"Output layer name: {output_name}")
         logger.info(f"Output shape: {output_layer.shape}")
         logger.info(f"Output type: {output_layer.element_type}")
         
