@@ -92,14 +92,15 @@ app.use(
       // List of allowed origins
       const allowedOrigins = [
         'https://hazard-detection.onrender.com',
+        'https://hazard-detection-production.up.railway.app',
         'http://localhost:3000',
         'http://localhost:8000',
         'http://127.0.0.1:3000',
         'http://127.0.0.1:8000'
       ];
       
-      // Check if the origin is in the allowed list or is a Render preview URL
-      if (allowedOrigins.includes(origin) || origin.includes('.onrender.com')) {
+      // Check if the origin is in the allowed list or is Railway/Render URL
+      if (allowedOrigins.includes(origin) || origin.includes('.onrender.com') || origin.includes('.railway.app')) {
         return callback(null, true);
       }
       
@@ -139,7 +140,8 @@ async function initializeRedis() {
   try {
     // Check if Redis credentials are available
     if (!process.env.REDIS_HOST || !process.env.REDIS_PASSWORD) {
-      console.log('⚠️ Redis credentials not available - running without Redis');
+      console.log('⚠️ Redis credentials not available - running without Redis (demo mode)');
+      redisConnected = false;
       return;
     }
 
@@ -377,6 +379,16 @@ app.get('/logout', (req, res) => {
             }
             res.redirect('/');
         });
+    });
+});
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.json({
+        status: 'OK',
+        timestamp: new Date().toISOString(),
+        env: process.env.NODE_ENV,
+        redis: redisConnected ? 'connected' : 'disconnected'
     });
 });
 

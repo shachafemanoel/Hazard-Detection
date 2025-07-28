@@ -1,5 +1,8 @@
 [build]
 builder = "dockerfile"
+dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "echo 'Select service to deploy'"
+startCommand = "./start.sh"
+restartPolicyType = "always"
+numReplicas = 1

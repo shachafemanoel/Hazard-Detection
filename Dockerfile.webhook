@@ -1,4 +1,4 @@
-# Lightweight webhook-based deployment for Railway
+# Lightweight webhook-based deployment
 FROM node:20-alpine as node-builder
 
 WORKDIR /app
@@ -8,8 +8,8 @@ RUN npm ci --omit=dev && npm cache clean --force
 # Final runtime stage with Python for webhooks
 FROM python:3.10-alpine
 
-# Install Node.js and basic dependencies
-RUN apk add --no-cache nodejs npm bash
+# Install Node.js
+RUN apk add --no-cache nodejs npm
 
 WORKDIR /app
 
@@ -17,7 +17,7 @@ WORKDIR /app
 COPY --from=node-builder /app/node_modules ./node_modules
 COPY --from=node-builder /app/package*.json ./
 
-# Install lightweight Python dependencies for webhooks
+# Install lightweight Python dependencies
 COPY api/requirements-webhook.txt ./api/requirements-webhook.txt
 RUN pip install --no-cache-dir -r api/requirements-webhook.txt
 
@@ -27,9 +27,14 @@ COPY server/ ./server/
 COPY api/webhook_detector.py ./api/app.py
 COPY api/api_connectors.py ./api/api_connectors.py
 
-# Copy and make start script executable
-COPY start.sh ./start.sh
-RUN chmod +x ./start.sh
+# Create start script for webhook version
+RUN echo '#!/bin/sh' > start-webhook.sh && \
+    echo 'echo "Starting webhook-based services..."' >> start-webhook.sh && \
+    echo 'python3 -m uvicorn api.app:app --host 0.0.0.0 --port 8001 &' >> start-webhook.sh && \
+    echo 'sleep 5' >> start-webhook.sh && \
+    echo 'npm run start:web:full &' >> start-webhook.sh && \
+    echo 'wait' >> start-webhook.sh && \
+    chmod +x start-webhook.sh
 
 # Set environment variables
 ENV PORT=3000
@@ -38,5 +43,4 @@ ENV PYTHONPATH=/app/api
 
 EXPOSE 3000
 
-# Use the start script
-CMD ["./start.sh"]
+CMD ["./start-webhook.sh"]
