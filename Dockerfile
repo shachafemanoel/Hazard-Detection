@@ -73,9 +73,8 @@ COPY public/ ./public/
 COPY scripts/ ./scripts/
 COPY bridge/ ./bridge/
 
-# Copy configuration files
+# Copy configuration files (optional)
 COPY railway.json ./railway.json
-COPY railway.toml ./railway.toml
 COPY tailwind.config.js ./tailwind.config.js
 
 # Create startup script
