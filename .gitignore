@@ -44,9 +44,18 @@ calibration_image_sample_data*
 api/venv/
 venv/
 
-# Keep OpenVINO models for deployment
-# api/best_openvino_model/ - now included
-# server/best_openvino_model/ - now included
+# Keep only essential models for deployment
+# Keep: api/best_openvino_model/ (for backend inference)
+# Keep: simplified ONNX models for frontend
+# Exclude: large duplicate models
+
+# Exclude large duplicate model files
+public/object_detecion_model/last_model_train12052025.pt
+public/object_detecion_model/last_model_train12052025.onnx  
+public/object_detecion_model/best_yolo12m.pt
+server/public/object_detecion_model/last_model_train12052025.pt
+server/public/object_detecion_model/last_model_train12052025.onnx
+server/public/object_detecion_model/best_yolo12m.pt
 
 # Logs
 server/server.log
