@@ -409,9 +409,6 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
           createNotification('Backend not available - staying in local mode', 'warning', 3000);
         }
-      }).catch(error => {
-        console.warn('Error checking backend health during mode switch:', error);
-        createNotification('Error checking backend status', 'error', 3000);
       });
     }
   }
@@ -1606,7 +1603,7 @@ function stopLocationTracking() {
       console.log('🔄 Loading ONNX model with execution providers:', EPs);
       
       // Fixed model path (corrected typo and removed spaces)
-      const modelPath = './object_detecion_model/model_18_7.onnx';
+      const modelPath = 'object_detecion_model/model 18_7.onnx';
       
       // Create session with enhanced error handling
       session = await ort.InferenceSession.create(modelPath, {
