@@ -17,11 +17,16 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
+# Copy application code (excluding large model files)
+COPY *.py .
+COPY requirements*.txt .
+COPY railway.json .
+
+# Create model directory
+RUN mkdir -p /app/best_openvino_model
 
 # Set environment variables
-ENV MODEL_DIR=/app/api/best_openvino_model
+ENV MODEL_DIR=/app/best_openvino_model
 ENV PYTHONPATH=/app
 
 # Expose port
