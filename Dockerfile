@@ -39,6 +39,7 @@ FROM python:3.10-slim
 RUN apt-get update && apt-get install -y \
     curl \
     bash \
+    procps \
     libgl1-mesa-glx \
     libglib2.0-0 \
     libsm6 \
@@ -100,19 +101,22 @@ trap cleanup SIGTERM SIGINT EXIT
 # Start FastAPI on port 8001
 echo "🐍 Starting FastAPI service on port 8001..."
 cd /app
-python -m uvicorn api.app:app --host 0.0.0.0 --port 8001 --workers 1 &
+echo "📁 Current directory: \$(pwd)"
+echo "📂 API directory contents: \$(ls -la api/ 2>/dev/null || echo 'API directory not found')"
+echo "🎯 Model directory contents: \$(ls -la api/best_openvino_model/ 2>/dev/null || echo 'Model directory not found')"
+PYTHONPATH=/app python -m uvicorn api.app:app --host 0.0.0.0 --port 8001 --workers 1 &
 API_PID=\$!
 
 # Wait for API to start
 sleep 5
 
-# Start Express server on PORT (default 3000)
-echo "🌐 Starting Express server on port \${PORT:-3000}..."
+# Start Express server on PORT (default 8080 for Railway)
+echo "🌐 Starting Express server on port \${PORT:-8080}..."
 cd /app/server/routes
 if [ -f "server.js" ]; then
-    node server.js &
+    PORT=\${PORT:-8080} node server.js &
 else
-    echo "❌ server.js not found in $(pwd)"
+    echo "❌ server.js not found in \$(pwd)"
     echo "📁 Available files:"
     ls -la
     exit 1
@@ -134,12 +138,12 @@ ENV PYTHONPATH=/app
 ENV MODEL_DIR=/app/api/best_openvino_model
 ENV API_URL=http://localhost:8001
 
-# Expose port 3000 (Express will proxy to FastAPI)
-EXPOSE 3000
+# Expose port (Railway uses PORT env var)
+EXPOSE $PORT
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3000/health || exit 1
+    CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
 
 # Start both services
 CMD ["/app/start-services.sh"]
