@@ -171,7 +171,7 @@ saveBtn.addEventListener("click", () => {
 
   try {
     session = await ort.InferenceSession.create(
-      'objec§t_detecion_model/model 18_7.onnx',
+      'object_detecion_model/model 18_7.onnx',
       { executionProviders: ['cpu'] }
     );
     
