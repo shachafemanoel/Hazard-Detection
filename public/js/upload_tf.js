@@ -409,6 +409,9 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
           createNotification('Backend not available - staying in local mode', 'warning', 3000);
         }
+      }).catch(error => {
+        console.warn('Error checking backend health during mode switch:', error);
+        createNotification('Error checking backend status', 'error', 3000);
       });
     }
   }
@@ -903,7 +906,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let backendCheckInterval = 30000; // Check backend every 30 seconds
   let inferenceMode = 'unknown'; // 'backend', 'frontend', 'unknown'
   
-  // Enhanced backend URL detection with better debugging
+  // Enhanced backend URL detection with Railway support
   function getBackendUrl() {
     const hostname = window.location.hostname;
     const protocol = window.location.protocol;
@@ -913,8 +916,16 @@ document.addEventListener("DOMContentLoaded", () => {
     
     // If we're on localhost, use localhost backend
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      const backendUrl = 'http://localhost:8000';
+      const backendUrl = 'http://localhost:8001'; // Fixed port for your API
       console.log('🏠 Using localhost backend:', backendUrl);
+      return backendUrl;
+    }
+    
+    // Railway deployment - use private networking
+    if (hostname.includes('railway.app')) {
+      // For Railway, the API runs on the same domain but different port internally
+      const backendUrl = `${protocol}//${hostname}`;
+      console.log('🚂 Using Railway backend (same domain):', backendUrl);
       return backendUrl;
     }
     
@@ -929,7 +940,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     
     // For other deployments, try same domain with common backend ports
-    const backendUrl = `${protocol}//${hostname}:8000`; // Default fallback
+    const backendUrl = `${protocol}//${hostname}:8001`; // Fixed port
     console.log('🌐 Using default backend:', backendUrl);
     return backendUrl;
   }
@@ -955,9 +966,11 @@ document.addEventListener("DOMContentLoaded", () => {
     // Local development - add multiple localhost variants
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       const localCandidates = [
+        'http://localhost:8001',
+        'http://127.0.0.1:8001',
         'http://localhost:8000',
         'http://127.0.0.1:8000',
-        'http://0.0.0.0:8000'
+        'http://0.0.0.0:8001'
       ];
       
       localCandidates.forEach(url => {
@@ -969,6 +982,30 @@ document.addEventListener("DOMContentLoaded", () => {
       
       console.log(`📋 Total local candidates: ${candidates.length}`);
       return [...new Set(candidates)];
+    }
+    
+    // Railway deployment patterns
+    if (hostname.includes('railway.app')) {
+      // For Railway, try same domain variations (shared networking)
+      candidates.push(`${protocol}//${hostname}`);
+      candidates.push(`https://${hostname}`); // Force HTTPS for Railway
+      
+      // Try backend subdomain variations
+      const backendHost1 = hostname.replace('-frontend', '-backend');
+      const backendHost2 = hostname.replace('www.', 'api.');
+      const backendHost3 = hostname.replace('app.', 'api.');
+      const backendHost4 = hostname.replace('frontend', 'backend');
+      
+      if (backendHost1 !== hostname) candidates.push(`https://${backendHost1}`);
+      if (backendHost2 !== hostname) candidates.push(`https://${backendHost2}`);
+      if (backendHost3 !== hostname) candidates.push(`https://${backendHost3}`);
+      if (backendHost4 !== hostname) candidates.push(`https://${backendHost4}`);
+      
+      // Try API paths on same domain
+      candidates.push(`https://${hostname}/api`);
+      candidates.push(`https://${hostname}/backend`);
+      
+      console.log(`🚂 Added Railway candidates for: ${hostname}`);
     }
     
     // Render.com specific patterns
@@ -1569,7 +1606,7 @@ function stopLocationTracking() {
       console.log('🔄 Loading ONNX model with execution providers:', EPs);
       
       // Fixed model path (corrected typo and removed spaces)
-      const modelPath = './object_detection_model/model_18_7.onnx';
+      const modelPath = './object_detecion_model/model_18_7.onnx';
       
       // Create session with enhanced error handling
       session = await ort.InferenceSession.create(modelPath, {
