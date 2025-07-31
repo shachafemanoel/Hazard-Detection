@@ -1,9 +1,9 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile.unified"
+dockerfilePath = "Dockerfile.united"
 
 [deploy]
-startCommand = "/app/start-unified.sh"
+startCommand = "/app/scripts/start-united.sh"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
