@@ -85,7 +85,7 @@ COPY public/ ./public/
         && rm -rf /app/models/openvino/* /app/models/pytorch/* \
         && ln -s /app/api/best_openvino_model/* /app/models/openvino/ \
         && ln -s /app/public/object_detecion_model/* /app/models/pytorch/ \
-        && ln -s /app/api/best.pt /app/models/pytorch/best.pt \
+        && ln -sf /app/api/best.pt /app/models/pytorch/best.pt \
         && chown -R appuser:appuser /app/models# Create CPU detection and model selection script
 COPY scripts/detect-cpu-and-select-model.py /app/scripts/detect-cpu-and-select-model.py
 
