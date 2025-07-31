@@ -3,8 +3,24 @@ from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 from io import BytesIO
 
-import openvino as ov
-import openvino.properties as props
+try:
+    import openvino as ov
+    import openvino.properties as props
+except Exception:
+    ov = None
+    props = None
+
+try:
+    from ultralytics import YOLO
+    import torch
+except Exception:
+    YOLO = None
+    torch = None
+
+try:
+    from cpuinfo import get_cpu_info
+except Exception:
+    get_cpu_info = None
 import numpy as np
 import cv2
 import time
@@ -100,6 +116,8 @@ core = None
 compiled_model = None
 input_layer = None
 output_layer = None
+torch_model = None
+USE_OPENVINO = False
 class_names = ['crack', 'knocked', 'pothole', 'surface_damage']
 
 # Model configuration
@@ -119,87 +137,64 @@ MIN_CONFIDENCE_FOR_REPORT = 0.6
 # Load model on startup - Following OpenVINO tutorial best practices
 @app.on_event("startup")
 async def load_model():
-    global core, compiled_model, input_layer, output_layer
-    try:
-        print("🚀 FASTAPI STARTUP - Model loading begins...")
-        print(f"🔍 Current working directory: {os.getcwd()}")
-        print(f"🌍 MODEL_DIR environment: {os.getenv('MODEL_DIR', 'NOT SET')}")
-        if os.path.exists('.'):
-            print(f"📁 Root directory contents: {os.listdir('.')}")
-        if os.path.exists('api'):
-            print(f"📁 API directory contents: {os.listdir('api')}")
-        logger.info("Initializing OpenVINO Runtime...")
-        
-        # Initialize OpenVINO Core
-        core = ov.Core()
-        
-        # Show available devices (for debugging)
-        devices = core.available_devices
-        logger.info(f"Available devices: {devices}")
-        for device in devices:
-            device_name = core.get_property(device, props.device.full_name)
-            logger.info(f"{device}: {device_name}")
-        
-        # Load model from XML file
-        model_dir = os.getenv('MODEL_DIR', 'api/best_openvino_model')
-        model_path = os.path.join(model_dir, "best.xml")
-        logger.info(f"🔍 MODEL_DIR environment variable: {os.getenv('MODEL_DIR', 'NOT SET')}")
-        logger.info(f"🎯 Resolved model directory: {model_dir}")
-        logger.info(f"📄 Reading model from: {model_path}")
-        
-        # Check if model file exists
-        if not os.path.exists(model_path):
-            logger.warning(f"Model file not found at {model_path}. API will run in health-check only mode.")
-            logger.info("To enable AI inference, upload the model files to the deployment.")
-            logger.info(f"Checked paths: {model_path}")
-            logger.info(f"Current working directory: {os.getcwd()}")
-            logger.info(f"Directory contents: {os.listdir('.')}")
-            if os.path.exists('api'):
-                logger.info(f"API directory contents: {os.listdir('api/')}")
-            return
-        
-        model = core.read_model(model=model_path)
-        
-        # Handle dynamic input shapes - set to standard YOLO size
-        if model.input().partial_shape.is_dynamic:
-            logger.info(f"Model has dynamic input shape: {model.input().partial_shape}")
-            logger.info(f"Setting static input shape to [1, 3, {MODEL_INPUT_SIZE}, {MODEL_INPUT_SIZE}]")
-            new_shape = ov.PartialShape([1, 3, MODEL_INPUT_SIZE, MODEL_INPUT_SIZE])
-            model.reshape({model.input().any_name: new_shape})
-        
-        # Enable model caching for faster subsequent loads
-        config = {}
-        if CACHE_ENABLED:
-            cache_dir = os.path.join(model_dir, "cache")
-            os.makedirs(cache_dir, exist_ok=True)
-            config["CACHE_DIR"] = cache_dir
-            logger.info(f"Model caching enabled: {cache_dir}")
-        
-        # Compile model for specified device
-        logger.info(f"Compiling model for device: {DEVICE_NAME}")
-        compiled_model = core.compile_model(model=model, device_name=DEVICE_NAME, config=config)
-        
-        # Get input and output layer information
-        input_layer = compiled_model.input(0)
-        output_layer = compiled_model.output(0)
-        
-        logger.info("✅ OpenVINO model loaded successfully")
-        logger.info(f"Input layer name: {input_layer.any_name}")
-        logger.info(f"Input shape: {input_layer.shape}")
-        logger.info(f"Input type: {input_layer.element_type}")
+    global core, compiled_model, input_layer, output_layer, torch_model, USE_OPENVINO
+    print("🚀 FASTAPI STARTUP - Model loading begins...")
+    print(f"🔍 Current working directory: {os.getcwd()}")
+    print(f"🌍 MODEL_DIR environment: {os.getenv('MODEL_DIR', 'NOT SET')}")
+
+    # Attempt to use OpenVINO if available and CPU supports it
+    if ov is not None and get_cpu_info is not None:
         try:
-            output_name = output_layer.any_name
-        except Exception:
-            output_name = "unnamed"
-            logger.warning("Output tensor has no name")
-        logger.info(f"Output layer name: {output_name}")
-        logger.info(f"Output shape: {output_layer.shape}")
-        logger.info(f"Output type: {output_layer.element_type}")
-        
+            flags = get_cpu_info().get("flags", [])
+            if "sse4_2" in flags or "sse4.2" in flags:
+                logger.info("CPU supports SSE4.2 - trying OpenVINO backend")
+                core = ov.Core()
+                devices = core.available_devices
+                logger.info(f"Available devices: {devices}")
+                for device in devices:
+                    device_name = core.get_property(device, props.device.full_name)
+                    logger.info(f"{device}: {device_name}")
+
+                model_dir = os.getenv('MODEL_DIR', 'api/best_openvino_model')
+                model_path = os.path.join(model_dir, 'best.xml')
+                logger.info(f"📄 Reading OpenVINO model from: {model_path}")
+                if os.path.exists(model_path):
+                    model = core.read_model(model=model_path)
+                    if model.input().partial_shape.is_dynamic:
+                        new_shape = ov.PartialShape([1, 3, MODEL_INPUT_SIZE, MODEL_INPUT_SIZE])
+                        model.reshape({model.input().any_name: new_shape})
+
+                    config = {}
+                    if CACHE_ENABLED:
+                        cache_dir = os.path.join(model_dir, 'cache')
+                        os.makedirs(cache_dir, exist_ok=True)
+                        config['CACHE_DIR'] = cache_dir
+
+                    compiled_model = core.compile_model(model=model, device_name=DEVICE_NAME, config=config)
+                    input_layer = compiled_model.input(0)
+                    output_layer = compiled_model.output(0)
+                    USE_OPENVINO = True
+                    logger.info("✅ OpenVINO model loaded successfully")
+                    return
+                else:
+                    logger.warning(f"OpenVINO model not found at {model_path}")
+            else:
+                logger.info("CPU does not support SSE4.2 - skipping OpenVINO")
+        except Exception as e:
+            logger.warning(f"OpenVINO initialization failed: {e}")
+
+    # Fallback to PyTorch backend
+    try:
+        if YOLO is None:
+            raise RuntimeError("Ultralytics not installed")
+        model_dir = os.getenv('MODEL_DIR', 'api')
+        model_path = os.path.join(model_dir, 'best.pt')
+        logger.info(f"📄 Loading PyTorch model from: {model_path}")
+        torch_model = YOLO(model_path)
+        USE_OPENVINO = False
+        logger.info("✅ PyTorch model loaded successfully")
     except Exception as e:
-        logger.error(f"❌ Failed to load OpenVINO model: {e}")
-        logger.warning("API will continue to run in health-check only mode without AI inference")
-        # Don't raise the exception - allow API to start without model
+        logger.error(f"❌ Failed to load PyTorch model: {e}")
 
 @app.get("/")
 async def root():
@@ -361,6 +356,26 @@ def calculate_iou(box1, box2):
     
     return intersection / union if union > 0 else 0.0
 
+def run_pytorch_inference(image):
+    """Run inference using the PyTorch model."""
+    if torch_model is None:
+        raise RuntimeError("PyTorch model not loaded")
+
+    results = torch_model.predict(image, imgsz=MODEL_INPUT_SIZE)
+    detections = []
+    for r in results:
+        for box in r.boxes:
+            x1, y1, x2, y2 = box.xyxy[0].tolist()
+            conf = float(box.conf[0])
+            cls_id = int(box.cls[0])
+            detections.append({
+                'bbox': [x1, y1, x2, y2],
+                'confidence': conf,
+                'class_id': cls_id,
+                'class_name': class_names[cls_id] if cls_id < len(class_names) else f"cls_{cls_id}"
+            })
+    return detections
+
 def postprocess_predictions_letterbox(predictions, original_width, original_height, input_width, input_height, scale, paste_x, paste_y, conf_threshold=0.5, iou_threshold=0.45):
     """Postprocess OpenVINO model predictions with letterbox coordinate adjustment"""
     detections = []
@@ -506,7 +521,7 @@ async def health_check():
         "status": "healthy",
         "model_status": model_status,
         "backend_inference": True,
-        "backend_type": "openvino",
+        "backend_type": "openvino" if USE_OPENVINO else "pytorch",
         "active_sessions": len(sessions),
         "device_info": device_info,
         "environment": env_info,
@@ -603,7 +618,9 @@ async def detect_hazards(session_id: str, file: UploadFile = File(...)):
     """
     if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found. Start a session first.")
-    if compiled_model is None:
+    if USE_OPENVINO and compiled_model is None:
+        raise HTTPException(status_code=503, detail="Model not loaded")
+    if not USE_OPENVINO and torch_model is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
     
     if not file.content_type.startswith("image/"):
@@ -622,29 +639,26 @@ async def detect_hazards(session_id: str, file: UploadFile = File(...)):
         # Convert to numpy array for consistency
         # img_array = np.array(image)  # Commented out as not currently used
         
-        # Preprocess image for OpenVINO
-        input_shape = input_layer.shape
-        processed_image, scale, paste_x, paste_y = preprocess_image(image, input_shape)
-        
-        # Run OpenVINO inference
-        # Run OpenVINO inference - Following tutorial practices
-        infer_request = compiled_model.create_infer_request()
-        infer_request.infer(inputs={input_layer.any_name: processed_image})
-        predictions = infer_request.get_output_tensor(output_layer.index).data
-        
-        # Postprocess predictions
-        raw_detections = postprocess_predictions_letterbox(
-            predictions, 
-            image.width, 
-            image.height, 
-            input_shape[3], 
-            input_shape[2],
-            scale,
-            paste_x,
-            paste_y,
-            conf_threshold=0.5,
-            iou_threshold=0.45
-        )
+        if USE_OPENVINO:
+            input_shape = input_layer.shape
+            processed_image, scale, paste_x, paste_y = preprocess_image(image, input_shape)
+            infer_request = compiled_model.create_infer_request()
+            infer_request.infer(inputs={input_layer.any_name: processed_image})
+            predictions = infer_request.get_output_tensor(output_layer.index).data
+            raw_detections = postprocess_predictions_letterbox(
+                predictions,
+                image.width,
+                image.height,
+                input_shape[3],
+                input_shape[2],
+                scale,
+                paste_x,
+                paste_y,
+                conf_threshold=0.5,
+                iou_threshold=0.45
+            )
+        else:
+            raw_detections = run_pytorch_inference(image)
         
         # Process results with tracking and report generation
         detections = []
@@ -722,12 +736,14 @@ async def detect_hazards(session_id: str, file: UploadFile = File(...)):
                 "height": image.height
             },
             "model_info": {
-                "backend": "openvino",
+                "backend": "openvino" if USE_OPENVINO else "pytorch",
                 "classes": class_names,
                 "confidence_threshold": MIN_CONFIDENCE_FOR_REPORT,
                 "tracking_enabled": True,
-                "input_shape": list(input_layer.shape),
-                "output_shape": list(output_layer.shape)
+                **({
+                    "input_shape": list(input_layer.shape),
+                    "output_shape": list(output_layer.shape)
+                } if USE_OPENVINO else {})
             }
         }
         
@@ -740,7 +756,9 @@ async def detect_batch(files: list[UploadFile] = File(...)):
     """
     Batch detection endpoint for processing multiple images
     """
-    if compiled_model is None:
+    if USE_OPENVINO and compiled_model is None:
+        raise HTTPException(status_code=503, detail="Model not loaded")
+    if not USE_OPENVINO and torch_model is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
     
     results = []
@@ -760,28 +778,26 @@ async def detect_batch(files: list[UploadFile] = File(...)):
             contents = await file.read()
             image = Image.open(BytesIO(contents)).convert("RGB")
             
-            # Preprocess image for OpenVINO
-            input_shape = input_layer.shape
-            processed_image, scale, paste_x, paste_y = preprocess_image(image, input_shape)
-            
-            # Run OpenVINO inference - Following tutorial practices
-            infer_request = compiled_model.create_infer_request()
-            infer_request.infer(inputs={input_layer.any_name: processed_image})
-            predictions = infer_request.get_output_tensor(output_layer.index).data
-            
-            # Postprocess predictions
-            detections = postprocess_predictions_letterbox(
-                predictions, 
-                image.width, 
-                image.height, 
-                input_shape[3], 
-                input_shape[2],
-                scale,
-                paste_x,
-                paste_y,
-                conf_threshold=0.5,
-                iou_threshold=0.45
-            )
+            if USE_OPENVINO:
+                input_shape = input_layer.shape
+                processed_image, scale, paste_x, paste_y = preprocess_image(image, input_shape)
+                infer_request = compiled_model.create_infer_request()
+                infer_request.infer(inputs={input_layer.any_name: processed_image})
+                predictions = infer_request.get_output_tensor(output_layer.index).data
+                detections = postprocess_predictions_letterbox(
+                    predictions,
+                    image.width,
+                    image.height,
+                    input_shape[3],
+                    input_shape[2],
+                    scale,
+                    paste_x,
+                    paste_y,
+                    conf_threshold=0.5,
+                    iou_threshold=0.45
+                )
+            else:
+                detections = run_pytorch_inference(image)
             
             # Format detections for API response
             formatted_detections = []
@@ -823,7 +839,9 @@ async def detect_hazards_legacy(file: UploadFile = File(...)):
     """
     Legacy detection endpoint for backward compatibility
     """
-    if compiled_model is None:
+    if USE_OPENVINO and compiled_model is None:
+        raise HTTPException(status_code=503, detail="Model not loaded")
+    if not USE_OPENVINO and torch_model is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
     
     if not file.content_type.startswith("image/"):
@@ -839,29 +857,26 @@ async def detect_hazards_legacy(file: UploadFile = File(...)):
         # Store original image data for reports
         image_base64 = base64.b64encode(contents).decode('utf-8')
         
-        # Preprocess image for OpenVINO
-        input_shape = input_layer.shape
-        processed_image, scale, paste_x, paste_y = preprocess_image(image, input_shape)
-        
-        # Run OpenVINO inference
-        # Run OpenVINO inference - Following tutorial practices
-        infer_request = compiled_model.create_infer_request()
-        infer_request.infer(inputs={input_layer.any_name: processed_image})
-        predictions = infer_request.get_output_tensor(output_layer.index).data
-        
-        # Postprocess predictions
-        raw_detections = postprocess_predictions_letterbox(
-            predictions, 
-            image.width, 
-            image.height, 
-            input_shape[3], 
-            input_shape[2],
-            scale,
-            paste_x,
-            paste_y,
-            conf_threshold=0.5,
-            iou_threshold=0.45
-        )
+        if USE_OPENVINO:
+            input_shape = input_layer.shape
+            processed_image, scale, paste_x, paste_y = preprocess_image(image, input_shape)
+            infer_request = compiled_model.create_infer_request()
+            infer_request.infer(inputs={input_layer.any_name: processed_image})
+            predictions = infer_request.get_output_tensor(output_layer.index).data
+            raw_detections = postprocess_predictions_letterbox(
+                predictions,
+                image.width,
+                image.height,
+                input_shape[3],
+                input_shape[2],
+                scale,
+                paste_x,
+                paste_y,
+                conf_threshold=0.5,
+                iou_threshold=0.45
+            )
+        else:
+            raw_detections = run_pytorch_inference(image)
         
         # Format detections for API response
         detections = []
@@ -891,7 +906,7 @@ async def detect_hazards_legacy(file: UploadFile = File(...)):
             "detections": detections,
             "processing_time_ms": processing_time,
             "image_size": {"width": image.width, "height": image.height},
-            "model_info": {"backend": "openvino", "classes": class_names}
+            "model_info": {"backend": "openvino" if USE_OPENVINO else "pytorch", "classes": class_names}
         }
         
     except Exception as e:
