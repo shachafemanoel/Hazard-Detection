@@ -2,16 +2,6 @@
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile.unified"
 
-[deploy]
-startCommand = "/app/start-unified.sh"
-healthcheckPath = "/health"
-healthcheckTimeout = 300
-restartPolicyType = "ON_FAILURE"
-restartPolicyMaxRetries = 3
-
 [deploy.kv]
-WEB_PORT = "3000"
-API_PORT = "8000"
 PORT = "3000"
-NODE_ENV = "production"
-API_URL = "http://localhost:8000"
+API_URL = "https://hazard-api-production.up.railway.app"
