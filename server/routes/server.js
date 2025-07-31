@@ -1041,7 +1041,8 @@ app.get('/api/reports/:id', async (req, res) => {
 app.listen(port, '0.0.0.0', () => {
     if (process.env.NODE_ENV === 'production') {
         console.log(`✅ Server running in production on port ${port}`);
-        console.log(`✅ External URL: ${process.env.RENDER_EXTERNAL_URL || 'Not set'}`);
+        const externalUrl = process.env.RENDER_EXTERNAL_URL || process.env.RAILWAY_STATIC_URL || process.env.RAILWAY_PUBLIC_DOMAIN;
+        console.log(`✅ External URL: ${externalUrl || 'Not set'}`);
     } else {
         const networkInterfaces = os.networkInterfaces();
         let localIp = 'localhost';
@@ -1222,7 +1223,8 @@ app.post('/forgot-password', async (req, res) => {
     // שמירת הטוקן עם תוקף של 10 דקות
     await client.setEx(tokenKey, 600, userId); // 600 שניות = 10 דקות
 
-    const resetUrl = `${process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000'}/reset-password.html?token=${token}`;
+    const externalBase = process.env.RENDER_EXTERNAL_URL || process.env.RAILWAY_STATIC_URL || process.env.RAILWAY_PUBLIC_DOMAIN || 'http://localhost:3000';
+    const resetUrl = `${externalBase}/reset-password.html?token=${token}`;
 
     const message = {
         to: email,
