@@ -18,7 +18,7 @@ A comprehensive road hazard detection system with intelligent AI backend selecti
 │                    Docker Container                         │
 │  ┌─────────────┐                    ┌─────────────────────┐ │
 │  │   Web UI    │◄──── Port 8080 ────┤   Express Server    │ │
-│  │  (React)    │                    │   (Node.js)         │ │
+│  │ (HTML/CSS/JS)│                   │   (Node.js)         │ │
 │  └─────────────┘                    └─────────────────────┘ │
 │         │                                       │           │
 │         ▼                                       ▼           │

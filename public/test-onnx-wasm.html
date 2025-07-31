@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ONNX WASM-Only Test</title>
+</head>
+<body>
+    <h1>ONNX Runtime WASM-Only Test</h1>
+    <div id="status">Loading...</div>
+    <div id="results"></div>
+    
+    <!-- Use the WASM-only version of ONNX Runtime to avoid JSEP -->
+    <script src="./ort/ort.wasm.min.js"></script>
+    <script>
+        async function testWASMOnlyONNX() {
+            const statusDiv = document.getElementById('status');
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                statusDiv.innerHTML = "Configuring ONNX Runtime WASM-only...";
+                
+                // Configure for WASM-only execution (no JSEP)
+                ort.env.wasm.wasmPaths = 'ort/';
+                ort.env.wasm.numThreads = 1;
+                ort.env.wasm.simd = true;
+                ort.env.wasm.proxy = false;
+                
+                statusDiv.innerHTML = "Testing WASM-only backend...";
+                
+                // Test model loading
+                const modelPath = './object_detecion_model/road_damage_detection_last_version.onnx';
+                const encodedPath = encodeURI(modelPath);
+                
+                statusDiv.innerHTML = `Loading model: ${modelPath}`;
+                
+                const session = await ort.InferenceSession.create(encodedPath, {
+                    executionProviders: ['wasm'], // Only WASM provider
+                    graphOptimizationLevel: 'disabled',
+                    enableCpuMemArena: false,
+                    enableMemPattern: false,
+                    logSeverityLevel: 0
+                });
+                
+                let html = '<h2>✅ WASM-ONLY SUCCESS!</h2>';
+                html += `<p><strong>Model loaded successfully!</strong></p>`;
+                html += `<p><strong>Input Names:</strong> ${session.inputNames.join(', ')}</p>`;
+                html += `<p><strong>Output Names:</strong> ${session.outputNames.join(', ')}</p>`;
+                html += `<p><strong>ONNX Version:</strong> ${ort.version || 'Unknown'}</p>`;
+                html += `<p><strong>Distribution:</strong> WASM-only (no JSEP)</p>`;
+                
+                statusDiv.innerHTML = "✅ WASM-only model loaded!";
+                statusDiv.style.color = "green";
+                resultsDiv.innerHTML = html;
+                
+            } catch (error) {
+                statusDiv.innerHTML = `❌ Error: ${error.message}`;
+                statusDiv.style.color = "red";
+                resultsDiv.innerHTML = `<h2>Error Details:</h2><pre>${error.stack || error.message}</pre>`;
+                console.error('WASM-only ONNX test failed:', error);
+            }
+        }
+        
+        // Run test when page loads
+        window.addEventListener('load', () => {
+            setTimeout(testWASMOnlyONNX, 500);
+        });
+    </script>
+</body>
+</html>

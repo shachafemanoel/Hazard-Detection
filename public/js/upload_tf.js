@@ -453,7 +453,13 @@ document.addEventListener("DOMContentLoaded", () => {
       },
       frontend: {
         sessionLoaded: !!session,
-        modelPath: './object_detecion_model/model 18_7.onnx'
+        modelPath: session ? 'Model loaded successfully' : 'Model not loaded',
+        availableModels: [
+          './object_detecion_model/model 18_7.onnx',
+          './object_detecion_model/road_damage_detection_last_version.onnx',
+          './object_detecion_model/last_model_train12052025.onnx',
+          './object_detecion_model/road_damage_detection_simplified.onnx'
+        ]
       },
       performance: {
         currentFps: currentFps,
@@ -1578,27 +1584,19 @@ function stopLocationTracking() {
     }
     
     try {
-      // Configure ONNX Runtime environment for better stability
-      ort.env.wasm.simd = true;
-      ort.env.wasm.wasmPaths = '/ort/';  // Correct absolute path
-      ort.env.wasm.numThreads = Math.min(navigator.hardwareConcurrency || 4, 4);
-      ort.env.wasm.proxy = false; // Disable proxy mode for better compatibility
+      // Configure for CPU execution (avoid WASM ES module issues)
+      console.log('✅ ONNX Runtime loaded, configuring for CPU execution...');
       
-      // Set memory limits to prevent WebAssembly errors
-      ort.env.wasm.initTimeout = 30000; // 30 second timeout
-      
-      // Execution providers in order of preference
-      const EPs = [];
-      
-      // Check WebGL support
-      if (ort.env.webgl?.isSupported) {
-        EPs.push('webgl');
-        console.log('✅ WebGL execution provider available');
+      // Explicitly disable WASM to prevent ES module loading
+      if (ort.env.wasm) {
+        ort.env.wasm.numThreads = 1;
+        ort.env.wasm.simd = false;
+        ort.env.wasm.proxy = false;
       }
       
-      // Always add WASM as fallback
-      EPs.push('wasm');
-      console.log('✅ WASM execution provider available');
+      // Use CPU execution provider only (avoid WASM ES module issues)
+      const EPs = ['cpu'];
+      console.log('✅ Using CPU execution provider');
       
       console.log('🔄 Loading ONNX model with execution providers:', EPs);
       
@@ -1607,20 +1605,22 @@ function stopLocationTracking() {
         './object_detecion_model/model 18_7.onnx',
         './object_detecion_model/road_damage_detection_last_version.onnx',
         './object_detecion_model/last_model_train12052025.onnx',
-        './models/pytorch/model 18_7.onnx',
-        './models/pytorch/road_damage_detection_last_version.onnx'
+        './object_detecion_model/road_damage_detection_simplified.onnx'
       ];
       
       let modelPath = null;
       for (const path of modelPaths) {
         try {
-          const response = await fetch(path, { method: 'HEAD' });
+          // URL encode the path to handle spaces in filenames
+          const encodedPath = encodeURI(path);
+          const response = await fetch(encodedPath, { method: 'HEAD' });
           if (response.ok) {
-            modelPath = path;
-            console.log(`✅ Found ONNX model at: ${modelPath}`);
+            modelPath = encodedPath;
+            console.log(`✅ Found ONNX model at: ${path}`);
             break;
           }
         } catch (e) {
+          console.log(`❌ Failed to access model at ${path}:`, e.message);
           // Continue to next path
         }
       }
@@ -1629,15 +1629,15 @@ function stopLocationTracking() {
         throw new Error('No ONNX model found in any of the expected locations');
       }
       
-      // Create session with enhanced error handling
+      // Create session with CPU provider only (avoid WASM ES module issues)
       session = await ort.InferenceSession.create(modelPath, {
-        executionProviders: EPs,
-        graphOptimizationLevel: 'all',
+        executionProviders: EPs, // Should be ['cpu'] only
+        graphOptimizationLevel: 'disabled', // Disable optimizations for stability
         executionMode: 'sequential',
-        enableCpuMemArena: true,
-        enableMemPattern: true,
+        enableCpuMemArena: false,
+        enableMemPattern: false,
         logId: 'hazard-detection-model',
-        logSeverityLevel: 0  // Only errors
+        logSeverityLevel: 2  // Reduce logging verbosity
       });
       
       console.log('✅ ONNX model loaded successfully');

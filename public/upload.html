@@ -7,10 +7,10 @@
   <title>Hazard Detection - Modern UI</title>
 
   <!-- TailwindCSS CDN with dark mode -->
+  <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = { darkMode: 'class' };
   </script>
-  <script src="https://cdn.tailwindcss.com"></script>
 
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -36,12 +36,7 @@
     }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
-  <script type="module">
-    import * as ort from '/ort/ort.min.mjs';
-    ort.env.wasm.wasmPaths = './ort/';
-    ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
-    window.ort = ort;
-  </script>
+  <script src="ort/ort.min.js"></script>
 
   <style>
     :root {

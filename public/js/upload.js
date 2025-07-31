@@ -172,13 +172,67 @@ saveBtn.addEventListener("click", () => {
   ];
   let session = null;
   
-  ort.env.wasm.wasmPaths = '/ort/';  
+  // Configure ONNX Runtime environment for CPU execution
+  // Use CPU execution provider to avoid WASM ES module issues
+  console.log('✅ ONNX Runtime loaded, configuring for CPU execution...');
+
+  // Check if ONNX Runtime is loaded
+  if (typeof ort === 'undefined') {
+    console.error('ONNX Runtime not loaded. Please ensure ort.wasm.min.js is included in the HTML.');
+    // Create a script element to load ONNX Runtime dynamically
+    const script = document.createElement('script');
+    script.src = './ort/ort.wasm.min.js';
+    script.onload = () => {
+      console.log('ONNX Runtime loaded dynamically');
+      // Retry model loading after ONNX Runtime is loaded
+      setTimeout(() => location.reload(), 1000);
+    };
+    document.head.appendChild(script);
+    return;
+  }
 
   try {
-    // Load the same ONNX model used in the server version
+    // Enhanced model path detection with fallbacks
+    const modelPaths = [
+      './object_detecion_model/model 18_7.onnx',
+      './object_detecion_model/road_damage_detection_last_version.onnx',
+      './object_detecion_model/last_model_train12052025.onnx',
+      './object_detecion_model/road_damage_detection_simplified.onnx'
+    ];
+    
+    let modelPath = null;
+    for (const path of modelPaths) {
+      try {
+        // URL encode the path to handle spaces in filenames
+        const encodedPath = encodeURI(path);
+        const response = await fetch(encodedPath, { method: 'HEAD' });
+        if (response.ok) {
+          modelPath = encodedPath;
+          console.log(`✅ Found ONNX model at: ${path}`);
+          break;
+        }
+      } catch (e) {
+        console.log(`❌ Failed to access model at ${path}:`, e.message);
+        // Continue to next path
+      }
+    }
+    
+    if (!modelPath) {
+      throw new Error('No ONNX model found in any of the expected locations');
+    }
+
+    // Create session with CPU execution provider only (avoid WASM ES module issues)
+    const executionProviders = ['cpu'];
+    console.log('✅ Using CPU execution provider');
+    
     session = await ort.InferenceSession.create(
-      'object_detecion_model/model 18_7.onnx',
-      { executionProviders: ['cpu'] }
+      modelPath,
+      { 
+        executionProviders: executionProviders,
+        graphOptimizationLevel: 'disabled', // Disable optimizations for stability
+        enableCpuMemArena: false,
+        logSeverityLevel: 2 // Reduce logging
+      }
     );
     
     console.log("✅ YOLO model loaded!");

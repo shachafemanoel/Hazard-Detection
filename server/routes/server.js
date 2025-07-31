@@ -24,9 +24,9 @@ import sgMail from '@sendgrid/mail';
 import fs from 'fs'; // 👈 הוספת ייבוא של מודול fs
 import crypto from 'crypto';
 import axios from 'axios';
+import FormData from 'form-data';
 import cors from 'cors';
 import os from 'os'; // מייבאים את המודול os
-import { createProxyMiddleware } from 'http-proxy-middleware';
 
 // 📦 Firebase & Cloudinary
 import { v2 as cloudinary } from 'cloudinary';
@@ -60,15 +60,53 @@ const upload = multer();
 
 // 🚀 Initialize Express app
 const app = express();
-const port = process.env.PORT || 8080;
+const port = process.env.PORT || process.env.WEB_PORT || 3000;
+
+// Simple mode detection (for testing without Redis/complex features)
+const isSimpleMode = process.env.SIMPLE_MODE === 'true' || !process.env.REDIS_HOST;
 
 // Serving static files from the "public" directory
 // Make sure to set index: false to prevent serving index.html by default
 app.use(express.static(path.join(__dirname, '../../public'), { 
     index: false,
-    extensions: ['html'] // This will allow serving .html files without the extension
+    extensions: ['html'], // This will allow serving .html files without the extension
+    setHeaders: (res, path) => {
+        // Set proper MIME types for ML models and WASM files
+        if (path.endsWith('.onnx')) {
+            res.setHeader('Content-Type', 'application/octet-stream');
+            res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        } else if (path.endsWith('.wasm')) {
+            res.setHeader('Content-Type', 'application/wasm');
+            res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        } else if (path.endsWith('.mjs')) {
+            res.setHeader('Content-Type', 'application/javascript');
+            res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+        }
+    }
 }));
 
+// Specific route for ONNX model files
+app.get('/object_detecion_model/*.onnx', (req, res) => {
+    const modelName = req.params[0];
+    const modelPath = path.join(__dirname, '../../public/object_detecion_model', `${modelName}.onnx`);
+    
+    console.log(`📂 Requesting ONNX model: ${modelName}.onnx`);
+    console.log(`📁 Full path: ${modelPath}`);
+    
+    // Check if file exists
+    if (!require('fs').existsSync(modelPath)) {
+        console.log(`❌ Model not found: ${modelPath}`);
+        return res.status(404).json({ error: 'Model not found' });
+    }
+    
+    // Set proper headers for ONNX files
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+    
+    console.log(`✅ Serving ONNX model: ${modelName}.onnx`);
+    res.sendFile(modelPath);
+});
 
 app.use((req, res, next) => {
     // Only apply COOP/COEP to specific routes, not to map-related pages
@@ -129,19 +167,88 @@ app.use(
 
 app.use(express.json());
 
-// 🔗 Proxy FastAPI requests to backend
-const API_URL = process.env.API_URL || 'http://localhost:8000';
-app.use('/api/v1', createProxyMiddleware({
-    target: API_URL,
-    changeOrigin: true,
-    pathRewrite: {
-        '^/api/v1': '', // Remove /api/v1 prefix when forwarding to FastAPI
-    },
-    onError: (err, req, res) => {
-        console.error('Proxy error:', err.message);
-        res.status(502).json({ error: 'Backend service unavailable' });
+// 🔗 External API URL for separate deployment
+const API_URL = process.env.API_URL || process.env.HAZARD_API_URL || 'http://localhost:8000';
+console.log(`🔗 Using external API URL: ${API_URL}`);
+
+// API request helper function
+async function makeApiRequest(endpoint, options = {}) {
+    const url = `${API_URL}${endpoint}`;
+    const defaultOptions = {
+        headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'Hazard-Detection-Web/1.0',
+            ...options.headers
+        },
+        timeout: 30000 // 30 second timeout
+    };
+    
+    try {
+        const response = await axios({
+            url,
+            ...defaultOptions,
+            ...options
+        });
+        return response.data;
+    } catch (error) {
+        console.error(`API request failed: ${url}`, error.message);
+        throw new Error(`API service unavailable: ${error.message}`);
     }
-}));
+}
+
+// API endpoint routes (replace proxy with direct requests)
+app.get('/api/v1/health', async (req, res) => {
+    try {
+        const result = await makeApiRequest('/health');
+        res.json(result);
+    } catch (error) {
+        res.status(502).json({ error: error.message });
+    }
+});
+
+app.post('/api/v1/detect', async (req, res) => {
+    try {
+        // Forward file upload to external API
+        const formData = new FormData();
+        if (req.file) {
+            formData.append('file', req.file.buffer, {
+                filename: req.file.originalname,
+                contentType: req.file.mimetype
+            });
+        }
+        
+        const result = await makeApiRequest('/detect', {
+            method: 'POST',
+            data: formData,
+            headers: {
+                ...formData.getHeaders(),
+            }
+        });
+        res.json(result);
+    } catch (error) {
+        res.status(502).json({ error: error.message });
+    }
+});
+
+// Generic API proxy for other endpoints
+app.all('/api/v1/*', async (req, res) => {
+    try {
+        const endpoint = req.path.replace('/api/v1', '');
+        const options = {
+            method: req.method,
+            params: req.query,
+        };
+        
+        if (req.method !== 'GET' && req.body) {
+            options.data = req.body;
+        }
+        
+        const result = await makeApiRequest(endpoint, options);
+        res.json(result);
+    } catch (error) {
+        res.status(502).json({ error: error.message });
+    }
+});
 
 let client = null;
 let redisConnected = false;
@@ -385,6 +492,11 @@ app.get('/auth/google/callback', (req, res, next) => {
 
 // דף העלאת קבצים (Upload)
 app.get('/upload', async (req, res) => {
+    // Simple mode: serve upload page without authentication
+    if (isSimpleMode) {
+        return res.sendFile(path.join(__dirname, '../../public/upload.html'));
+    }
+    
     if (!req.isAuthenticated()) { // שימוש ב-req.isAuthenticated()
         return res.redirect('/'); // אם לא מחובר, מחזירים לדף הבית
     }
@@ -392,12 +504,40 @@ app.get('/upload', async (req, res) => {
     res.sendFile(path.join(__dirname, '../../public/upload.html'));
 });
 
+// Direct HTML file access
+app.get('/upload.html', (req, res) => {
+    if (isSimpleMode) {
+        return res.sendFile(path.join(__dirname, '../../public/upload.html'));
+    }
+    
+    if (!req.isAuthenticated()) {
+        return res.redirect('/');
+    }
+    res.sendFile(path.join(__dirname, '../../public/upload.html'));
+});
+
 app.get('/camera.html', (req, res) => {
+    if (isSimpleMode) {
+        return res.sendFile(path.join(__dirname, '../../public/camera.html'));
+    }
+    
     if (!req.isAuthenticated()) { // שימוש ב-req.isAuthenticated()
       return res.redirect('/'); // הפניה לדף הבית (login.html)
     }
     res.sendFile(path.join(__dirname, '../../public/camera.html'));
-  });
+});
+
+// Camera route without .html extension
+app.get('/camera', (req, res) => {
+    if (isSimpleMode) {
+        return res.sendFile(path.join(__dirname, '../../public/camera.html'));
+    }
+    
+    if (!req.isAuthenticated()) {
+        return res.redirect('/');
+    }
+    res.sendFile(path.join(__dirname, '../../public/camera.html'));
+});
 
 // יציאה מהמערכת
 app.get('/logout', (req, res) => {
@@ -416,18 +556,34 @@ app.get('/logout', (req, res) => {
     });
 });
 
-// Health check endpoint
+// Health check endpoint (enhanced with simple mode support)
 app.get('/health', (req, res) => {
     res.json({
         status: 'OK',
         timestamp: new Date().toISOString(),
-        env: process.env.NODE_ENV,
+        env: process.env.NODE_ENV || 'development',
+        port: port,
+        mode: isSimpleMode ? 'simple' : 'full',
         redis: redisConnected ? 'connected' : 'disconnected'
     });
 });
 
-// דף ברירת מחדל
+// Test API endpoint (from simple-server)
+app.get('/api/test', (req, res) => {
+    res.json({
+        message: 'API is working!',
+        timestamp: new Date().toISOString(),
+        mode: isSimpleMode ? 'simple' : 'full'
+    });
+});
+
+// דף ברירת מחדל (updated for simple mode)
 app.get('/', (req, res) => {
+    if (isSimpleMode) {
+        // In simple mode, redirect directly to login page
+        return res.redirect('/login.html');
+    }
+    
     if (req.isAuthenticated()) {
         return res.redirect('/upload');
     }
@@ -436,7 +592,23 @@ app.get('/', (req, res) => {
 
 
 app.get('/dashboard', (req, res) => {
+    if (isSimpleMode) {
+        return res.sendFile(path.join(__dirname, '../../public/dashboard.html'));
+    }
+    
     if (!req.isAuthenticated()) { // שימוש ב-req.isAuthenticated()
+        return res.redirect('/');
+    }
+    res.sendFile(path.join(__dirname, '../../public/dashboard.html'));
+});
+
+// Dashboard with .html extension
+app.get('/dashboard.html', (req, res) => {
+    if (isSimpleMode) {
+        return res.sendFile(path.join(__dirname, '../../public/dashboard.html'));
+    }
+    
+    if (!req.isAuthenticated()) {
         return res.redirect('/');
     }
     res.sendFile(path.join(__dirname, '../../public/dashboard.html'));
@@ -950,28 +1122,56 @@ app.post('/login', async (req, res) => {
         return res.status(400).json({ error: 'Missing email or password' });
     }
 
-    const userKeys = await client.keys('user:*');
-    for (const key of userKeys) {
-        const userData = await client.get(key);
-        const user = JSON.parse(userData);
-
-        if (user.email === email) {
-            if (user.password === password) {
-
-                // ✅ שמירה בסשן – כמו שעשית בהתחברות עם גוגל
-                req.session.user = {
-                    email: user.email,
-                    username: user.username
-                };
-
-                return res.status(200).json({ message: 'Login successful', user: { email, username: user.username } });
-            } else {
-                return res.status(401).json({ error: 'Incorrect password' });
+    // Simple mode: accept any credentials for testing
+    if (isSimpleMode) {
+        // For testing purposes, accept any email/password combination
+        req.session = req.session || {};
+        req.session.user = {
+            email: email,
+            username: email.split('@')[0] // Use email prefix as username
+        };
+        
+        return res.json({
+            success: true,
+            message: 'Login successful (simple mode)',
+            user: {
+                email: email,
+                username: email.split('@')[0]
             }
-        }
+        });
     }
 
-    return res.status(404).json({ error: 'User not found' });
+    // Full mode: check Redis
+    if (!client || !redisConnected) {
+        return res.status(500).json({ error: 'Database unavailable' });
+    }
+
+    try {
+        const userKeys = await client.keys('user:*');
+        for (const key of userKeys) {
+            const userData = await client.get(key);
+            const user = JSON.parse(userData);
+
+            if (user.email === email) {
+                if (user.password === password) {
+                    // ✅ שמירה בסשן – כמו שעשית בהתחברות עם גוגל
+                    req.session.user = {
+                        email: user.email,
+                        username: user.username
+                    };
+
+                    return res.status(200).json({ message: 'Login successful', user: { email, username: user.username } });
+                } else {
+                    return res.status(401).json({ error: 'Incorrect password' });
+                }
+            }
+        }
+
+        return res.status(404).json({ error: 'User not found' });
+    } catch (err) {
+        console.error('Login error:', err);
+        return res.status(500).json({ error: 'Login failed' });
+    }
 });
 
 
@@ -1089,8 +1289,8 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
         return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    // אימות משתמש - בדיקה משופרת
-    if (!req.isAuthenticated()) {
+    // אימות משתמש - בדיקה משופרת (skip in simple mode)
+    if (!isSimpleMode && !req.isAuthenticated()) {
         console.log("Authentication failed"); // Debug log
         return res.status(401).json({ error: 'Please log in again' });
     }
@@ -1183,8 +1383,13 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
             createdAt
         };
 
-        await client.json.set(reportKey, '$', report);
-        console.log("💾 Report saved to Redis: ", reportKey);
+        // Save to Redis only if available (not in simple mode)
+        if (client && redisConnected && !isSimpleMode) {
+            await client.json.set(reportKey, '$', report);
+            console.log("💾 Report saved to Redis: ", reportKey);
+        } else {
+            console.log("⚠️ Simple mode: Report not saved to Redis (no persistent storage)");
+        }
 
         res.status(200).json({
             message: 'Report uploaded and saved successfully',

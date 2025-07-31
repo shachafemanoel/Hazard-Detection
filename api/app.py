@@ -53,21 +53,32 @@ app = FastAPI(title="Hazard Detection Backend", version="1.0.0")
 import os
 
 # Determine allowed origins based on environment
-if os.getenv("RENDER"):
-    # Production on Render
+if os.getenv("RAILWAY_ENVIRONMENT_NAME") or os.getenv("RENDER"):
+    # Production deployment
     allowed_origins = [
-        os.getenv("RENDER_EXTERNAL_URL", "https://hazard-detection.onrender.com"),
-        "https://hazard-detection.onrender.com",
-        "https://*.onrender.com"
+        # Railway deployment URLs
+        "https://*.railway.app",
+        "https://*.up.railway.app", 
+        # Render deployment URLs
+        "https://*.onrender.com",
+        # Custom domains
+        os.getenv("FRONTEND_URL", ""),
+        os.getenv("WEB_SERVICE_URL", ""),
+        # Fallback
+        "*"  # Allow all origins in production for flexibility
     ]
+    # Filter out empty strings
+    allowed_origins = [origin for origin in allowed_origins if origin]
     allow_credentials = True
 else:
     # Development
     allowed_origins = [
         "http://localhost:3000",
-        "http://localhost:8000", 
+        "http://localhost:8000",
+        "http://localhost:8080", 
         "http://127.0.0.1:3000",
-        "http://127.0.0.1:8000"
+        "http://127.0.0.1:8000",
+        "http://127.0.0.1:8080"
     ]
     allow_credentials = True
 

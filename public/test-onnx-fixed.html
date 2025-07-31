@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ONNX Runtime CPU Test - Fixed</title>
+</head>
+<body>
+    <h1>ONNX Runtime CPU Test (Fixed)</h1>
+    <div id="status">Loading ONNX Runtime...</div>
+    <div id="results"></div>
+    
+    <script src="./ort/ort.min.js"></script>
+    <script>
+        async function testONNX() {
+            const statusDiv = document.getElementById('status');
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                statusDiv.innerHTML = "Testing ONNX Runtime CPU execution...";
+                
+                if (typeof ort !== 'undefined') {
+                    statusDiv.innerHTML = "✅ ONNX Runtime loaded successfully";
+                    
+                    let html = '<h2>Backend Information:</h2>';
+                    html += `<p><strong>ONNX Version:</strong> ${ort.version || 'Unknown'}</p>`;
+                    html += `<p><strong>Execution Provider:</strong> CPU only (avoiding ES modules)</p>`;
+                    
+                    statusDiv.innerHTML = "Testing simple model creation with CPU provider...";
+                    
+                    try {
+                        // Try to create a simple session with CPU provider only
+                        const modelPath = './object_detecion_model/road_damage_detection_last_version.onnx';
+                        
+                        statusDiv.innerHTML = `Attempting to load model: ${modelPath}`;
+                        
+                        const session = await ort.InferenceSession.create(modelPath, {
+                            executionProviders: ['cpu'], // Use only CPU provider
+                            graphOptimizationLevel: 'disabled', // Disable optimizations
+                            enableCpuMemArena: false,
+                            logSeverityLevel: 2 // Reduce logging
+                        });
+                        
+                        html += '<h2>✅ SUCCESS!</h2>';
+                        html += `<p><strong>Model loaded successfully with CPU provider!</strong></p>`;
+                        html += `<p><strong>Input Names:</strong> ${session.inputNames.join(', ')}</p>`;
+                        html += `<p><strong>Output Names:</strong> ${session.outputNames.join(', ')}</p>`;
+                        
+                        statusDiv.innerHTML = "✅ Model loaded successfully with CPU provider!";
+                        statusDiv.style.color = "green";
+                        
+                    } catch (modelError) {
+                        html += '<h2>❌ Model Loading Failed</h2>';
+                        html += `<p><strong>Error:</strong> ${modelError.message}</p>`;
+                        html += `<p><strong>Stack:</strong> <pre>${modelError.stack}</pre></p>`;
+                        
+                        statusDiv.innerHTML = `❌ Model loading failed: ${modelError.message}`;
+                        statusDiv.style.color = "red";
+                    }
+                    
+                    resultsDiv.innerHTML = html;
+                    
+                } else {
+                    throw new Error('ONNX Runtime not loaded');
+                }
+                
+            } catch (error) {
+                statusDiv.innerHTML = `❌ Error: ${error.message}`;
+                statusDiv.style.color = "red";
+                resultsDiv.innerHTML = `<h2>Error Details:</h2><pre>${error.stack || error.message}</pre>`;
+                console.error('ONNX test failed:', error);
+            }
+        }
+        
+        // Run test when page loads and ONNX is ready
+        window.addEventListener('load', () => {
+            setTimeout(testONNX, 100); // Small delay to ensure everything is loaded
+        });
+    </script>
+</body>
+</html>

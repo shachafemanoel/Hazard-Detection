@@ -61,11 +61,12 @@ RUN useradd -m -s /bin/bash appuser \
     && mkdir -p /home/appuser/.local/bin \
     && chown -R appuser:appuser /home/appuser
 
-    # Copy Python dependencies from builder to non-root user
-    COPY --from=python-builder /app/unified-requirements.txt /app/unified-requirements.txt
-    RUN pip install --no-cache-dir --user -r /app/unified-requirements.txt
-    ENV PATH=/home/appuser/.local/bin:$PATH
-    # Copy Node.js dependencies from builder
+# Copy Python dependencies from builder to non-root user
+COPY --from=python-builder /app/unified-requirements.txt /app/unified-requirements.txt
+RUN pip install --no-cache-dir --user -r /app/unified-requirements.txt
+ENV PATH=/home/appuser/.local/bin:$PATH
+
+# Copy Node.js dependencies from builder
 COPY --from=node-builder /app/node_modules ./node_modules
 COPY --from=node-builder /app/package*.json ./
 
@@ -73,44 +74,43 @@ COPY --from=node-builder /app/package*.json ./
 RUN npm install -g pm2 concurrently
 
 # Create proper directory structure
-RUN mkdir -p /app/public /app/server /app/api /app/scripts
+RUN mkdir -p /app/public /app/server /app/api /app/scripts /app/models
 
 # Copy application files with their original structure
 COPY api/ ./api/
 COPY server/ ./server/
 COPY public/ ./public/
+COPY scripts/ ./scripts/
 
-    # Create symbolic links for unified model access
-    RUN mkdir -p /app/models/openvino /app/models/pytorch \
-        && rm -rf /app/models/openvino/* /app/models/pytorch/* \
-        && ln -s /app/api/best_openvino_model/* /app/models/openvino/ \
-        && ln -s /app/public/object_detecion_model/* /app/models/pytorch/ \
-        && ln -sf /app/api/best.pt /app/models/pytorch/best.pt \
-        && chown -R appuser:appuser /app/models# Create CPU detection and model selection script
-COPY scripts/detect-cpu-and-select-model.py /app/scripts/detect-cpu-and-select-model.py
+# Create symbolic links for unified model access
+RUN mkdir -p /app/models/openvino /app/models/pytorch \
+    && rm -rf /app/models/openvino/* /app/models/pytorch/* 2>/dev/null || true \
+    && ln -sf /app/api/best_openvino_model/* /app/models/openvino/ 2>/dev/null || true \
+    && ln -sf /app/public/object_detecion_model/* /app/models/pytorch/ 2>/dev/null || true \
+    && ln -sf /app/api/best.pt /app/models/pytorch/best.pt 2>/dev/null || true \
+    && chown -R appuser:appuser /app/models
 
+# Copy startup and health check scripts
 COPY start-unified.sh /app/start-unified.sh
-# Create the unified startup script with intelligent model loading
-
-RUN chmod +x /app/scripts/detect-cpu-and-select-model.py
-RUN chmod +x /app/start-unified.sh
-
-# Set default environment variables
-ENV NODE_ENV=production
-ENV PYTHONPATH=/app
-ENV PORT=8080
-ENV API_URL=http://localhost:8000
-ENV API_PORT=8000
-
-# Create health check script
 COPY health-check.sh /app/health-check.sh
 
-RUN chmod +x /app/health-check.sh
+# Make scripts executable
+RUN chmod +x /app/scripts/detect-cpu-and-select-model.py \
+    && chmod +x /app/start-unified.sh \
+    && chmod +x /app/health-check.sh
 
-# Expose ports
-EXPOSE 8000 8080
+# Set environment variables for new port configuration
+ENV NODE_ENV=production
+ENV PYTHONPATH=/app
+ENV WEB_PORT=3000
+ENV API_PORT=8000
+ENV PORT=3000
+ENV API_URL=http://localhost:8000
 
-# Health check for the unified container
+# Expose both ports: 3000 for Node.js web server, 8000 for Python API
+EXPOSE 3000 8000
+
+# Health check for the unified container (check both services)
 HEALTHCHECK --interval=30s --timeout=15s --start-period=60s --retries=3 \
     CMD /app/health-check.sh
 

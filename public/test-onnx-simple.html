@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple ONNX Test</title>
+</head>
+<body>
+    <h1>Simple ONNX Runtime Test</h1>
+    <div id="status">Loading ONNX Runtime...</div>
+    <div id="results"></div>
+    
+    <script>
+        // Configure ONNX Runtime environment BEFORE loading the script
+        window.ortEnv = {
+            wasm: {
+                wasmPaths: 'ort/',
+                numThreads: 1,
+                simd: false,
+                proxy: false
+            }
+        };
+    </script>
+    <script src="./ort/ort.wasm.min.js"></script>
+    <script>
+        async function testONNX() {
+            const statusDiv = document.getElementById('status');
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                statusDiv.innerHTML = "Configuring ONNX Runtime...";
+                
+                // Ensure environment is properly configured
+                if (typeof ort !== 'undefined') {
+                    statusDiv.innerHTML = "✅ ONNX Runtime loaded successfully";
+                    
+                    // Configure environment
+                    ort.env.wasm.wasmPaths = 'ort/';
+                    ort.env.wasm.numThreads = 1; // Use single thread for stability
+                    ort.env.wasm.simd = false; // Disable SIMD for better compatibility
+                    ort.env.wasm.proxy = false;
+                    
+                    statusDiv.innerHTML = "Testing WASM backend availability...";
+                    
+                    // Test available backends
+                    const backends = ort.env.webassembly?.available || false;
+                    const webglSupported = ort.env.webgl?.isSupported || false;
+                    
+                    let html = '<h2>Backend Information:</h2>';
+                    html += `<p><strong>WebAssembly Available:</strong> ${backends}</p>`;
+                    html += `<p><strong>WebGL Supported:</strong> ${webglSupported}</p>`;
+                    html += `<p><strong>ONNX Version:</strong> ${ort.version || 'Unknown'}</p>`;
+                    
+                    statusDiv.innerHTML = "Testing simple model creation...";
+                    
+                    try {
+                        // Try to create a simple session with CPU provider only
+                        const modelPath = './object_detecion_model/road_damage_detection_last_version.onnx';
+                        
+                        statusDiv.innerHTML = `Attempting to load model: ${modelPath}`;
+                        
+                        const session = await ort.InferenceSession.create(modelPath, {
+                            executionProviders: ['wasm'], // Use only WASM provider
+                            graphOptimizationLevel: 'disabled', // Disable optimizations
+                            enableCpuMemArena: false,
+                            logSeverityLevel: 4 // Verbose logging
+                        });
+                        
+                        html += '<h2>✅ SUCCESS!</h2>';
+                        html += `<p><strong>Model loaded successfully!</strong></p>`;
+                        html += `<p><strong>Input Names:</strong> ${session.inputNames.join(', ')}</p>`;
+                        html += `<p><strong>Output Names:</strong> ${session.outputNames.join(', ')}</p>`;
+                        
+                        statusDiv.innerHTML = "✅ Model loaded successfully!";
+                        statusDiv.style.color = "green";
+                        
+                    } catch (modelError) {
+                        html += '<h2>❌ Model Loading Failed</h2>';
+                        html += `<p><strong>Error:</strong> ${modelError.message}</p>`;
+                        html += `<p><strong>Stack:</strong> <pre>${modelError.stack}</pre></p>`;
+                        
+                        statusDiv.innerHTML = `❌ Model loading failed: ${modelError.message}`;
+                        statusDiv.style.color = "red";
+                    }
+                    
+                    resultsDiv.innerHTML = html;
+                    
+                } else {
+                    throw new Error('ONNX Runtime not loaded');
+                }
+                
+            } catch (error) {
+                statusDiv.innerHTML = `❌ Error: ${error.message}`;
+                statusDiv.style.color = "red";
+                resultsDiv.innerHTML = `<h2>Error Details:</h2><pre>${error.stack || error.message}</pre>`;
+                console.error('ONNX test failed:', error);
+            }
+        }
+        
+        // Run test when page loads and ONNX is ready
+        window.addEventListener('load', () => {
+            setTimeout(testONNX, 100); // Small delay to ensure everything is loaded
+        });
+    </script>
+</body>
+</html>
