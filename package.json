@@ -7,31 +7,31 @@
   "scripts": {
     "start": "concurrently \"npm run start:web:full\" \"npm run start:api\"",
     "start:web": "cd server/routes && PORT=$PORT node simple-server.js",
-    "start:web:full": "cd server/routes && PORT=$PORT node server.js",
-    "start:api": "cd api && uvicorn app:app --host 0.0.0.0 --port $PORT",
+    "start:web:full": "cd server/routes && cross-env PORT=$PORT node server.js",
+    "start:api": "cd api && cross-env PORT=$PORT uvicorn app:app --host 0.0.0.0 --port $PORT",
     "build": "echo 'No build step needed'"
   },
-
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@sendgrid/mail": "^8.1.5",
+    "axios": "^1.6.0",
     "cloudinary": "^2.6.0",
+    "concurrently": "^8.2.2",
+    "connect-redis": "^8.0.3",
     "cors": "^2.8.5",
+    "cross-env": "^7.0.3",
     "dotenv": "^16.6.1",
     "express": "^4.21.2",
     "express-session": "^1.18.1",
+    "http-proxy-middleware": "^3.0.0",
     "multer": "^1.4.5-lts.2",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "redis": "^4.7.1",
-    "connect-redis": "^8.0.3",
     "streamifier": "^0.1.1",
-    "uuid": "^11.1.0",
-    "axios": "^1.6.0",
-    "http-proxy-middleware": "^3.0.0",
-    "concurrently": "^8.2.2"
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.21",
