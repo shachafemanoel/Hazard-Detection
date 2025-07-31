@@ -250,44 +250,71 @@ app.all('/api/v1/*', async (req, res) => {
     }
 });
 
+
 let client = null;
 let redisConnected = false;
 
 if (process.env.REDIS_HOST && process.env.REDIS_PASSWORD && connectRedis) {
-    const RedisStore = connectRedis(session);
-    client = createClient({
-        username: process.env.REDIS_USERNAME || 'default',
-        password: process.env.REDIS_PASSWORD,
-        socket: {
-            host: process.env.REDIS_HOST,
-            port: parseInt(process.env.REDIS_PORT) || 6379,
-            connectTimeout: 10000
-        }
-    });
+    // Support both connect-redis v6 (function) and v8+ (class export)
+    let RedisStoreCtor;
+    if (typeof connectRedis === 'function') {
+        RedisStoreCtor = connectRedis(session);
+    } else if (connectRedis.RedisStore) {
+        RedisStoreCtor = connectRedis.RedisStore;
+    } else {
+        console.warn('⚠️ connect-redis module did not provide a RedisStore');
+        RedisStoreCtor = null;
+    }
 
-    client.connect()
-        .then(() => {
-            redisConnected = true;
-            console.log('✅ Connected to Redis');
-        })
-        .catch(err => {
-            redisConnected = false;
-            console.error('🔥 Failed to connect to Redis:', err);
+    if (!RedisStoreCtor) {
+        console.log('⚠️ RedisStore constructor unavailable - falling back to MemoryStore');
+        app.use(session({
+            secret: process.env.SESSION_SECRET || 'your-secret-key',
+            resave: false,
+            saveUninitialized: false,
+            cookie: {
+                secure: process.env.NODE_ENV === 'production',
+                httpOnly: true,
+                sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                maxAge: 24 * 60 * 60 * 1000 // 24 hours
+            },
+            proxy: process.env.NODE_ENV === 'production'
+        }));
+    } else {
+        client = createClient({
+            username: process.env.REDIS_USERNAME || 'default',
+            password: process.env.REDIS_PASSWORD,
+            socket: {
+                host: process.env.REDIS_HOST,
+                port: parseInt(process.env.REDIS_PORT) || 6379,
+                connectTimeout: 10000
+            }
         });
 
-    app.use(session({
-        store: new RedisStore({ client }),
-        secret: process.env.SESSION_SECRET || 'your-secret-key',
-        resave: false,
-        saveUninitialized: false,
-        cookie: {
-            secure: process.env.NODE_ENV === 'production',
-            httpOnly: true,
-            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-            maxAge: 24 * 60 * 60 * 1000 // 24 hours
-        },
-        proxy: process.env.NODE_ENV === 'production'
-    }));
+        client.connect()
+            .then(() => {
+                redisConnected = true;
+                console.log('✅ Connected to Redis');
+            })
+            .catch(err => {
+                redisConnected = false;
+                console.error('🔥 Failed to connect to Redis:', err);
+            });
+
+        app.use(session({
+            store: new RedisStoreCtor({ client }),
+            secret: process.env.SESSION_SECRET || 'your-secret-key',
+            resave: false,
+            saveUninitialized: false,
+            cookie: {
+                secure: process.env.NODE_ENV === 'production',
+                httpOnly: true,
+                sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+                maxAge: 24 * 60 * 60 * 1000 // 24 hours
+            },
+            proxy: process.env.NODE_ENV === 'production'
+        }));
+    }
 } else {
     console.log('⚠️ Redis not configured or connect-redis unavailable - using MemoryStore for sessions');
     app.use(session({
