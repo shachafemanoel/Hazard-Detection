@@ -121,27 +121,43 @@ saveBtn.addEventListener("click", () => {
   canvas.toBlob(async (blob) => {
       if (!blob) return alert("❌ Failed to get image blob");
   
-      const file = new File([blob], "detection.jpg", { type: "image/jpeg" });
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("geoData", geoData);  // הוספת המיקום לפורם דאטה
-      formData.append("hazardTypes", hazardTypes.join(","));
-      formData.append("locationNote","GPS");
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+          const base64Image = reader.result;
+          let location = "Unknown";
+          try {
+              const { lat, lng } = JSON.parse(geoData);
+              location = `Coordinates: ${lat}, ${lng}`;
+          } catch (e) {
+              console.warn("Failed to parse geolocation data", e);
+          }
 
+          const reportData = {
+              type: hazardTypes.join(","),
+              location,
+              time: new Date().toISOString(),
+              image: base64Image,
+              status: "New",
+              reportedBy: "anonymous",
+              locationNote: "GPS"
+          };
 
-      try {
-          const res = await fetch("/upload-detection", {
-              method: "POST",
-              body: formData,
-              credentials: "include",
-          });
-  
-          const result = await res.json();
-          showToast("✅ Saved to server: " + result.message + "\n📸 " + result.url, "success");
-      } catch (err) {
-          showToast("❌ Failed to save image to server.", "error");
-          console.error(err);
-      }
+          try {
+              const res = await fetch("/api/reports", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(reportData),
+                  credentials: "include",
+              });
+
+              const result = await res.json();
+              showToast("✅ Saved to server: " + result.message, "success");
+          } catch (err) {
+              showToast("❌ Failed to save image to server.", "error");
+              console.error(err);
+          }
+      };
+      reader.readAsDataURL(blob);
 
       // נמחק את התמונה אחרי 5 שניות
       setTimeout(() => {
