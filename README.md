@@ -68,6 +68,7 @@ cp .env.example .env
 ### Optional Variables
 - `MODEL_BACKEND`: `auto` (default), `openvino`, `pytorch`
 - `GOOGLE_*`: OAuth and Maps integration
+- `GOOGLE_CALLBACK_URL`: Override the Google OAuth callback (useful on Railway)
 - `REDIS_*`: Cache configuration
 
 ## 📖 Documentation

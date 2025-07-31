@@ -39,9 +39,18 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // 📁 Load environment variables
-// ודא שאתה טוען את משתני הסביבה לפני כל שימוש בהם
-// טעינת קובץ .env מהתיקייה הנוכחית של server.js
-dotenv.config({ path: path.join(__dirname, '.env') });
+// Ensure variables are loaded before any use. The repo expects a `.env` file at
+// the project root. Resolve the path relative to this file so the server works
+// when started from any directory. If the file doesn't exist, fall back to the
+// process environment without throwing an error.
+const envPath = path.resolve(__dirname, '../../.env');
+if (fs.existsSync(envPath)) {
+    dotenv.config({ path: envPath });
+    console.log('Loaded environment from', envPath);
+} else {
+    dotenv.config();
+    console.log('No .env file found at', envPath, '- relying on existing env vars');
+}
 
 // הדפסה לבדיקת טעינת משתני סביבה
 console.log("Attempting to load environment variables...");
@@ -385,9 +394,11 @@ passport.serializeUser((user, done) => {
 passport.use(new GoogleStrategy({
     clientID:  process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.NODE_ENV === 'production' 
-        ? 'https://hazard-detection-frontend.onrender.com/auth/google/callback'
-        : process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/auth/google/callback'
+    callbackURL:
+        process.env.GOOGLE_CALLBACK_URL ||
+        (process.env.NODE_ENV === 'production'
+            ? 'https://hazard-detection-frontend.onrender.com/auth/google/callback'
+            : 'http://localhost:3000/auth/google/callback')
 
     },
     async (accessToken, refreshToken, profile, done) => {
