@@ -2,6 +2,10 @@
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile.unified"
 
+[deploy]
+startCommand = "npm start"
+
 [deploy.kv]
 PORT = "3000"
+
 API_URL = "https://hazard-api-production.up.railway.app"

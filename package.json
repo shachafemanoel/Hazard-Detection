@@ -5,10 +5,8 @@
   "main": "server/routes/server.js",
   "type": "module",
   "scripts": {
-    "start": "concurrently \"npm run start:web:full\" \"npm run start:api\"",
-    "start:web": "cd server/routes && PORT=$PORT node simple-server.js",
-    "start:web:full": "cd server/routes && cross-env PORT=$PORT node server.js",
-    "start:api": "cd api && cross-env PORT=$PORT uvicorn app:app --host 0.0.0.0 --port $PORT",
+    "start": "cross-env PORT=$PORT node server/routes/server.js",
+    "dev": "nodemon server/routes/server.js",
     "build": "echo 'No build step needed'"
   },
   "keywords": [],
