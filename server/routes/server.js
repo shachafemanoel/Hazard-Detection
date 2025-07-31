@@ -318,7 +318,11 @@ if (process.env.REDIS_HOST && process.env.REDIS_PASSWORD && RedisStore) {
   app.use(passport.session());
 
 // 📨 SendGrid API
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+if (process.env.SENDGRID_API_KEY) {
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+} else {
+  console.warn('⚠️ SENDGRID_API_KEY not set - email features disabled');
+}
 
 // Helper functions for safe Redis operations
 async function safeRedisGet(key) {
@@ -389,13 +393,15 @@ passport.serializeUser((user, done) => {
   });
   
 
-// הגדרת האסטרטגיה של גוגל
-passport.use(new GoogleStrategy({
-    clientID:  process.env.GOOGLE_CLIENT_ID,
+// הגדרת האסטרטגיה של גוגל (רק אם מוגדרים משתני הסביבה הדרושים)
+const googleAuthConfigured = process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET;
+if (googleAuthConfigured) {
+  passport.use(new GoogleStrategy({
+    clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.NODE_ENV === 'production' 
-        ? 'https://hazard-detection-frontend.onrender.com/auth/google/callback'
-        : process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/auth/google/callback'
+    callbackURL: process.env.NODE_ENV === 'production'
+      ? 'https://hazard-detection-frontend.onrender.com/auth/google/callback'
+      : process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/auth/google/callback'
 
     },
     async (accessToken, refreshToken, profile, done) => {
@@ -496,7 +502,16 @@ app.get('/auth/google/callback', (req, res, next) => {
             return res.redirect('/upload.html');
         });
     })(req, res, next);
-});
+  });
+} else {
+  console.warn('⚠️ Google OAuth credentials missing - Google login disabled');
+  app.get('/auth/google', (req, res) => {
+    res.status(501).send('Google OAuth not configured');
+  });
+  app.get('/auth/google/callback', (req, res) => {
+    res.status(501).send('Google OAuth not configured');
+  });
+}
 
 
 
