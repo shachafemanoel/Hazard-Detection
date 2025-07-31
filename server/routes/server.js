@@ -254,7 +254,9 @@ let client = null;
 let redisConnected = false;
 
 if (process.env.REDIS_HOST && process.env.REDIS_PASSWORD && connectRedis) {
-    const RedisStore = connectRedis(session);
+    // With modern `connect-redis` (v7+), it's a class, not a factory function.
+    // The old pattern `connectRedis(session)` is deprecated.
+    const RedisStore = connectRedis;
     client = createClient({
         username: process.env.REDIS_USERNAME || 'default',
         password: process.env.REDIS_PASSWORD,
