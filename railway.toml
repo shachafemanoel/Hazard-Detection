@@ -8,8 +8,8 @@ startCommand = "npm start"
 [deploy.kv]
 PORT = "3000"
 
-API_URL = "https://hazard-api-production.up.railway.app"
+API_URL = "https://hazard-detection-api-production.up.railway.app"
 
 [[sharedEnvironments]]
-project = "hazard-api-production"
+project = "hazard-detection-api-production"
 name = "production"
