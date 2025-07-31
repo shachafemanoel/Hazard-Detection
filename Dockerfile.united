@@ -1,0 +1,93 @@
+# Simple unified Dockerfile for Hazard Detection
+# Runs Node.js server and FastAPI backend
+
+FROM python:3.11-slim
+
+# Install Node.js and system deps
+RUN apt-get update && apt-get install -y curl && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Node dependencies
+COPY package*.json ./
+RUN npm install --omit=dev
+
+# Install Python dependencies
+RUN pip install --no-cache-dir \
+    fastapi==0.104.1 \
+    uvicorn[standard]==0.24.0 \
+    python-multipart==0.0.6 \
+    pydantic==2.5.0 \
+    numpy==1.24.3 \
+    opencv-python-headless==4.8.1.78 \
+    pillow==10.0.1 \
+    openvino==2025.1.0 \
+    onnxruntime==1.16.3 \
+    onnxruntime-openvino==1.16.3 \
+    torch \
+    torchvision \
+    ultralytics \
+    py-cpuinfo
+
+# Copy application files
+COPY api/ ./api/
+COPY server/ ./server/
+COPY public/ ./public/
+
+# CPU detection script
+COPY <<'PYEOF' /app/detect_backend.py
+import json
+from cpuinfo import get_cpu_info
+
+flags = get_cpu_info().get('flags', [])
+use_openvino = any(f in flags for f in ['avx', 'avx2', 'sse4_2'])
+backend = 'openvino' if use_openvino else 'pytorch'
+with open('/app/backend.env', 'w') as f:
+    f.write(f"MODEL_BACKEND={backend}\n")
+print(f"Selected backend: {backend}")
+PYEOF
+
+# Startup script
+COPY <<'BASHEOF' /app/start-united.sh
+#!/bin/bash
+set -e
+
+# Detect CPU and choose backend
+python3 /app/detect_backend.py
+[ -f /app/backend.env ] && source /app/backend.env
+
+echo "Using backend: $MODEL_BACKEND"
+
+# Verify required files
+if [ ! -f /app/api/app.py ]; then
+  echo "api/app.py not found" >&2
+  exit 1
+fi
+if [ ! -f /app/server/routes/server.js ]; then
+  echo "server/routes/server.js not found" >&2
+  exit 1
+fi
+
+# Start API
+uvicorn api.app:app --host 0.0.0.0 --port 8000 &
+API_PID=$!
+
+# Wait a moment
+sleep 5
+
+# Start web server
+cd /app/server/routes
+PORT=${PORT:-8080} API_URL=http://localhost:8000 node server.js &
+WEB_PID=$!
+
+wait $API_PID $WEB_PID
+BASHEOF
+
+RUN chmod +x /app/start-united.sh /app/detect_backend.py
+
+EXPOSE 8080 8000
+
+CMD ["/app/start-united.sh"]
