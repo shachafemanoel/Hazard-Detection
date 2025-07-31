@@ -68,12 +68,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function saveDetection(canvas, label, score) {
     try {
-      const imageUrl = await uploadDetectionImage(canvas);
+      const image = await uploadDetectionImage(canvas);
       const report = {
         type: label,
         location: "Unknown",
         time: new Date().toISOString(),
-        imageUrl,
+        image,
         status: "unreviewed",
         reportedBy: "anonymous"
       };
