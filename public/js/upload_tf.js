@@ -161,7 +161,11 @@ document.addEventListener("DOMContentLoaded", () => {
         console.log("📦 Detected object:", label, scorePerc + "%");
 
         if (frameCount % 60 === 0) {
-          await saveDetection(canvas, label, score);
+          const snap = document.createElement('canvas');
+          snap.width = canvas.width;
+          snap.height = canvas.height;
+          snap.getContext('2d').drawImage(canvas, 0, 0);
+          saveDetection(snap, label, score).catch((e) => console.error(e));
         }
       }
     } catch (err) {
