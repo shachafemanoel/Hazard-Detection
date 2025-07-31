@@ -9,6 +9,8 @@ startCommand = "npm start"
 PORT = "3000"
 
 API_URL = "https://hazard-api-production.up.railway.app"
+RENDER_EXTERNAL_URL = "https://hazard-detection-production.up.railway.app"
+RAILWAY_PUBLIC_DOMAIN = "hazard-detection-production.up.railway.app"
 
 [[sharedEnvironments]]
 project = "hazard-api-production"
