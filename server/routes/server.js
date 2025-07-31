@@ -43,8 +43,17 @@ const __dirname = path.dirname(__filename);
 // The project's documentation expects the `.env` file to live at the repo root,
 // but this file resides under `server/routes`. Resolve the path accordingly.
 const envPath = path.resolve(__dirname, '../../.env');
-dotenv.config({ path: envPath });
-console.log('Loaded environment from', envPath);
+if (process.env.NODE_ENV !== 'production') {
+  if (fs.existsSync(envPath)) {
+    dotenv.config({ path: envPath });
+    console.log('Loaded environment from', envPath);
+  } else {
+    dotenv.config();
+    console.log('Loaded environment from default .env');
+  }
+} else {
+  console.log('Running in production, relying on process.env');
+}
 
 // הדפסה לבדיקת טעינת משתני סביבה
 console.log("Attempting to load environment variables...");
@@ -388,9 +397,10 @@ passport.serializeUser((user, done) => {
 passport.use(new GoogleStrategy({
     clientID:  process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.NODE_ENV === 'production' 
-        ? 'https://hazard-detection-frontend.onrender.com/auth/google/callback'
-        : process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/auth/google/callback'
+    callbackURL: process.env.GOOGLE_CALLBACK_URL ||
+        (process.env.NODE_ENV === 'production'
+            ? 'https://hazard-detection-frontend.onrender.com/auth/google/callback'
+            : 'http://localhost:3000/auth/google/callback')
 
     },
     async (accessToken, refreshToken, profile, done) => {
