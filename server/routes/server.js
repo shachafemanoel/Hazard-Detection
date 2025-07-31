@@ -6,13 +6,14 @@ import { createRequire } from 'module';
 // Some environments bundle different versions of connect-redis. Use createRequire
 // so we can support both CommonJS and ESM variants gracefully.
 const require = createRequire(import.meta.url);
-let connectRedis;
+let RedisStore;
 try {
   const pkg = require('connect-redis');
-  connectRedis = pkg.default || pkg;
+  // Support both CommonJS and ESM exports
+  RedisStore = pkg.RedisStore || pkg.default || pkg;
 } catch (err) {
   console.warn('⚠️ connect-redis module not found or incompatible:', err.message);
-  connectRedis = null;
+  RedisStore = null;
 }
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
@@ -38,9 +39,17 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // 📁 Load environment variables
-// ודא שאתה טוען את משתני הסביבה לפני כל שימוש בהם
-// טעינת קובץ .env מהתיקייה הנוכחית של server.js
-dotenv.config({ path: path.join(__dirname, '.env') });
+// Ensure environment variables are loaded before any use.
+// The project's documentation expects the `.env` file to live at the repo root,
+// but this file resides under `server/routes`. Resolve the path accordingly.
+const envPath = path.resolve(__dirname, '../../.env');
+if (process.env.NODE_ENV !== 'production' && fs.existsSync(envPath)) {
+  dotenv.config({ path: envPath });
+  console.log('Loaded environment from', envPath);
+} else {
+  dotenv.config();
+  console.log('Loaded environment from process.env');
+}
 
 // הדפסה לבדיקת טעינת משתני סביבה
 console.log("Attempting to load environment variables...");
@@ -253,10 +262,9 @@ app.all('/api/v1/*', async (req, res) => {
 let client = null;
 let redisConnected = false;
 
-if (process.env.REDIS_HOST && process.env.REDIS_PASSWORD && connectRedis) {
+if (process.env.REDIS_HOST && process.env.REDIS_PASSWORD && RedisStore) {
     // With modern `connect-redis` (v7+), it's a class, not a factory function.
     // The old pattern `connectRedis(session)` is deprecated.
-    const RedisStore = connectRedis;
     client = createClient({
         username: process.env.REDIS_USERNAME || 'default',
         password: process.env.REDIS_PASSWORD,
@@ -310,7 +318,11 @@ if (process.env.REDIS_HOST && process.env.REDIS_PASSWORD && connectRedis) {
   app.use(passport.session());
 
 // 📨 SendGrid API
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+if (process.env.SENDGRID_API_KEY) {
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+} else {
+  console.warn('⚠️ SENDGRID_API_KEY not set - email features disabled');
+}
 
 // Helper functions for safe Redis operations
 async function safeRedisGet(key) {
@@ -381,13 +393,15 @@ passport.serializeUser((user, done) => {
   });
   
 
-// הגדרת האסטרטגיה של גוגל
-passport.use(new GoogleStrategy({
-    clientID:  process.env.GOOGLE_CLIENT_ID,
+// הגדרת האסטרטגיה של גוגל (רק אם מוגדרים משתני הסביבה הדרושים)
+const googleAuthConfigured = process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET;
+if (googleAuthConfigured) {
+  passport.use(new GoogleStrategy({
+    clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.NODE_ENV === 'production' 
-        ? 'https://hazard-detection-frontend.onrender.com/auth/google/callback'
-        : process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/auth/google/callback'
+    callbackURL: process.env.NODE_ENV === 'production'
+      ? 'https://hazard-detection-frontend.onrender.com/auth/google/callback'
+      : process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/auth/google/callback'
 
     },
     async (accessToken, refreshToken, profile, done) => {
@@ -488,7 +502,16 @@ app.get('/auth/google/callback', (req, res, next) => {
             return res.redirect('/upload.html');
         });
     })(req, res, next);
-});
+  });
+} else {
+  console.warn('⚠️ Google OAuth credentials missing - Google login disabled');
+  app.get('/auth/google', (req, res) => {
+    res.status(501).send('Google OAuth not configured');
+  });
+  app.get('/auth/google/callback', (req, res) => {
+    res.status(501).send('Google OAuth not configured');
+  });
+}
 
 
 
@@ -1041,7 +1064,8 @@ app.get('/api/reports/:id', async (req, res) => {
 app.listen(port, '0.0.0.0', () => {
     if (process.env.NODE_ENV === 'production') {
         console.log(`✅ Server running in production on port ${port}`);
-        console.log(`✅ External URL: ${process.env.RENDER_EXTERNAL_URL || 'Not set'}`);
+        const externalUrl = process.env.RENDER_EXTERNAL_URL || process.env.RAILWAY_STATIC_URL || process.env.RAILWAY_PUBLIC_DOMAIN;
+        console.log(`✅ External URL: ${externalUrl || 'Not set'}`);
     } else {
         const networkInterfaces = os.networkInterfaces();
         let localIp = 'localhost';
@@ -1222,7 +1246,8 @@ app.post('/forgot-password', async (req, res) => {
     // שמירת הטוקן עם תוקף של 10 דקות
     await client.setEx(tokenKey, 600, userId); // 600 שניות = 10 דקות
 
-    const resetUrl = `${process.env.RENDER_EXTERNAL_URL || 'http://localhost:3000'}/reset-password.html?token=${token}`;
+    const externalBase = process.env.RENDER_EXTERNAL_URL || process.env.RAILWAY_STATIC_URL || process.env.RAILWAY_PUBLIC_DOMAIN || 'http://localhost:3000';
+    const resetUrl = `${externalBase}/reset-password.html?token=${token}`;
 
     const message = {
         to: email,
