@@ -6,13 +6,14 @@ import { createRequire } from 'module';
 // Some environments bundle different versions of connect-redis. Use createRequire
 // so we can support both CommonJS and ESM variants gracefully.
 const require = createRequire(import.meta.url);
-let connectRedis;
+let RedisStore;
 try {
   const pkg = require('connect-redis');
-  connectRedis = pkg.default || pkg;
+  // Support both CommonJS and ESM exports
+  RedisStore = pkg.RedisStore || pkg.default || pkg;
 } catch (err) {
   console.warn('⚠️ connect-redis module not found or incompatible:', err.message);
-  connectRedis = null;
+  RedisStore = null;
 }
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
@@ -253,10 +254,9 @@ app.all('/api/v1/*', async (req, res) => {
 let client = null;
 let redisConnected = false;
 
-if (process.env.REDIS_HOST && process.env.REDIS_PASSWORD && connectRedis) {
+if (process.env.REDIS_HOST && process.env.REDIS_PASSWORD && RedisStore) {
     // With modern `connect-redis` (v7+), it's a class, not a factory function.
     // The old pattern `connectRedis(session)` is deprecated.
-    const RedisStore = connectRedis;
     client = createClient({
         username: process.env.REDIS_USERNAME || 'default',
         password: process.env.REDIS_PASSWORD,
