@@ -9,3 +9,7 @@ startCommand = "npm start"
 PORT = "3000"
 
 API_URL = "https://hazard-api-production.up.railway.app"
+
+[[sharedEnvironments]]
+project = "hazard-api-production"
+name = "production"
