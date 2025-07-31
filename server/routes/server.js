@@ -43,8 +43,13 @@ const __dirname = path.dirname(__filename);
 // The project's documentation expects the `.env` file to live at the repo root,
 // but this file resides under `server/routes`. Resolve the path accordingly.
 const envPath = path.resolve(__dirname, '../../.env');
-dotenv.config({ path: envPath });
-console.log('Loaded environment from', envPath);
+if (process.env.NODE_ENV !== 'production' && fs.existsSync(envPath)) {
+  dotenv.config({ path: envPath });
+  console.log('Loaded environment from', envPath);
+} else {
+  dotenv.config();
+  console.log('Loaded environment from process.env');
+}
 
 // הדפסה לבדיקת טעינת משתני סביבה
 console.log("Attempting to load environment variables...");
