@@ -1,8 +1,0 @@
-#! 0-hazard-detection-namespace.yaml
-# Generated code, do not edit
-apiVersion: v1
-kind: Namespace
-metadata:
-    name: hazard-detection
-    labels:
-        com.docker.compose.project: hazard-detection

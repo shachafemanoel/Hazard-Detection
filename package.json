@@ -5,9 +5,10 @@
   "main": "server/routes/server.js",
   "type": "module",
   "scripts": {
-    "start:web": "cd server/routes && node simple-server.js",
-    "start:web:full": "cd server/routes && node server.js",
-    "start": "npm run start:web"
+    "start:web": "cd server/routes && PORT=$PORT node simple-server.js",
+    "start:web:full": "cd server/routes && PORT=$PORT node server.js",
+    "start": "npm run start:web",
+    "build": "echo 'No build step needed'"
   },
 
   "keywords": [],

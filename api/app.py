@@ -31,6 +31,10 @@ from typing import Dict, List, Optional
 import math
 from collections import defaultdict
 import base64
+# Set up logging first
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 try:
     from api.api_connectors import api_manager, geocode_location, upload_detection_image, cache_detection_result
 except ImportError:
@@ -42,10 +46,6 @@ except ImportError:
         geocode_location = None
         upload_detection_image = None  
         cache_detection_result = None
-
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Hazard Detection Backend", version="1.0.0")
 
@@ -134,67 +134,173 @@ TRACKING_DISTANCE_THRESHOLD = 50  # pixels
 TRACKING_TIME_THRESHOLD = 2.0  # seconds
 MIN_CONFIDENCE_FOR_REPORT = 0.6
 
-# Load model on startup - Following OpenVINO tutorial best practices
+# Enhanced model loading with intelligent backend selection
 @app.on_event("startup")
 async def load_model():
     global core, compiled_model, input_layer, output_layer, torch_model, USE_OPENVINO
-    print("🚀 FASTAPI STARTUP - Model loading begins...")
+    print("🚀 FASTAPI STARTUP - Intelligent model loading begins...")
     print(f"🔍 Current working directory: {os.getcwd()}")
     print(f"🌍 MODEL_DIR environment: {os.getenv('MODEL_DIR', 'NOT SET')}")
-
-    # Attempt to use OpenVINO if available and CPU supports it
-    if ov is not None and get_cpu_info is not None:
+    print(f"🧠 MODEL_BACKEND environment: {os.getenv('MODEL_BACKEND', 'NOT SET')}")
+    
+    # Get the intelligent model selection from environment
+    selected_backend = os.getenv('MODEL_BACKEND', 'auto').lower()
+    model_dir = os.getenv('MODEL_DIR', '/app/models')
+    
+    logger.info(f"🎯 Selected backend: {selected_backend}")
+    logger.info(f"📁 Model directory: {model_dir}")
+    
+    # Try to load configuration file if available
+    config_file = '/app/model-config.json'
+    if os.path.exists(config_file):
         try:
-            flags = get_cpu_info().get("flags", [])
-            if "sse4_2" in flags or "sse4.2" in flags:
-                logger.info("CPU supports SSE4.2 - trying OpenVINO backend")
-                core = ov.Core()
-                devices = core.available_devices
-                logger.info(f"Available devices: {devices}")
-                for device in devices:
-                    device_name = core.get_property(device, props.device.full_name)
-                    logger.info(f"{device}: {device_name}")
-
-                model_dir = os.getenv('MODEL_DIR', 'api/best_openvino_model')
-                model_path = os.path.join(model_dir, 'best.xml')
-                logger.info(f"📄 Reading OpenVINO model from: {model_path}")
-                if os.path.exists(model_path):
-                    model = core.read_model(model=model_path)
-                    if model.input().partial_shape.is_dynamic:
-                        new_shape = ov.PartialShape([1, 3, MODEL_INPUT_SIZE, MODEL_INPUT_SIZE])
-                        model.reshape({model.input().any_name: new_shape})
-
-                    config = {}
-                    if CACHE_ENABLED:
-                        cache_dir = os.path.join(model_dir, 'cache')
-                        os.makedirs(cache_dir, exist_ok=True)
-                        config['CACHE_DIR'] = cache_dir
-
-                    compiled_model = core.compile_model(model=model, device_name=DEVICE_NAME, config=config)
-                    input_layer = compiled_model.input(0)
-                    output_layer = compiled_model.output(0)
-                    USE_OPENVINO = True
-                    logger.info("✅ OpenVINO model loaded successfully")
-                    return
-                else:
-                    logger.warning(f"OpenVINO model not found at {model_path}")
-            else:
-                logger.info("CPU does not support SSE4.2 - skipping OpenVINO")
+            import json
+            with open(config_file, 'r') as f:
+                config_data = json.load(f)
+            logger.info("📋 Loaded intelligent model configuration")
+            backend_config = config_data.get('selection_config', {})
+            logger.info(f"🔧 Configuration reasons: {', '.join(backend_config.get('reasons', []))}")
         except Exception as e:
-            logger.warning(f"OpenVINO initialization failed: {e}")
+            logger.warning(f"Could not load model config: {e}")
+    
+    # Backend selection logic
+    if selected_backend in ['openvino', 'auto']:
+        success = await try_load_openvino_model(model_dir)
+        if success:
+            return
+    
+    if selected_backend in ['pytorch', 'auto']:
+        success = await try_load_pytorch_model(model_dir)
+        if success:
+            return
+    
+    # If both fail, try fallback locations
+    logger.warning("Primary model loading failed, trying fallback locations...")
+    fallback_locations = [
+        '/app/models/pytorch',
+        '/app/models/openvino', 
+        '/app/api',
+        '/app/public/object_detecion_model'
+    ]
+    
+    for fallback_dir in fallback_locations:
+        if os.path.exists(fallback_dir):
+            logger.info(f"🔄 Trying fallback location: {fallback_dir}")
+            if await try_load_pytorch_model(fallback_dir):
+                return
+            if await try_load_openvino_model(fallback_dir):
+                return
+    
+    logger.error("❌ All model loading attempts failed!")
 
-    # Fallback to PyTorch backend
+
+async def try_load_openvino_model(model_dir):
+    """Try to load OpenVINO model from specified directory"""
+    global core, compiled_model, input_layer, output_layer, USE_OPENVINO
+    
+    if ov is None:
+        logger.info("OpenVINO not available - skipping")
+        return False
+        
     try:
-        if YOLO is None:
-            raise RuntimeError("Ultralytics not installed")
-        model_dir = os.getenv('MODEL_DIR', 'api')
-        model_path = os.path.join(model_dir, 'best.pt')
-        logger.info(f"📄 Loading PyTorch model from: {model_path}")
+        # Check CPU compatibility if cpuinfo is available
+        if get_cpu_info is not None:
+            flags = get_cpu_info().get("flags", [])
+            if not any(flag in flags for flag in ["sse4_2", "sse4.2", "avx"]):
+                logger.info("CPU lacks OpenVINO-optimal instruction sets - skipping")
+                return False
+        
+        logger.info("🔄 Attempting OpenVINO model loading...")
+        core = ov.Core()
+        devices = core.available_devices
+        logger.info(f"Available devices: {devices}")
+        
+        # Look for OpenVINO model files
+        model_xml_paths = [
+            os.path.join(model_dir, 'best.xml'),
+            os.path.join(model_dir, 'openvino', 'best.xml'),
+            os.path.join(model_dir, 'model.xml')
+        ]
+        
+        model_path = None
+        for path in model_xml_paths:
+            if os.path.exists(path):
+                model_path = path
+                logger.info(f"📄 Found OpenVINO model at: {model_path}")
+                break
+        
+        if not model_path:
+            logger.info("No OpenVINO model files found")
+            return False
+            
+        # Load and compile model
+        model = core.read_model(model=model_path)
+        if model.input().partial_shape.is_dynamic:
+            new_shape = ov.PartialShape([1, 3, MODEL_INPUT_SIZE, MODEL_INPUT_SIZE])
+            model.reshape({model.input().any_name: new_shape})
+
+        config = {}
+        if CACHE_ENABLED:
+            cache_dir = os.path.join(os.path.dirname(model_path), 'cache')
+            os.makedirs(cache_dir, exist_ok=True)
+            config['CACHE_DIR'] = cache_dir
+
+        compiled_model = core.compile_model(model=model, device_name=DEVICE_NAME, config=config)
+        input_layer = compiled_model.input(0)
+        output_layer = compiled_model.output(0)
+        USE_OPENVINO = True
+        
+        logger.info("✅ OpenVINO model loaded successfully")
+        logger.info(f"📊 Input shape: {input_layer.shape}")
+        logger.info(f"📊 Output shape: {output_layer.shape}")
+        return True
+        
+    except Exception as e:
+        logger.warning(f"OpenVINO model loading failed: {e}")
+        return False
+
+
+async def try_load_pytorch_model(model_dir):
+    """Try to load PyTorch model from specified directory"""
+    global torch_model, USE_OPENVINO
+    
+    if YOLO is None:
+        logger.info("Ultralytics/YOLO not available - skipping PyTorch")
+        return False
+        
+    try:
+        logger.info("🔄 Attempting PyTorch model loading...")
+        
+        # Look for PyTorch model files
+        model_pt_paths = [
+            os.path.join(model_dir, 'best.pt'),
+            os.path.join(model_dir, 'pytorch', 'best.pt'),
+            os.path.join(model_dir, 'road_damage_detection_last_version.pt'),
+            os.path.join(model_dir, 'best_yolo12m.pt')
+        ]
+        
+        model_path = None
+        for path in model_pt_paths:
+            if os.path.exists(path):
+                model_path = path
+                logger.info(f"📄 Found PyTorch model at: {model_path}")
+                break
+        
+        if not model_path:
+            logger.info("No PyTorch model files found")
+            return False
+            
+        # Load PyTorch model
         torch_model = YOLO(model_path)
         USE_OPENVINO = False
+        
         logger.info("✅ PyTorch model loaded successfully")
+        logger.info(f"📊 Model type: {type(torch_model)}")
+        return True
+        
     except Exception as e:
-        logger.error(f"❌ Failed to load PyTorch model: {e}")
+        logger.warning(f"PyTorch model loading failed: {e}")
+        return False
 
 @app.get("/")
 async def root():

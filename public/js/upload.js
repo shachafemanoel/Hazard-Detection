@@ -177,7 +177,7 @@ saveBtn.addEventListener("click", () => {
   try {
     // Load the same ONNX model used in the server version
     session = await ort.InferenceSession.create(
-      'object_detecion_model/model 18_7.onnx',
+      'models/pytorch/model 18_7.onnx',
       { executionProviders: ['cpu'] }
     );
     

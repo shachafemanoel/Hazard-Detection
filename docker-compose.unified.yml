@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  hazard-detection:
+    build:
+      context: .
+      dockerfile: Dockerfile.unified
+    ports:
+      - "8080:8080"  # Web interface
+      - "8000:8000"  # API interface (optional external access)
+    restart: unless-stopped
+    environment:
+      # Core service configuration
+      - NODE_ENV=production
+      - PORT=8080
+      
+      # Model configuration (will be auto-detected, but can be overridden)
+      - MODEL_BACKEND=auto  # auto, openvino, pytorch
+      - MODEL_DIR=/app/models
+      
+      # Optional external integrations
+      - SESSION_SECRET=${SESSION_SECRET:-hazard-detection-unified-secret-change-in-production}
+      - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME}
+      - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY}
+      - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - SENDGRID_API_KEY=${SENDGRID_API_KEY}
+      - GOOGLE_GEOCODING_API_KEY=${GOOGLE_GEOCODING_API_KEY}
+      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
+      
+      # Redis configuration (optional - will use in-memory fallback if not provided)
+      - REDIS_URL=${REDIS_URL}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      
+    volumes:
+      # Optional: Mount custom models
+      - ./custom-models:/app/models/custom:ro
+      
+      # Optional: Persist detection data
+      - hazard-detection-data:/app/data
+      
+    healthcheck:
+      test: ["CMD", "/app/health-check.sh"]
+      interval: 30s
+      timeout: 15s
+      start_period: 60s
+      retries: 3
+      
+    # Resource limits (adjust based on your needs)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+
+  # Optional: Separate Redis for production deployments
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    profiles:
+      - redis  # Only start if explicitly requested
+
+volumes:
+  hazard-detection-data:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  default:
+    name: hazard-detection-unified

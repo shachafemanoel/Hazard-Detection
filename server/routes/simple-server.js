@@ -21,7 +21,7 @@ app.use(cors({
 app.use(express.json());
 
 // Serve static files
-app.use(express.static(path.join(__dirname, '../public'), { 
+app.use(express.static(path.join(__dirname, '../../public'), { 
     index: false,
     extensions: ['html']
 }));
@@ -46,6 +46,28 @@ app.get('/api/test', (req, res) => {
     res.json({
         message: 'API is working!',
         timestamp: new Date().toISOString()
+    });
+});
+
+// Basic login endpoint for testing (simplified - no real authentication)
+app.post('/login', (req, res) => {
+    const { email, password } = req.body;
+    
+    // Simple validation
+    if (!email || !password) {
+        return res.status(400).json({
+            error: 'Email and password are required'
+        });
+    }
+    
+    // For testing purposes, accept any email/password combination
+    // In production, this should validate against a real user database
+    res.json({
+        success: true,
+        message: 'Login successful',
+        user: {
+            email: email
+        }
     });
 });
 

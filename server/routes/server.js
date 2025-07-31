@@ -64,7 +64,7 @@ const port = process.env.PORT || 8080;
 
 // Serving static files from the "public" directory
 // Make sure to set index: false to prevent serving index.html by default
-app.use(express.static(path.join(__dirname, '../public'), { 
+app.use(express.static(path.join(__dirname, '../../public'), { 
     index: false,
     extensions: ['html'] // This will allow serving .html files without the extension
 }));
@@ -94,7 +94,7 @@ app.use(
       res.set('Cross-Origin-Resource-Policy', 'cross-origin');
       next();
     },
-    express.static(path.join(__dirname, '../public/ort'))
+    express.static(path.join(__dirname, '../../public/ort'))
   );
   
   /* ───── Core middleware ───── */
@@ -389,14 +389,14 @@ app.get('/upload', async (req, res) => {
         return res.redirect('/'); // אם לא מחובר, מחזירים לדף הבית
     }
     // הצגת דף ה-upload
-    res.sendFile(path.join(__dirname, '../public/upload.html'));
+    res.sendFile(path.join(__dirname, '../../public/upload.html'));
 });
 
 app.get('/camera.html', (req, res) => {
     if (!req.isAuthenticated()) { // שימוש ב-req.isAuthenticated()
       return res.redirect('/'); // הפניה לדף הבית (login.html)
     }
-    res.sendFile(path.join(__dirname, '../public/camera.html'));
+    res.sendFile(path.join(__dirname, '../../public/camera.html'));
   });
 
 // יציאה מהמערכת
@@ -439,7 +439,7 @@ app.get('/dashboard', (req, res) => {
     if (!req.isAuthenticated()) { // שימוש ב-req.isAuthenticated()
         return res.redirect('/');
     }
-    res.sendFile(path.join(__dirname, '../public/dashboard.html'));
+    res.sendFile(path.join(__dirname, '../../public/dashboard.html'));
 });
 
 

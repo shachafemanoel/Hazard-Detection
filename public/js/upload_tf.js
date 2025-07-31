@@ -913,7 +913,7 @@ document.addEventListener("DOMContentLoaded", () => {
     
     // If we're on localhost, use localhost backend
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      const backendUrl = 'http://localhost:8001'; // Fixed port for your API
+      const backendUrl = 'http://localhost:8000'; // Fixed port for your API
       console.log('🏠 Using localhost backend:', backendUrl);
       return backendUrl;
     }
@@ -937,7 +937,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     
     // For other deployments, try same domain with common backend ports
-    const backendUrl = `${protocol}//${hostname}:8001`; // Fixed port
+    const backendUrl = `${protocol}//${hostname}:8000`; // Fixed port
     console.log('🌐 Using default backend:', backendUrl);
     return backendUrl;
   }
@@ -963,11 +963,10 @@ document.addEventListener("DOMContentLoaded", () => {
     // Local development - add multiple localhost variants
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       const localCandidates = [
-        'http://localhost:8001',
-        'http://127.0.0.1:8001',
         'http://localhost:8000',
         'http://127.0.0.1:8000',
-        'http://0.0.0.0:8001'
+        'http://localhost:8001',
+        'http://127.0.0.1:8001'
       ];
       
       localCandidates.forEach(url => {
@@ -1581,7 +1580,7 @@ function stopLocationTracking() {
     try {
       // Configure ONNX Runtime environment for better stability
       ort.env.wasm.simd = true;
-      ort.env.wasm.wasmPaths = './ort/';  // Fixed path without leading slash
+      ort.env.wasm.wasmPaths = '/ort/';  // Correct absolute path
       ort.env.wasm.numThreads = Math.min(navigator.hardwareConcurrency || 4, 4);
       ort.env.wasm.proxy = false; // Disable proxy mode for better compatibility
       
@@ -1603,8 +1602,32 @@ function stopLocationTracking() {
       
       console.log('🔄 Loading ONNX model with execution providers:', EPs);
       
-      // Fixed model path (using model 18_7.onnx)
-      const modelPath = './object_detecion_model/model 18_7.onnx';
+      // Enhanced model path detection with fallbacks 
+      const modelPaths = [
+        './object_detecion_model/model 18_7.onnx',
+        './object_detecion_model/road_damage_detection_last_version.onnx',
+        './object_detecion_model/last_model_train12052025.onnx',
+        './models/pytorch/model 18_7.onnx',
+        './models/pytorch/road_damage_detection_last_version.onnx'
+      ];
+      
+      let modelPath = null;
+      for (const path of modelPaths) {
+        try {
+          const response = await fetch(path, { method: 'HEAD' });
+          if (response.ok) {
+            modelPath = path;
+            console.log(`✅ Found ONNX model at: ${modelPath}`);
+            break;
+          }
+        } catch (e) {
+          // Continue to next path
+        }
+      }
+      
+      if (!modelPath) {
+        throw new Error('No ONNX model found in any of the expected locations');
+      }
       
       // Create session with enhanced error handling
       session = await ort.InferenceSession.create(modelPath, {

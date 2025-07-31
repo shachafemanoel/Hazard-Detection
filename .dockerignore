@@ -7,14 +7,16 @@ node_modules
 npm-debug.log*
 yarn-error.log*
 
-# Environment files (use Railway environment variables)
-.env*
+# Environment files (use container environment variables)
+.env
+.env.*
 
 # IDE files
-.vscode
-.idea
+.vscode/
+.idea/
 *.swp
 *.swo
+*~
 
 # OS files
 .DS_Store
@@ -27,16 +29,24 @@ logs/
 # Temporary files
 tmp/
 temp/
+*.tmp
+*.temp
 
-# Documentation
+# Documentation (keep only unified README)
 README.md
 *.md
+!README.unified.md
 docs/
 
 # Development files
 .editorconfig
 .eslintrc*
 .prettierrc*
+
+# Build artifacts
+coverage/
+.nyc_output/
+.cache/
 
 # Large files that should be excluded
 *.zip
@@ -46,6 +56,19 @@ docs/
 # Virtual environments
 venv/
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
 
-# Railway specific
-railway.toml
+# Old Docker files (keep only unified)
+Dockerfile
+Dockerfile.*
+!Dockerfile.unified
+docker-compose.yml
+!docker-compose.unified.yml
+
+# Build scripts
+build-*.sh
+!build-unified.sh
