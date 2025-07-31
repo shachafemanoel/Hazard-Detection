@@ -3,7 +3,11 @@ set -e
 
 # Detect CPU and choose backend
 python3 /app/scripts/detect_backend.py
+
 [ -f /app/backend.env ] && source /app/backend.env
+
+# Set default model directory so FastAPI can locate the models
+export MODEL_DIR="/app/api/best_openvino_model"
 
 echo "Using backend: $MODEL_BACKEND"
 
