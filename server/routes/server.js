@@ -39,9 +39,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // 📁 Load environment variables
-// ודא שאתה טוען את משתני הסביבה לפני כל שימוש בהם
-// טעינת קובץ .env מהתיקייה הנוכחית של server.js
-dotenv.config({ path: path.join(__dirname, '.env') });
+// Ensure environment variables are loaded before any use.
+// The project's documentation expects the `.env` file to live at the repo root,
+// but this file resides under `server/routes`. Resolve the path accordingly.
+const envPath = path.resolve(__dirname, '../../.env');
+dotenv.config({ path: envPath });
+console.log('Loaded environment from', envPath);
 
 // הדפסה לבדיקת טעינת משתני סביבה
 console.log("Attempting to load environment variables...");
