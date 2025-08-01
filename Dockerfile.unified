@@ -1,25 +1,31 @@
-# Dockerfile לריפו Hazard-Detection (Frontend בלבד)
-FROM node:20-alpine
+# Unified Dockerfile for Hazard Detection service with Node.js and Python
+FROM node:20-bullseye
 
 WORKDIR /app
 
-# Install bash for scripts and interactive shells
-RUN apk add --no-cache bash
+# Install bash, curl, Python and pip
+RUN apt-get update && apt-get install -y \
+    bash curl python3 python3-pip \
+    && rm -rf /var/lib/apt/lists/*
 
-# העתקת תלויות והתקנה
+# Copy Node.js dependencies and install
 COPY package*.json ./
 RUN npm install --omit=dev
 
-# העתקת קוד המקור
+# Copy Python requirements and install
+COPY unified-requirements.txt ./
+RUN pip3 install --no-cache-dir -r unified-requirements.txt
+
+# Copy application source
 COPY . .
 
-# אופציונלי: אם יש לך סקריפט build
-# RUN npm run build
+# Ensure startup script is executable
+RUN chmod +x /app/start-unified.sh
 
-# הגדרות סביבה ופורט
+# Environment and ports
 ENV NODE_ENV=production
 ENV PORT=3000
 EXPOSE 3000
 
-# פקודת הרצה
-CMD ["npm", "start"]
+# Default command starts the unified script
+CMD ["/bin/bash", "/app/start-unified.sh"]
