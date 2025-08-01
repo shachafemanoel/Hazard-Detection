@@ -1,0 +1,33 @@
+# Railway ignore file - exclude large files from deployment
+
+# Node modules (will be installed on Railway)
+node_modules/
+
+# Large model files that might cause timeout
+public/object_detecion_model/*.pt
+public/object_detecion_model/best.pt
+public/object_detecion_model/best_yolo12m.pt
+public/object_detecion_model/last_model_train12052025.pt
+public/object_detecion_model/road_damage_detection_last_version.pt
+
+# Keep only essential ONNX models
+# public/object_detecion_model/model 18_7.onnx
+# public/object_detecion_model/road_damage_detection_simplified.onnx
+
+# Development files
+.git/
+*.log
+*.tmp
+.DS_Store
+
+# Session files
+2025-*.txt
+
+# Scripts not needed for deployment
+scripts/
+test_*.html
+test_*.sh
+
+# Docker files not needed for Railway
+docker-compose*.yml
+Dockerfile.unified.slim

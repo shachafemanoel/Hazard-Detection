@@ -25,7 +25,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const fpsBadge = document.getElementById("fps-badge");
 
   // Configuration
-  const FIXED_SIZE = 640;
+  const FIXED_SIZE = 480;
   const API_URL = "https://hazard-api-production-production.up.railway.app";
   
   // Updated class names to match the API service
@@ -41,6 +41,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   let detecting = false;
   let currentCamera = 'user'; // 'user' for front, 'environment' for back
   let session = null;
+  let apiSessionId = null; // Session ID for API detection
   let apiAvailable = false;
   let useApi = false; // Flag to control API usage
   let frameCount = 0;
@@ -52,6 +53,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   };
 
   const pendingDetections = [];
+
+  // Object tracking system
+  let trackedObjects = new Map();
+  let nextObjectId = 1;
+  const MAX_TRACKING_DISTANCE = 150; // Maximum distance for object matching
+  const TRACKING_PERSISTENCE_FRAMES = 20; // Keep tracked objects for 20 frames
+  const INTERPOLATION_FRAMES = 4; // Number of frames to interpolate between detections
 
   // Geolocation data for saved detections
   let geoData = null;
@@ -125,8 +133,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }, 5000);
   }
 
-  // Test API availability
-  // Test API availability
+  // Test API availability and start session
   async function testApiConnection() {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
@@ -142,22 +149,70 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.log("✅ API service is available:", data);
         apiAvailable = true;
         useApi = true;
-        updateConnectionStatus('connected', 'API Detection Ready');
+        updateConnectionStatus('connected', 'Enhanced API + ONNX Mode');
+        showNotification("API service connected - Enhanced detection available", 'success');
         return true;
       }
     } catch (error) {
       if (error.name === 'AbortError') {
-        console.warn("⚠️ API health check timed out");
+        console.log("🔄 API health check timed out - using local detection");
       } else {
-        console.warn("⚠️ API service unavailable:", error.message);
+        console.log("🏠 API service not accessible - using local ONNX detection");
       }
     } finally {
       clearTimeout(timeoutId);
     }
 
     apiAvailable = false;
-    updateConnectionStatus('warning', 'ONNX Only Mode');
+    updateConnectionStatus('ready', 'Local ONNX Detection Mode');
+    console.log("🤖 Running in local detection mode - ONNX model will handle all detection");
     return false;
+  }
+
+  // Start API detection session
+  async function startApiSession() {
+    if (!apiAvailable) return false;
+    
+    try {
+      const response = await fetch(`${API_URL}/session/start`, {
+        method: 'POST'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        apiSessionId = data.session_id;
+        console.log("✅ API session started:", apiSessionId);
+        return true;
+      } else {
+        throw new Error(`Failed to start session: ${response.status}`);
+      }
+    } catch (error) {
+      console.error("❌ Failed to start API session:", error);
+      apiAvailable = false;
+      updateConnectionStatus('warning', 'Session Failed - ONNX Only');
+      return false;
+    }
+  }
+
+  // End API detection session
+  async function endApiSession() {
+    if (!apiSessionId) return;
+    
+    try {
+      const response = await fetch(`${API_URL}/session/${apiSessionId}/end`, {
+        method: 'POST'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log("✅ API session ended:", data);
+        apiSessionId = null;
+        return data;
+      }
+    } catch (error) {
+      console.error("❌ Failed to end API session:", error);
+    }
+    apiSessionId = null;
   }
 
   // Load ONNX model
@@ -194,14 +249,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     showLoading("Initializing ONNX Runtime...", 50);
 
     try {
+      try {
+        session = await ort.InferenceSession.create(modelPath, { executionProviders: ['webgl'] });
+        console.log("✅ ONNX model loaded with WebGL backend");
+      } catch (err) {
+        console.log("💻 WebGL not available, using CPU backend (this is normal):");
         session = await ort.InferenceSession.create(modelPath, { 
-          executionProviders: ['webgl', 'cpu'],
+          executionProviders: ['cpu'],
           graphOptimizationLevel: 'disabled',
           enableCpuMemArena: false,
           logSeverityLevel: 2
         });
-        const backend = session.executionProvider;
-        console.log(`✅ ONNX model loaded with ${backend} backend`);
+        console.log("✅ ONNX model loaded with CPU backend");
+      }
     } catch (err) {
       console.error("❌ Failed to create ONNX session with any provider:", err);
       throw new Error(`Failed to initialize AI model: ${err.message}`);
@@ -228,10 +288,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         throw new Error("No detection models available. Please check your connection.");
       }
 
-      showNotification(
-        apiAvailable ? "Enhanced detection ready with API support" : "Basic detection ready",
-        'success'
-      );
+      const modeMessage = apiAvailable 
+        ? "🚀 Enhanced detection ready with API + ONNX support" 
+        : "🎯 Local detection ready with ONNX model";
+      
+      showNotification(modeMessage, 'success');
       initialized = true;
       return true;
     } catch (error) {
@@ -262,7 +323,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const startTime = performance.now();
     
     try {
-      // Prepare tensor data
+      // Prepare tensor data (matching upload.js logic)
       const { data, width, height } = imageData;
       const tensorData = new Float32Array(width * height * 3);
       
@@ -289,15 +350,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       const results = await session.run(feeds);
       const outputKey = Object.keys(results)[0];
-      const outputData = results[outputKey].data;
+      const output = results[outputKey];
+      const outputData = output.data;
 
-      // Parse detections
+      // Parse detections (matching upload_tf.js logic)
       const boxes = [];
       for (let i = 0; i < outputData.length; i += 6) {
-        const box = outputData.slice(i, i + 6);
-        if (box[4] >= confidenceThreshold) { // confidence check
-          boxes.push(box);
-        }
+        boxes.push(outputData.slice(i, i + 6));
       }
 
       const processingTime = performance.now() - startTime;
@@ -310,39 +369,65 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // Process frame with API (when available)
+  // Process frame with API using session-based detection
   async function detectWithApi(canvas) {
-    if (!apiAvailable) return [];
+    if (!apiAvailable || !apiSessionId) {
+      // Try to start session if not available
+      if (apiAvailable && !apiSessionId) {
+        await startApiSession();
+      }
+      if (!apiSessionId) return [];
+    }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000); // Short timeout for real-time detection
+    const timeoutId = setTimeout(() => controller.abort(), 3000); // Increased timeout for session-based detection
 
     try {
       const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.8));
       const formData = new FormData();
       formData.append('file', blob, 'frame.jpg');
 
-      const response = await fetch(`${API_URL}/detect`, {
+      const response = await fetch(`${API_URL}/detect/${apiSessionId}`, {
         method: 'POST',
         body: formData,
         signal: controller.signal
       });
 
-      if (!response.ok) throw new Error(`API error: ${response.status}`);
+      if (!response.ok) {
+        if (response.status === 404) {
+          // Session expired, try to start new one
+          console.warn("Session expired, starting new session");
+          apiSessionId = null;
+          if (await startApiSession()) {
+            return await detectWithApi(canvas); // Retry with new session
+          }
+        }
+        throw new Error(`API error: ${response.status}`);
+      }
 
       const result = await response.json();
+      
+      // Log new detections for debugging
+      const newDetections = result.detections.filter(det => det.is_new);
+      if (newDetections.length > 0) {
+        console.log("🆕 New hazards detected via API:", newDetections.map(d => `${d.class_name} (${(d.confidence * 100).toFixed(1)}%)`));
+      }
 
       return result.detections.map(det => [
         det.bbox[0], det.bbox[1],
         det.bbox[0] + det.bbox[2], det.bbox[1] + det.bbox[3],
         det.confidence,
-        classNames.indexOf(det.class) !== -1 ? classNames.indexOf(det.class) : 0
+        classNames.indexOf(det.class_name) !== -1 ? classNames.indexOf(det.class_name) : 0
       ]);
     } catch (error) {
       if (error.name === 'AbortError') {
         console.warn("API detection request timed out");
       } else {
         console.warn("API detection failed:", error);
+        // If session-related error, reset session
+        if (error.message.includes('404') || error.message.includes('session')) {
+          apiSessionId = null;
+        }
       }
       return [];
     } finally {
@@ -350,84 +435,261 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  async function saveDetection(canvas, label) {
-    return new Promise((resolve, reject) => {
-      canvas.toBlob((blob) => {
-        if (!blob) return reject("❌ No blob from canvas");
-        const detection = {
-          blob,
-          hazardTypes: label,
-          time: new Date().toISOString(),
-          geoData: geoData
-        };
-        pendingDetections.push(detection);
-        resolve();
-      }, "image/jpeg", 0.9);
-    }).catch((err) => {
+  async function saveDetection(canvas, label, score) {
+    try {
+      // Create a simple detection report (matching upload_tf.js structure)
+      const report = {
+        type: label,
+        location: "Unknown",
+        time: new Date().toISOString(),
+        image: canvas.toDataURL("image/jpeg", 0.9),
+        status: "unreviewed",
+        reportedBy: "anonymous"
+      };
+
+      pendingDetections.push(report);
+      console.log("📝 Detection queued:", report);
+    } catch (err) {
       console.error("❌ Error during image preparation:", err);
-    });
+    }
   }
 
-  // Draw detection results
+  // Helper function to calculate distance between two box centers
+  function boxDistance(box1, box2) {
+    const centerX1 = (box1[0] + box1[2]) / 2;
+    const centerY1 = (box1[1] + box1[3]) / 2;
+    const centerX2 = (box2[0] + box2[2]) / 2;
+    const centerY2 = (box2[1] + box2[3]) / 2;
+    return Math.sqrt(Math.pow(centerX1 - centerX2, 2) + Math.pow(centerY1 - centerY2, 2));
+  }
+
+  // Calculate Intersection over Union (IoU) for better tracking
+  function calculateIoU(box1, box2) {
+    const [x1a, y1a, x2a, y2a] = box1;
+    const [x1b, y1b, x2b, y2b] = box2;
+    
+    const xLeft = Math.max(x1a, x1b);
+    const yTop = Math.max(y1a, y1b);
+    const xRight = Math.min(x2a, x2b);
+    const yBottom = Math.min(y2a, y2b);
+    
+    if (xRight < xLeft || yBottom < yTop) return 0;
+    
+    const intersectionArea = (xRight - xLeft) * (yBottom - yTop);
+    const box1Area = (x2a - x1a) * (y2a - y1a);
+    const box2Area = (x2b - x1b) * (y2b - y1b);
+    const unionArea = box1Area + box2Area - intersectionArea;
+    
+    return intersectionArea / unionArea;
+  }
+
+  // Interpolate box position based on velocity
+  function interpolateBox(trackedObj, framesSinceLastUpdate) {
+    if (!trackedObj.velocity || framesSinceLastUpdate === 0) {
+      return trackedObj.box;
+    }
+    
+    const [x1, y1, x2, y2, score, classId] = trackedObj.box;
+    const [vx, vy] = trackedObj.velocity;
+    
+    // Apply velocity with dampening
+    const dampening = Math.min(framesSinceLastUpdate / INTERPOLATION_FRAMES, 1);
+    const newX1 = x1 + vx * framesSinceLastUpdate * dampening;
+    const newY1 = y1 + vy * framesSinceLastUpdate * dampening;
+    const newX2 = x2 + vx * framesSinceLastUpdate * dampening;
+    const newY2 = y2 + vy * framesSinceLastUpdate * dampening;
+    
+    return [newX1, newY1, newX2, newY2, score, classId];
+  }
+
+  // Track objects across frames
+  function trackObjects(newDetections) {
+    const currentFrame = frameCount;
+    const processedBoxes = [];
+    const usedDetections = new Set();
+    
+    // Filter detections by confidence
+    const validDetections = newDetections.filter(box => box[4] >= confidenceThreshold);
+    
+    // Update existing tracked objects
+    for (const [id, trackedObj] of trackedObjects) {
+      let bestMatch = null;
+      let bestScore = 0;
+      let bestDetectionIndex = -1;
+      
+      // Find best matching detection for this tracked object
+      validDetections.forEach((detection, index) => {
+        if (usedDetections.has(index)) return;
+        
+        const [x1, y1, x2, y2, score, classId] = detection;
+        
+        // Only match same class
+        if (Math.floor(classId) !== trackedObj.classId) return;
+        
+        // Calculate matching score (combination of IoU and distance)
+        const iou = calculateIoU(trackedObj.box, [x1, y1, x2, y2]);
+        const distance = boxDistance(trackedObj.box, [x1, y1, x2, y2]);
+        const matchScore = iou * 0.7 + (1 - Math.min(distance / MAX_TRACKING_DISTANCE, 1)) * 0.3;
+        
+        if (matchScore > bestScore && distance < MAX_TRACKING_DISTANCE) {
+          bestMatch = detection;
+          bestScore = matchScore;
+          bestDetectionIndex = index;
+        }
+      });
+      
+      if (bestMatch && bestScore > 0.3) {
+        // Update tracked object with new detection
+        const [newX1, newY1, newX2, newY2, newScore, newClassId] = bestMatch;
+        const [oldX1, oldY1, oldX2, oldY2] = trackedObj.box;
+        
+        // Calculate velocity
+        const framesDiff = currentFrame - trackedObj.lastDetectionFrame;
+        if (framesDiff > 0) {
+          const vx = (newX1 - oldX1) / framesDiff;
+          const vy = (newY1 - oldY1) / framesDiff;
+          trackedObj.velocity = [vx, vy];
+        }
+        
+        trackedObj.box = [newX1, newY1, newX2, newY2, Math.max(trackedObj.confidence, newScore), newClassId];
+        trackedObj.lastSeen = currentFrame;
+        trackedObj.lastDetectionFrame = currentFrame;
+        trackedObj.confidence = Math.max(trackedObj.confidence * 0.9, newScore);
+        
+        usedDetections.add(bestDetectionIndex);
+      } else {
+        // Update position using velocity interpolation
+        const framesSinceLastDetection = currentFrame - trackedObj.lastDetectionFrame;
+        if (framesSinceLastDetection <= INTERPOLATION_FRAMES) {
+          trackedObj.box = interpolateBox(trackedObj, framesSinceLastDetection);
+        }
+        trackedObj.lastSeen = currentFrame;
+        trackedObj.confidence *= 0.95; // Decay confidence when not detected
+      }
+    }
+    
+    // Add new objects for unmatched detections
+    validDetections.forEach((detection, index) => {
+      if (usedDetections.has(index)) return;
+      
+      const [x1, y1, x2, y2, score, classId] = detection;
+      const newId = nextObjectId++;
+      
+      trackedObjects.set(newId, {
+        id: newId,
+        box: [x1, y1, x2, y2, score, classId],
+        classId: Math.floor(classId),
+        confidence: score,
+        lastSeen: currentFrame,
+        lastDetectionFrame: currentFrame,
+        velocity: [0, 0],
+        age: 0
+      });
+    });
+    
+    // Remove old tracked objects and collect active ones
+    for (const [id, trackedObj] of trackedObjects) {
+      if (currentFrame - trackedObj.lastSeen > TRACKING_PERSISTENCE_FRAMES || trackedObj.confidence < 0.3) {
+        trackedObjects.delete(id);
+      } else {
+        processedBoxes.push(trackedObj.box);
+        trackedObj.age++;
+      }
+    }
+    
+    return processedBoxes;
+  }
+
+  // Draw detection results with object tracking
   function drawResults(boxes, useApiResults = false) {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    // Apply object tracking to detections
+    const trackedBoxes = trackObjects(boxes);
+
     let currentFrameDetections = 0;
     const detectedTypes = new Set();
 
-    boxes.forEach((box) => {
-      let [x1, y1, x2, y2, score, classId] = box;
+    // Draw all tracked objects (including interpolated ones)
+    for (const [id, trackedObj] of trackedObjects) {
+      let [x1, y1, x2, y2, score, classId] = trackedObj.box;
 
       // Scale coordinates back to video dimensions
-      if (!useApiResults && letterboxParams) {
-        const { offsetX, offsetY, newW, newH } = letterboxParams;
-        const scaleX = video.videoWidth / newW;
-        const scaleY = video.videoHeight / newH;
-        x1 = (x1 - offsetX) * scaleX;
-        y1 = (y1 - offsetY) * scaleY;
-        x2 = (x2 - offsetX) * scaleX;
-        y2 = (y2 - offsetY) * scaleY;
+      if (!useApiResults) {
+        const scaleX = video.videoWidth / FIXED_SIZE;
+        const scaleY = video.videoHeight / FIXED_SIZE;
+        x1 = x1 * scaleX;
+        y1 = y1 * scaleY;
+        x2 = x2 * scaleX;
+        y2 = y2 * scaleY;
       }
 
       const boxW = x2 - x1;
       const boxH = y2 - y1;
 
-      if (boxW <= 1 || boxH <= 1) return;
+      if (boxW < 1 || boxH < 1) continue;
 
       currentFrameDetections++;
       const labelName = classNames[Math.floor(classId)] || `Class ${classId}`;
-      const scorePerc = (score * 100).toFixed(1);
+      const scorePerc = (trackedObj.confidence * 100).toFixed(1);
       
       detectedTypes.add(labelName);
       detectionStats.detectedHazards.add(labelName);
 
-      // Enhanced visual styling
-      const color = useApiResults ? '#00FF41' : '#FF6B35'; // Green for API, Orange for ONNX
+      // Enhanced visual styling with tracking indicators
+      const framesSinceLastDetection = frameCount - trackedObj.lastDetectionFrame;
+      const isInterpolated = framesSinceLastDetection > 0;
+      
+      // Color and alpha based on tracking state
+      let color = useApiResults ? '#00FF41' : '#00FF00';
+      let alpha = Math.min(trackedObj.confidence + 0.2, 1.0);
+      
+      // Different visual style for interpolated vs detected boxes
+      if (isInterpolated) {
+        color = '#FFD700'; // Gold color for interpolated
+        alpha *= 0.8; // Slightly more transparent
+        ctx.setLineDash([5, 5]); // Dashed line for interpolated
+      } else {
+        ctx.setLineDash([]); // Solid line for detected
+      }
+      
+      ctx.globalAlpha = alpha;
       ctx.strokeStyle = color;
-      ctx.lineWidth = 3;
+      ctx.lineWidth = isInterpolated ? 2 : 3;
       ctx.strokeRect(x1, y1, boxW, boxH);
 
-      // Label background
+      // Draw tracking ID (small number in top-left corner)
       ctx.fillStyle = color;
-      ctx.font = 'bold 16px Inter';
+      ctx.font = 'bold 12px Arial';
+      ctx.fillText(`#${trackedObj.id}`, x1 + 2, y1 + 12);
+
+      // Label background (improved styling)
+      ctx.font = 'bold 16px Arial';
       const text = `${labelName} (${scorePerc}%)`;
       const textWidth = ctx.measureText(text).width;
-      const textBgY = y1 > 25 ? y1 - 25 : y1;
+      const textBgY = y1 > 20 ? y1 - 20 : y1;
       
-      ctx.fillRect(x1, textBgY, textWidth + 10, 25);
-      ctx.fillStyle = '#000';
-      ctx.fillText(text, x1 + 5, textBgY + 18);
+      ctx.fillRect(x1, textBgY, textWidth + 8, 20);
+      ctx.fillStyle = 'black';
+      ctx.fillText(text, x1 + 4, textBgY + 15);
+      
+      // Reset drawing state
+      ctx.globalAlpha = 1.0;
+      ctx.setLineDash([]);
 
-      if (frameCount % 60 === 0) {
+      console.log(`📦 Tracked object #${trackedObj.id}:`, labelName, scorePerc + "%", isInterpolated ? "(interpolated)" : "(detected)");
+
+      // Save detection periodically
+      if (frameCount % 60 === 0 && !isInterpolated) {
         const snap = document.createElement('canvas');
         snap.width = canvas.width;
         snap.height = canvas.height;
         snap.getContext('2d').drawImage(canvas, 0, 0);
-        saveDetection(snap, labelName).catch((e) => console.error(e));
+        saveDetection(snap, labelName, trackedObj.confidence).catch((e) => console.error(e));
       }
-    });
+    }
 
     // Update statistics
     currentDetections.textContent = currentFrameDetections;
@@ -492,56 +754,62 @@ document.addEventListener("DOMContentLoaded", async () => {
           switchCameraBtn.style.display = "none";
       }
   }
-  // Main detection loop
+  // Main detection loop with improved frame handling
   async function detectionLoop() {
-    if (!detecting) return;
+    if (!detecting || !session) return;
 
     frameCount++;
     frameCountDisplay.textContent = frameCount;
 
-    // Process every 2nd frame for better performance
-    if (frameCount % 2 !== 0) {
-      requestAnimationFrame(detectionLoop);
-      return;
-    }
-
     if (!letterboxParams) computeLetterboxParams();
 
-    // Prepare frame for detection
-    offCtx.fillStyle = "black";
-    offCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
-    offCtx.drawImage(video, letterboxParams.offsetX, letterboxParams.offsetY, letterboxParams.newW, letterboxParams.newH);
+    // Always draw current persistent detections for smooth visualization
+    drawResults([], false);
+    updatePerformanceStats();
 
-    const imageData = offCtx.getImageData(0, 0, FIXED_SIZE, FIXED_SIZE);
-    
-    let detections = [];
-    let useApiResults = false;
+    // Process detection every 4th frame for better performance
+    if (frameCount % 4 === 0) {
+      // Prepare frame for detection
+      offCtx.fillStyle = "black";
+      offCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
+      offCtx.drawImage(video, letterboxParams.offsetX, letterboxParams.offsetY, letterboxParams.newW, letterboxParams.newH);
 
-    // Try API detection first (if available), then fallback to ONNX
+      const imageData = offCtx.getImageData(0, 0, FIXED_SIZE, FIXED_SIZE);
+      
+      let detections = [];
+      let useApiResults = false;
 
-    if (apiAvailable && useApi && frameCount % 10 === 0) { // Use API every 10th frame
-      detections = await detectWithApi(offscreen);
+      // Try API detection first (if available), then fallback to ONNX
+      if (apiAvailable && useApi && apiSessionId && frameCount % 8 === 0) { // Use API every 8th frame
+        try {
+          detections = await detectWithApi(offscreen);
+          if (detections.length > 0) {
+            useApiResults = true;
+            console.log("🔥 Using API detection results");
+          }
+        } catch (error) {
+          console.warn("API detection failed, using ONNX fallback:", error);
+        }
+      }
+
+      // Fallback to ONNX if API didn't return results or failed
+      if (detections.length === 0 && session) {
+        detections = await detectWithOnnx(imageData);
+      }
+
+      // Update detections with new results
       if (detections.length > 0) {
-        useApiResults = true;
-        console.log("🔥 Using API detection results");
+        drawResults(detections, useApiResults);
       }
     }
-
-    // Fallback to ONNX if API didn't return results
-    if (detections.length === 0 && session) {
-      detections = await detectWithOnnx(imageData);
-    }
-
-    drawResults(detections, useApiResults);
-    updatePerformanceStats();
 
     requestAnimationFrame(detectionLoop);
   }
 
   // Event Listeners
   startBtn.addEventListener("click", async () => {
-    if (!initialized) {
-      showNotification("System not ready. Please wait for initialization.", 'warning');
+    if (!session) {
+      showNotification("Model not loaded. Please wait for model initialization.", 'warning');
       return;
     }
 
@@ -549,10 +817,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       startBtn.disabled = true;
       updateConnectionStatus('processing', 'Starting Camera...');
 
-        const constraints = {
+      // Start API session if available
+      if (apiAvailable && !apiSessionId) {
+        updateConnectionStatus('processing', 'Starting API Session...');
+        await startApiSession();
+      }
+
+      const constraints = {
         video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { ideal: 640 },
+          height: { ideal: 480 },
           facingMode: currentCamera
         }
       };
@@ -567,12 +841,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         computeLetterboxParams();
         setDetectingState(true);
         detectionStats.sessionStart = Date.now();
-        updateConnectionStatus('processing', 'Detection Active');
+        const statusMsg = apiSessionId ? 'API + ONNX Detection Active' : 'ONNX Detection Active';
+        updateConnectionStatus('processing', statusMsg);
         detectionLoop();
       }, { once: true });
 
     } catch (err) {
-      showNotification("Camera access denied or unavailable", 'error');
+      showNotification("לא ניתן לפתוח מצלמה", 'error');
       console.error("Camera error:", err);
       detecting = false;
       updateButtonStates();
@@ -595,31 +870,47 @@ document.addEventListener("DOMContentLoaded", async () => {
     startBtn.disabled = false;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    console.log("Camera stopped");
 
-    // Send queued detections
+    // End API session and get summary
+    if (apiSessionId) {
+      updateConnectionStatus('processing', 'Ending API Session...');
+      try {
+        const sessionSummary = await endApiSession();
+        if (sessionSummary) {
+          console.log("📊 Session Summary:", sessionSummary);
+          if (sessionSummary.total_detections > 0) {
+            showNotification(`Session ended: ${sessionSummary.total_detections} total detections`, 'success');
+          }
+        }
+      } catch (error) {
+        console.error("Failed to get session summary:", error);
+      }
+    }
+
+    // Send queued detections to API (matching upload_tf.js logic)
     if (pendingDetections.length > 0) {
+      console.log(`📨 Sending ${pendingDetections.length} detections to server...`);
       for (const detection of pendingDetections) {
-        const formData = new FormData();
-        formData.append('file', detection.blob, `detection-${Date.now()}.jpg`);
-        if (detection.geoData) formData.append('geoData', detection.geoData);
-        formData.append('hazardTypes', detection.hazardTypes);
-        formData.append('time', detection.time);
-
         try {
-          await fetch('/upload-detection', {
-            method: 'POST',
-            body: formData,
-            credentials: 'include'
+          const res = await fetch("/api/reports", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(detection)
           });
+          const result = await res.json();
+          console.log("✅ Detection saved:", result);
         } catch (e) {
-          console.error('🔥 Failed to send detection:', e);
+          console.error("🔥 Failed to send detection:", e);
         }
       }
       pendingDetections.length = 0;
     }
 
-    // Reset stats
+    // Reset stats and clear tracking data
     frameCount = 0;
+    trackedObjects.clear();
+    nextObjectId = 1;
 
     detectionStats = {
       totalDetections: 0,
