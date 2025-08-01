@@ -1,3 +1,6 @@
+import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js";
+import { storage } from "./firebaseConfig.js";
+
 // Enhanced Camera Detection System with Hybrid ONNX + API Detection
 document.addEventListener("DOMContentLoaded", async () => {
   // DOM Elements
@@ -42,6 +45,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   const hazardTypesList = document.getElementById("hazard-types-list");
   const detectionCountBadge = document.getElementById("detection-count-badge");
   const fpsBadge = document.getElementById("fps-badge");
+  const summaryModal = document.getElementById("summary-modal");
+  const summaryList = document.getElementById("summary-list");
+  const uploadSelectedBtn = document.getElementById("upload-selected");
+  const closeSummaryBtn = document.getElementById("close-summary");
 
   // Configuration
   const FIXED_SIZE = 640;
@@ -68,6 +75,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     frameProcessingTimes: [],
     detectedHazards: new Set()
   };
+  const pendingDetections = [];
 
   // Performance monitoring
   let fpsCounter = 0;
@@ -126,6 +134,79 @@ document.addEventListener("DOMContentLoaded", async () => {
     }, 5000);
   }
 
+  // Save detection snapshot for later review
+  function saveDetection(canvas, label, score) {
+    pendingDetections.push({
+      canvas,
+      label,
+      score,
+      time: new Date().toISOString()
+    });
+  }
+
+  // Upload canvas image to Firebase Storage and return its URL
+  async function uploadDetectionImage(canvas) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(async (blob) => {
+        if (!blob) return reject("No blob from canvas");
+        try {
+          const timestamp = Date.now();
+          const imageRef = ref(storage, `detections/${timestamp}.jpg`);
+          await uploadBytes(imageRef, blob);
+          const url = await getDownloadURL(imageRef);
+          resolve(url);
+        } catch (err) {
+          reject(err);
+        }
+      }, "image/jpeg", 0.9);
+    });
+  }
+
+  function showSummaryModal() {
+    summaryList.innerHTML = pendingDetections.map((det, idx) => {
+      const imgUrl = det.canvas.toDataURL("image/jpeg", 0.8);
+      return `
+        <div class="summary-item">
+          <input type="checkbox" data-index="${idx}" checked>
+          <img src="${imgUrl}" alt="${det.label}">
+          <span>${det.label}</span>
+        </div>`;
+    }).join('') || '<p>No detections captured.</p>';
+    summaryModal.style.display = 'flex';
+  }
+
+  function hideSummaryModal() {
+    summaryModal.style.display = 'none';
+  }
+
+  async function uploadSelectedDetections() {
+    const checkboxes = summaryList.querySelectorAll('input[type="checkbox"]:checked');
+    for (const cb of checkboxes) {
+      const det = pendingDetections[cb.dataset.index];
+      try {
+        const image = await uploadDetectionImage(det.canvas);
+        const report = {
+          type: det.label,
+          location: "Unknown",
+          time: det.time,
+          image,
+          status: "unreviewed",
+          reportedBy: "anonymous"
+        };
+        await fetch('/api/reports', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(report)
+        });
+      } catch (err) {
+        console.error('Failed to upload detection', err);
+      }
+    }
+    pendingDetections.length = 0;
+    hideSummaryModal();
+    showNotification('Selected reports uploaded', 'success');
+  }
+
   // Test API availability
   async function testApiConnection() {
     try {
@@ -164,12 +245,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       ];
       
       let modelPath = null;
+      let modelName = '';
       for (const path of modelPaths) {
         try {
           const encodedPath = encodeURI(path);
           const response = await fetch(encodedPath, { method: 'HEAD' });
           if (response.ok) {
             modelPath = encodedPath;
+            modelName = path.split('/').pop();
             console.log(`✅ Found ONNX model at: ${path}`);
             break;
           }
@@ -182,7 +265,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         throw new Error('No ONNX model found in any of the expected locations');
       }
 
-      showLoading("Initializing ONNX Runtime...", 50);
+      showLoading(`Loading ${modelName}...`, 50);
 
       // Try WebGL first, then fallback to CPU
       try {
@@ -204,7 +287,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.log("✅ ONNX model loaded with CPU backend");
       }
 
-      showLoading("Model loaded successfully!", 100);
+      showLoading(`Model ${modelName} loaded!`, 100);
+      showNotification(`Loaded ONNX model: ${modelName}`, 'success');
       return true;
     } catch (err) {
       console.error("❌ Failed to load ONNX model:", err);
@@ -386,6 +470,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       ctx.fillRect(x1, textBgY, textWidth + 10, 25);
       ctx.fillStyle = '#000';
       ctx.fillText(text, x1 + 5, textBgY + 18);
+
+      if (frameCount % 60 === 0) {
+        const snap = document.createElement('canvas');
+        snap.width = canvas.width;
+        snap.height = canvas.height;
+        snap.getContext('2d').drawImage(canvas, 0, 0);
+        saveDetection(snap, labelName, score);
+      }
     });
 
     // Update statistics
@@ -507,6 +599,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       startBtn.style.display = "none";
       stopBtn.style.display = "inline-block";
       switchCameraBtn.style.display = "inline-block";
+      pendingDetections.length = 0;
 
       video.addEventListener("loadeddata", () => {
         canvas.width = video.videoWidth;
@@ -546,7 +639,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       frameProcessingTimes: [],
       detectedHazards: new Set()
     };
-    
+    if (pendingDetections.length > 0) {
+      showSummaryModal();
+    }
+
     updateConnectionStatus('ready', 'System Ready');
   });
 
@@ -589,8 +685,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     confidenceThreshold = parseFloat(e.target.value);
     e.target.parentElement.querySelector('.value').textContent = `${Math.round(confidenceThreshold * 100)}%`;
   });
+  uploadSelectedBtn.addEventListener('click', uploadSelectedDetections);
+  closeSummaryBtn.addEventListener('click', hideSummaryModal);
 
   // Initialize on load
-  updateConnectionStatus('ready', 'System Ready');
+  await initializeDetection();
   console.log("🚀 Enhanced Camera Detection System Loaded");
 });
