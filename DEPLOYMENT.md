@@ -25,7 +25,8 @@ This guide explains how to deploy the Hazard Detection system as two separate se
 1. **Create New Railway Project**
    ```bash
    cd api/
-   railway login
+   # Use RAILWAY_TOKEN for non-interactive login in CI
+   railway login --token $RAILWAY_TOKEN  # or run `railway login` interactively
    railway init
    railway up
    ```

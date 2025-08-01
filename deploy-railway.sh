@@ -16,9 +16,15 @@ echo "✅ Railway CLI found"
 # Login check
 echo "🔐 Checking Railway authentication..."
 if ! railway whoami &> /dev/null; then
-    echo "❌ Not logged in to Railway. Please login first:"
-    echo "   railway login"
-    exit 1
+    if [ -n "$RAILWAY_TOKEN" ]; then
+        echo "🔑 Logging in with Railway token..."
+        railway login --token "$RAILWAY_TOKEN" >/dev/null 2>&1
+    else
+        echo "❌ Not logged in to Railway. Please login first:"
+        echo "   railway login"
+        echo "   or set RAILWAY_TOKEN"
+        exit 1
+    fi
 fi
 
 echo "✅ Railway authentication verified"
