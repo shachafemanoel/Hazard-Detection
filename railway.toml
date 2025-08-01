@@ -3,7 +3,7 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile.frontend"
 
 [deploy]
-startCommand = "/app/start-frontend.sh"
+startCommand = "npm start"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
