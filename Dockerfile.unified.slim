@@ -15,30 +15,8 @@ RUN apt-get update && apt-get install -y \
     libgl1-mesa-glx libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Create minimal requirements
-RUN cat > /app/unified-requirements.txt << EOF
-# Core FastAPI and web server dependencies
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-python-multipart==0.0.6
-pydantic==2.5.0
-
-# AI/ML Dependencies - minimal set
-numpy==1.24.3
-opencv-python-headless==4.8.1.78
-pillow==10.0.1
-
-# PyTorch CPU-only (smaller)
-torch>=2.0.0 --index-url https://download.pytorch.org/whl/cpu
-torchvision>=0.15.0 --index-url https://download.pytorch.org/whl/cpu
-
-# Utilities
-aiohttp==3.9.1
-redis==5.0.1
-py-cpuinfo==9.0.0
-requests==2.31.0
-python-dotenv==1.0.0
-EOF
+# Copy minimal requirements
+COPY unified-requirements.slim.txt /app/unified-requirements.txt
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --user -r /app/unified-requirements.txt
