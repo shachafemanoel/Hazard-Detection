@@ -39,6 +39,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Configuration
   const FIXED_SIZE = 480;
   const API_URL = "https://hazard-api-production-production.up.railway.app";
+  const RAILWAY_TOKEN = window.RAILWAY_TOKEN || '';
+  const API_HEADERS = RAILWAY_TOKEN ? { 'Authorization': `Bearer ${RAILWAY_TOKEN}` } : {};
   
   // Updated class names to match the API service
   const classNames = [
@@ -153,7 +155,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
       const response = await fetch(`${API_URL}/health`, {
         method: 'GET',
-        signal: controller.signal
+        signal: controller.signal,
+        headers: API_HEADERS
       });
 
       if (response.ok) {
@@ -188,7 +191,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     
     try {
       const response = await fetch(`${API_URL}/session/start`, {
-        method: 'POST'
+        method: 'POST',
+        headers: API_HEADERS
       });
       
       if (response.ok) {
@@ -213,7 +217,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     
     try {
       const response = await fetch(`${API_URL}/session/${apiSessionId}/end`, {
-        method: 'POST'
+        method: 'POST',
+        headers: API_HEADERS
       });
       
       if (response.ok) {
@@ -403,7 +408,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       const response = await fetch(`${API_URL}/detect/${apiSessionId}`, {
         method: 'POST',
         body: formData,
-        signal: controller.signal
+        signal: controller.signal,
+        headers: API_HEADERS
       });
 
       if (!response.ok) {
