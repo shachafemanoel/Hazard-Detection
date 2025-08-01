@@ -23,17 +23,15 @@ COPY public/object_detecion_model/road_damage_detection_simplified.onnx ./public
 COPY public/ort/ ./public/ort/
 
 # Create lightweight startup script
-RUN cat > /app/start-frontend.sh << 'EOF'
-#!/bin/bash
-set -e
-
-echo "🚀 Starting Hazard Detection Frontend"
-WEB_PORT=${PORT:-3000}
-
-echo "🌐 Starting web server on port ${WEB_PORT}..."
-cd /app
-exec node server/routes/server.js
-EOF
+RUN echo '#!/bin/bash\n\
+set -e\n\
+\n\
+echo "🚀 Starting Hazard Detection Frontend"\n\
+WEB_PORT=${PORT:-3000}\n\
+\n\
+echo "🌐 Starting web server on port ${WEB_PORT}..."\n\
+cd /app\n\
+exec node server/routes/server.js' > /app/start-frontend.sh
 
 RUN chmod +x /app/start-frontend.sh
 
