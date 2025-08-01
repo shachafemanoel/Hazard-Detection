@@ -954,6 +954,50 @@ body {
     opacity: 1;
 }
 
+/* Detection Summary Modal */
+.summary-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+}
+
+.summary-content {
+    background: var(--bg-panel);
+    padding: 20px;
+    border-radius: 10px;
+    width: calc(100% - 2rem);
+    max-width: 500px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.summary-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.summary-item img {
+    width: 80px;
+    height: auto;
+    margin: 0 10px;
+    border-radius: 4px;
+}
+
+.summary-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 15px;
+}
+
 .alert-content {
     padding: 30px;
     display: flex;

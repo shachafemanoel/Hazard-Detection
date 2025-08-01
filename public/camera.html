@@ -185,11 +185,23 @@
                 </button>
             </div>
         </div>
+
+        <!-- Detection Summary Modal -->
+        <div class="summary-modal" id="summary-modal">
+            <div class="summary-content">
+                <h3>Detected Reports</h3>
+                <div id="summary-list"></div>
+                <div class="summary-actions">
+                    <button class="btn btn-primary" id="upload-selected">Upload Selected</button>
+                    <button class="btn btn-secondary" id="close-summary">Close</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="ort/ort.min.js"></script>
-    <script src="js/camera_detection.js" defer></script>
+    <script type="module" src="js/camera_detection.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const menuBtn = document.getElementById('menuBtn');
