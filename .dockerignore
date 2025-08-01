@@ -66,6 +66,7 @@ env/
 Dockerfile
 Dockerfile.*
 !Dockerfile.unified
+!Dockerfile.unified.slim
 docker-compose.yml
 !docker-compose.unified.yml
 

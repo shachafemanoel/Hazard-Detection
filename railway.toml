@@ -1,6 +1,6 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile.unified"
+dockerfilePath = "Dockerfile.unified.slim"
 
 [deploy]
 startCommand = "/app/start-unified.sh"
