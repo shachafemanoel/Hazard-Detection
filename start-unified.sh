@@ -48,7 +48,6 @@ export API_PORT=${API_PORT:-8000}
 # Step 3: Start FastAPI service on configured API port
 echo "🐍 Starting FastAPI (${MODEL_BACKEND} backend) on port ${API_PORT}..."
 cd /app
-export MODEL_DIR=/app/models/openvino
 uvicorn api.app:app --host 0.0.0.0 --port ${API_PORT} --workers 1 &
 API_PID=$!
 
