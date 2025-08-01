@@ -12,19 +12,10 @@ class HazardDetectionApp {
     this.init();
   }
 
-  // Get backend URL based on environment
+  // Get backend URL based on environment - use proxy endpoints
   getBackendUrl() {
-    const hostname = window.location.hostname;
-    
-    if (hostname.includes('render.com') || hostname.includes('onrender.com')) {
-      return 'https://hazard-detection-backend.onrender.com';
-    }
-    
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'http://localhost:8000';
-    }
-    
-    return `${window.location.protocol}//${hostname}:8000`;
+    // Always use the same origin to go through the frontend server proxy
+    return window.location.origin + '/api/v1';
   }
 
   // Initialize the application

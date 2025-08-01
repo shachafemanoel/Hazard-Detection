@@ -150,6 +150,20 @@ saveBtn.addEventListener("click", () => {
                   credentials: "include",
               });
 
+              if (!res.ok) {
+                  const contentType = res.headers.get("content-type");
+                  let errorMessage = `HTTP ${res.status}`;
+                  
+                  if (contentType && contentType.includes("application/json")) {
+                      const errorData = await res.json();
+                      errorMessage = errorData.error || errorMessage;
+                  } else {
+                      errorMessage = res.status === 401 ? "Authentication required" : `Server error (${res.status})`;
+                  }
+                  
+                  throw new Error(errorMessage);
+              }
+
               const result = await res.json();
               showToast("✅ Saved to server: " + result.message, "success");
           } catch (err) {

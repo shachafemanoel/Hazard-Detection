@@ -794,6 +794,60 @@ body {
     pointer-events: none;
 }
 
+.notification button {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 4px;
+    transition: color 0.2s ease;
+    font-size: 1rem;
+}
+
+.notification button:hover {
+    color: var(--danger-color);
+}
+
+/* Status indicators for connection status */
+.status-indicator.connected {
+    color: var(--secondary-color) !important;
+}
+
+.status-indicator.warning {
+    color: var(--warning-color) !important;
+}
+
+.status-indicator.ready {
+    color: var(--text-secondary) !important;
+}
+
+/* Enhanced hazard types display */
+.hazard-type {
+    display: inline-block;
+    padding: 4px 8px;
+    margin: 2px;
+    background: rgba(255, 71, 87, 0.1);
+    border: 1px solid rgba(255, 71, 87, 0.3);
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--danger-color);
+    text-transform: capitalize;
+    animation: hazardTypeSlide 0.3s ease;
+}
+
+@keyframes hazardTypeSlide {
+    from {
+        transform: translateX(-10px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
 /* Desktop: Position on the right */
 @media (min-width: 48em) {
     .notifications-container {
