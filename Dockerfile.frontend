@@ -14,14 +14,6 @@ RUN npm ci --only=production && npm cache clean --force
 COPY server/ ./server/
 COPY public/ ./public/
 
-# Copy only essential ONNX models (not all of them)
-RUN mkdir -p ./public/object_detecion_model/
-COPY public/object_detecion_model/model\ 18_7.onnx ./public/object_detecion_model/
-COPY public/object_detecion_model/road_damage_detection_simplified.onnx ./public/object_detecion_model/
-
-# Copy ONNX runtime files
-COPY public/ort/ ./public/ort/
-
 # Create lightweight startup script
 RUN echo '#!/bin/bash\n\
 set -e\n\
