@@ -162,9 +162,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (frameCount % 60 === 0) {
           const snap = document.createElement('canvas');
-          snap.width = canvas.width;
-          snap.height = canvas.height;
-          snap.getContext('2d').drawImage(canvas, 0, 0);
+          snap.width = video.videoWidth;
+          snap.height = video.videoHeight;
+          const snapCtx = snap.getContext('2d');
+          // Draw the video frame and overlay
+          snapCtx.drawImage(video, 0, 0, snap.width, snap.height);
+          snapCtx.drawImage(canvas, 0, 0, snap.width, snap.height);
           saveDetection(snap, label, score).catch((e) => console.error(e));
         }
       }
