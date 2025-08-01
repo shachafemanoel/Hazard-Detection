@@ -23,7 +23,7 @@ WEB_PORT=${PORT:-3000}\n\
 \n\
 echo "🌐 Starting web server on port ${WEB_PORT}..."\n\
 cd /app\n\
-exec node server/routes/server.js' > /app/start-frontend.sh
+exec npm start' > /app/start-frontend.sh
 
 RUN chmod +x /app/start-frontend.sh
 
