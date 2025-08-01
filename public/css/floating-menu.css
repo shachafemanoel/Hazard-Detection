@@ -69,20 +69,78 @@
   display: block;
 }
 
-/* Mobile Responsiveness */
+/* Enhanced Floating Menu Styles for Better Integration */
+.floating-menu-btn,
+.floating-menu a {
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.floating-menu a.active {
+  background: rgba(247, 200, 115, 0.2);
+  color: #f7c873;
+  border-left: 3px solid #f7c873;
+}
+
+.floating-menu a i {
+  margin-right: 8px;
+  width: 20px;
+  text-align: center;
+}
+
+/* Mobile Responsiveness - Enhanced */
 @media (max-width: 768px) {
   .container-flex {
     padding: 1rem;
   }
   
+  .floating-menu-btn {
+    z-index: 10002; /* Above summary modal */
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  
   .floating-menu {
-    width: 80%;
-    max-width: 250px;
+    width: min(80vw, 280px);
+    max-width: 280px;
     left: -80%;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .floating-menu a {
+    display: flex;
+    align-items: center;
+    padding: 18px 25px;
+    border-radius: 0;
+    transition: all 0.2s ease;
+    position: relative;
+  }
+  
+  .floating-menu a:hover {
+    transform: translateX(5px);
+    background: rgba(247, 200, 115, 0.15);
+  }
+  
+  .floating-menu a::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: transparent;
+    transition: background 0.2s ease;
+  }
+  
+  .floating-menu a:hover::before,
+  .floating-menu a.active::before {
+    background: #f7c873;
   }
 }
 
-/* Tablet and Desktop adjustments */
+/* Tablet and Desktop adjustments - Enhanced */
 @media (min-width: 769px) {
   .floating-menu-btn {
     display: none;
@@ -91,35 +149,115 @@
   .floating-menu {
     left: 0;
     width: 60px;
-    height: 100%;
-    padding-top: 60px;
+    height: 100vh;
+    height: 100dvh;
+    padding-top: 80px;
     display: flex;
     flex-direction: column;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    z-index: 1000;
   }
   
   .floating-menu a {
-    padding: 15px;
+    padding: 18px 15px;
     text-align: center;
-    margin-bottom: 5px;
+    margin-bottom: 8px;
+    border-radius: 12px;
+    margin-left: 8px;
+    margin-right: 8px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .floating-menu a::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 0;
+    height: 0;
+    background: rgba(247, 200, 115, 0.1);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: all 0.3s ease;
+    z-index: -1;
+  }
+  
+  .floating-menu a:hover::before {
+    width: 100%;
+    height: 100%;
+    border-radius: 12px;
   }
   
   .floating-menu a span {
     display: none;
+    margin-left: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.3s ease 0.1s;
   }
   
   .floating-menu a:last-child {
     margin-top: auto;
+    margin-bottom: 20px;
   }
+  
   .floating-menu a i {
-    font-size: 24px;
+    font-size: 20px;
+    margin-right: 0;
+    transition: transform 0.2s ease;
+  }
+  
+  .floating-menu a:hover i {
+    transform: scale(1.1);
   }
   
   .floating-menu:hover {
-    width: 250px;
+    width: 240px;
+    box-shadow: 2px 0 20px rgba(0, 0, 0, 0.4);
+  }
+  
+  .floating-menu:hover a {
+    text-align: left;
+    padding-left: 20px;
+  }
+  
+  .floating-menu:hover a i {
+    margin-right: 12px;
   }
   
   .floating-menu:hover a span {
     display: inline-block;
-    margin-left: 10px;
+    opacity: 1;
+  }
+  
+  .floating-menu a.active {
+    background: rgba(247, 200, 115, 0.2);
+    color: #f7c873;
+    box-shadow: 0 4px 12px rgba(247, 200, 115, 0.3);
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .floating-menu {
+    border-right: 2px solid rgba(255, 255, 255, 0.3);
+  }
+  
+  .floating-menu a {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .floating-menu,
+  .floating-menu a,
+  .floating-menu a::before {
+    transition: none !important;
   }
 }

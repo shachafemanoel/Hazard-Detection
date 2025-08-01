@@ -186,14 +186,91 @@
             </div>
         </div>
 
-        <!-- Detection Summary Modal -->
-        <div class="summary-modal" id="summary-modal">
-            <div class="summary-content">
-                <h3>Detected Reports</h3>
-                <div id="summary-list"></div>
-                <div class="summary-actions">
-                    <button class="btn btn-primary" id="upload-selected">Upload Selected</button>
-                    <button class="btn btn-secondary" id="close-summary">Close</button>
+        <!-- Enhanced Detection Summary Modal -->
+        <div class="summary-modal-overlay" id="summary-modal-overlay">
+            <div class="summary-modal" id="summary-modal">
+                <div class="summary-header">
+                    <div class="summary-header-content">
+                        <i class="fas fa-chart-bar"></i>
+                        <h2>Detection Session Summary</h2>
+                    </div>
+                    <button class="modal-close-btn" id="close-summary">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="summary-body">
+                    <!-- Session Stats -->
+                    <div class="session-stats">
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-eye"></i>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-number" id="total-detections-count">0</span>
+                                <span class="stat-label">Total Detections</span>
+                            </div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-number" id="session-duration">0:00</span>
+                                <span class="stat-label">Session Duration</span>
+                            </div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-number" id="unique-hazards-count">0</span>
+                                <span class="stat-label">Unique Hazards</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Detection List -->
+                    <div class="detections-section">
+                        <h3>
+                            <i class="fas fa-list"></i>
+                            Detected Hazards
+                        </h3>
+                        <div class="detections-grid" id="detections-grid">
+                            <div class="no-detections">
+                                <i class="fas fa-search"></i>
+                                <p>No hazards detected in this session</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Saved Reports Section -->
+                    <div class="saved-reports-section">
+                        <h3>
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            Saved Reports
+                        </h3>
+                        <div class="reports-list" id="saved-reports-list">
+                            <div class="loading-reports">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <p>Loading saved reports...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="summary-footer">
+                    <button class="btn btn-secondary" id="export-summary">
+                        <i class="fas fa-download"></i>
+                        Export Summary
+                    </button>
+                    <button class="btn btn-primary" id="view-dashboard">
+                        <i class="fas fa-chart-line"></i>
+                        View Dashboard
+                    </button>
                 </div>
             </div>
         </div>

@@ -24,6 +24,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   const detectionCountBadge = document.getElementById("detection-count-badge");
   const fpsBadge = document.getElementById("fps-badge");
 
+  // Summary modal elements
+  const summaryModalOverlay = document.getElementById("summary-modal-overlay");
+  const summaryModal = document.getElementById("summary-modal");
+  const closeSummaryBtn = document.getElementById("close-summary");
+  const exportSummaryBtn = document.getElementById("export-summary");
+  const viewDashboardBtn = document.getElementById("view-dashboard");
+  const totalDetectionsCount = document.getElementById("total-detections-count");
+  const sessionDurationDisplay = document.getElementById("session-duration");
+  const uniqueHazardsCount = document.getElementById("unique-hazards-count");
+  const detectionsGrid = document.getElementById("detections-grid");
+  const savedReportsList = document.getElementById("saved-reports-list");
+
   // Configuration
   const FIXED_SIZE = 480;
   const API_URL = "https://hazard-api-production-production.up.railway.app";
@@ -53,6 +65,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   };
 
   const pendingDetections = [];
+  let sessionDetectionsSummary = []; // Store detailed detection information for summary
 
   // Object tracking system
   let trackedObjects = new Map();
@@ -435,20 +448,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  async function saveDetection(canvas, label, score) {
+  async function saveDetection(compositeCanvas, label, score) {
     try {
+      // Ensure we have a valid canvas with image data
+      if (!compositeCanvas || compositeCanvas.width === 0 || compositeCanvas.height === 0) {
+        console.warn("❌ Invalid canvas for detection saving");
+        return;
+      }
+
       // Create a simple detection report (matching upload_tf.js structure)
       const report = {
         type: label,
-        location: "Unknown",
+        location: geoData ? JSON.parse(geoData) : "Unknown",
         time: new Date().toISOString(),
-        image: canvas.toDataURL("image/jpeg", 0.9),
+        image: compositeCanvas.toDataURL("image/jpeg", 0.9),
         status: "unreviewed",
-        reportedBy: "anonymous"
+        reportedBy: "live_camera",
+        confidence: Math.round(score * 100)
       };
 
       pendingDetections.push(report);
-      console.log("📝 Detection queued:", report);
+      console.log("📝 Detection queued:", { type: label, confidence: `${Math.round(score * 100)}%`, timestamp: report.time });
     } catch (err) {
       console.error("❌ Error during image preparation:", err);
     }
@@ -681,13 +701,30 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       console.log(`📦 Tracked object #${trackedObj.id}:`, labelName, scorePerc + "%", isInterpolated ? "(interpolated)" : "(detected)");
 
-      // Save detection periodically
+      // Save detection periodically and add to summary
       if (frameCount % 60 === 0 && !isInterpolated) {
+        // Create composite canvas with video + bounding boxes
         const snap = document.createElement('canvas');
-        snap.width = canvas.width;
-        snap.height = canvas.height;
-        snap.getContext('2d').drawImage(canvas, 0, 0);
+        snap.width = video.videoWidth;
+        snap.height = video.videoHeight;
+        const snapCtx = snap.getContext('2d');
+        
+        // Draw the video frame first
+        snapCtx.drawImage(video, 0, 0, snap.width, snap.height);
+        
+        // Then draw the bounding boxes overlay
+        snapCtx.drawImage(canvas, 0, 0, snap.width, snap.height);
+        
         saveDetection(snap, labelName, trackedObj.confidence).catch((e) => console.error(e));
+        
+        // Add to session detections summary
+        sessionDetectionsSummary.push({
+          type: labelName,
+          confidence: trackedObj.confidence,
+          timestamp: Date.now(),
+          objectId: trackedObj.id,
+          frame: frameCount
+        });
       }
     }
 
@@ -840,7 +877,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       video.addEventListener("loadeddata", () => {
         computeLetterboxParams();
         setDetectingState(true);
-        detectionStats.sessionStart = Date.now();
+        
+        // Reset detection stats and summary for new session
+        detectionStats = {
+          totalDetections: 0,
+          sessionStart: Date.now(),
+          frameProcessingTimes: [],
+          detectedHazards: new Set()
+        };
+        sessionDetectionsSummary = [];
+        
         const statusMsg = apiSessionId ? 'API + ONNX Detection Active' : 'ONNX Detection Active';
         updateConnectionStatus('processing', statusMsg);
         detectionLoop();
@@ -907,17 +953,20 @@ document.addEventListener("DOMContentLoaded", async () => {
       pendingDetections.length = 0;
     }
 
+    // Show summary modal if there were detections
+    if (detectionStats.totalDetections > 0 || sessionDetectionsSummary.length > 0) {
+      setTimeout(() => {
+        showSummaryModal();
+      }, 500); // Small delay to let the UI settle
+    }
+
     // Reset stats and clear tracking data
     frameCount = 0;
     trackedObjects.clear();
     nextObjectId = 1;
 
-    detectionStats = {
-      totalDetections: 0,
-      sessionStart: Date.now(),
-      frameProcessingTimes: [],
-      detectedHazards: new Set()
-    };
+    // Don't reset detection stats immediately - keep for summary modal
+    // They will be reset when starting a new session
 
     updateConnectionStatus('ready', 'System Ready');
   });
@@ -961,6 +1010,213 @@ document.addEventListener("DOMContentLoaded", async () => {
     confidenceThreshold = parseFloat(e.target.value);
     e.target.parentElement.querySelector('.value').textContent = `${Math.round(confidenceThreshold * 100)}%`;
   });
+  // Summary Modal Functions
+  function showSummaryModal() {
+    updateSummaryData();
+    summaryModalOverlay.classList.add('show');
+    document.body.style.overflow = 'hidden'; // Prevent background scrolling
+  }
+
+  function hideSummaryModal() {
+    summaryModalOverlay.classList.remove('show');
+    document.body.style.overflow = ''; // Restore scrolling
+  }
+
+  function updateSummaryData() {
+    // Update session stats
+    totalDetectionsCount.textContent = detectionStats.totalDetections;
+    
+    // Calculate and display session duration
+    const sessionDuration = Date.now() - detectionStats.sessionStart;
+    const minutes = Math.floor(sessionDuration / 60000);
+    const seconds = Math.floor((sessionDuration % 60000) / 1000);
+    sessionDurationDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    
+    // Update unique hazards count
+    uniqueHazardsCount.textContent = detectionStats.detectedHazards.size;
+    
+    // Update detections grid
+    updateDetectionsGrid();
+    
+    // Load saved reports
+    loadSavedReports();
+  }
+
+  function updateDetectionsGrid() {
+    if (sessionDetectionsSummary.length === 0) {
+      detectionsGrid.innerHTML = `
+        <div class="no-detections">
+          <i class="fas fa-search"></i>
+          <p>No hazards detected in this session</p>
+        </div>
+      `;
+      return;
+    }
+
+    detectionsGrid.innerHTML = sessionDetectionsSummary.map(detection => `
+      <div class="detection-item">
+        <div class="detection-item-header">
+          <span class="detection-type">${detection.type}</span>
+          <span class="detection-confidence">${Math.round(detection.confidence * 100)}%</span>
+        </div>
+        <div class="detection-timestamp">${new Date(detection.timestamp).toLocaleTimeString()}</div>
+        <div class="detection-location">
+          <i class="fas fa-map-marker-alt"></i>
+          Live Camera Feed
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function loadSavedReports() {
+    try {
+      savedReportsList.innerHTML = `
+        <div class="loading-reports">
+          <i class="fas fa-spinner fa-spin"></i>
+          <p>Loading saved reports...</p>
+        </div>
+      `;
+
+      // Fetch saved reports from the server with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      
+      const response = await fetch('/api/reports', {
+        method: 'GET',
+        credentials: 'include',
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Handle different API response formats
+        let reports = [];
+        if (Array.isArray(data)) {
+          reports = data;
+        } else if (data.reports && Array.isArray(data.reports)) {
+          reports = data.reports;
+        } else if (data.data && Array.isArray(data.data)) {
+          reports = data.data;
+        } else {
+          console.log('Unexpected API response format:', data);
+          reports = [];
+        }
+        
+        if (reports.length === 0) {
+          savedReportsList.innerHTML = `
+            <div class="no-detections">
+              <i class="fas fa-inbox"></i>
+              <p>No saved reports found</p>
+            </div>
+          `;
+          return;
+        }
+
+        // Show recent reports (last 10)
+        const recentReports = reports.slice(0, 10);
+        
+        savedReportsList.innerHTML = recentReports.map(report => `
+          <div class="report-item">
+            <div class="report-thumbnail" style="background-image: url('${report.image || '/images/placeholder.jpg'}')"></div>
+            <div class="report-info">
+              <div class="report-type">${report.type}</div>
+              <div class="report-details">
+                ${new Date(report.time).toLocaleDateString()} • ${report.location}
+              </div>
+            </div>
+            <div class="report-status ${report.status === 'uploaded' ? 'uploaded' : 'pending'}">
+              ${report.status}
+            </div>
+          </div>
+        `).join('');
+      } else if (response.status === 404) {
+        // API endpoint doesn't exist - show placeholder
+        savedReportsList.innerHTML = `
+          <div class="no-detections">
+            <i class="fas fa-info-circle"></i>
+            <p>Reports API not available</p>
+          </div>
+        `;
+      } else {
+        throw new Error(`Failed to fetch reports: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('Error loading saved reports:', error);
+      
+      // Show different messages based on error type
+      let errorMessage = 'Error loading reports';
+      if (error.name === 'AbortError') {
+        errorMessage = 'Request timed out';
+      } else if (error.message.includes('404') || error.message.includes('Failed to fetch')) {
+        errorMessage = 'Reports service unavailable';
+      } else if (error.name === 'TypeError') {
+        errorMessage = 'Connection error';
+      }
+      
+      savedReportsList.innerHTML = `
+        <div class="no-detections">
+          <i class="fas fa-exclamation-triangle"></i>
+          <p>${errorMessage}</p>
+        </div>
+      `;
+    }
+  }
+
+  function exportSummary() {
+    const summaryData = {
+      sessionStats: {
+        totalDetections: detectionStats.totalDetections,
+        sessionDuration: Date.now() - detectionStats.sessionStart,
+        uniqueHazards: Array.from(detectionStats.detectedHazards),
+        sessionStart: new Date(detectionStats.sessionStart).toISOString(),
+        sessionEnd: new Date().toISOString()
+      },
+      detections: sessionDetectionsSummary,
+      performance: {
+        averageProcessingTime: detectionStats.frameProcessingTimes.length > 0 
+          ? Math.round(detectionStats.frameProcessingTimes.reduce((a, b) => a + b, 0) / detectionStats.frameProcessingTimes.length)
+          : 0,
+        totalFrames: frameCount
+      }
+    };
+
+    const blob = new Blob([JSON.stringify(summaryData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `detection-summary-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showNotification('Summary exported successfully', 'success');
+  }
+
+  // Event listeners for summary modal
+  closeSummaryBtn.addEventListener('click', hideSummaryModal);
+  summaryModalOverlay.addEventListener('click', (e) => {
+    if (e.target === summaryModalOverlay) {
+      hideSummaryModal();
+    }
+  });
+
+  exportSummaryBtn.addEventListener('click', exportSummary);
+  
+  viewDashboardBtn.addEventListener('click', () => {
+    window.location.href = '/dashboard.html';
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && summaryModalOverlay.classList.contains('show')) {
+      hideSummaryModal();
+    }
+  });
+
   // Initialize on load
   async function main() {
     updateButtonStates();
