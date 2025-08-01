@@ -1081,10 +1081,10 @@ select:focus, input:focus {
   margin-bottom: 1rem;
 }
 .hazard-type-dropdown-btn {
-  background: #232946;
-  color: #fff;
+  background: var(--tech-accent);
+  color: #000;
   border: none;
-  border-radius: 999px;
+  border-radius: var(--tech-radius);
   padding: 0.5rem 1.2rem;
   font-size: 1rem;
   font-weight: 600;
@@ -1093,10 +1093,11 @@ select:focus, input:focus {
   align-items: center;
   gap: 0.5rem;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background var(--tech-transition), transform var(--tech-transition);
 }
 .hazard-type-dropdown-btn:hover {
-  background: #343a50;
+  background: var(--tech-accent2);
+  transform: translateY(-2px);
 }
 .hazard-type-dropdown-menu {
   display: none;
@@ -1115,19 +1116,20 @@ select:focus, input:focus {
   display: flex;
 }
 .hazard-type-option {
-  background: none;
+  background: var(--tech-accent);
   border: none;
-  color: #fff;
+  color: #000;
   text-align: right;
   padding: 0.7rem 1.2rem;
   font-size: 1rem;
   cursor: pointer;
-  border-radius: 0;
-  transition: background 0.15s;
+  border-radius: var(--tech-radius);
+  transition: background var(--tech-transition), transform var(--tech-transition);
 }
 .hazard-type-option:hover, .hazard-type-option.selected {
-  background: #1e88e5;
-  color: #fff;
+  background: var(--tech-accent2);
+  color: #000;
+  transform: translateY(-2px);
 }
 .reports-blocks-list {
   display: flex;
@@ -1355,14 +1357,17 @@ header h1 {
 }
 
 #legend-toggle-btn {
-  border: 1.5px solid #b0b8c1;
-  background: #cbd2d9;
-  color: #2d3a4a;
+  background: var(--tech-accent);
+  color: #000;
+  border: none;
+  border-radius: var(--tech-radius);
   font-weight: 600;
+  transition: background var(--tech-transition), transform var(--tech-transition);
 }
 #legend-toggle-btn:hover {
-  background: #5c7fa3;
-  color: #fff;
+  background: var(--tech-accent2);
+  color: #000;
+  transform: translateY(-2px);
 }
 
 input, select {
@@ -1435,4 +1440,29 @@ input:focus, select:focus {
     width: 80px;
     height: 80px;
   }
+}
+
+/* Tech-Urban Dashboard Layout */
+.dashboard-main-layout {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 1rem;
+  padding: 1rem;
+}
+.dashboard-metrics-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.dashboard-center-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1rem;
+  height: calc(100vh - 120px);
+}
+.dashboard-center, .dashboard-right {
+  background: var(--tech-panel);
+  border-radius: var(--tech-radius);
+  padding: 1rem;
+  overflow: auto;
 }
