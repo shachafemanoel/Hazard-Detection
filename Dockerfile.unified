@@ -19,8 +19,9 @@ RUN pip3 install --no-cache-dir -r unified-requirements.txt
 # Copy application source
 COPY . .
 
-# Ensure startup script is executable
-RUN chmod +x /app/start-unified.sh
+# Ensure startup scripts are executable
+RUN chmod +x /app/start-unified.sh || true
+RUN chmod +x /app/start-frontend.sh || chmod +x ./start-frontend.sh || true
 
 # Environment and ports
 ENV NODE_ENV=production

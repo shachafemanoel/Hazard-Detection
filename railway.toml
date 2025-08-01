@@ -1,9 +1,9 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile.unified.slim"
+dockerfilePath = "Dockerfile.unified"
 
 [deploy]
-startCommand = "/app/start-unified.sh"
+startCommand = "./start-frontend.sh"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
@@ -12,9 +12,6 @@ restartPolicyMaxRetries = 3
 [deploy.env]
 # Railway automatically provides PORT - don't override unless needed
 NODE_ENV = "production"
-MODEL_BACKEND = "auto"
-MODEL_DIR = "/app"
-PYTHONPATH = "/app"
 
 # Cloudinary Configuration
 CLOUDINARY_CLOUD_NAME = "dgn5da9f8"
