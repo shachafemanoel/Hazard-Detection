@@ -1,4 +1,5 @@
 // Enhanced Camera Detection System with Hybrid ONNX + API Detection
+
 document.addEventListener("DOMContentLoaded", async () => {
   // DOM Elements
   const startBtn = document.getElementById("start-camera");
@@ -49,6 +50,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     frameProcessingTimes: [],
     detectedHazards: new Set()
   };
+
+  const pendingDetections = [];
+
+  // Geolocation data for saved detections
+  let geoData = null;
+  if ("geolocation" in navigator) {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        geoData = JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      },
+      (err) => {
+        console.warn("Geolocation unavailable:", err.message);
+      }
+    );
+  }
 
   // Performance monitoring
   let fpsCounter = 0;
@@ -112,13 +128,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Test API availability
   // Test API availability
   async function testApiConnection() {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
     try {
-      const response = await fetch(`${API_URL}/health`, { 
+      const response = await fetch(`${API_URL}/health`, {
         method: 'GET',
-        timeout: 5000 
+        signal: controller.signal
       });
-      
+
       if (response.ok) {
+        clearTimeout(timeoutId);
         const data = await response.json();
         console.log("✅ API service is available:", data);
         apiAvailable = true;
@@ -127,16 +146,22 @@ document.addEventListener("DOMContentLoaded", async () => {
         return true;
       }
     } catch (error) {
-      console.warn("⚠️ API service unavailable:", error.message);
-  }
-    
+      if (error.name === 'AbortError') {
+        console.warn("⚠️ API health check timed out");
+      } else {
+        console.warn("⚠️ API service unavailable:", error.message);
+      }
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
     apiAvailable = false;
     updateConnectionStatus('warning', 'ONNX Only Mode');
     return false;
   }
 
   // Load ONNX model
-  async function loadOnnxModel() {
+  async function loadModel() {
     showLoading("Loading ONNX Runtime model...", 25);
     
     // Enhanced model path detection with fallbacks
@@ -197,7 +222,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       await testApiConnection();
       
       // Load ONNX model
-      const onnxLoaded = await loadOnnxModel();
+      const onnxLoaded = await loadModel();
       
       if (!onnxLoaded && !apiAvailable) {
         throw new Error("No detection models available. Please check your connection.");
@@ -289,6 +314,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   async function detectWithApi(canvas) {
     if (!apiAvailable) return [];
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000); // Short timeout for real-time detection
+
     try {
       const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.8));
       const formData = new FormData();
@@ -297,28 +325,51 @@ document.addEventListener("DOMContentLoaded", async () => {
       const response = await fetch(`${API_URL}/detect`, {
         method: 'POST',
         body: formData,
-        timeout: 2000 // Short timeout for real-time detection
+        signal: controller.signal
       });
 
       if (!response.ok) throw new Error(`API error: ${response.status}`);
-      
+
       const result = await response.json();
-      
-      // Convert API format to our box format [x1, y1, x2, y2, confidence, classId]
+
       return result.detections.map(det => [
-        det.bbox[0], det.bbox[1], 
+        det.bbox[0], det.bbox[1],
         det.bbox[0] + det.bbox[2], det.bbox[1] + det.bbox[3],
         det.confidence,
         classNames.indexOf(det.class) !== -1 ? classNames.indexOf(det.class) : 0
       ]);
     } catch (error) {
-      console.warn("API detection failed:", error);
+      if (error.name === 'AbortError') {
+        console.warn("API detection request timed out");
+      } else {
+        console.warn("API detection failed:", error);
+      }
       return [];
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
+  async function saveDetection(canvas, label) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (!blob) return reject("❌ No blob from canvas");
+        const detection = {
+          blob,
+          hazardTypes: label,
+          time: new Date().toISOString(),
+          geoData: geoData
+        };
+        pendingDetections.push(detection);
+        resolve();
+      }, "image/jpeg", 0.9);
+    }).catch((err) => {
+      console.error("❌ Error during image preparation:", err);
+    });
+  }
+
   // Draw detection results
-  function drawDetections(boxes, useApiResults = false) {
+  function drawResults(boxes, useApiResults = false) {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -328,16 +379,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     boxes.forEach((box) => {
       let [x1, y1, x2, y2, score, classId] = box;
-      
+
       // Scale coordinates back to video dimensions
-      const scaleX = video.videoWidth / FIXED_SIZE;
-      const scaleY = video.videoHeight / FIXED_SIZE;
-      
-      if (!useApiResults) {
-        x1 *= scaleX;
-        y1 *= scaleY;
-        x2 *= scaleX;
-        y2 *= scaleY;
+      if (!useApiResults && letterboxParams) {
+        const { offsetX, offsetY, newW, newH } = letterboxParams;
+        const scaleX = video.videoWidth / newW;
+        const scaleY = video.videoHeight / newH;
+        x1 = (x1 - offsetX) * scaleX;
+        y1 = (y1 - offsetY) * scaleY;
+        x2 = (x2 - offsetX) * scaleX;
+        y2 = (y2 - offsetY) * scaleY;
       }
 
       const boxW = x2 - x1;
@@ -368,6 +419,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       ctx.fillRect(x1, textBgY, textWidth + 10, 25);
       ctx.fillStyle = '#000';
       ctx.fillText(text, x1 + 5, textBgY + 18);
+
+      if (frameCount % 60 === 0) {
+        const snap = document.createElement('canvas');
+        snap.width = canvas.width;
+        snap.height = canvas.height;
+        snap.getContext('2d').drawImage(canvas, 0, 0);
+        saveDetection(snap, labelName).catch((e) => console.error(e));
+      }
     });
 
     // Update statistics
@@ -434,7 +493,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
   }
   // Main detection loop
-  async function detectLoop() {
+  async function detectionLoop() {
     if (!detecting) return;
 
     frameCount++;
@@ -442,7 +501,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Process every 2nd frame for better performance
     if (frameCount % 2 !== 0) {
-      requestAnimationFrame(detectLoop);
+      requestAnimationFrame(detectionLoop);
       return;
     }
 
@@ -473,10 +532,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       detections = await detectWithOnnx(imageData);
     }
 
-    drawDetections(detections, useApiResults);
+    drawResults(detections, useApiResults);
     updatePerformanceStats();
 
-    requestAnimationFrame(detectLoop);
+    requestAnimationFrame(detectionLoop);
   }
 
   // Event Listeners
@@ -509,7 +568,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         setDetectingState(true);
         detectionStats.sessionStart = Date.now();
         updateConnectionStatus('processing', 'Detection Active');
-        detectLoop();
+        detectionLoop();
       }, { once: true });
 
     } catch (err) {
@@ -522,7 +581,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  stopBtn.addEventListener("click", () => {
+  stopBtn.addEventListener("click", async () => {
     detecting = false;
 
     setDetectingState(false);
@@ -536,7 +595,29 @@ document.addEventListener("DOMContentLoaded", async () => {
     startBtn.disabled = false;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
+
+    // Send queued detections
+    if (pendingDetections.length > 0) {
+      for (const detection of pendingDetections) {
+        const formData = new FormData();
+        formData.append('file', detection.blob, `detection-${Date.now()}.jpg`);
+        if (detection.geoData) formData.append('geoData', detection.geoData);
+        formData.append('hazardTypes', detection.hazardTypes);
+        formData.append('time', detection.time);
+
+        try {
+          await fetch('/upload-detection', {
+            method: 'POST',
+            body: formData,
+            credentials: 'include'
+          });
+        } catch (e) {
+          console.error('🔥 Failed to send detection:', e);
+        }
+      }
+      pendingDetections.length = 0;
+    }
+
     // Reset stats
     frameCount = 0;
 
@@ -546,7 +627,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       frameProcessingTimes: [],
       detectedHazards: new Set()
     };
-    
+
     updateConnectionStatus('ready', 'System Ready');
   });
 
