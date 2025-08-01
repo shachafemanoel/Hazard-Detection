@@ -1,10 +1,10 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
 # Detect CPU and choose backend
 python3 /app/scripts/detect_backend.py
 
-[ -f /app/backend.env ] && source /app/backend.env
+[ -f /app/backend.env ] && . /app/backend.env
 # Set model directory based on selected backend if not already defined
 if [ -z "$MODEL_DIR" ]; then
   if [ "$MODEL_BACKEND" = "openvino" ]; then
