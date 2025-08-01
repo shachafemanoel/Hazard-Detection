@@ -7,5 +7,4 @@ backend = 'openvino' if use_openvino else 'pytorch'
 model_dir = '/app/api/best_openvino_model' if backend == 'openvino' else '/app'
 with open('/app/backend.env', 'w') as f:
     f.write(f"MODEL_BACKEND={backend}\n")
-    f.write(f"MODEL_DIR={model_dir}\n")
-print(f"Selected backend: {backend} (model dir: {model_dir})")
+print(f"Selected backend: {backend}")
