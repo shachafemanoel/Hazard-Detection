@@ -1,4 +1,4 @@
-/* Professional Responsive Live Detection Interface CSS */
+עד/* Professional Responsive Live Detection Interface CSS */
 * {
     margin: 0;
     padding: 0;
@@ -218,7 +218,6 @@ body {
     
     /* Mobile video optimization */
     -webkit-playsinline: true;
-    playsinline: true;
 }
 
 #overlay-canvas {
