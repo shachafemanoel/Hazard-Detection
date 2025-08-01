@@ -3,7 +3,7 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile.unified"
 
 [deploy]
-startCommand = "bash scripts/start-united.sh"
+startCommand = "/app/start-unified.sh"
 
 [deploy.env]
 # Railway automatically provides PORT - don't override unless needed
