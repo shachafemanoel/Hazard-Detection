@@ -6,28 +6,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   const switchCameraBtn = document.getElementById("switch-camera");
   const video = document.getElementById("camera-stream");
   const canvas = document.getElementById("overlay-canvas");
-  const sensitivitySlider = document.getElementById("sensitivity-slider");
-
-  // Ensure required elements exist before continuing
-  const requiredElements = {
-    startBtn,
-    stopBtn,
-    switchCameraBtn,
-    video,
-    canvas,
-    sensitivitySlider
-  };
-
-  const missing = Object.entries(requiredElements)
-    .filter(([, el]) => !el)
-    .map(([name]) => name);
-
-  if (missing.length) {
-    console.error(`Missing DOM elements: ${missing.join(', ')}`);
-    return;
-  }
-
   const ctx = canvas.getContext("2d");
+  const sensitivitySlider = document.getElementById("sensitivity-slider");
   
   // Status and stats elements
   const connectionStatus = document.getElementById("connection-status");
@@ -157,10 +137,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       
       // Enhanced model path detection with fallbacks
       const modelPaths = [
-        '../object_detecion_model/model 18_7.onnx',
-        '../object_detecion_model/road_damage_detection_last_version.onnx',
-        '../object_detecion_model/last_model_train12052025.onnx',
-        '../object_detecion_model/road_damage_detection_simplified.onnx'
+        './object_detecion_model/model 18_7.onnx',
+        './object_detecion_model/road_damage_detection_last_version.onnx',
+        './object_detecion_model/last_model_train12052025.onnx',
+        './object_detecion_model/road_damage_detection_simplified.onnx'
       ];
       
       let modelPath = null;
@@ -509,8 +489,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       switchCameraBtn.style.display = "inline-block";
 
       video.addEventListener("loadeddata", () => {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
         computeLetterboxParams();
         detecting = true;
         setDetectingState(true);
@@ -574,8 +552,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       video.srcObject = stream;
       
       video.addEventListener("loadeddata", () => {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
         computeLetterboxParams();
       }, { once: true });
       
