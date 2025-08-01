@@ -1,5 +1,18 @@
 /* --- Global Modern UI Theme for Hazard Reporter --- */
 
+/* Tech-Urban Variables */
+:root {
+  --tech-bg: #121212;
+  --tech-panel: #1f1f1f;
+  --tech-text: #e0e0e0;
+  --tech-accent: #00e5ff;
+  --tech-accent2: #00bfa5;
+  --tech-danger: #ff5252;
+  --tech-success: #00c853;
+  --tech-radius: 8px;
+  --tech-transition: 0.2s ease-in-out;
+}
+
 :root {
   /* Replace these with colors from your icon.png logo */
   --primary: #007bff; /* Example Primary Color (e.g., a main color from your logo) */
@@ -30,20 +43,20 @@ body {
   /* Background image has been removed as per request */
 
   /* Fallback background color if the image fails to load or for transparency effects */
-  background-color: var(--bg); 
+  background-color: var(--tech-bg);
 
-  color: var(--text);
+  color: var(--tech-text);
   font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   line-height: 1.6;
   margin: 0;
   padding: 0;
-  transition: margin-left var(--transition); /* For sidebar push effect */ 
+  transition: margin-left var(--tech-transition); /* For sidebar push effect */
 }
 
 button, .btn {
-  border-radius: var(--radius);
+  border-radius: var(--tech-radius);
   padding: 0.5rem 1rem;
-  transition: background-color var(--transition), transform var(--transition), box-shadow var(--transition);
+  transition: background-color var(--tech-transition), transform var(--tech-transition), box-shadow var(--tech-transition);
   font-weight: 500;
   box-shadow: 0 2px 5px rgba(0,0,0,0.15); /* Subtle shadow for buttons */
   border: none; /* Remove default browser borders if any */
@@ -56,10 +69,10 @@ button:hover, .btn:hover {
 }
 
 .card {
-  border-radius: var(--radius);
+  border-radius: var(--tech-radius);
   box-shadow: var(--shadow);
   border: none;
-  background-color: var(--card-bg);
+  background-color: var(--tech-panel);
 }
 
 input, select, textarea {
@@ -296,5 +309,253 @@ input:focus, select:focus, textarea:focus {
   display: none;
   box-shadow: var(--shadow);
   pointer-events: none; /* Ensure tooltip doesn't interfere with mouse events */
+}
+
+/* Tech-Urban Overrides */
+.fab {
+  position: fixed; top: 20px; right: 20px;
+  width: 56px; height: 56px; border-radius: 50%;
+  background: var(--tech-accent); color: #000;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  transition: transform var(--tech-transition);
+  z-index: 9999;
+}
+.fab:hover { transform: scale(1.1); }
+.fab-menu {
+  position: fixed; top: 84px; right: 20px; display: none;
+  flex-direction: column; gap: 8px;
+  background: var(--tech-panel); padding: 8px;
+  border-radius: var(--tech-radius);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5); z-index: 9998;
+}
+.fab-menu.open { display: flex; }
+.fab-menu a {
+  color: var(--tech-text); text-decoration: none;
+  padding: 6px 12px; border-radius: var(--tech-radius);
+  transition: background var(--tech-transition);
+}
+.fab-menu a:hover {
+  background: var(--tech-accent2); color: #000;
+}
+/* Base panels and backgrounds */
+#buttons,
+#email-options,
+#email-form,
+#signup-form,
+.signup-form,
+#forgot-password-form,
+.dashboard-main-layout,
+.dashboard-metrics-row,
+.dashboard-center-row,
+.dashboard-center,
+.dashboard-right,
+.camera-wrapper,
+.camera-controls-panel,
+.info-panels,
+.info-panel,
+.loading-overlay,
+.menu-overlay {
+  background: var(--tech-panel);
+  color: var(--tech-text);
+  border-radius: var(--tech-radius);
+  transition: background var(--tech-transition), color var(--tech-transition);
+}
+
+/* Buttons */
+.btn-modern,
+.btn,
+.control-btn,
+.floating-menu-btn,
+#delete-report-btn,
+#export-summary,
+#view-dashboard {
+  background: var(--tech-accent);
+  color: #000;
+  border: none;
+  border-radius: var(--tech-radius);
+  padding: 0.6rem 1rem;
+  transition: background var(--tech-transition), transform var(--tech-transition);
+}
+.btn-modern:hover,
+.btn:hover,
+.control-btn:hover,
+.floating-menu-btn:hover {
+  background: var(--tech-accent2);
+  transform: translateY(-2px);
+}
+
+/* Inputs & sliders */
+input,
+select,
+.form-control,
+#new-password,
+#sensitivity-slider {
+  background: var(--tech-panel);
+  color: var(--tech-text);
+  border: 1px solid var(--tech-accent2);
+  border-radius: var(--tech-radius);
+  transition: border-color var(--tech-transition);
+}
+input:focus,
+select:focus {
+  border-color: var(--tech-accent);
+  outline: none;
+}
+
+/* Tables & lists */
+#reports table,
+table,
+#hazard-types-list,
+#detections-grid {
+  background: var(--tech-panel);
+  color: var(--tech-text);
+  border-collapse: collapse;
+}
+#reports th,
+#reports td,
+table th,
+table td {
+  padding: 0.75rem;
+  border: 1px solid #333;
+}
+#reports th,
+table th {
+  background: rgba(0,0,0,0.2);
+  color: var(--tech-accent);
+}
+#reports tr:hover,
+table tr:hover {
+  background: rgba(0,255,255,0.1);
+}
+
+/* Cards & stat-elements */
+.stat-card,
+.dashboard-panel,
+.card,
+.info-panel,
+.report-block,
+.session-summary-modal .modal-content,
+.summary-modal {
+  background: var(--tech-panel);
+  border-radius: var(--tech-radius);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  transition: box-shadow var(--tech-transition);
+}
+.stat-card:hover,
+.dashboard-panel:hover,
+.card:hover,
+.info-panel:hover,
+.report-block:hover {
+  box-shadow: 0 6px 18px rgba(0,255,255,0.3);
+}
+
+/* Floating Action Button & menu */
+.fab,
+.floating-menu-btn {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  bottom: auto;
+  left: auto;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--tech-accent);
+  color: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  z-index: 9999;
+  cursor: pointer;
+}
+.fab:hover,
+.floating-menu-btn:hover {
+  transform: scale(1.1);
+}
+.fab-menu,
+#floatingMenu {
+  position: fixed;
+  top: 84px;
+  right: 20px;
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--tech-panel);
+  padding: 8px;
+  border-radius: var(--tech-radius);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  z-index: 9998;
+}
+.fab-menu.open,
+#floatingMenu.active {
+  display: flex;
+}
+.fab-menu a,
+#floatingMenu a {
+  color: var(--tech-text);
+  padding: 6px 12px;
+  border-radius: var(--tech-radius);
+  text-decoration: none;
+  transition: background var(--tech-transition);
+}
+.fab-menu a:hover,
+#floatingMenu a:hover {
+  background: var(--tech-accent2);
+  color: #000;
+}
+
+/* Dashboard grid wrapper */
+.dashboard-main-layout {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 1rem;
+  padding: 1rem;
+}
+.dashboard-metrics-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.dashboard-center-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1rem;
+  height: calc(100vh - 120px);
+}
+
+/* Camera layout wrapper */
+.camera-interface {
+  display: grid;
+  grid-template-rows: 1fr auto auto;
+  gap: 1rem;
+  height: 100vh;
+  padding: 1rem;
+}
+.camera-preview {
+  position: relative;
+  border-radius: var(--tech-radius);
+  overflow: hidden;
+}
+.camera-preview video,
+.camera-preview canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.camera-controls,
+.camera-info {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+/* Modals & overlays */
+.modal,
+.menu-overlay,
+#loading-overlay {
+  background: rgba(0,0,0,0.8);
+  color: var(--tech-text);
 }
   

@@ -22,7 +22,6 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   
   <link rel="stylesheet" href="css/dashboard.css">
-  <link rel="stylesheet" href="css/floating-menu.css">
   <style>
     /* Custom styles for Leaflet markers and popups */
     .custom-marker {
@@ -57,17 +56,15 @@
     }
     /* New comprehensive layout for an urban command-center look */
     body {
-      background: linear-gradient(135deg, #12141d 0%, #1f2235 100%), url('/assets/images/cityscape-overlay.png');
-      background-blend-mode: multiply;
-      background-size: cover;
+      background: var(--tech-bg);
       font-family: 'Poppins', sans-serif;
-      color: #cbd2d9;
+      color: var(--tech-text);
       margin: 0;
       padding: 0;
     }
     header {
-      background: rgba(31,34,53,0.95);
-      border-bottom: 2px solid #f7c873;
+      background: var(--tech-panel);
+      border-bottom: 2px solid var(--tech-accent);
       box-shadow: 0 4px 12px rgba(0,0,0,0.7);
       padding: 1rem 1.5rem;
       position: sticky;
@@ -79,7 +76,7 @@
       margin: 0;
       font-size: 1.8rem; /* smaller title */
       font-weight: 700;
-      color: #f7c873;
+      color: var(--tech-accent);
     }
     .container-flex {
       display: flex;
@@ -146,71 +143,6 @@
       #reports-table-container {
         max-height: 40vh;
       }
-    }
-    /* NEW: Floating Menu styles */
-    .floating-menu-btn {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background: #f7c873;
-      color: #12141d;
-      border: none;
-      border-radius: 50%;
-      width: 60px;
-      height: 60px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-size: 1.5rem;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-      cursor: pointer;
-      z-index: 1400;
-      transition: background 0.3s;
-    }
-    .floating-menu-btn:hover {
-      background: #e6b55f;
-    }
-    .floating-menu {
-      position: fixed;
-      bottom: 80px;
-      right: 20px;
-      background: rgba(31,34,53,0.95);
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.7);
-      display: none;
-      flex-direction: column;
-      gap: 10px;
-      padding: 10px;
-      z-index: 1500;
-    }
-    .floating-menu.active {
-      display: flex;
-    }
-    .floating-menu a {
-      color: #cbd2d9;
-      text-decoration: none;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px;
-      border-radius: 4px;
-      transition: background 0.3s;
-    }
-    .floating-menu a:hover {
-      background: rgba(247,200,115,0.1);
-    }
-    .menu-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.7);
-      display: none;
-      z-index: 1400;
-    }
-    .menu-overlay.active {
-      display: block;
     }
     /* Updated: Styles for the legend toggle button repositioned to the right between header and map */
     #legend-toggle-btn {
@@ -308,21 +240,6 @@
   </style>
 </head>
 <body>
-  <!-- Floating Menu Button -->
-  <button class="floating-menu-btn" id="menuBtn">
-    <i class="fas fa-bars"></i>
-  </button>
-
-  <!-- Floating Menu -->
-  <div class="floating-menu" id="floatingMenu">
-    <a href="/dashboard.html"><i class="fas fa-chart-line"></i><span>Dashboard</span></a>
-    <a href="/camera.html"><i class="fas fa-camera"></i><span>Camera</span></a>
-    <a href="/upload.html"><i class="fas fa-upload"></i><span>Upload</span></a>
-    <a href="/logout"><i class="fas fa-sign-out-alt"></i><span>Logout</span></a>
-  </div>
-
-  <!-- Menu Overlay -->
-  <div class="menu-overlay" id="menuOverlay"></div>
 
   <!-- Existing Header -->
   <header class="my-3" style="background:rgba(31,34,53,0.97);box-shadow:0 4px 12px rgba(0,0,0,0.7);">
@@ -334,9 +251,9 @@
   </div>
 </header>
 
-  <main class="dashboard-main-layout" style="min-height:90vh;">
+  <div class="dashboard-main-layout">
     <!-- מדדים בראש הדף -->
-    <section id="overview-section" class="dashboard-panel dashboard-metrics-row mb-3" style="box-shadow:0 8px 32px #1e88e555;">
+    <div id="overview-section" class="dashboard-metrics-row">
       <div class="row g-3">
         <div class="col-md-3">
           <div class="stat-card bg-primary">
@@ -375,10 +292,10 @@
           </div>
         </div>
       </div>
-    </section>
-    <div class="dashboard-center-row d-flex gap-4" style="gap:1.2rem;">
+    </div>
+    <div class="dashboard-center-row">
       <!-- מפה במרכז -->
-      <section class="dashboard-center dashboard-panel flex-grow-1" style="min-height:70vh;height:70vh;">
+      <section class="dashboard-center dashboard-panel">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h4><i class="fas fa-map me-2"></i>Hazard Map</h4>
           <div class="map-controls">
@@ -393,20 +310,20 @@
         <div id="map" style="min-height:60vh;height:100%;border:2px solid #1e88e5;"></div>
       </section>
       <!-- טבלת אירועים מימין למפה -->
-      <aside class="dashboard-right dashboard-panel" style="min-width:380px;max-width:480px;width:32%;min-height:70vh;height:70vh;overflow:hidden;box-shadow:0 8px 32px #1e88e555;">
+      <aside class="dashboard-right dashboard-panel">
         <div id="reports-filters" class="d-flex flex-wrap gap-3 mb-3">
           <input id="report-search-input" class="form-control" type="search" placeholder="Search reports..." aria-label="Search reports">
           <div class="hazard-type-filter-bar mb-3">
-            <button id="hazard-type-dropdown-btn" class="hazard-type-dropdown-btn" aria-label="Hazard Type Filter">
+            <button id="hazard-type-dropdown-btn" class="hazard-type-dropdown-btn btn" aria-label="Hazard Type Filter">
               <span id="current-hazard-type-label">All Types</span>
               <i class="fas fa-chevron-down"></i>
             </button>
             <div id="hazard-type-dropdown-menu" class="hazard-type-dropdown-menu">
-              <button class="hazard-type-option" data-value="">All Types</button>
-              <button class="hazard-type-option" data-value="crack">Crack</button>
-              <button class="hazard-type-option" data-value="knocked">Knocked</button>
-              <button class="hazard-type-option" data-value="pothole">Pothole</button>
-              <button class="hazard-type-option" data-value="surface_damage">Surface Damage</button>
+              <button class="hazard-type-option btn" data-value="">All Types</button>
+              <button class="hazard-type-option btn" data-value="crack">Crack</button>
+              <button class="hazard-type-option btn" data-value="knocked">Knocked</button>
+              <button class="hazard-type-option btn" data-value="pothole">Pothole</button>
+              <button class="hazard-type-option btn" data-value="surface_damage">Surface Damage</button>
             </div>
           </div>
           <div id="hazard-types-container" class="d-flex flex-wrap gap-2"></div>
@@ -445,7 +362,7 @@
         </div>
       </aside>
     </div>
-  </main>
+  </div>
   
   <!-- Modals -->
   <!-- Image Modal -->
@@ -543,30 +460,13 @@
     </div>
   </div>
   <!-- Updated: Legend Toggle Button label remains "info" -->
-  <button id="legend-toggle-btn">info</button>
+  <button id="legend-toggle-btn" class="btn">info</button>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="js/dashboard.js" type="module"></script>
   <script src="js/dashboard-personalizer.js"></script>
   <!-- Using Leaflet for mapping instead of Google Maps -->
   <script>
-    // Menu functionality
-    document.addEventListener('DOMContentLoaded', function() {
-      const menuBtn = document.getElementById('menuBtn');
-      const floatingMenu = document.getElementById('floatingMenu');
-      const menuOverlay = document.getElementById('menuOverlay');
-
-      menuBtn.addEventListener('click', () => {
-        floatingMenu.classList.toggle('active');
-        menuOverlay.classList.toggle('active');
-      });
-
-      menuOverlay.addEventListener('click', () => {
-        floatingMenu.classList.remove('active');
-        menuOverlay.classList.remove('active');
-      });
-    });
-
     // ...existing bootstrap modal initialization...
     document.addEventListener('DOMContentLoaded', function() {
       const modalEl = document.getElementById('reportDetailsModal');
@@ -581,6 +481,18 @@
         legendBtn.addEventListener('click', window.toggleLegend);
       }
     });
+  </script>
+  <!-- Tech-Urban Floating Menu -->
+  <button id="fab-btn" class="fab"><i class="fas fa-bars"></i></button>
+  <nav id="fab-menu" class="fab-menu">
+    <a href="/dashboard.html">Dashboard</a>
+    <a href="/camera.html">Live</a>
+    <a href="/logout">Logout</a>
+  </nav>
+  <script>
+    document.getElementById('fab-btn').onclick = () => {
+      document.getElementById('fab-menu').classList.toggle('open');
+    };
   </script>
   <!-- Ensure the document ends correctly with the closing </body> and </html> tags -->
 </body>
