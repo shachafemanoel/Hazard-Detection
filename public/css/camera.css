@@ -93,6 +93,8 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
     padding: 20px 0;
     border-bottom: 1px solid var(--border-color);
     animation: fadeInDown 0.8s ease-out;
@@ -119,7 +121,7 @@ body {
     gap: 8px;
     padding: 8px 16px;
     background: var(--bg-panel);
-    border-radius: 20px;
+    border-radius: var(--radius);
     border: 1px solid var(--border-color);
     backdrop-filter: blur(10px);
 }
@@ -136,6 +138,13 @@ body {
     font-size: 0.9rem;
     font-weight: 500;
     color: var(--text-secondary);
+}
+
+@media (max-width: 600px) {
+    .detection-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
 }
 
 /* Camera Section - Mobile First with Centering */
@@ -155,7 +164,7 @@ body {
     position: relative;
     width: 100%;
     max-width: min(100vw - 2rem, 1200px);
-    border-radius: clamp(12px, 2vw, 20px);
+    border-radius: var(--radius);
     overflow: hidden;
     background: var(--bg-secondary);
     box-shadow: 
@@ -194,7 +203,7 @@ body {
     inset: -2px;
     padding: 2px;
     background: var(--gradient-primary);
-    border-radius: 22px;
+    border-radius: var(--radius);
     mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     mask-composite: subtract;
     opacity: 0.6;

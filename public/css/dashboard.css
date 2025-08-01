@@ -47,7 +47,7 @@ header {
   display: inline-flex;
   align-items: center;
   padding: 0.5rem 1rem;
-  border-radius: 999px;
+  border-radius: var(--radius);
   font-weight: 600;
   border: none;
   cursor: pointer;
@@ -75,7 +75,7 @@ select {
   background: var(--bg-panel);
   color: var(--text-main);
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: var(--radius);
   padding: 0.4rem 0.6rem;
   transition: border-color 0.3s;
 }
@@ -93,17 +93,23 @@ select:focus {
   gap: 2rem;
 }
 .dashboard__container {
-  /* New container class for toggling views */
+  /* Flexible layout for dashboard content */
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: 2rem;
+}
+
+@media (max-width: 600px) {
+  .dashboard__container {
+    flex-direction: column;
+  }
 }
 
 /* Card Styles (BEM style) */
 .dashboard-modern-card {
   background: rgba(31,34,53,0.92);
   border: 1px solid var(--border-color);
-  border-radius: 12px;
+  border-radius: var(--radius);
   padding: 1.8rem;
   color: var(--text-main);
   transition: box-shadow 0.3s, transform 0.3s;
