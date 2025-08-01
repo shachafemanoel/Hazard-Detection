@@ -38,9 +38,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Configuration
   const FIXED_SIZE = 480;
-  const API_URL = "https://hazard-api-production-production.up.railway.app";
-  const RAILWAY_TOKEN = window.RAILWAY_TOKEN || '';
-  const API_HEADERS = RAILWAY_TOKEN ? { 'Authorization': `Bearer ${RAILWAY_TOKEN}` } : {};
+  let API_URL = "https://hazard-api-production-production.up.railway.app/";
   
   // Updated class names to match the API service
   const classNames = [
@@ -148,26 +146,32 @@ document.addEventListener("DOMContentLoaded", async () => {
     }, 5000);
   }
 
-  // Test API availability and start session
+  // Test API availability following the fetch guide
   async function testApiConnection() {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
     try {
-      const response = await fetch(`${API_URL}/health`, {
+      const response = await fetch(`${API_URL}health`, {
         method: 'GET',
-        signal: controller.signal,
-        headers: API_HEADERS
+        signal: controller.signal
       });
 
       if (response.ok) {
         clearTimeout(timeoutId);
         const data = await response.json();
         console.log("✅ API service is available:", data);
-        apiAvailable = true;
-        useApi = true;
-        updateConnectionStatus('connected', 'Enhanced API + ONNX Mode');
-        showNotification("API service connected - Enhanced detection available", 'success');
-        return true;
+        
+        // Check if it has the expected structure from the guide
+        if (data.status === 'healthy' && data.backend_inference) {
+          apiAvailable = true;
+          useApi = true;
+          updateConnectionStatus('connected', `Enhanced Mode (${data.backend_type || 'AI'} Backend)`);
+          showNotification(`API connected - ${data.model_status} ready`, 'success');
+          return true;
+        }
+      } else {
+        console.log(`⚠️ API returned ${response.status}: ${response.statusText}`);
       }
     } catch (error) {
       if (error.name === 'AbortError') {
@@ -185,14 +189,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     return false;
   }
 
-  // Start API detection session
+  // Start API detection session following the fetch guide
   async function startApiSession() {
     if (!apiAvailable) return false;
     
     try {
-      const response = await fetch(`${API_URL}/session/start`, {
+      const response = await fetch(`${API_URL}session/start`, {
         method: 'POST',
-        headers: API_HEADERS
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
       
       if (response.ok) {
@@ -201,7 +207,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.log("✅ API session started:", apiSessionId);
         return true;
       } else {
-        throw new Error(`Failed to start session: ${response.status}`);
+        const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
+        throw new Error(`Failed to start session: ${errorData.detail || response.statusText}`);
       }
     } catch (error) {
       console.error("❌ Failed to start API session:", error);
@@ -211,14 +218,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // End API detection session
+  // End API detection session following the fetch guide
   async function endApiSession() {
-    if (!apiSessionId) return;
+    if (!apiSessionId) return { message: "No active session" };
     
     try {
-      const response = await fetch(`${API_URL}/session/${apiSessionId}/end`, {
-        method: 'POST',
-        headers: API_HEADERS
+      const response = await fetch(`${API_URL}session/${apiSessionId}/end`, {
+        method: 'POST'
       });
       
       if (response.ok) {
@@ -226,11 +232,17 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.log("✅ API session ended:", data);
         apiSessionId = null;
         return data;
+      } else {
+        const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
+        console.warn("⚠️ Session end warning:", errorData.detail);
+        apiSessionId = null;
+        return { message: "Session ended with warning" };
       }
     } catch (error) {
       console.error("❌ Failed to end API session:", error);
+      apiSessionId = null;
+      return { message: "Session ended with error" };
     }
-    apiSessionId = null;
   }
 
   // Load ONNX model
@@ -289,12 +301,30 @@ document.addEventListener("DOMContentLoaded", async () => {
     return true;
   }
 
+  // Load API configuration from server
+  async function loadApiConfig() {
+    try {
+      const response = await fetch('/api/config');
+      if (response.ok) {
+        const config = await response.json();
+        API_URL = config.apiUrl;
+        console.log("🔧 API configuration loaded:", { apiUrl: API_URL });
+      }
+    } catch (error) {
+      console.warn("⚠️ Failed to load API config, using defaults:", error);
+    }
+  }
+
   // Initialize detection system
   async function initializeDetection() {
     showLoading("Initializing Detection System...", 0);
     initialized = false;
 
     try {
+      // Load API configuration first
+      showLoading("Loading API configuration...", 5);
+      await loadApiConfig();
+      
       // Test API connection
       showLoading("Testing API connection...", 10);
       await testApiConnection();
@@ -387,7 +417,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // Process frame with API using session-based detection
+  // Process frame with API using session-based detection (following fetch guide)
   async function detectWithApi(canvas) {
     if (!apiAvailable || !apiSessionId) {
       // Try to start session if not available
@@ -398,33 +428,41 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000); // Increased timeout for session-based detection
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
 
     try {
       const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.8));
       const formData = new FormData();
       formData.append('file', blob, 'frame.jpg');
 
-      const response = await fetch(`${API_URL}/detect/${apiSessionId}`, {
+      const response = await fetch(`${API_URL}detect/${apiSessionId}`, {
         method: 'POST',
         body: formData,
-        signal: controller.signal,
-        headers: API_HEADERS
+        signal: controller.signal
       });
 
       if (!response.ok) {
         if (response.status === 404) {
-          // Session expired, try to start new one
-          console.warn("Session expired, starting new session");
+          // Session not found - start new session
+          console.warn("Session not found, starting new session");
           apiSessionId = null;
           if (await startApiSession()) {
             return await detectWithApi(canvas); // Retry with new session
           }
+        } else {
+          const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
+          throw new Error(`API detection failed: ${errorData.detail || response.statusText}`);
         }
-        throw new Error(`API error: ${response.status}`);
+        return [];
       }
 
       const result = await response.json();
+      
+      // Validate response structure from the guide
+      if (!result.success || !Array.isArray(result.detections)) {
+        console.warn("⚠️ Unexpected API response format:", result);
+        return [];
+      }
       
       // Log new detections for debugging
       const newDetections = result.detections.filter(det => det.is_new);
@@ -432,6 +470,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.log("🆕 New hazards detected via API:", newDetections.map(d => `${d.class_name} (${(d.confidence * 100).toFixed(1)}%)`));
       }
 
+      // Convert API format to internal format
       return result.detections.map(det => [
         det.bbox[0], det.bbox[1],
         det.bbox[0] + det.bbox[2], det.bbox[1] + det.bbox[3],
@@ -442,9 +481,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (error.name === 'AbortError') {
         console.warn("API detection request timed out");
       } else {
-        console.warn("API detection failed:", error);
+        console.warn("API detection failed:", error.message);
         // If session-related error, reset session
-        if (error.message.includes('404') || error.message.includes('session')) {
+        if (error.message.includes('404') || error.message.includes('Session')) {
           apiSessionId = null;
         }
       }

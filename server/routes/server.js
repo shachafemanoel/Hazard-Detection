@@ -602,6 +602,18 @@ app.get('/api/test', (req, res) => {
     });
 });
 
+// API configuration endpoint for frontend
+app.get('/api/config', (req, res) => {
+    const apiUrl = process.env.API_URL || process.env.HAZARD_API_URL || 'http://localhost:8080';
+    // Ensure URL ends with slash for proper endpoint construction
+    const normalizedUrl = apiUrl.endsWith('/') ? apiUrl : `${apiUrl}/`;
+    
+    res.json({
+        apiUrl: normalizedUrl,
+        hasApiService: !!(process.env.API_URL || process.env.HAZARD_API_URL)
+    });
+});
+
 // דף ברירת מחדל (updated for simple mode)
 app.get('/', (req, res) => {
     if (isSimpleMode) {
