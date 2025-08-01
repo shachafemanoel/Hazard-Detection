@@ -118,7 +118,24 @@ saveBtn.addEventListener("click", () => {
     return;
   }
 
-  canvas.toBlob(async (blob) => {
+  // Create composite canvas that includes the original image and the overlay
+  const compositeCanvas = document.createElement("canvas");
+  compositeCanvas.width = canvas.width;
+  compositeCanvas.height = canvas.height;
+  const compositeCtx = compositeCanvas.getContext("2d");
+
+  // Draw the original uploaded image using the same letterbox parameters
+  if (currentImage) {
+      const { offsetX, offsetY, newW, newH } = letterboxParams;
+      compositeCtx.fillStyle = "black";
+      compositeCtx.fillRect(0, 0, compositeCanvas.width, compositeCanvas.height);
+      compositeCtx.drawImage(currentImage, offsetX, offsetY, newW, newH);
+  }
+
+  // Draw the detection overlays
+  compositeCtx.drawImage(canvas, 0, 0);
+
+  compositeCanvas.toBlob(async (blob) => {
       if (!blob) return alert("❌ Failed to get image blob");
   
       const reader = new FileReader();

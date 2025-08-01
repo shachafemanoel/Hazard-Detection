@@ -64,15 +64,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     detectedHazards: new Set()
   };
 
-  const pendingDetections = [];
   let sessionDetectionsSummary = []; // Store detailed detection information for summary
 
-  // Object tracking system
-  let trackedObjects = new Map();
-  let nextObjectId = 1;
-  const MAX_TRACKING_DISTANCE = 150; // Maximum distance for object matching
-  const TRACKING_PERSISTENCE_FRAMES = 20; // Keep tracked objects for 20 frames
-  const INTERPOLATION_FRAMES = 4; // Number of frames to interpolate between detections
+  // Persist detections for a few frames without complex tracking
+  let activeDetections = [];
+  const PERSISTENCE_FRAMES = 3;
 
   // Geolocation data for saved detections
   let geoData = null;
@@ -431,9 +427,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     const timeoutId = setTimeout(() => controller.abort(), 3000);
 
     try {
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.8));
+      let blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.8));
+
+      // Fallback if JPEG conversion failed (e.g., unsupported in browser)
+      if (!blob) {
+        try {
+          const dataUrl = canvas.toDataURL('image/png');
+          blob = await (await fetch(dataUrl)).blob();
+        } catch (e) {
+          console.warn('❌ Failed to convert canvas to image for API detection:', e);
+          return [];
+        }
+      }
+
       const formData = new FormData();
-      formData.append('file', blob, 'frame.jpg');
+      formData.append('file', blob, blob.type === 'image/png' ? 'frame.png' : 'frame.jpg');
 
       const response = await fetch(`${API_URL}detect/${apiSessionId}`, {
         method: 'POST',
@@ -451,7 +459,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           }
         } else {
           const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
-          throw new Error(`API detection failed: ${errorData.detail || response.statusText}`);
+          throw new Error(errorData.detail || response.statusText);
         }
         return [];
       }
@@ -493,285 +501,133 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  async function saveDetection(compositeCanvas, label, score) {
-    try {
-      // Ensure we have a valid canvas with image data
-      if (!compositeCanvas || compositeCanvas.width === 0 || compositeCanvas.height === 0) {
-        console.warn("❌ Invalid canvas for detection saving");
-        return;
+  async function saveDetection(videoElement, overlayCanvas, label, score) {
+    return new Promise((resolve, reject) => {
+      try {
+        if (!videoElement || !overlayCanvas) {
+          console.warn("❌ Missing elements for detection saving");
+          return resolve();
+        }
+
+        // Create composite canvas with the video frame and detection overlay
+        const compositeCanvas = document.createElement('canvas');
+        compositeCanvas.width = videoElement.videoWidth;
+        compositeCanvas.height = videoElement.videoHeight;
+        const snapCtx = compositeCanvas.getContext('2d');
+
+        snapCtx.drawImage(videoElement, 0, 0, compositeCanvas.width, compositeCanvas.height);
+        snapCtx.drawImage(overlayCanvas, 0, 0, compositeCanvas.width, compositeCanvas.height);
+
+        compositeCanvas.toBlob(async (blob) => {
+          if (!blob) {
+            return reject("❌ Failed to create image blob");
+          }
+
+          const formData = new FormData();
+          formData.append('file', blob, 'detection.jpg');
+          formData.append('hazardTypes', label);
+          formData.append('time', new Date().toISOString());
+          formData.append('locationNote', 'GPS');
+          if (geoData) formData.append('geoData', geoData);
+
+          try {
+            const res = await fetch('/upload-detection', {
+              method: 'POST',
+              body: formData,
+              credentials: 'include'
+            });
+            const result = await res.json();
+            if (!res.ok) {
+              throw new Error(result.error || `HTTP ${res.status}`);
+            }
+            console.log('✅ Detection saved:', result.message);
+            resolve(result);
+          } catch (err) {
+            console.error('🔥 Failed to send detection:', err);
+            reject(err);
+          }
+        }, 'image/jpeg', 0.9);
+      } catch (err) {
+        console.error('❌ Error during image preparation:', err);
+        reject(err);
       }
-
-      // Create a simple detection report (matching upload_tf.js structure)
-      const report = {
-        type: label,
-        location: geoData ? JSON.parse(geoData) : "Unknown",
-        time: new Date().toISOString(),
-        image: compositeCanvas.toDataURL("image/jpeg", 0.9),
-        status: "unreviewed",
-        reportedBy: "live_camera",
-        confidence: Math.round(score * 100)
-      };
-
-      pendingDetections.push(report);
-      console.log("📝 Detection queued:", { type: label, confidence: `${Math.round(score * 100)}%`, timestamp: report.time });
-    } catch (err) {
-      console.error("❌ Error during image preparation:", err);
-    }
-  }
-
-  // Helper function to calculate distance between two box centers
-  function boxDistance(box1, box2) {
-    const centerX1 = (box1[0] + box1[2]) / 2;
-    const centerY1 = (box1[1] + box1[3]) / 2;
-    const centerX2 = (box2[0] + box2[2]) / 2;
-    const centerY2 = (box2[1] + box2[3]) / 2;
-    return Math.sqrt(Math.pow(centerX1 - centerX2, 2) + Math.pow(centerY1 - centerY2, 2));
-  }
-
-  // Calculate Intersection over Union (IoU) for better tracking
-  function calculateIoU(box1, box2) {
-    const [x1a, y1a, x2a, y2a] = box1;
-    const [x1b, y1b, x2b, y2b] = box2;
-    
-    const xLeft = Math.max(x1a, x1b);
-    const yTop = Math.max(y1a, y1b);
-    const xRight = Math.min(x2a, x2b);
-    const yBottom = Math.min(y2a, y2b);
-    
-    if (xRight < xLeft || yBottom < yTop) return 0;
-    
-    const intersectionArea = (xRight - xLeft) * (yBottom - yTop);
-    const box1Area = (x2a - x1a) * (y2a - y1a);
-    const box2Area = (x2b - x1b) * (y2b - y1b);
-    const unionArea = box1Area + box2Area - intersectionArea;
-    
-    return intersectionArea / unionArea;
-  }
-
-  // Interpolate box position based on velocity
-  function interpolateBox(trackedObj, framesSinceLastUpdate) {
-    if (!trackedObj.velocity || framesSinceLastUpdate === 0) {
-      return trackedObj.box;
-    }
-    
-    const [x1, y1, x2, y2, score, classId] = trackedObj.box;
-    const [vx, vy] = trackedObj.velocity;
-    
-    // Apply velocity with dampening
-    const dampening = Math.min(framesSinceLastUpdate / INTERPOLATION_FRAMES, 1);
-    const newX1 = x1 + vx * framesSinceLastUpdate * dampening;
-    const newY1 = y1 + vy * framesSinceLastUpdate * dampening;
-    const newX2 = x2 + vx * framesSinceLastUpdate * dampening;
-    const newY2 = y2 + vy * framesSinceLastUpdate * dampening;
-    
-    return [newX1, newY1, newX2, newY2, score, classId];
-  }
-
-  // Track objects across frames
-  function trackObjects(newDetections) {
-    const currentFrame = frameCount;
-    const processedBoxes = [];
-    const usedDetections = new Set();
-    
-    // Filter detections by confidence
-    const validDetections = newDetections.filter(box => box[4] >= confidenceThreshold);
-    
-    // Update existing tracked objects
-    for (const [id, trackedObj] of trackedObjects) {
-      let bestMatch = null;
-      let bestScore = 0;
-      let bestDetectionIndex = -1;
-      
-      // Find best matching detection for this tracked object
-      validDetections.forEach((detection, index) => {
-        if (usedDetections.has(index)) return;
-        
-        const [x1, y1, x2, y2, score, classId] = detection;
-        
-        // Only match same class
-        if (Math.floor(classId) !== trackedObj.classId) return;
-        
-        // Calculate matching score (combination of IoU and distance)
-        const iou = calculateIoU(trackedObj.box, [x1, y1, x2, y2]);
-        const distance = boxDistance(trackedObj.box, [x1, y1, x2, y2]);
-        const matchScore = iou * 0.7 + (1 - Math.min(distance / MAX_TRACKING_DISTANCE, 1)) * 0.3;
-        
-        if (matchScore > bestScore && distance < MAX_TRACKING_DISTANCE) {
-          bestMatch = detection;
-          bestScore = matchScore;
-          bestDetectionIndex = index;
-        }
-      });
-      
-      if (bestMatch && bestScore > 0.3) {
-        // Update tracked object with new detection
-        const [newX1, newY1, newX2, newY2, newScore, newClassId] = bestMatch;
-        const [oldX1, oldY1, oldX2, oldY2] = trackedObj.box;
-        
-        // Calculate velocity
-        const framesDiff = currentFrame - trackedObj.lastDetectionFrame;
-        if (framesDiff > 0) {
-          const vx = (newX1 - oldX1) / framesDiff;
-          const vy = (newY1 - oldY1) / framesDiff;
-          trackedObj.velocity = [vx, vy];
-        }
-        
-        trackedObj.box = [newX1, newY1, newX2, newY2, Math.max(trackedObj.confidence, newScore), newClassId];
-        trackedObj.lastSeen = currentFrame;
-        trackedObj.lastDetectionFrame = currentFrame;
-        trackedObj.confidence = Math.max(trackedObj.confidence * 0.9, newScore);
-        
-        usedDetections.add(bestDetectionIndex);
-      } else {
-        // Update position using velocity interpolation
-        const framesSinceLastDetection = currentFrame - trackedObj.lastDetectionFrame;
-        if (framesSinceLastDetection <= INTERPOLATION_FRAMES) {
-          trackedObj.box = interpolateBox(trackedObj, framesSinceLastDetection);
-        }
-        trackedObj.lastSeen = currentFrame;
-        trackedObj.confidence *= 0.95; // Decay confidence when not detected
-      }
-    }
-    
-    // Add new objects for unmatched detections
-    validDetections.forEach((detection, index) => {
-      if (usedDetections.has(index)) return;
-      
-      const [x1, y1, x2, y2, score, classId] = detection;
-      const newId = nextObjectId++;
-      
-      trackedObjects.set(newId, {
-        id: newId,
-        box: [x1, y1, x2, y2, score, classId],
-        classId: Math.floor(classId),
-        confidence: score,
-        lastSeen: currentFrame,
-        lastDetectionFrame: currentFrame,
-        velocity: [0, 0],
-        age: 0
-      });
     });
-    
-    // Remove old tracked objects and collect active ones
-    for (const [id, trackedObj] of trackedObjects) {
-      if (currentFrame - trackedObj.lastSeen > TRACKING_PERSISTENCE_FRAMES || trackedObj.confidence < 0.3) {
-        trackedObjects.delete(id);
-      } else {
-        processedBoxes.push(trackedObj.box);
-        trackedObj.age++;
-      }
-    }
-    
-    return processedBoxes;
   }
 
-  // Draw detection results with object tracking
-  function drawResults(boxes, useApiResults = false) {
+  // Draw detection results with simple frame persistence
+  function drawResults(newBoxes, useApiResults = false) {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Apply object tracking to detections
-    const trackedBoxes = trackObjects(boxes);
+    // Add new detections with persistence counter
+    for (const box of newBoxes) {
+      if (box[4] >= confidenceThreshold) {
+        activeDetections.push({ box, useApi: useApiResults, framesLeft: PERSISTENCE_FRAMES });
+      }
+    }
 
     let currentFrameDetections = 0;
     const detectedTypes = new Set();
 
-    // Draw all tracked objects (including interpolated ones)
-    for (const [id, trackedObj] of trackedObjects) {
-      let [x1, y1, x2, y2, score, classId] = trackedObj.box;
+    activeDetections = activeDetections.filter(det => {
+      let [x1, y1, x2, y2, score, classId] = det.box;
 
-      // Scale coordinates back to video dimensions
-      if (!useApiResults) {
+      // Scale coordinates back to video dimensions if needed
+      if (!det.useApi) {
         const scaleX = video.videoWidth / FIXED_SIZE;
         const scaleY = video.videoHeight / FIXED_SIZE;
-        x1 = x1 * scaleX;
-        y1 = y1 * scaleY;
-        x2 = x2 * scaleX;
-        y2 = y2 * scaleY;
+        x1 *= scaleX;
+        y1 *= scaleY;
+        x2 *= scaleX;
+        y2 *= scaleY;
       }
 
       const boxW = x2 - x1;
       const boxH = y2 - y1;
 
-      if (boxW < 1 || boxH < 1) continue;
+      if (boxW < 1 || boxH < 1) {
+        det.framesLeft--;
+        return det.framesLeft > 0;
+      }
 
       currentFrameDetections++;
       const labelName = classNames[Math.floor(classId)] || `Class ${classId}`;
-      const scorePerc = (trackedObj.confidence * 100).toFixed(1);
-      
+      const scorePerc = (score * 100).toFixed(1);
+
       detectedTypes.add(labelName);
       detectionStats.detectedHazards.add(labelName);
 
-      // Enhanced visual styling with tracking indicators
-      const framesSinceLastDetection = frameCount - trackedObj.lastDetectionFrame;
-      const isInterpolated = framesSinceLastDetection > 0;
-      
-      // Color and alpha based on tracking state
-      let color = useApiResults ? '#00FF41' : '#00FF00';
-      let alpha = Math.min(trackedObj.confidence + 0.2, 1.0);
-      
-      // Different visual style for interpolated vs detected boxes
-      if (isInterpolated) {
-        color = '#FFD700'; // Gold color for interpolated
-        alpha *= 0.8; // Slightly more transparent
-        ctx.setLineDash([5, 5]); // Dashed line for interpolated
-      } else {
-        ctx.setLineDash([]); // Solid line for detected
-      }
-      
-      ctx.globalAlpha = alpha;
+      // Styling similar to upload.js
+      const color = '#00FF00';
       ctx.strokeStyle = color;
-      ctx.lineWidth = isInterpolated ? 2 : 3;
+      ctx.lineWidth = 3;
       ctx.strokeRect(x1, y1, boxW, boxH);
 
-      // Draw tracking ID (small number in top-left corner)
       ctx.fillStyle = color;
-      ctx.font = 'bold 12px Arial';
-      ctx.fillText(`#${trackedObj.id}`, x1 + 2, y1 + 12);
-
-      // Label background (improved styling)
       ctx.font = 'bold 16px Arial';
       const text = `${labelName} (${scorePerc}%)`;
       const textWidth = ctx.measureText(text).width;
+      const textBgX = x1;
       const textBgY = y1 > 20 ? y1 - 20 : y1;
-      
-      ctx.fillRect(x1, textBgY, textWidth + 8, 20);
+      ctx.fillRect(textBgX, textBgY, textWidth + 8, 20);
       ctx.fillStyle = 'black';
-      ctx.fillText(text, x1 + 4, textBgY + 15);
-      
-      // Reset drawing state
-      ctx.globalAlpha = 1.0;
-      ctx.setLineDash([]);
-
-      console.log(`📦 Tracked object #${trackedObj.id}:`, labelName, scorePerc + "%", isInterpolated ? "(interpolated)" : "(detected)");
+      ctx.fillText(text, textBgX + 4, textBgY + 15);
 
       // Save detection periodically and add to summary
-      if (frameCount % 60 === 0 && !isInterpolated) {
-        // Create composite canvas with video + bounding boxes
-        const snap = document.createElement('canvas');
-        snap.width = video.videoWidth;
-        snap.height = video.videoHeight;
-        const snapCtx = snap.getContext('2d');
-        
-        // Draw the video frame first
-        snapCtx.drawImage(video, 0, 0, snap.width, snap.height);
-        
-        // Then draw the bounding boxes overlay
-        snapCtx.drawImage(canvas, 0, 0, snap.width, snap.height);
-        
-        saveDetection(snap, labelName, trackedObj.confidence).catch((e) => console.error(e));
-        
-        // Add to session detections summary
+      if (frameCount % 60 === 0) {
+        saveDetection(video, canvas, labelName, score).catch((e) => console.error(e));
         sessionDetectionsSummary.push({
           type: labelName,
-          confidence: trackedObj.confidence,
+          confidence: score,
           timestamp: Date.now(),
-          objectId: trackedObj.id,
           frame: frameCount
         });
       }
-    }
+
+      det.framesLeft--;
+      return det.framesLeft > 0;
+    });
 
     // Update statistics
     currentDetections.textContent = currentFrameDetections;
@@ -845,9 +701,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (!letterboxParams) computeLetterboxParams();
 
-    // Always draw current persistent detections for smooth visualization
-    drawResults([], false);
-    updatePerformanceStats();
+    let detections = [];
+    let useApiResults = false;
 
     // Process detection every 4th frame for better performance
     if (frameCount % 4 === 0) {
@@ -857,9 +712,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       offCtx.drawImage(video, letterboxParams.offsetX, letterboxParams.offsetY, letterboxParams.newW, letterboxParams.newH);
 
       const imageData = offCtx.getImageData(0, 0, FIXED_SIZE, FIXED_SIZE);
-      
-      let detections = [];
-      let useApiResults = false;
 
       // Try API detection first (if available), then fallback to ONNX
       if (apiAvailable && useApi && apiSessionId && frameCount % 8 === 0) { // Use API every 8th frame
@@ -878,12 +730,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (detections.length === 0 && session) {
         detections = await detectWithOnnx(imageData);
       }
-
-      // Update detections with new results
-      if (detections.length > 0) {
-        drawResults(detections, useApiResults);
-      }
     }
+
+    // Draw detections (new and persisted)
+    drawResults(detections, useApiResults);
+    updatePerformanceStats();
 
     requestAnimationFrame(detectionLoop);
   }
@@ -979,25 +830,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     }
 
-    // Send queued detections to API (matching upload_tf.js logic)
-    if (pendingDetections.length > 0) {
-      console.log(`📨 Sending ${pendingDetections.length} detections to server...`);
-      for (const detection of pendingDetections) {
-        try {
-          const res = await fetch("/api/reports", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(detection)
-          });
-          const result = await res.json();
-          console.log("✅ Detection saved:", result);
-        } catch (e) {
-          console.error("🔥 Failed to send detection:", e);
-        }
-      }
-      pendingDetections.length = 0;
-    }
-
     // Show summary modal if there were detections
     if (detectionStats.totalDetections > 0 || sessionDetectionsSummary.length > 0) {
       setTimeout(() => {
@@ -1007,8 +839,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Reset stats and clear tracking data
     frameCount = 0;
-    trackedObjects.clear();
-    nextObjectId = 1;
+    activeDetections = [];
 
     // Don't reset detection stats immediately - keep for summary modal
     // They will be reset when starting a new session
