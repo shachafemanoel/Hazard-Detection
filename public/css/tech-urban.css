@@ -1,0 +1,106 @@
+:root {
+  --tu-bg: #121212;
+  --tu-primary: #00e5ff;
+  --tu-secondary: #00bfa5;
+  --tu-text: #e0e0e0;
+}
+
+body {
+  background-color: var(--tu-bg);
+  color: var(--tu-text);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--tu-primary);
+  font-weight: 700;
+}
+
+a, .btn, button, input, select, textarea {
+  transition: background-color 0.3s, color 0.3s, box-shadow 0.3s, border-color 0.3s;
+}
+
+.btn, .btn-modern {
+  background-color: var(--tu-secondary);
+  border-color: var(--tu-secondary);
+  color: var(--tu-bg);
+}
+
+.btn:hover, .btn-modern:hover {
+  background-color: var(--tu-primary);
+  border-color: var(--tu-primary);
+  color: var(--tu-bg);
+  box-shadow: 0 0 10px var(--tu-primary);
+}
+
+input, select, textarea {
+  background-color: #1e1e1e;
+  border: 1px solid var(--tu-secondary);
+  color: var(--tu-text);
+  padding: 0.5rem;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--tu-primary);
+  box-shadow: 0 0 5px var(--tu-primary);
+  outline: none;
+}
+
+.card, .content-wrapper, .camera-wrapper, .w-full.max-w-md {
+  background-color: #1e1e1e;
+  border: 1px solid rgba(0, 229, 255, 0.1);
+  box-shadow: 0 0 15px rgba(0, 229, 255, 0.1);
+}
+
+#preview-canvas, #overlay-canvas, #camera-stream, canvas {
+  border: 2px solid var(--tu-primary);
+  border-radius: 4px;
+  box-shadow: 0 0 15px rgba(0, 229, 255, 0.6);
+}
+
+.fade-in {
+  animation: fadeIn 0.5s ease-in forwards;
+}
+
+.fade-out {
+  animation: fadeOut 0.5s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--tu-secondary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--tu-primary);
+}
+
+/* Tooltip styling */
+.tooltip-inner {
+  background-color: #333;
+  color: var(--tu-primary);
+}
+
+.tooltip-arrow::before {
+  border-top-color: #333 !important;
+  border-bottom-color: #333 !important;
+}
