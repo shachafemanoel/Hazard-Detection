@@ -3,6 +3,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Install bash for scripts and interactive shells
+RUN apk add --no-cache bash
+
 # העתקת תלויות והתקנה
 COPY package*.json ./
 RUN npm install --omit=dev
