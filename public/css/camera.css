@@ -1,4 +1,4 @@
-עד/* Professional Responsive Live Detection Interface CSS */
+/* Professional Responsive Live Detection Interface CSS */
 * {
     margin: 0;
     padding: 0;
@@ -431,7 +431,7 @@ body {
     width: 100%;
     max-width: 600px;
     
-    /* Mobile: Stack vertically */
+    /* Mobile: Stack vertically, Tablet: wrap */
     flex-direction: column;
     align-items: stretch;
 }
@@ -703,11 +703,20 @@ body {
     right: 0;
     bottom: 0;
     background: rgba(10, 14, 26, 0.95);
-    display: flex;
+    display: flex; /* Keep flex for centering */
     align-items: center;
     justify-content: center;
     z-index: 9999;
     backdrop-filter: blur(10px);
+    opacity: 0; /* Hidden by default */
+    visibility: hidden; /* Hide from interactions */
+    transition: opacity 0.4s ease, visibility 0s linear 0.4s;
+}
+
+.loading-overlay.show {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.4s ease;
 }
 
 .loading-content {
@@ -952,50 +961,6 @@ body {
 .hazard-alert-modal.show {
     transform: translate(-50%, -50%) scale(1);
     opacity: 1;
-}
-
-/* Detection Summary Modal */
-.summary-modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.8);
-    display: none;
-    align-items: center;
-    justify-content: center;
-    z-index: 10000;
-}
-
-.summary-content {
-    background: var(--bg-panel);
-    padding: 20px;
-    border-radius: 10px;
-    width: calc(100% - 2rem);
-    max-width: 500px;
-    max-height: 80vh;
-    overflow-y: auto;
-}
-
-.summary-item {
-    display: flex;
-    align-items: center;
-    margin-bottom: 10px;
-}
-
-.summary-item img {
-    width: 80px;
-    height: auto;
-    margin: 0 10px;
-    border-radius: 4px;
-}
-
-.summary-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 15px;
 }
 
 .alert-content {
@@ -1279,7 +1244,7 @@ body {
     .control-group {
         flex-direction: row;
         flex-wrap: wrap;
-        justify-content: center;
+        justify-content: space-around;
     }
     
     .control-btn {

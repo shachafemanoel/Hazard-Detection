@@ -1,6 +1,3 @@
-import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js";
-import { storage } from "./firebaseConfig.js";
-
 // Enhanced Camera Detection System with Hybrid ONNX + API Detection
 document.addEventListener("DOMContentLoaded", async () => {
   // DOM Elements
@@ -9,28 +6,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   const switchCameraBtn = document.getElementById("switch-camera");
   const video = document.getElementById("camera-stream");
   const canvas = document.getElementById("overlay-canvas");
-  const sensitivitySlider = document.getElementById("sensitivity-slider");
-
-  // Ensure required elements exist before continuing
-  const requiredElements = {
-    startBtn,
-    stopBtn,
-    switchCameraBtn,
-    video,
-    canvas,
-    sensitivitySlider
-  };
-
-  const missing = Object.entries(requiredElements)
-    .filter(([, el]) => !el)
-    .map(([name]) => name);
-
-  if (missing.length) {
-    console.error(`Missing DOM elements: ${missing.join(', ')}`);
-    return;
-  }
-
   const ctx = canvas.getContext("2d");
+  const sensitivitySlider = document.getElementById("sensitivity-slider");
   
   // Status and stats elements
   const connectionStatus = document.getElementById("connection-status");
@@ -45,10 +22,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   const hazardTypesList = document.getElementById("hazard-types-list");
   const detectionCountBadge = document.getElementById("detection-count-badge");
   const fpsBadge = document.getElementById("fps-badge");
-  const summaryModal = document.getElementById("summary-modal");
-  const summaryList = document.getElementById("summary-list");
-  const uploadSelectedBtn = document.getElementById("upload-selected");
-  const closeSummaryBtn = document.getElementById("close-summary");
 
   // Configuration
   const FIXED_SIZE = 640;
@@ -68,6 +41,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   let currentCamera = 'user'; // 'user' for front, 'environment' for back
   let session = null;
   let apiAvailable = false;
+  let useApi = false; // Flag to control API usage
   let frameCount = 0;
   let detectionStats = {
     totalDetections: 0,
@@ -75,7 +49,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     frameProcessingTimes: [],
     detectedHazards: new Set()
   };
-  const pendingDetections = [];
 
   // Performance monitoring
   let fpsCounter = 0;
@@ -90,6 +63,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   let letterboxParams = null;
   let confidenceThreshold = 0.5;
 
+  let initialized = false;
+
   // Update UI status
   function updateConnectionStatus(status, message) {
     const indicator = connectionStatus.querySelector('.status-indicator');
@@ -101,14 +76,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Show loading overlay with progress
   function showLoading(message, progress = 0) {
-    loadingOverlay.style.display = 'flex';
+    loadingOverlay.classList.add('show');
     loadingStatus.textContent = message;
     loadingProgressBar.style.width = `${progress}%`;
   }
 
   // Hide loading overlay
   function hideLoading() {
-    loadingOverlay.style.display = 'none';
+    loadingOverlay.classList.remove('show');
   }
 
   // Show notification
@@ -134,79 +109,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }, 5000);
   }
 
-  // Save detection snapshot for later review
-  function saveDetection(canvas, label, score) {
-    pendingDetections.push({
-      canvas,
-      label,
-      score,
-      time: new Date().toISOString()
-    });
-  }
-
-  // Upload canvas image to Firebase Storage and return its URL
-  async function uploadDetectionImage(canvas) {
-    return new Promise((resolve, reject) => {
-      canvas.toBlob(async (blob) => {
-        if (!blob) return reject("No blob from canvas");
-        try {
-          const timestamp = Date.now();
-          const imageRef = ref(storage, `detections/${timestamp}.jpg`);
-          await uploadBytes(imageRef, blob);
-          const url = await getDownloadURL(imageRef);
-          resolve(url);
-        } catch (err) {
-          reject(err);
-        }
-      }, "image/jpeg", 0.9);
-    });
-  }
-
-  function showSummaryModal() {
-    summaryList.innerHTML = pendingDetections.map((det, idx) => {
-      const imgUrl = det.canvas.toDataURL("image/jpeg", 0.8);
-      return `
-        <div class="summary-item">
-          <input type="checkbox" data-index="${idx}" checked>
-          <img src="${imgUrl}" alt="${det.label}">
-          <span>${det.label}</span>
-        </div>`;
-    }).join('') || '<p>No detections captured.</p>';
-    summaryModal.style.display = 'flex';
-  }
-
-  function hideSummaryModal() {
-    summaryModal.style.display = 'none';
-  }
-
-  async function uploadSelectedDetections() {
-    const checkboxes = summaryList.querySelectorAll('input[type="checkbox"]:checked');
-    for (const cb of checkboxes) {
-      const det = pendingDetections[cb.dataset.index];
-      try {
-        const image = await uploadDetectionImage(det.canvas);
-        const report = {
-          type: det.label,
-          location: "Unknown",
-          time: det.time,
-          image,
-          status: "unreviewed",
-          reportedBy: "anonymous"
-        };
-        await fetch('/api/reports', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(report)
-        });
-      } catch (err) {
-        console.error('Failed to upload detection', err);
-      }
-    }
-    pendingDetections.length = 0;
-    hideSummaryModal();
-    showNotification('Selected reports uploaded', 'success');
-  }
-
+  // Test API availability
   // Test API availability
   async function testApiConnection() {
     try {
@@ -219,12 +122,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         const data = await response.json();
         console.log("✅ API service is available:", data);
         apiAvailable = true;
-        updateConnectionStatus('connected', 'API Enhanced Mode');
+        useApi = true;
+        updateConnectionStatus('connected', 'API Detection Ready');
         return true;
       }
     } catch (error) {
-      console.warn("⚠️ API service unavailable, using ONNX only:", error.message);
-    }
+      console.warn("⚠️ API service unavailable:", error.message);
+  }
     
     apiAvailable = false;
     updateConnectionStatus('warning', 'ONNX Only Mode');
@@ -233,93 +137,87 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Load ONNX model
   async function loadOnnxModel() {
-    try {
-      showLoading("Loading ONNX Runtime model...", 25);
-      
-      // Enhanced model path detection with fallbacks
-      const modelPaths = [
-        '../object_detecion_model/model 18_7.onnx',
-        '../object_detecion_model/road_damage_detection_last_version.onnx',
-        '../object_detecion_model/last_model_train12052025.onnx',
-        '../object_detecion_model/road_damage_detection_simplified.onnx'
-      ];
-      
-      let modelPath = null;
-      let modelName = '';
-      for (const path of modelPaths) {
-        try {
-          const encodedPath = encodeURI(path);
-          const response = await fetch(encodedPath, { method: 'HEAD' });
-          if (response.ok) {
-            modelPath = encodedPath;
-            modelName = path.split('/').pop();
-            console.log(`✅ Found ONNX model at: ${path}`);
-            break;
-          }
-        } catch (e) {
-          console.log(`❌ Failed to access model at ${path}:`, e.message);
-        }
-      }
-      
-      if (!modelPath) {
-        throw new Error('No ONNX model found in any of the expected locations');
-      }
-
-      showLoading(`Loading ${modelName}...`, 50);
-
-      // Try WebGL first, then fallback to CPU
+    showLoading("Loading ONNX Runtime model...", 25);
+    
+    // Enhanced model path detection with fallbacks
+    const modelPaths = [
+      './object_detecion_model/model 18_7.onnx',
+      './object_detecion_model/road_damage_detection_last_version.onnx',
+      './object_detecion_model/last_model_train12052025.onnx',
+      './object_detecion_model/road_damage_detection_simplified.onnx'
+    ];
+    
+    let modelPath = null;
+    for (const path of modelPaths) {
       try {
-        session = await ort.InferenceSession.create(modelPath, { 
-          executionProviders: ['webgl'],
-          graphOptimizationLevel: 'disabled',
-          enableCpuMemArena: false,
-          logSeverityLevel: 2
-        });
-        console.log("✅ ONNX model loaded with WebGL acceleration");
-      } catch (err) {
-        console.warn("WebGL backend failed, falling back to CPU:", err);
-        session = await ort.InferenceSession.create(modelPath, {
-          executionProviders: ['cpu'],
-          graphOptimizationLevel: 'disabled',
-          enableCpuMemArena: false,
-          logSeverityLevel: 2
-        });
-        console.log("✅ ONNX model loaded with CPU backend");
+        const encodedPath = encodeURI(path);
+        const response = await fetch(encodedPath, { method: 'HEAD' });
+        if (response.ok) {
+          modelPath = encodedPath;
+          console.log(`✅ Found ONNX model at: ${path}`);
+          break;
+        }
+      } catch (e) {
+        console.log(`❌ Failed to access model at ${path}:`, e.message);
       }
-
-      showLoading(`Model ${modelName} loaded!`, 100);
-      showNotification(`Loaded ONNX model: ${modelName}`, 'success');
-      return true;
-    } catch (err) {
-      console.error("❌ Failed to load ONNX model:", err);
-      showNotification("Failed to load AI model. Detection may be limited.", 'error');
-      return false;
     }
+    
+    if (!modelPath) {
+      throw new Error('No ONNX model found in any of the expected locations');
+    }
+
+    showLoading("Initializing ONNX Runtime...", 50);
+
+    try {
+        session = await ort.InferenceSession.create(modelPath, { 
+          executionProviders: ['webgl', 'cpu'],
+          graphOptimizationLevel: 'disabled',
+          enableCpuMemArena: false,
+          logSeverityLevel: 2
+        });
+        const backend = session.executionProvider;
+        console.log(`✅ ONNX model loaded with ${backend} backend`);
+    } catch (err) {
+      console.error("❌ Failed to create ONNX session with any provider:", err);
+      throw new Error(`Failed to initialize AI model: ${err.message}`);
+    }
+
+    showLoading("Model loaded successfully!", 100);
+    return true;
   }
 
   // Initialize detection system
   async function initializeDetection() {
     showLoading("Initializing Detection System...", 0);
-    
-    // Test API connection
-    showLoading("Testing API connection...", 10);
-    await testApiConnection();
-    
-    // Load ONNX model
-    const onnxLoaded = await loadOnnxModel();
-    
-    if (!onnxLoaded && !apiAvailable) {
-      hideLoading();
-      showNotification("No detection models available. Please check your connection.", 'error');
-      return false;
-    }
+    initialized = false;
 
-    hideLoading();
-    showNotification(
-      apiAvailable ? "Enhanced detection ready with API support" : "Basic detection ready", 
-      'success'
-    );
-    return true;
+    try {
+      // Test API connection
+      showLoading("Testing API connection...", 10);
+      await testApiConnection();
+      
+      // Load ONNX model
+      const onnxLoaded = await loadOnnxModel();
+      
+      if (!onnxLoaded && !apiAvailable) {
+        throw new Error("No detection models available. Please check your connection.");
+      }
+
+      showNotification(
+        apiAvailable ? "Enhanced detection ready with API support" : "Basic detection ready",
+        'success'
+      );
+      initialized = true;
+      return true;
+    } catch (error) {
+      showNotification(`Initialization failed: ${error.message}`, 'error');
+      return false;
+    } finally {
+      // A short delay to ensure the final loading message is visible before hiding.
+      setTimeout(() => {
+        hideLoading();
+      }, 500); // 500ms delay
+    }
   }
 
   // Compute letterbox parameters
@@ -470,14 +368,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       ctx.fillRect(x1, textBgY, textWidth + 10, 25);
       ctx.fillStyle = '#000';
       ctx.fillText(text, x1 + 5, textBgY + 18);
-
-      if (frameCount % 60 === 0) {
-        const snap = document.createElement('canvas');
-        snap.width = canvas.width;
-        snap.height = canvas.height;
-        snap.getContext('2d').drawImage(canvas, 0, 0);
-        saveDetection(snap, labelName, score);
-      }
     });
 
     // Update statistics
@@ -524,14 +414,25 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Add detecting class to camera wrapper
   function setDetectingState(isDetecting) {
-    const cameraWrapper = document.getElementById('camera-wrapper');
+      const cameraWrapper = document.getElementById('camera-wrapper');
     if (isDetecting) {
       cameraWrapper.classList.add('detecting');
     } else {
       cameraWrapper.classList.remove('detecting');
     }
   }
-
+  // Set initial state of buttons
+  function updateButtonStates() {
+      if (detecting) {
+          startBtn.style.display = "none";
+          stopBtn.style.display = "inline-block";
+          switchCameraBtn.style.display = "inline-block";
+      } else {
+          startBtn.style.display = "inline-block";
+          stopBtn.style.display = "none";
+          switchCameraBtn.style.display = "none";
+      }
+  }
   // Main detection loop
   async function detectLoop() {
     if (!detecting) return;
@@ -558,7 +459,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     let useApiResults = false;
 
     // Try API detection first (if available), then fallback to ONNX
-    if (apiAvailable && frameCount % 10 === 0) { // Use API every 10th frame
+
+    if (apiAvailable && useApi && frameCount % 10 === 0) { // Use API every 10th frame
       detections = await detectWithApi(offscreen);
       if (detections.length > 0) {
         useApiResults = true;
@@ -579,13 +481,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Event Listeners
   startBtn.addEventListener("click", async () => {
-    if (!session && !apiAvailable) {
-      const initialized = await initializeDetection();
-      if (!initialized) return;
+    if (!initialized) {
+      showNotification("System not ready. Please wait for initialization.", 'warning');
+      return;
     }
 
     try {
-      const constraints = {
+      startBtn.disabled = true;
+      updateConnectionStatus('processing', 'Starting Camera...');
+
+        const constraints = {
         video: {
           width: { ideal: 1280 },
           height: { ideal: 720 },
@@ -596,56 +501,56 @@ document.addEventListener("DOMContentLoaded", async () => {
       stream = await navigator.mediaDevices.getUserMedia(constraints);
       video.srcObject = stream;
       
-      startBtn.style.display = "none";
-      stopBtn.style.display = "inline-block";
-      switchCameraBtn.style.display = "inline-block";
-      pendingDetections.length = 0;
+      detecting = true;
+      updateButtonStates(); // Hide start, show stop
 
       video.addEventListener("loadeddata", () => {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
         computeLetterboxParams();
-        detecting = true;
         setDetectingState(true);
         detectionStats.sessionStart = Date.now();
+        updateConnectionStatus('processing', 'Detection Active');
         detectLoop();
       }, { once: true });
 
     } catch (err) {
       showNotification("Camera access denied or unavailable", 'error');
       console.error("Camera error:", err);
+      detecting = false;
+      updateButtonStates();
+      startBtn.disabled = false;
+      updateConnectionStatus('ready', 'System Ready');
     }
   });
 
   stopBtn.addEventListener("click", () => {
     detecting = false;
+
     setDetectingState(false);
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
       stream = null;
     }
     video.srcObject = null;
-    startBtn.style.display = "inline-block";
-    stopBtn.style.display = "none";
-    switchCameraBtn.style.display = "none";
+
+    updateButtonStates();
+    startBtn.disabled = false;
+
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
     // Reset stats
     frameCount = 0;
-    fpsCounter = 0;
+
     detectionStats = {
       totalDetections: 0,
       sessionStart: Date.now(),
       frameProcessingTimes: [],
       detectedHazards: new Set()
     };
-    if (pendingDetections.length > 0) {
-      showSummaryModal();
-    }
-
+    
     updateConnectionStatus('ready', 'System Ready');
   });
 
+  // switch camera
   switchCameraBtn.addEventListener("click", async () => {
     if (!detecting) return;
     
@@ -670,8 +575,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       video.srcObject = stream;
       
       video.addEventListener("loadeddata", () => {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
         computeLetterboxParams();
       }, { once: true });
       
@@ -681,14 +584,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
+  // sensitivity
   sensitivitySlider.addEventListener("input", (e) => {
     confidenceThreshold = parseFloat(e.target.value);
     e.target.parentElement.querySelector('.value').textContent = `${Math.round(confidenceThreshold * 100)}%`;
   });
-  uploadSelectedBtn.addEventListener('click', uploadSelectedDetections);
-  closeSummaryBtn.addEventListener('click', hideSummaryModal);
-
   // Initialize on load
-  await initializeDetection();
-  console.log("🚀 Enhanced Camera Detection System Loaded");
+  async function main() {
+    updateButtonStates();
+    startBtn.disabled = true;
+    
+    const success = await initializeDetection();
+    
+    if (success) {
+      startBtn.disabled = false;
+      // Status is set by initializeDetection
+    } else {
+      startBtn.disabled = true;
+      // Status is set by initializeDetection on failure
+    }
+    
+    console.log("🚀 Enhanced Camera Detection System Loaded");
+  }
+  main();
 });
