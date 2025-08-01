@@ -1,0 +1,52 @@
+# Lightweight Frontend-only Dockerfile for Hazard Detection
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install only essential system dependencies
+RUN apk add --no-cache bash curl
+
+# Copy package files and install only production dependencies
+COPY package*.json ./
+RUN npm ci --only=production && npm cache clean --force
+
+# Copy only necessary application files
+COPY server/ ./server/
+COPY public/ ./public/
+
+# Copy only essential ONNX models (not all of them)
+RUN mkdir -p ./public/object_detecion_model/
+COPY public/object_detecion_model/model\ 18_7.onnx ./public/object_detecion_model/
+COPY public/object_detecion_model/road_damage_detection_simplified.onnx ./public/object_detecion_model/
+
+# Copy ONNX runtime files
+COPY public/ort/ ./public/ort/
+
+# Create lightweight startup script
+RUN cat > /app/start-frontend.sh << 'EOF'
+#!/bin/bash
+set -e
+
+echo "🚀 Starting Hazard Detection Frontend"
+WEB_PORT=${PORT:-3000}
+
+echo "🌐 Starting web server on port ${WEB_PORT}..."
+cd /app
+exec node server/routes/server.js
+EOF
+
+RUN chmod +x /app/start-frontend.sh
+
+# Environment
+ENV NODE_ENV=production
+ENV PORT=3000
+
+# Expose port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-3000}/health || exit 1
+
+# Use the lightweight startup script
+CMD ["/app/start-frontend.sh"]
