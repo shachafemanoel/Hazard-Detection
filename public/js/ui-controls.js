@@ -9,12 +9,13 @@ export function filterReportsByType(reports, term) {
   });
 }
 
-export function initControls({ toggleHeatmap, centerMap } = {}) {
+export function initControls({ toggleHeatmap, centerMap, plotReports } = {}) {
   const searchInput = document.getElementById('report-search-input');
   if (searchInput) {
     searchInput.addEventListener('input', (e) => {
       const filtered = filterReportsByType(getReports(), e.target.value);
       renderReports(filtered);
+      if (typeof plotReports === 'function') plotReports(filtered);
     });
   }
 
@@ -33,6 +34,7 @@ export function initControls({ toggleHeatmap, centerMap } = {}) {
         hazardDropdownMenu.classList.remove('active');
         const filtered = type ? getReports().filter(r => r.type === type) : getReports();
         renderReports(filtered);
+        if (typeof plotReports === 'function') plotReports(filtered);
       });
     });
   }

@@ -15,12 +15,44 @@ export function renderReports(reports) {
   });
 }
 
+/**
+ * Populate and display the report details modal.
+ *
+ * Expects the DOM to contain a Bootstrap modal with id `reportDetailsModal` and
+ * the following child elements used to render report fields:
+ * - `modal-hazard-id`       – span/div for the hazard id
+ * - `modal-type`            – element for the hazard type
+ * - `modal-location`        – element for the location text
+ * - `modal-time`            – element for the timestamp
+ * - `modal-status`          – element for the report status
+ * - `modal-user`            – element for the reporting user
+ * - `modal-report-image`    – img tag for the report image
+ *
+ * If any of these elements are missing the function will skip updating them.
+ */
 function showDetails(report) {
-  const panel = document.getElementById('report-details-panel');
-  panel.innerHTML = `
-    <h3>${report.type} Details</h3>
-    <p><strong>ID:</strong> ${report.id}</p>
-    <p><strong>Location:</strong> ${report.location}</p>
-    <p><strong>Time:</strong> ${new Date(report.time).toLocaleString()}</p>
-  `;
+  const modalEl = document.getElementById('reportDetailsModal');
+  if (!modalEl) return;
+
+  const setText = (id, text) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  };
+
+  setText('modal-hazard-id', report.id);
+  setText('modal-type', report.type);
+  setText('modal-location', report.location);
+  setText('modal-time', new Date(report.time).toLocaleString());
+  setText('modal-status', report.status);
+  setText('modal-user', report.reportedBy || '');
+
+  const imgEl = document.getElementById('modal-report-image');
+  if (imgEl) imgEl.src = report.image || '';
+
+  let modal = window.reportDetailsBootstrapModal;
+  if (!modal && window.bootstrap) {
+    modal = new bootstrap.Modal(modalEl, {});
+    window.reportDetailsBootstrapModal = modal;
+  }
+  if (modal) modal.show();
 }

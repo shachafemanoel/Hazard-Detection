@@ -1,4 +1,4 @@
-import { initMap, toggleHeatmap, centerMap } from './map.js';
+import { initMap, toggleHeatmap, centerMap, plotReports } from './map.js';
 import { fetchReports } from './reports-api.js';
 import { initControls } from './ui-controls.js';
 import { renderReports } from './modals.js';
@@ -7,8 +7,9 @@ import { notify } from './notifications.js';
 export async function bootstrapDashboard() {
   try {
     initMap();
-    initControls({ toggleHeatmap, centerMap });
+    initControls({ toggleHeatmap, centerMap, plotReports });
     const { reports } = await fetchReports();
+    plotReports(reports);
     renderReports(reports);
     notify('Dashboard loaded successfully', 'success');
   } catch (e) {
