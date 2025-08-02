@@ -365,15 +365,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     detectedHazards: new Set()
   };
 
-  const pendingDetections = [];
   let sessionDetectionsSummary = []; // Store detailed detection information for summary
 
-  // Object tracking system
-  let trackedObjects = new Map();
-  let nextObjectId = 1;
-  const MAX_TRACKING_DISTANCE = 150; // Maximum distance for object matching
-  const TRACKING_PERSISTENCE_FRAMES = 20; // Keep tracked objects for 20 frames
-  const INTERPOLATION_FRAMES = 4; // Number of frames to interpolate between detections
+  // Persist detections for a few frames without complex tracking
+  let activeDetections = [];
+  const PERSISTENCE_FRAMES = 3;
 
   // Geolocation data for saved detections
   let geoData = null;
@@ -404,6 +400,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   let confidenceThreshold = 0.5;
 
   let initialized = false;
+
+  // Ensure canvas dimensions always match the displayed video
+  function syncCanvasSize() {
+    if (!video || !canvas) return;
+    const width = video.clientWidth || video.videoWidth;
+    const height = video.clientHeight || video.videoHeight;
+    canvas.width = width;
+    canvas.height = height;
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+  }
+
+  // Keep canvas in sync when the window resizes
+  window.addEventListener('resize', syncCanvasSize);
 
   // Update UI status
   function updateConnectionStatus(status, message) {
@@ -877,7 +887,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
 
       const formData = new FormData();
-      formData.append('file', blob, 'frame.jpg');
+      formData.append('file', blob, blob.type === 'image/png' ? 'frame.png' : 'frame.jpg');
 
       const response = await fetch(`${API_URL}/detect`, {
         method: 'POST',
@@ -1160,9 +1170,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         processedBoxes.push(trackedObj.box);
         trackedObj.age++;
       }
-    }
-    
-    return processedBoxes;
+    });
   }
 
   // Professional bounding box drawing function for camera detection
@@ -1356,8 +1364,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     canvas.height = video.videoHeight;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Apply object tracking to detections
-    const trackedBoxes = trackObjects(boxes);
+    // Add new detections with persistence counter
+    for (const box of newBoxes) {
+      if (box[4] >= confidenceThreshold) {
+        activeDetections.push({ box, useApi: useApiResults, framesLeft: PERSISTENCE_FRAMES });
+      }
+    }
 
     let currentFrameDetections = 0;
     const detectedTypes = new Set();
@@ -1370,20 +1382,31 @@ document.addEventListener("DOMContentLoaded", async () => {
       const correctedClassId = Math.floor(classId) - 1;
       const classIndex = Math.max(0, correctedClassId); // Ensure non-negative
 
-      // Scale coordinates back to video dimensions
-      if (!useApiResults) {
-        const scaleX = video.videoWidth / FIXED_SIZE;
-        const scaleY = video.videoHeight / FIXED_SIZE;
-        x1 = x1 * scaleX;
-        y1 = y1 * scaleY;
-        x2 = x2 * scaleX;
-        y2 = y2 * scaleY;
+      // Scale coordinates back to displayed video dimensions
+      if (!det.useApi) {
+        const { offsetX, offsetY, newW, newH } = letterboxParams;
+        const scaleX = canvas.width / newW;
+        const scaleY = canvas.height / newH;
+        x1 = (x1 - offsetX) * scaleX;
+        y1 = (y1 - offsetY) * scaleY;
+        x2 = (x2 - offsetX) * scaleX;
+        y2 = (y2 - offsetY) * scaleY;
+      } else {
+        const scaleX = canvas.width / video.videoWidth;
+        const scaleY = canvas.height / video.videoHeight;
+        x1 *= scaleX;
+        y1 *= scaleY;
+        x2 *= scaleX;
+        y2 *= scaleY;
       }
 
       const boxW = x2 - x1;
       const boxH = y2 - y1;
 
-      if (boxW < 1 || boxH < 1) continue;
+      if (boxW < 1 || boxH < 1) {
+        det.framesLeft--;
+        return det.framesLeft > 0;
+      }
 
       currentFrameDetections++;
       const labelName = classNames[classIndex] || `Unknown Class ${classIndex}`;
@@ -1426,31 +1449,19 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
 
       // Save detection periodically and add to summary
-      if (frameCount % 60 === 0 && !isInterpolated) {
-        // Create composite canvas with video + bounding boxes
-        const snap = document.createElement('canvas');
-        snap.width = video.videoWidth;
-        snap.height = video.videoHeight;
-        const snapCtx = snap.getContext('2d');
-        
-        // Draw the video frame first
-        snapCtx.drawImage(video, 0, 0, snap.width, snap.height);
-        
-        // Then draw the bounding boxes overlay
-        snapCtx.drawImage(canvas, 0, 0, snap.width, snap.height);
-        
-        saveDetection(snap, labelName, trackedObj.confidence).catch((e) => console.error(e));
-        
-        // Add to session detections summary
+      if (frameCount % 60 === 0) {
+        saveDetection(video, canvas, labelName, score).catch((e) => console.error(e));
         sessionDetectionsSummary.push({
           type: labelName,
-          confidence: trackedObj.confidence,
+          confidence: score,
           timestamp: Date.now(),
-          objectId: trackedObj.id,
           frame: frameCount
         });
       }
-    }
+
+      det.framesLeft--;
+      return det.framesLeft > 0;
+    });
 
     // Update statistics
     currentDetections.textContent = currentFrameDetections;
@@ -1568,9 +1579,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (!letterboxParams) computeLetterboxParams();
 
-    // Always draw current persistent detections for smooth visualization
-    drawResults([], false);
-    updatePerformanceStats();
+    let detections = [];
+    let useApiResults = false;
 
     // Process detection using configurable interval for better performance
     if (frameCount % DETECTION_CONFIG.detectionInterval === 0) {
@@ -1580,9 +1590,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       offCtx.drawImage(video, letterboxParams.offsetX, letterboxParams.offsetY, letterboxParams.newW, letterboxParams.newH);
 
       const imageData = offCtx.getImageData(0, 0, FIXED_SIZE, FIXED_SIZE);
-      
-      let detections = [];
-      let useApiResults = false;
 
       // Try API detection first (if available), then fallback to ONNX
       if (apiAvailable && useApi && frameCount % 4 === 0) { // Use API every 4th frame for better responsiveness
@@ -1615,12 +1622,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (detections.length === 0 && session) {
         detections = await detectWithOnnx(imageData);
       }
-
-      // Update detections with new results
-      if (detections.length > 0) {
-        drawResults(detections, useApiResults);
-      }
     }
+
+    // Draw detections (new and persisted)
+    drawResults(detections, useApiResults);
+    updatePerformanceStats();
 
     requestAnimationFrame(detectionLoop);
   }
@@ -1655,6 +1661,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       updateButtonStates(); // Hide start, show stop
 
       video.addEventListener("loadeddata", () => {
+        syncCanvasSize();
         computeLetterboxParams();
         setDetectingState(true);
         
@@ -1737,8 +1744,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Reset stats and clear tracking data
     frameCount = 0;
-    trackedObjects.clear();
-    nextObjectId = 1;
+    activeDetections = [];
 
     // Don't reset detection stats immediately - keep for summary modal
     // They will be reset when starting a new session
@@ -1770,6 +1776,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       video.srcObject = stream;
       
       video.addEventListener("loadeddata", () => {
+        syncCanvasSize();
         computeLetterboxParams();
       }, { once: true });
       
