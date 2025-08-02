@@ -88,3 +88,33 @@
   }
 }
 
+@media (max-width: 768px) {
+  #upload-page {
+    max-width: 100%;
+    margin: 1rem;
+    padding: 1rem;
+  }
+
+  .file-input,
+  #save-detection,
+  input[type="range"] {
+    width: 100%;
+  }
+
+  .tech-button,
+  .file-input,
+  input[type="range"] {
+    min-height: 44px;
+  }
+
+  input[type="range"] {
+    height: 44px;
+  }
+
+  input[type="range"]::-webkit-slider-thumb,
+  input[type="range"]::-moz-range-thumb {
+    width: 44px;
+    height: 44px;
+  }
+}
+

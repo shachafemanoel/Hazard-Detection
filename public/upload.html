@@ -66,8 +66,9 @@
       margin-top: 1rem;
     }
 
-    /* Simple uploading modal */
-    #uploading-modal {
+    /* Simple modals */
+    #uploading-modal,
+    #model-loading {
       position: fixed;
       top: 0;
       left: 0;
@@ -80,7 +81,8 @@
       z-index: 1000;
     }
 
-    #uploading-modal .modal-content {
+    #uploading-modal .modal-content,
+    #model-loading .modal-content {
       background: var(--panel-bg);
       color: var(--text);
       padding: 1.5rem 2rem;
@@ -143,6 +145,11 @@
   <!-- Uploading modal -->
   <div id="uploading-modal">
     <div class="modal-content">Uploading...</div>
+  </div>
+
+  <!-- Model loading overlay -->
+  <div id="model-loading">
+    <div class="modal-content">Loading model...</div>
   </div>
 
   <script type="module" src="js/upload.js" defer></script>
