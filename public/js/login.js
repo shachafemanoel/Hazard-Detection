@@ -246,6 +246,7 @@ function toggleForm() {
     document.getElementById('email-options').style.display = 'block';
     document.getElementById('back-options').style.display = 'block'; // הצגת כפתור back
     document.getElementById('email-form').style.display = 'block'; // הוספתי כדי להציג את הטופס
+    clearErrors(); // Clear any lingering errors when toggling form
 }
 
 function backToMainScreen() {
@@ -256,7 +257,8 @@ function backToMainScreen() {
     document.getElementById('email-options').style.display = 'none';
     document.getElementById('email-form').style.display = 'none';
     document.getElementById('buttons').style.display = 'block';
-    document.getElementById('back-options').style.display = 'none'; 
+    document.getElementById('back-options').style.display = 'none';
+    clearErrors(); // Reset errors when returning to main screen
 }
 
 // הצגת טופס הרשמה
@@ -265,6 +267,7 @@ function showSignupForm() {
     document.getElementById('login-form').style.display = 'none';
     document.getElementById('forgot-password-form').style.display = 'none';
     document.getElementById('back-options').style.display = 'block'; // הצגת כפתור back בטופס הרשמה
+    clearErrors(); // Clear previous error messages
 }
 
 // הצגת טופס התחברות
@@ -273,6 +276,7 @@ function showLoginForm() {
     document.getElementById('login-form').style.display = 'block';
     document.getElementById('forgot-password-form').style.display = 'none';
     document.getElementById('back-options').style.display = 'block'; // הצגת כפתור back בטופס התחברות
+    clearErrors(); // Clear previous error messages
 }
 
 // פונקציה שתציג את טופס שחזור הסיסמה
@@ -281,6 +285,7 @@ function toggleForgotPassword() {
     document.getElementById('login-form').style.display = 'none';
     document.getElementById('signup-form').style.display = 'none';
     document.getElementById('back-options').style.display = 'block'; // הצגת כפתור Back
+    clearErrors(); // Clear previous error messages
 }
 
 
@@ -299,4 +304,16 @@ function validatePassword(password) {
 function toggleFormVisibility(formId, show) {
     const form = document.getElementById(formId);
     form.style.display = show ? 'block' : 'none';
+}
+
+// Utility to hide and reset all error banners
+function clearErrors() {
+    ['email-error', 'login-error', 'reset-password-error'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.textContent = '';
+            el.classList.add('hidden');
+            el.classList.remove('alert-danger', 'alert-success');
+        }
+    });
 }

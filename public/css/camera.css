@@ -711,7 +711,7 @@ body {
     right: 0;
     bottom: 0;
     background: var(--tech-panel);
-    display: flex; /* Keep flex for centering */
+    display: none; /* Hidden until model load */
     align-items: center;
     justify-content: center;
     z-index: 9999;
@@ -722,6 +722,7 @@ body {
 }
 
 .loading-overlay.show {
+    display: flex;
     opacity: 1;
     visibility: visible;
     transition: opacity var(--tech-transition);
@@ -738,6 +739,52 @@ body {
     width: 80px;
     height: 80px;
     margin: 0 auto 30px;
+}
+
+/* Floating menu overlay */
+#menuOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    z-index: 9998;
+}
+#menuOverlay.active {
+    display: block;
+}
+
+@media (max-width: 600px) {
+    .scan-line {
+        transform: scaleY(0.7); /* thinner scan line on small screens */
+    }
+    .corner-indicators {
+        inset: 10px; /* bring corners inward */
+    }
+    .control-btn {
+        width: 44px;
+        height: 44px;
+        padding: 0; /* larger touch targets */
+    }
+    .camera-controls {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: var(--bg-panel);
+        justify-content: center;
+        gap: 1rem;
+        z-index: 10;
+    }
+    .camera-controls .control-group {
+        flex-direction: row;
+    }
+}
+
+@media (max-width: 600px) and (orientation: portrait) {
+    #camera-stream,
+    #overlay-canvas {
+        max-height: 60vh; /* keep video within view */
+    }
 }
 
 .spinner-ring {

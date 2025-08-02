@@ -92,15 +92,15 @@
         </div>
         <div class="camera-controls">
             <div class="control-group">
-                <button class="control-btn primary" id="start-camera">
+                <button class="control-btn primary" id="start-camera" aria-label="Start Detection">
                     <i class="fas fa-play"></i>
                     <span>Start Detection</span>
                 </button>
-                <button class="control-btn danger" id="stop-camera">
+                <button class="control-btn danger" id="stop-camera" aria-label="Stop Detection">
                     <i class="fas fa-stop"></i>
                     <span>Stop</span>
                 </button>
-                <button class="control-btn" id="switch-camera">
+                <button class="control-btn" id="switch-camera" aria-label="Switch Camera">
                     <i class="fas fa-sync-alt"></i>
                     <span>Switch Camera</span>
                 </button>
@@ -300,17 +300,26 @@
             // additional initialization can go here
         });
     </script>
-    <!-- Tech-Urban Floating Menu -->
-    <button id="fab-btn" class="fab"><i class="fas fa-bars"></i></button>
-    <nav id="fab-menu" class="fab-menu">
+    <!-- Floating Menu with overlay -->
+    <div id="menuOverlay"></div>
+    <button id="menuBtn" class="fab" aria-label="Toggle menu"><i class="fas fa-bars"></i></button>
+    <nav id="floatingMenu" class="fab-menu">
         <a href="/dashboard.html">Dashboard</a>
         <a href="/camera.html">Live</a>
         <a href="/logout">Logout</a>
     </nav>
     <script>
-        document.getElementById('fab-btn').onclick = () => {
-            document.getElementById('fab-menu').classList.toggle('open');
-        };
+        const menuBtn = document.getElementById('menuBtn');
+        const floatingMenu = document.getElementById('floatingMenu');
+        const menuOverlay = document.getElementById('menuOverlay');
+        menuBtn.addEventListener('click', () => {
+            floatingMenu.classList.toggle('open');
+            menuOverlay.classList.toggle('active');
+        });
+        menuOverlay.addEventListener('click', () => {
+            floatingMenu.classList.remove('open');
+            menuOverlay.classList.remove('active');
+        });
     </script>
 </body>
 </html>

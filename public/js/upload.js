@@ -1,3 +1,5 @@
+import { notify } from './notifications.js';
+
 document.addEventListener("DOMContentLoaded", async function () {
   // אלמנטים של מסך הבית וממשק ההעלאה
   const homeScreenContent = document.getElementById('home-screen-content');
@@ -318,32 +320,37 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   if (imageUpload) {
     imageUpload.addEventListener("change", async (event) => {
-  const file = event.target.files[0];
-  if (!file || !canvas) return; // Add check for canvas
+      const file = event.target.files[0];
+      if (!file || !canvas) return; // Add check for canvas
 
-  // 1. נתחיל קריאת EXIF ברקע (לא חוסם את התצוגה)
-  getGeoDataFromImage(file).then(data => {
-    if (data) {
-      geoData = data;      // שומר מיקום אם קיים
-    } else {
-      console.warn("אין נתוני EXIF גיאו בתמונה הזאת");
-    }
-  });
+      try {
+        const data = await getGeoDataFromImage(file);
+        if (data) {
+          geoData = data; // Save location if available
+        } else {
+          console.warn("אין נתוני EXIF גיאו בתמונה הזאת");
+        }
+      } catch (err) {
+        console.error('EXIF read failure', err);
+        const tooltip = document.getElementById('tooltip');
+        if (tooltip) tooltip.style.display = 'block';
+        notify('Failed to read geolocation data', 'danger');
+      }
 
-  // 2. תמיד תציג תצוגה ותריץ את המודל
-  const reader = new FileReader();
-  reader.onload = e => {
-    const img = new Image();
-    img.onload = async () => {
-      currentImage = img;
-      canvas.width  = FIXED_SIZE;
-      canvas.height = FIXED_SIZE;
-      await runInferenceOnImage(img);  // כאן מציירים את המסגרות
-    };
-    img.src = e.target.result;
-  };
-  reader.readAsDataURL(file);
-});
+      // Always show preview and run model
+      const reader = new FileReader();
+      reader.onload = e => {
+        const img = new Image();
+        img.onload = async () => {
+          currentImage = img;
+          canvas.width = FIXED_SIZE;
+          canvas.height = FIXED_SIZE;
+          await runInferenceOnImage(img); // Draw detection boxes
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
   }
 
   async function runInferenceOnImage(imageElement) {

@@ -64,6 +64,28 @@
       margin-top: 1rem;
     }
 
+    .canvas-container {
+      padding: 1rem;
+    }
+
+    @media (max-width: 768px) {
+      .canvas-container {
+        padding: 0.5rem; /* Reduce padding on small screens */
+      }
+      #preview-canvas {
+        max-height: 50vh; /* Limit canvas height on mobile */
+      }
+      #confidence-slider::-webkit-slider-thumb,
+      #confidence-slider::-moz-range-thumb {
+        width: 44px;
+        height: 44px; /* Larger thumb for touch */
+      }
+      #save-detection {
+        min-width: 44px;
+        min-height: 44px; /* Adequate button size */
+      }
+    }
+
     /* Simple uploading modal */
     #uploading-modal {
       position: fixed;
@@ -102,11 +124,13 @@
       Detection Sensitivity: <span id="conf-value">0.5</span>
       <span>(Lower = More Sensitive)</span>
     </label>
-    <input type="range" id="confidence-slider" min="0.25" max="0.8" step="0.05" value="0.5" />
+    <input type="range" id="confidence-slider" min="0.25" max="0.8" step="0.05" value="0.5" aria-label="Detection Sensitivity" />
 
-    <canvas id="preview-canvas"></canvas>
+    <div class="canvas-container">
+      <canvas id="preview-canvas"></canvas>
+    </div>
 
-    <button id="save-detection" class="tech-button">Save Detection</button>
+    <button id="save-detection" class="tech-button" aria-label="Save Detection">Save Detection</button>
     <div id="tooltip" class="tech-panel" style="display:none;">⚠️ No Hazard Detected. Cannot save detection</div>
 
     <div id="toast-notification" class="notification tech-panel tech-button" style="display:none;">

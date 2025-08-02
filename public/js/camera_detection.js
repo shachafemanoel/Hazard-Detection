@@ -8,6 +8,7 @@ import {
   detectWithApi,
   endApiSession
 } from "./apiClient.js";
+import { notify } from './notifications.js';
 
 document.addEventListener("DOMContentLoaded", async () => {
   // DOM Elements
@@ -543,6 +544,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     } catch (err) {
       console.error("❌ Failed to create ONNX session with any provider:", err);
+      notify('Error loading model', 'danger');
       throw new Error(`Failed to initialize AI model: ${err.message}`);
     }
 
