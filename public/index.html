@@ -9,46 +9,16 @@
     <link rel="stylesheet" href="css/main.css">
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="index.html">Hazard Detection</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
-                <ul class="navbar-nav">
-                    <li class="nav-item"><a class="nav-link" href="camera.html">Live Detection</a></li>
-                    <li class="nav-item"><a class="nav-link" href="upload.html">Upload Analysis</a></li>
-                    <li class="nav-item"><a class="nav-link" href="dashboard.html">Dashboard</a></li>
-                    <li class="nav-item"><a class="nav-link" href="login.html">Login</a></li>
-                </ul>
-            </div>
-        </div>
-    </nav>
-    <div class="container">
-        <div class="hero-section text-center">
-            <h1 class="display-4 fw-bold text-white mb-4">
-                <i class="fas fa-shield-alt text-primary"></i>
-                Hazard Detection System
+    <div class="container vh-100 d-flex flex-column justify-content-center align-items-center text-center">
+        <div class="card p-5">
+            <h1 class="display-3 fw-bold mb-4">
+                <i class="fas fa-shield-alt text-primary me-2"></i>
+                Hazard Detection
             </h1>
-            <p class="lead text-light mb-4">AI-powered road hazard detection for safer driving</p>
-
-            <div class="nav-icons">
-                <a href="camera.html" class="text-primary" aria-label="Live Detection">
-                    <i class="fas fa-video fa-2x"></i>
-                </a>
-                <a href="upload.html" class="text-success" aria-label="Upload Analysis">
-                    <i class="fas fa-upload fa-2x"></i>
-                </a>
-                <a href="dashboard.html" class="text-warning" aria-label="Dashboard">
-                    <i class="fas fa-chart-line fa-2x"></i>
-                </a>
-            </div>
-
-            <div class="text-center">
-                <a href="login.html" class="btn btn-outline-light btn-lg rounded-0" aria-label="Get Started">
-                    <i class="fas fa-sign-in-alt"></i>
-                </a>
+            <p class="lead mb-5">AI-powered road hazard detection for safer driving.</p>
+            <div class="d-grid gap-3 d-sm-flex justify-content-sm-center">
+                <a href="camera.html" class="btn btn-primary btn-lg px-4 gap-3">Live Detection</a>
+                <a href="upload.html" class="btn btn-outline-light btn-lg px-4">Upload Analysis</a>
             </div>
         </div>
     </div>

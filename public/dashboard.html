@@ -17,19 +17,15 @@
 </head>
 <body>
 
-  <header class="my-3">
-    <div class="d-flex flex-column align-items-center">
-      <h1><i class="fas fa-road me-2"></i>RoadGuardian: Live Hazard Tracker</h1>
-      <button id="refresh-info-btn" class="btn btn-accent mt-2" title="Refresh Info" aria-label="Refresh Info">
-        <i class="fas fa-rotate-right"></i>
-      </button>
-    </div>
+  <header class="my-4 text-center">
+    <h1 class="h2"><i class="fas fa-road me-2"></i>RoadGuardian</h1>
+    <p class="text-secondary">Live Hazard Tracker</p>
   </header>
 
-  <div class="container-fluid mt-3">
-    <div id="overview-section" class="row g-3">
+  <div class="container-fluid">
+    <div id="overview-section" class="row g-4 mb-4">
       <div class="col-lg-3 col-md-6">
-        <div class="stat-card bg-primary h-100">
+        <div class="stat-card card h-100">
           <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
           <div class="stat-content">
             <h4 id="total-reports-count">—</h4>
@@ -38,7 +34,7 @@
         </div>
       </div>
       <div class="col-lg-3 col-md-6">
-        <div class="stat-card bg-danger h-100">
+        <div class="stat-card card h-100">
           <div class="stat-icon"><i class="fas fa-clock"></i></div>
           <div class="stat-content">
             <h4 id="open-hazards-count">—</h4>
@@ -47,7 +43,7 @@
         </div>
       </div>
       <div class="col-lg-3 col-md-6">
-        <div class="stat-card bg-success h-100">
+        <div class="stat-card card h-100">
           <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
           <div class="stat-content">
             <h4 id="resolved-this-month-count">—</h4>
@@ -56,7 +52,7 @@
         </div>
       </div>
       <div class="col-lg-3 col-md-6">
-        <div class="stat-card bg-info h-100">
+        <div class="stat-card card h-100">
           <div class="stat-icon"><i class="fas fa-users"></i></div>
           <div class="stat-content">
             <h4 id="active-users-count">—</h4>
@@ -65,73 +61,75 @@
         </div>
       </div>
     </div>
-    <div class="row g-3 mt-3">
+    <div class="row g-4">
       <section class="col-lg-8">
-        <div class="dashboard-panel h-100 d-flex flex-column">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <h4><i class="fas fa-map me-2"></i>Hazard Map</h4>
+        <div class="dashboard-panel card h-100 d-flex flex-column">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-map me-2"></i>Hazard Map</h5>
             <div class="map-controls">
-              <button id="toggle-heatmap" class="btn btn-sm btn-outline-primary me-2" aria-label="Toggle Heatmap">
-                <i class="fas fa-fire"></i> Toggle Heatmap
+              <button id="toggle-heatmap" class="btn btn-sm me-2" aria-label="Toggle Heatmap">
+                <i class="fas fa-fire"></i> Heatmap
               </button>
-              <button id="center-map" class="btn btn-sm btn-outline-secondary" aria-label="Center Map">
-                <i class="fas fa-crosshairs"></i> Center Map
+              <button id="center-map" class="btn btn-sm" aria-label="Center Map">
+                <i class="fas fa-crosshairs"></i> Center
               </button>
             </div>
           </div>
-          <div id="map" class="flex-grow-1" style="min-height: 500px;"></div>
+          <div id="map" class="card-body flex-grow-1" style="min-height: 500px;"></div>
         </div>
       </section>
       <aside class="col-lg-4">
-        <div class="dashboard-panel h-100 d-flex flex-column">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <h4><i class="fas fa-table me-2"></i>Reports Management</h4>
+        <div class="dashboard-panel card h-100 d-flex flex-column">
+          <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-table me-2"></i>Reports Management</h5>
           </div>
-          <div class="table-controls d-flex flex-wrap gap-2 mb-3">
-            <input type="text" id="report-search-input" class="form-control" placeholder="Search..." style="flex: 2;">
-            <select id="table-status-filter" class="form-select" style="flex: 1;">
-              <option value="">All Status</option>
-              <option value="Open">Open</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Resolved">Resolved</option>
-            </select>
-            <select id="hazard-type-filter" class="form-select" style="flex: 1;">
-              <option value="">All Types</option>
-              <option value="crack">Crack</option>
-              <option value="knocked">Knocked</option>
-              <option value="pothole">Pothole</option>
-              <option value="surface_damage">Surface Damage</option>
-            </select>
-            <div class="form-check">
-              <input class="form-check-input" type="checkbox" value="" id="my-reports-filter">
-              <label class="form-check-label" for="my-reports-filter">
-                My Reports
-              </label>
+          <div class="card-body">
+            <div class="table-controls d-flex flex-wrap gap-2 mb-3">
+              <input type="text" id="report-search-input" class="form-control" placeholder="Search...">
+              <select id="table-status-filter" class="form-select">
+                <option value="">All Status</option>
+                <option value="Open">Open</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Resolved">Resolved</option>
+              </select>
+              <select id="hazard-type-filter" class="form-select">
+                <option value="">All Types</option>
+                <option value="crack">Crack</option>
+                <option value="knocked">Knocked</option>
+                <option value="pothole">Pothole</option>
+                <option value="surface_damage">Surface Damage</option>
+              </select>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" value="" id="my-reports-filter">
+                <label class="form-check-label" for="my-reports-filter">
+                  My Reports
+                </label>
+              </div>
+            </div>
+            <div id="reports-blocks-container" class="d-none"></div>
+            <div class="table-responsive flex-grow-1">
+              <table id="reports-management-table" class="table table-hover">
+                <thead>
+                  <tr>
+                    <th><input type="checkbox" id="select-all-reports"></th>
+                    <th class="sortable" data-sort="id">ID <i class="fas fa-sort"></i></th>
+                    <th class="sortable" data-sort="type">Type <i class="fas fa-sort"></i></th>
+                    <th class="sortable" data-sort="status">Status <i class="fas fa-sort"></i></th>
+                    <th class="sortable" data-sort="location">Location <i class="fas fa-sort"></i></th>
+                    <th class="sortable" data-sort="time">Time <i class="fas fa-sort"></i></th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="reports-table-body"></tbody>
+              </table>
             </div>
           </div>
-          <div id="reports-blocks-container" class="d-none"></div>
-          <div class="table-responsive flex-grow-1">
-            <table id="reports-management-table" class="table table-dark table-striped table-hover">
-              <thead>
-                <tr>
-                  <th><input type="checkbox" id="select-all-reports"></th>
-                  <th class="sortable" data-sort="id">ID <i class="fas fa-sort"></i></th>
-                  <th class="sortable" data-sort="type">Type <i class="fas fa-sort"></i></th>
-                  <th class="sortable" data-sort="status">Status <i class="fas fa-sort"></i></th>
-                  <th class="sortable" data-sort="location">Location <i class="fas fa-sort"></i></th>
-                  <th class="sortable" data-sort="time">Time <i class="fas fa-sort"></i></th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody id="reports-table-body"></tbody>
-            </table>
-          </div>
-          <div class="table-pagination d-flex justify-content-between align-items-center mt-3">
+          <div class="card-footer d-flex justify-content-between align-items-center">
             <span id="table-showing-info"></span>
             <div class="pagination-controls d-flex align-items-center gap-2">
-              <button id="table-prev-btn" class="btn btn-outline-secondary btn-sm"><i class="fas fa-chevron-left"></i></button>
+              <button id="table-prev-btn" class="btn btn-sm"><i class="fas fa-chevron-left"></i></button>
               <span id="table-page-info"></span>
-              <button id="table-next-btn" class="btn btn-outline-secondary btn-sm"><i class="fas fa-chevron-right"></i></button>
+              <button id="table-next-btn" class="btn btn-sm"><i class="fas fa-chevron-right"></i></button>
               <select id="table-page-size" class="form-select form-select-sm" style="width: auto;">
                 <option value="10">10</option>
                 <option value="25">25</option>
@@ -148,14 +146,14 @@
   <!-- Modals -->
   <div class="modal fade" id="reportDetailsModal" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-      <div class="modal-content">
+      <div class="modal-content card">
         <div class="modal-header">
           <h5 class="modal-title">Report Details</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <div class="row">
-            <div class="col-md-5"><img id="modal-report-image" src="" class="img-fluid rounded"></div>
+          <div class="row g-4">
+            <div class="col-md-5"><img id="modal-report-image" src="" class="img-fluid rounded shadow-sm"></div>
             <div class="col-md-7">
               <ul class="list-group list-group-flush">
                 <li class="list-group-item"><strong>ID:</strong> <span id="modal-hazard-id"></span></li>
@@ -174,7 +172,7 @@
 
   <div class="modal fade" id="editReportModal" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-      <div class="modal-content">
+      <div class="modal-content card">
         <form id="edit-report-form">
           <div class="modal-header">
             <h5 class="modal-title">Edit Report</h5>
@@ -222,13 +220,6 @@
       </div>
     </div>
   </div>
-
-  <button id="fab-btn" class="fab"><i class="fas fa-bars"></i></button>
-  <nav id="fab-menu" class="fab-menu">
-    <a href="/dashboard.html">Dashboard</a>
-    <a href="/camera.html">Live</a>
-    <a href="/logout">Logout</a>
-  </nav>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script type="module" src="js/map.js"></script>

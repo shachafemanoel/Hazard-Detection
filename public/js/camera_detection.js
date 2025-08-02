@@ -34,9 +34,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const fpsBadge = document.getElementById("fps-badge");
 
   // Summary modal elements
-  const summaryModalOverlay = document.getElementById("summary-modal-overlay");
-  const summaryModal = document.getElementById("summary-modal");
-  const closeSummaryBtn = document.getElementById("close-summary");
+  const summaryModal = new bootstrap.Modal(document.getElementById('summaryModal'));
   const exportSummaryBtn = document.getElementById("export-summary");
   const viewDashboardBtn = document.getElementById("view-dashboard");
   const totalDetectionsCount = document.getElementById("total-detections-count");
@@ -126,16 +124,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   
   // Function to show camera session summary
   function showCameraSessionSummary() {
-    // This will integrate with the existing camera summary modal
-    const sessionData = {
-      duration: Date.now() - cameraSession.startTime,
-      totalDetections: cameraSession.totalDetections,
-      uniqueHazards: Array.from(cameraSession.uniqueHazards),
-      detections: cameraSession.detections
-    };
-    
-    console.log('Camera Session Summary:', sessionData);
-    // The existing camera summary modal will be enhanced to show this data
+    updateSummaryData();
+    summaryModal.show();
+  }
+
+  function hideSummaryModal() {
+    summaryModal.hide();
   }
   
   // Start periodic camera session updates
@@ -444,39 +438,25 @@ document.addEventListener("DOMContentLoaded", async () => {
     text.textContent = message;
   }
 
-  // Show loading overlay with progress
+// Show loading modal with progress
+  const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
   function showLoading(message, progress = 0) {
-    loadingOverlay.classList.add('show');
     loadingStatus.textContent = message;
     loadingProgressBar.style.width = `${progress}%`;
+    loadingProgressBar.setAttribute('aria-valuenow', progress);
+    loadingModal.show();
   }
 
-  // Hide loading overlay
+  // Hide loading modal
   function hideLoading() {
-    loadingOverlay.classList.remove('show');
+    loadingModal.hide();
   }
+
+import { notify } from './notifications.js';
 
   // Show notification
   function showNotification(message, type = 'info') {
-    const container = document.getElementById('notifications-container');
-    const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
-    notification.innerHTML = `
-      <i class="fas fa-${type === 'error' ? 'exclamation-triangle' : type === 'success' ? 'check-circle' : 'info-circle'}"></i>
-      <span class="notification-text">${message}</span>
-      <button onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>
-    `;
-    container.appendChild(notification);
-    
-    // Trigger animation
-    requestAnimationFrame(() => {
-      notification.classList.add('show');
-    });
-    
-    setTimeout(() => {
-      notification.classList.remove('show');
-      setTimeout(() => notification.remove(), 300);
-    }, 5000);
+    notify(message, type);
   }
 
 
@@ -1870,25 +1850,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     showNotification('Summary exported successfully', 'success');
   }
 
-  // Event listeners for summary modal
-  closeSummaryBtn.addEventListener('click', hideSummaryModal);
-  summaryModalOverlay.addEventListener('click', (e) => {
-    if (e.target === summaryModalOverlay) {
-      hideSummaryModal();
-    }
-  });
-
-  exportSummaryBtn.addEventListener('click', exportSummary);
+exportSummaryBtn.addEventListener('click', exportSummary);
   
   viewDashboardBtn.addEventListener('click', () => {
     window.location.href = '/dashboard.html';
-  });
-
-  // Keyboard shortcuts
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && summaryModalOverlay.classList.contains('show')) {
-      hideSummaryModal();
-    }
   });
 
   // Initialize on load

@@ -242,45 +242,36 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 function toggleForm() {
-    document.getElementById('buttons').style.display = 'none';
-    document.getElementById('email-options').style.display = 'block';
-    document.getElementById('back-options').style.display = 'block'; // הצגת כפתור back
-    document.getElementById('email-form').style.display = 'block'; // הוספתי כדי להציג את הטופס
+    document.getElementById('buttons').classList.add('d-none');
+    document.getElementById('email-options').classList.remove('d-none');
+    document.getElementById('email-form').classList.remove('d-none');
 }
 
 function backToMainScreen() {
-    // הסתרת כל הטפסים
-    document.getElementById('signup-form').style.display = 'none';
-    document.getElementById('login-form').style.display = 'none';
-    document.getElementById('forgot-password-form').style.display = 'none';
-    document.getElementById('email-options').style.display = 'none';
-    document.getElementById('email-form').style.display = 'none';
-    document.getElementById('buttons').style.display = 'block';
-    document.getElementById('back-options').style.display = 'none'; 
+    document.getElementById('signup-form').classList.add('d-none');
+    document.getElementById('login-form').classList.add('d-none');
+    document.getElementById('forgot-password-form').classList.add('d-none');
+    document.getElementById('email-options').classList.add('d-none');
+    document.getElementById('email-form').classList.add('d-none');
+    document.getElementById('buttons').classList.remove('d-none');
 }
 
-// הצגת טופס הרשמה
 function showSignupForm() {
-    document.getElementById('signup-form').style.display = 'block';
-    document.getElementById('login-form').style.display = 'none';
-    document.getElementById('forgot-password-form').style.display = 'none';
-    document.getElementById('back-options').style.display = 'block'; // הצגת כפתור back בטופס הרשמה
+    document.getElementById('signup-form').classList.remove('d-none');
+    document.getElementById('login-form').classList.add('d-none');
+    document.getElementById('forgot-password-form').classList.add('d-none');
 }
 
-// הצגת טופס התחברות
 function showLoginForm() {
-    document.getElementById('signup-form').style.display = 'none';
-    document.getElementById('login-form').style.display = 'block';
-    document.getElementById('forgot-password-form').style.display = 'none';
-    document.getElementById('back-options').style.display = 'block'; // הצגת כפתור back בטופס התחברות
+    document.getElementById('signup-form').classList.add('d-none');
+    document.getElementById('login-form').classList.remove('d-none');
+    document.getElementById('forgot-password-form').classList.add('d-none');
 }
 
-// פונקציה שתציג את טופס שחזור הסיסמה
 function toggleForgotPassword() {
-    document.getElementById('forgot-password-form').style.display = 'block';
-    document.getElementById('login-form').style.display = 'none';
-    document.getElementById('signup-form').style.display = 'none';
-    document.getElementById('back-options').style.display = 'block'; // הצגת כפתור Back
+    document.getElementById('forgot-password-form').classList.remove('d-none');
+    document.getElementById('login-form').classList.add('d-none');
+    document.getElementById('signup-form').classList.add('d-none');
 }
 
 

@@ -20,28 +20,26 @@
 </head>
 <body class="d-flex align-items-center justify-content-center min-vh-100 px-4">
 
-  <div class="login-container card p-4">
-    <div class="text-center mb-4">
-      <img src="icon.png" alt="Hazard Detection Logo" class="img-fluid rounded-circle shadow-sm mb-3" style="max-width: 150px;">
-      <h1>Sign in to Hazard Reporter</h1>
-    </div>
+  <div class="login-container card p-5 text-center">
+    <img src="icon.png" alt="Hazard Detection Logo" class="img-fluid rounded-circle shadow-sm mb-4 mx-auto" style="max-width: 120px;">
+    <h1 class="h3 mb-3">Sign in to Hazard Reporter</h1>
 
     <!-- Main Buttons -->
     <div id="buttons" class="d-grid gap-3">
-      <button class="btn btn-lg d-flex align-items-center justify-content-center" onclick="toggleForm()">
+      <button class="btn btn-lg" onclick="toggleForm()">
         <i class="far fa-envelope me-2"></i> Continue with Email
       </button>
-      <button class="btn btn-lg d-flex align-items-center justify-content-center" onclick="location.href='/auth/google'">
+      <button class="btn btn-lg" onclick="location.href='/auth/google'">
         <i class="fab fa-google me-2"></i> Continue with Google
       </button>
     </div>
 
     <!-- Email Options -->
     <div id="email-options" class="d-none mt-4 d-grid gap-2">
-      <button class="btn btn-sm text-uppercase" onclick="showSignupForm()">Sign Up</button>
-      <button class="btn btn-sm text-uppercase" onclick="showLoginForm()">Log In</button>
-      <button class="btn btn-sm text-uppercase" onclick="toggleForgotPassword()">Forgot Password</button>
-      <button id="back-options" class="btn btn-sm btn-secondary text-uppercase" onclick="backToMainScreen()">Back</button>
+      <button class="btn btn-sm" onclick="showSignupForm()">Sign Up</button>
+      <button class="btn btn-sm" onclick="showLoginForm()">Log In</button>
+      <button class="btn btn-sm" onclick="toggleForgotPassword()">Forgot Password</button>
+      <button id="back-options" class="btn btn-sm btn-secondary" onclick="backToMainScreen()">Back</button>
     </div>
 
     <!-- Email Forms -->
@@ -49,45 +47,51 @@
 
       <!-- Sign Up Form -->
       <div id="signup-form" class="d-none">
-        <h2 class="text-center h4 mb-3">Sign Up</h2>
+        <h2 class="h5 mb-3">Sign Up</h2>
         <form id="register-form">
-          <div class="mb-3">
+          <div class="form-floating mb-3">
             <input type="email" id="email" placeholder="Email" name="email" required class="form-control">
+            <label for="email">Email</label>
           </div>
-          <div class="mb-3">
+          <div class="form-floating mb-3">
             <input type="text" id="username" placeholder="Username" name="username" required minlength="3" class="form-control">
+            <label for="username">Username</label>
           </div>
-          <div class="mb-3">
+          <div class="form-floating mb-3">
             <input type="password" id="password" placeholder="Password" name="password" required minlength="8" class="form-control">
+            <label for="password">Password</label>
           </div>
-          <button type="submit" class="btn w-100 text-uppercase">Register</button>
+          <button type="submit" class="btn btn-primary w-100">Register</button>
         </form>
         <div id="email-error" class="d-none mt-3 alert alert-danger"></div>
       </div>
 
       <!-- Log In Form -->
       <div id="login-form" class="d-none">
-        <h2 class="text-center h4 mb-3">Log In</h2>
+        <h2 class="h5 mb-3">Log In</h2>
         <form id="login-form-inner">
-          <div class="mb-3">
+          <div class="form-floating mb-3">
             <input type="email" id="login-email" placeholder="Email" name="email" required class="form-control">
+            <label for="login-email">Email</label>
           </div>
-          <div class="mb-3">
+          <div class="form-floating mb-3">
             <input type="password" id="login-password" placeholder="Password" name="password" required minlength="8" class="form-control">
+            <label for="login-password">Password</label>
           </div>
-          <button type="submit" class="btn w-100 text-uppercase">Log In</button>
+          <button type="submit" class="btn btn-primary w-100">Log In</button>
         </form>
         <div id="login-error" class="d-none mt-3 alert alert-danger"></div>
       </div>
 
       <!-- Reset Password Form -->
       <div id="forgot-password-form" class="d-none">
-        <h2 class="text-center h4 mb-3">Reset Password</h2>
+        <h2 class="h5 mb-3">Reset Password</h2>
         <form id="reset-password-form">
-          <div class="mb-3">
+          <div class="form-floating mb-3">
             <input type="email" id="reset-email" placeholder="Enter your email" name="email" required class="form-control">
+            <label for="reset-email">Email</label>
           </div>
-          <button type="submit" class="btn w-100 text-uppercase">Reset Password</button>
+          <button type="submit" class="btn btn-primary w-100">Reset Password</button>
         </form>
         <div id="reset-password-error" class="d-none mt-3 alert alert-danger"></div>
       </div>
@@ -95,17 +99,5 @@
   </div>
 
   <script src="js/login.js" defer></script>
-  <!-- Tech-Urban Floating Menu -->
-  <button id="fab-btn" class="fab"><i class="fas fa-bars"></i></button>
-  <nav id="fab-menu" class="fab-menu">
-    <a href="/dashboard.html">Dashboard</a>
-    <a href="/camera.html">Live</a>
-    <a href="/logout">Logout</a>
-  </nav>
-  <script>
-    document.getElementById('fab-btn').onclick = () => {
-      document.getElementById('fab-menu').classList.toggle('open');
-    };
-  </script>
 </body>
 </html>

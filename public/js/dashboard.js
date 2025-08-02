@@ -51,9 +51,6 @@ const elements = {
   // Modals
   editModal: document.getElementById('editReportModal'),
   detailsModal: document.getElementById('reportDetailsModal'),
-  // FAB Menu
-  fabBtn: document.getElementById('fab-btn'),
-  fabMenu: document.getElementById('fab-menu'),
 };
 
 // --- RENDER FUNCTIONS ---
@@ -287,8 +284,6 @@ function initializeEventListeners() {
   
   const editForm = document.getElementById('edit-report-form');
   editForm?.addEventListener('submit', handleFormSubmit);
-
-  elements.fabBtn?.addEventListener('click', () => elements.fabMenu?.classList.toggle('open'));
 }
 
 function showMetricsLoading() {
