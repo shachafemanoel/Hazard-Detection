@@ -1,12 +1,19 @@
 import { getReports } from './reports-api.js';
 import { renderReports } from './modals.js';
 
+export function filterReportsByType(reports, term) {
+  const lowered = (term || '').toLowerCase();
+  return reports.filter((r) => {
+    const type = typeof r.type === 'string' ? r.type.toLowerCase() : '';
+    return type.includes(lowered);
+  });
+}
+
 export function initControls({ toggleHeatmap, centerMap } = {}) {
   const searchInput = document.getElementById('report-search-input');
   if (searchInput) {
     searchInput.addEventListener('input', (e) => {
-      const term = (e.target.value || '').toLowerCase();
-      const filtered = getReports().filter(r => r.type?.toLowerCase().includes(term));
+      const filtered = filterReportsByType(getReports(), e.target.value);
       renderReports(filtered);
     });
   }
