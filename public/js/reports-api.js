@@ -1,5 +1,3 @@
-import { notify } from './notifications.js';
-
 const API_BASE_URL = '/api/reports';
 
 let allReports = [];
@@ -32,7 +30,6 @@ export async function fetchReports(filters = {}) {
     response = await fetch(`${API_BASE_URL}?${params.toString()}`, { credentials: 'include' });
     if (!response.ok) throw new Error(`Failed to load reports: ${response.statusText}`);
   } catch (error) {
-    notify('Failed to fetch reports', 'danger');
     console.error('Fetch reports error:', error);
     throw error;
   }
@@ -40,6 +37,12 @@ export async function fetchReports(filters = {}) {
   const data = await response.json();
   const reports = Array.isArray(data.reports) ? data.reports : [];
   const pagination = data.pagination || { total: reports.length, page: 1, limit: reports.length, totalPages: 1 };
+  const metrics = {
+    total: data.totalReports ?? pagination.total,
+    open: data.openHazards ?? 0,
+    resolved: data.resolvedThisMonth ?? 0,
+    users: data.activeUsers ?? 0,
+  };
 
   const geocodedReports = await Promise.all(reports.map(async (report) => {
     if (typeof report.location === 'string' && !report.lat && !report.lon) {
@@ -50,7 +53,7 @@ export async function fetchReports(filters = {}) {
   }));
 
   allReports = geocodedReports;
-  return { reports: allReports, pagination };
+  return { reports: allReports, pagination, metrics };
 }
 
 // Update a report by ID
