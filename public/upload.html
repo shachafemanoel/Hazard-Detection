@@ -5,157 +5,58 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" href="icon.png" type="image/png" />
   <title>Hazard Detection - Upload</title>
-
-  <link rel="stylesheet" href="css/modern-ui-theme.css" />
-  <link rel="stylesheet" href="css/dashboard.css" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link rel="stylesheet" href="css/upload.css" />
-
-  <style>
-    #upload-page {
-      background: var(--panel-bg);
-      color: var(--text);
-      border-radius: var(--radius);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-      padding: 2rem;
-      max-width: 600px;
-      margin: 2rem auto;
-    }
-
-    .tech-button {
-      background-color: var(--accent);
-      color: var(--text);
-      border: none;
-      border-radius: var(--radius);
-      padding: 0.75rem 1.5rem;
-      cursor: pointer;
-      transition: var(--transition);
-    }
-
-    .tech-button:hover {
-      background-color: var(--accent-secondary);
-    }
-
-    .file-input {
-      display: block;
-      padding: 1rem;
-      background: var(--bg);
-      border: 1px solid var(--accent);
-      border-radius: var(--radius);
-      color: var(--text);
-      margin-bottom: 1rem;
-    }
-
-    #preview-canvas {
-      width: 100%;
-      height: auto;
-      background: var(--panel-bg);
-      border: 2px dashed var(--accent);
-      border-radius: var(--radius);
-      margin-bottom: 1rem;
-    }
-
-    input[type="range"] {
-      accent-color: var(--accent);
-      width: 100%;
-      margin-bottom: 1rem;
-    }
-
-    .notification {
-      padding: 1rem;
-      margin-top: 1rem;
-    }
-
-    /* Simple uploading modal */
-    #uploading-modal {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.6);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 1000;
-    }
-
-    #uploading-modal .modal-content {
-      background: var(--panel-bg);
-      color: var(--text);
-      padding: 1.5rem 2rem;
-      border-radius: var(--radius);
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-    }
-  </style>
-
+  <link rel="stylesheet" href="css/main.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
   <script src="ort/ort.min.js"></script>
 </head>
 <body>
-  <!-- Desktop Header Navigation -->
-  <header class="site-nav glass">
-    <div class="nav-left"><a href="/"><img src="icon.png" alt="Logo"></a></div>
-    <ul class="nav-links">
-      <li><a href="/" class="nav-item">Home</a></li>
-      <li><a href="/dashboard.html" class="nav-item">Dashboard</a></li>
-      <li><a href="/camera.html" class="nav-item">Live</a></li>
-      <li><a href="/upload.html" class="nav-item active">Upload</a></li>
-      <li><a href="/logout" class="nav-item">Logout</a></li>
-    </ul>
-  </header>
+  <div class="container mt-5">
+    <div class="card p-4 mx-auto" style="max-width: 600px;">
+      <h2 class="text-center mb-4">Upload Image for Detection</h2>
 
-  <!-- Floating FAB Menu -->
-  <button class="fab" id="fabMenuBtn"><i class="fas fa-bars"></i></button>
-  <nav class="fab-menu" id="fabMenu">
-    <a href="/"><i class="fas fa-home"></i><span>Home</span></a>
-    <a href="/dashboard.html"><i class="fas fa-chart-line"></i><span>Dashboard</span></a>
-    <a href="/camera.html"><i class="fas fa-video"></i><span>Live</span></a>
-    <a href="/upload.html" class="active"><i class="fas fa-upload"></i><span>Upload</span></a>
-    <a href="/logout"><i class="fas fa-sign-out-alt"></i><span>Logout</span></a>
-  </nav>
-  <div class="menu-overlay" id="fabOverlay"></div>
+      <div class="mb-3">
+        <input type="file" id="image-upload" class="form-control" accept="image/*" />
+      </div>
 
-  <div id="upload-page" class="tech-panel">
-    <h2>Upload Image for Detection</h2>
+      <div class="mb-3">
+        <label for="confidence-slider" class="form-label">
+          Detection Sensitivity: <span id="conf-value">0.5</span>
+        </label>
+        <input type="range" id="confidence-slider" class="form-range" min="0.25" max="0.8" step="0.05" value="0.5" />
+      </div>
 
-    <label class="file-input tech-panel">
-      <input type="file" id="image-upload" accept="image/*" />
-    </label>
+      <canvas id="preview-canvas" class="img-fluid border rounded mb-3"></canvas>
 
-    <label for="confidence-slider">
-      Detection Sensitivity: <span id="conf-value">0.5</span>
-      <span>(Lower = More Sensitive)</span>
-    </label>
-    <input type="range" id="confidence-slider" min="0.25" max="0.8" step="0.05" value="0.5" />
+      <button id="save-detection" class="btn btn-primary w-100">Save Detection</button>
+      <div id="tooltip" class="alert alert-warning mt-3" style="display:none;">⚠️ No Hazard Detected. Cannot save detection</div>
 
-    <canvas id="preview-canvas"></canvas>
-
-    <button id="save-detection" class="tech-button">Save Detection</button>
-    <div id="tooltip" class="tech-panel" style="display:none;">⚠️ No Hazard Detected. Cannot save detection</div>
-
-    <div id="toast-notification" class="notification tech-panel tech-button" style="display:none;">
-      <div id="toast-body"></div>
-      <button type="button" id="toast-close" class="tech-button">&times;</button>
+      <div id="toast-notification" class="toast align-items-center text-white bg-primary border-0 mt-3" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+          <div id="toast-body" class="toast-body"></div>
+          <button type="button" id="toast-close" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+      </div>
     </div>
   </div>
 
   <!-- Uploading modal -->
-  <div id="uploading-modal">
-    <div class="modal-content">Uploading...</div>
+  <div id="uploading-modal" class="modal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-body text-center">
+          <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <p class="mt-2">Uploading...</p>
+        </div>
+      </div>
+    </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script type="module" src="js/upload.js" defer></script>
-  <script>
-    document.getElementById('fabMenuBtn').addEventListener('click', () => {
-      document.getElementById('fabMenu').classList.toggle('open');
-      document.getElementById('fabOverlay').classList.toggle('open');
-    });
-    document.getElementById('fabOverlay').addEventListener('click', () => {
-      document.getElementById('fabMenu').classList.remove('open');
-      document.getElementById('fabOverlay').classList.remove('open');
-    });
-  </script>
 </body>
 </html>
 
