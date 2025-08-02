@@ -1,15 +1,18 @@
 // apiClient.js
 const DEFAULT_TIMEOUT = 5000;
-let API_URL = "https://hazard-api-production-production.up.railway.app:8000";
+// Always talk to the backend through the same origin proxy
+// exposed by server.js under the /api/v1 prefix
+let API_URL = '/api/v1';
 
 export async function loadApiConfig() {
+  // Previously this function fetched remote configuration and adjusted
+  // the API base URL to an external service. The server now proxies all
+  // requests, so we simply ensure the base URL points to the proxy.
   try {
-    const res = await fetch("/api/config");
-    const { apiUrl } = await res.json();
-    API_URL = apiUrl.replace(/:8000$/, "") + ":8000"; // Ensure port 8000 is included
-    console.log("🔧 API configuration loaded:", { apiUrl: API_URL });
+    await fetch('/api/config');
+    console.log('🔧 API configuration loaded via proxy:', API_URL);
   } catch (error) {
-    console.warn("⚠️ Failed to load API config, using defaults:", error);
+    console.warn('⚠️ Failed to load API config, using proxy defaults:', error);
   }
 }
 
