@@ -6,6 +6,7 @@ import { initControls } from './ui-controls.js';
 // --- STATE MANAGEMENT ---
 const state = {
   reports: [],
+  metrics: { total: null, open: null, resolved: null, users: null },
   filters: {
     search: '',
     status: '',
@@ -29,8 +30,8 @@ const elements = {
   // Stats
   totalReportsCount: document.getElementById('total-reports-count'),
   openHazardsCount: document.getElementById('open-hazards-count'),
-  resolvedThisMonth: document.getElementById('resolved-this-month'),
-  activeUsers: document.getElementById('active-users'),
+  resolvedThisMonthCount: document.getElementById('resolved-this-month-count'),
+  activeUsersCount: document.getElementById('active-users-count'),
   // Table
   tableBody: document.getElementById('reports-table-body'),
   selectAllCheckbox: document.getElementById('select-all-reports'),
@@ -56,19 +57,11 @@ const elements = {
 // --- RENDER FUNCTIONS ---
 
 function renderStats() {
-  if (!state.reports.length) return;
-
-  const total = state.reports.length;
-  const open = state.reports.filter(r => r.status === 'Open' || r.status === 'New').length;
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const resolved = state.reports.filter(r => r.status === 'Resolved' && new Date(r.time) >= startOfMonth).length;
-  const users = new Set(state.reports.filter(r => new Date(r.time) >= startOfMonth).map(r => r.reportedBy).filter(Boolean)).size;
-
-  elements.totalReportsCount.textContent = total;
-  elements.openHazardsCount.textContent = open;
-  elements.resolvedThisMonth.textContent = resolved;
-  elements.activeUsers.textContent = users;
+  const { total, open, resolved, users } = state.metrics;
+  elements.totalReportsCount.textContent = total ?? '—';
+  elements.openHazardsCount.textContent = open ?? '—';
+  elements.resolvedThisMonthCount.textContent = resolved ?? '—';
+  elements.activeUsersCount.textContent = users ?? '—';
 }
 
 function renderTable() {
@@ -137,6 +130,7 @@ function renderAll() {
 
 async function updateDashboard() {
   state.isLoading = true;
+  showMetricsLoading();
   const loadingToast = notify('Loading reports...', 'info', true);
   try {
     const params = {
@@ -146,15 +140,17 @@ async function updateDashboard() {
       sort: state.sort.field,
       order: state.sort.direction,
     };
-    const { reports, pagination } = await fetchReports(params);
+    const { reports, pagination, metrics } = await fetchReports(params);
     state.reports = reports;
     state.pagination.total = pagination.total;
+    state.metrics = metrics;
     await plotReports(reports);
   } catch (error) {
     console.error('Failed to update dashboard:', error);
-    notify('Could not load reports. Please try again.', 'danger');
+    notify('Failed to load metrics', 'danger');
     state.reports = [];
     state.pagination.total = 0;
+    state.metrics = { total: null, open: null, resolved: null, users: null };
   } finally {
     state.isLoading = false;
     loadingToast.remove();
@@ -289,6 +285,17 @@ function initializeEventListeners() {
   editForm?.addEventListener('submit', handleFormSubmit);
 
   elements.fabBtn?.addEventListener('click', () => elements.fabMenu?.classList.toggle('open'));
+}
+
+function showMetricsLoading() {
+  [
+    elements.totalReportsCount,
+    elements.openHazardsCount,
+    elements.resolvedThisMonthCount,
+    elements.activeUsersCount,
+  ].forEach(el => {
+    if (el) el.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"></div>';
+  });
 }
 
 function setupMobileDrawer() {
