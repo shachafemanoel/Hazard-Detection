@@ -8,6 +8,8 @@
 
   <link rel="stylesheet" href="css/modern-ui-theme.css" />
   <link rel="stylesheet" href="css/dashboard.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="css/upload.css" />
 
   <style>
     #upload-page {
@@ -91,6 +93,29 @@
   <script src="ort/ort.min.js"></script>
 </head>
 <body>
+  <!-- Desktop Header Navigation -->
+  <header class="site-nav glass">
+    <div class="nav-left"><a href="/"><img src="icon.png" alt="Logo"></a></div>
+    <ul class="nav-links">
+      <li><a href="/" class="nav-item">Home</a></li>
+      <li><a href="/dashboard.html" class="nav-item">Dashboard</a></li>
+      <li><a href="/camera.html" class="nav-item">Live</a></li>
+      <li><a href="/upload.html" class="nav-item active">Upload</a></li>
+      <li><a href="/logout" class="nav-item">Logout</a></li>
+    </ul>
+  </header>
+
+  <!-- Floating FAB Menu -->
+  <button class="fab" id="fabMenuBtn"><i class="fas fa-bars"></i></button>
+  <nav class="fab-menu" id="fabMenu">
+    <a href="/"><i class="fas fa-home"></i><span>Home</span></a>
+    <a href="/dashboard.html"><i class="fas fa-chart-line"></i><span>Dashboard</span></a>
+    <a href="/camera.html"><i class="fas fa-video"></i><span>Live</span></a>
+    <a href="/upload.html" class="active"><i class="fas fa-upload"></i><span>Upload</span></a>
+    <a href="/logout"><i class="fas fa-sign-out-alt"></i><span>Logout</span></a>
+  </nav>
+  <div class="menu-overlay" id="fabOverlay"></div>
+
   <div id="upload-page" class="tech-panel">
     <h2>Upload Image for Detection</h2>
 
@@ -121,6 +146,16 @@
   </div>
 
   <script type="module" src="js/upload.js" defer></script>
+  <script>
+    document.getElementById('fabMenuBtn').addEventListener('click', () => {
+      document.getElementById('fabMenu').classList.toggle('open');
+      document.getElementById('fabOverlay').classList.toggle('open');
+    });
+    document.getElementById('fabOverlay').addEventListener('click', () => {
+      document.getElementById('fabMenu').classList.remove('open');
+      document.getElementById('fabOverlay').classList.remove('open');
+    });
+  </script>
 </body>
 </html>
 
