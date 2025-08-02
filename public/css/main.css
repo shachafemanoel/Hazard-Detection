@@ -1,0 +1,415 @@
+/* --- Global Modern UI Theme for Hazard Reporter --- */
+
+/* Theme Variables */
+:root {
+  --bg: #121212;
+  --panel-bg: #1f1f1f;
+  --text: #e0e0e0;
+  --accent: #00e5ff;
+  --accent-secondary: #00bfa5;
+  --danger: #ff5252;
+  --success: #00c853;
+  --radius: 8px;
+  --transition: 0.25s ease-in-out;
+  --shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+  --border-color: var(--accent-secondary);
+  --sidebar-bg: var(--panel-bg);
+  --sidebar-text: var(--text);
+  --sidebar-hover-bg: var(--accent-secondary);
+  --sidebar-hover-text: #000;
+  --bg-secondary: var(--panel-bg);
+  --bg-panel: var(--panel-bg);
+  --text-primary: var(--text);
+  --text-secondary: var(--text);
+  --session-color: var(--accent);
+  --glow-session: rgba(0, 229, 255, 0.2);
+  --primary-rgb: 44, 123, 229; /* Example for --primary: #2c7be5; */
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.6;
+  margin: 0;
+  padding: 0;
+  transition: margin-left var(--transition); /* For sidebar push effect */
+}
+
+button, .btn {
+  border-radius: var(--radius);
+  padding: 0.6rem 1.1rem;
+  transition: background var(--transition), transform var(--transition);
+  font-weight: 500;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.15); /* Subtle shadow for buttons */
+  border: none; /* Remove default browser borders if any */
+  background: var(--accent);
+  color: #000;
+}
+
+button:hover, .btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2); /* Enhanced shadow on hover */
+  opacity: 0.9;
+  background: var(--accent-secondary);
+}
+
+.card {
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  border: none;
+  background-color: var(--panel-bg);
+}
+
+input, select, textarea {
+  border-radius: var(--radius);
+  border: 1px solid var(--border-color);
+  padding: 0.6rem 0.8rem; /* Adjusted padding */
+  transition: border-color var(--transition), box-shadow var(--transition);
+  background: var(--panel-bg);
+  color: var(--text);
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 0.2rem rgba(var(--primary-rgb), 0.25);
+}
+
+/* Toast Style */
+.toast {
+  border-radius: var(--radius);
+  padding: 1rem;
+  background-color: var(--accent);
+  color: white;
+  font-weight: 500;
+  box-shadow: var(--shadow);
+}
+
+/* Glassmorphism Overlay */
+.glass {
+  backdrop-filter: blur(10px);
+  background: rgba(44, 44, 44, 0.3); /* Darker glass effect for dark theme */
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1rem;
+  border: 1px solid rgba(var(--border-color), 0.5);
+}
+
+/* Animations */
+.fade-in {
+  animation: fadeIn 0.4s ease-in-out;
+}
+
+.fade-out {
+  animation: fadeOut 0.4s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(10px); }
+}
+
+/* --- Sidebar Styles --- */
+.sidebar {
+  height: 100%;
+  width: 260px;
+  position: fixed;
+  z-index: 1040; /* Higher than FAB, adjust as needed */
+  top: 0;
+  left: -260px; /* Hidden by default */
+  background-color: var(--sidebar-bg);
+  overflow-x: hidden;
+  transition: left var(--transition);
+  padding-top: 20px; /* Space for a logo or title if needed */
+  box-shadow: 3px 0 10px rgba(0,0,0,0.3);
+}
+
+.sidebar.open {
+  left: 0;
+}
+
+.sidebar-header {
+  padding: 10px 20px;
+  margin-bottom: 10px;
+  font-size: 1.5rem;
+  color: var(--sidebar-text);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar a, .sidebar .nav-link {
+  padding: 12px 20px;
+  text-decoration: none;
+  font-size: 1.05rem;
+  color: var(--sidebar-text);
+  display: block;
+  transition: background-color var(--transition), color var(--transition), padding-left var(--transition);
+}
+
+.sidebar a:hover, .sidebar .nav-link:hover,
+.sidebar a.active, .sidebar .nav-link.active {
+  background-color: var(--sidebar-hover-bg); /* Use the new hover background */
+  color: var(--sidebar-hover-text);
+  padding-left: 25px; /* Indent on hover/active */
+}
+
+.sidebar .close-btn {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  font-size: 2rem;
+  color: var(--sidebar-text);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.sidebar .close-btn:hover {
+    color: var(--danger);
+}
+
+/* Content area that shifts when sidebar opens */
+.main-content.shifted {
+  margin-left: 260px;
+  transition: margin-left var(--transition);
+}
+
+/* Hamburger menu button */
+.sidebar-toggle-btn {
+  position: fixed; /* Or absolute within a header */
+  top: 15px;
+  left: 15px;
+  z-index: 1041; /* Above sidebar when closed */
+  font-size: 1.8rem;
+  background-color: transparent;
+  color: var(--text);
+  border: none;
+  padding: 5px 10px;
+  cursor: pointer;
+  border-radius: var(--radius);
+  transition: color var(--transition), background-color var(--transition);
+}
+
+.sidebar-toggle-btn:hover {
+  color: var(--accent);
+  background-color: rgba(var(--primary-rgb, 0, 123, 255), 0.1);
+}
+
+/* Tooltip for detection overlays */
+#tooltip {
+  position: absolute;
+  background: var(--warning); /* Keep warning color for hazard detection tooltip */
+  color: #000; /* Use dark text on warning background */
+  padding: 0.5rem 0.8rem;
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  z-index: 9999;
+  display: none;
+  box-shadow: var(--shadow);
+  pointer-events: none; /* Ensure tooltip doesn't interfere with mouse events */
+}
+
+/* --- Floating Action Button (FAB) & Menu --- */
+.fab {
+  position: fixed;
+  bottom: 25px;
+  right: 25px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  transition: transform var(--transition);
+  z-index: 9999;
+  cursor: pointer;
+}
+.fab:hover {
+  transform: scale(1.1);
+}
+.fab-menu {
+  position: fixed;
+  bottom: 95px;
+  right: 25px;
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--panel-bg);
+  padding: 8px;
+  border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  z-index: 9998;
+}
+.fab-menu.open {
+  display: flex;
+}
+.fab-menu a {
+  color: var(--text);
+  text-decoration: none;
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  transition: background var(--transition);
+}
+.fab-menu a:hover {
+  background: var(--accent-secondary);
+  color: #000;
+}
+
+/* --- Dashboard Specific Styles --- */
+.dashboard-panel, .stat-card {
+  background: var(--panel-bg);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  transition: box-shadow var(--transition);
+}
+.dashboard-panel:hover, .stat-card:hover {
+  box-shadow: 0 6px 18px rgba(0,255,255,0.3);
+}
+
+.stat-card {
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.stat-icon {
+  font-size: 2.5rem;
+}
+.stat-content h4 {
+  margin: 0;
+  font-size: 2rem;
+}
+.stat-content p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+#map {
+  width: 100%;
+  height: 100%;
+  min-height: 500px;
+  border-radius: var(--radius);
+}
+
+.table-responsive {
+  max-height: calc(100vh - 400px);
+  overflow-y: auto;
+}
+table {
+  width: 100%;
+  background: var(--panel-bg);
+  color: var(--text);
+  border-collapse: collapse;
+}
+th {
+  background: rgba(0,0,0,0.2);
+  color: var(--accent);
+  cursor: pointer;
+}
+td, th {
+  border: 1px solid #333;
+  padding: 0.75rem;
+  border-bottom: 1px solid #333;
+}
+tr:hover {
+  background: rgba(0,255,255,0.08);
+}
+
+/* --- Login Page Styles --- */
+.login-container {
+    width: 100%;
+    max-width: 450px;
+    background-color: var(--panel-bg);
+    padding: 40px;
+    border-radius: var(--radius);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    position: relative;
+}
+.login-container h1 {
+    text-align: center;
+    font-size: 24px;
+    color: var(--text);
+    margin: 40px 0 30px;
+}
+.login-container .form-control {
+    margin-bottom: 20px;
+}
+.login-container .btn {
+    width: 100%;
+}
+
+
+/* --- Responsive Adjustments --- */
+@media (max-width: 992px) {
+  .main-content.shifted {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .container, .card, .dashboard-panel {
+    padding: 0.8rem;
+  }
+  .sidebar {
+    width: 220px;
+    left: -220px;
+  }
+  .main-content.shifted {
+    margin-left: 220px;
+  }
+  .sidebar-toggle-btn {
+    font-size: 1.6rem;
+    top: 12px;
+    left: 12px;
+  }
+   .fab {
+    width: 50px;
+    height: 50px;
+    bottom: 15px;
+    right: 15px;
+  }
+  .fab-menu {
+    bottom: 75px;
+    right: 15px;
+  }
+  .dashboard-center-row {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+  .dashboard-metrics-row {
+    grid-template-columns: 1fr;
+  }
+  #map {
+    height: 50vh;
+  }
+}
+
+@media (max-width: 576px) {
+    .sidebar {
+        width: 100%;
+        left: -100%;
+        padding-top: 50px;
+    }
+    .sidebar.open {
+        left: 0;
+    }
+    .main-content.shifted {
+        margin-left: 0;
+    }
+    .sidebar .close-btn {
+        top: 15px;
+        right: 20px;
+        font-size: 2.2rem;
+    }
+    .login-container {
+        padding: 20px;
+    }
+}

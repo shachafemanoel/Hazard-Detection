@@ -922,6 +922,13 @@ app.get('/api/reports', async (req, res) => {
                     if (!reporter.includes(search)) match = false;
                 }
 
+                // Filter by the current user's reports
+                if (match && filters.my_reports === 'true' && req.isAuthenticated()) {
+                    if (report.reportedBy !== req.user.username) {
+                        match = false;
+                    }
+                }
+
                 if (match) {
                     totalMatchingCount++;
                     // Only include in result if within pagination range
