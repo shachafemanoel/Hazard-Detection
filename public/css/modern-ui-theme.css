@@ -10,33 +10,41 @@
   --tech-danger: #ff5252;
   --tech-success: #00c853;
   --tech-radius: 8px;
-  --tech-transition: 0.2s ease-in-out;
+  --tech-transition: 0.25s ease-in-out;
 }
 
 :root {
-  /* Replace these with colors from your icon.png logo */
-  --primary: #007bff; /* Example Primary Color (e.g., a main color from your logo) */
-  --secondary: #6c757d; /* Keep or adjust secondary color */
-  --accent: #28a745; /* Example Accent Color (e.g., a secondary color from your logo) */
-  --danger: #dc3545; /* Keep or adjust danger color */
+  /* Map legacy variables to Tech-Urban palette */
+  --primary: var(--tech-accent);
+  --secondary: var(--tech-accent2);
+  --accent: var(--tech-accent2);
+  --danger: var(--tech-danger);
   --warning: #ffc107;
-  --light: #f8f9fa; /* For text on dark primary/accent backgrounds */
-  --dark-text: #212529; /* For text on light warning/light backgrounds */
+  --light: var(--tech-text);
+  --dark-text: #212529;
 
   /* Dark Theme Defaults */
-  --bg: #1a1a1a; /* Slightly lighter dark background */
-  --text: #e0e0e0; /* Light grey text */
-  --card-bg: #2c2c2c; /* Darker card background */
-  --input-bg: #333333; /* Input background */
-  --border-color: #555555; /* Border color for inputs and other elements */
-  --sidebar-bg: #212529; /* Sidebar background, same as Bootstrap's dark */
-  --sidebar-text: #cccccc; /* Lighter text for dark sidebar */
-  --sidebar-hover-bg: #3a3a3a; /* Slightly lighter hover for dark sidebar */
-  --sidebar-hover-text: white;
+  --bg: var(--tech-bg);
+  --text: var(--tech-text);
+  --card-bg: var(--tech-panel);
+  --input-bg: var(--tech-panel);
+  --border-color: var(--tech-accent2);
+  --sidebar-bg: var(--tech-panel);
+  --sidebar-text: var(--tech-text);
+  --sidebar-hover-bg: var(--tech-accent2);
+  --sidebar-hover-text: #000;
 
-  --radius: 0px; /* Square edges for minimal design */
-  --shadow: 0 5px 15px rgba(0, 0, 0, 0.2); /* Softer, more diffused shadow */
-  --transition: 0.25s ease-in-out;
+  --radius: var(--tech-radius);
+  --shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+  --transition: var(--tech-transition);
+
+  /* Additional aliases for cross-file compatibility */
+  --bg-secondary: var(--tech-panel);
+  --bg-panel: var(--tech-panel);
+  --text-primary: var(--tech-text);
+  --text-secondary: var(--tech-text);
+  --session-color: var(--tech-accent);
+  --glow-session: rgba(0, 229, 255, 0.2);
 }
 
 body {
@@ -557,5 +565,126 @@ table tr:hover {
 #loading-overlay {
   background: rgba(0,0,0,0.8);
   color: var(--tech-text);
+}
+
+/* --- Tech-Urban Component Styles --- */
+.dashboard-panel,
+.stat-card,
+.card,
+.info-panel,
+.report-block,
+.menu-overlay,
+#loading-overlay,
+#editReportModal,
+#reportDetailsModal {
+  background: var(--tech-panel);
+  color: var(--tech-text);
+  border-radius: var(--tech-radius);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  transition: background var(--tech-transition), box-shadow var(--tech-transition);
+}
+
+.btn,
+.btn-modern,
+.control-btn,
+.floating-menu-btn {
+  background: var(--tech-accent);
+  color: #000;
+  border-radius: var(--tech-radius);
+  padding: 0.6rem 1.1rem;
+  transition: background var(--tech-transition), transform var(--tech-transition);
+  border: none;
+}
+
+.btn:hover,
+.control-btn:hover,
+.btn-modern:hover,
+.floating-menu-btn:hover {
+  background: var(--tech-accent2);
+  transform: translateY(-2px);
+}
+
+input,
+select,
+textarea,
+#sensitivity-slider {
+  background: var(--tech-panel);
+  color: var(--tech-text);
+  border: 1px solid var(--tech-accent2);
+  border-radius: var(--tech-radius);
+  transition: border-color var(--tech-transition);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--tech-accent);
+  outline: none;
+}
+
+table,
+#reports,
+#detections-grid {
+  background: var(--tech-panel);
+  color: var(--tech-text);
+  border-collapse: collapse;
+}
+
+th {
+  background: rgba(0,0,0,0.2);
+  color: var(--tech-accent);
+}
+
+td, th {
+  border: 1px solid #333;
+  padding: 0.75rem;
+}
+
+tr:hover {
+  background: rgba(0,255,255,0.08);
+}
+
+.floating-menu-btn {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--tech-accent);
+  color: #000;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+}
+
+#floatingMenu,
+.fab-menu {
+  display: none;
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  background: var(--tech-panel);
+  border-radius: var(--tech-radius);
+  padding: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+
+#floatingMenu.active {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#floatingMenu a {
+  color: var(--tech-text);
+  padding: 6px 12px;
+  border-radius: var(--tech-radius);
+  text-decoration: none;
+  transition: background var(--tech-transition);
+}
+
+#floatingMenu a:hover {
+  background: var(--tech-accent2);
+  color: #000;
 }
   
