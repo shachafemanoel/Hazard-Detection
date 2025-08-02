@@ -7,8 +7,8 @@ import { notify } from './notifications.js';
 export async function bootstrapDashboard() {
   try {
     initMap();
-    initControls();
-    const reports = await fetchReports();
+    initControls({ toggleHeatmap, centerMap });
+    const { reports } = await fetchReports();
     renderReports(reports);
     notify('Dashboard loaded successfully', 'success');
   } catch (e) {
