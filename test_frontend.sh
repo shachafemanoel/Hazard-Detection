@@ -14,7 +14,7 @@ prompt_if_unset() {
 prompt_if_unset FRONTEND_URL "Enter FRONTEND_URL: "
 prompt_if_unset API_URL "Enter API_URL: "
 
-status=$(curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL/" 2>/dev/null || true)
+status=$(curl -s -o /dev/null -w "%{http_code}" "$FRONTEND_URL/health" 2>/dev/null || true)
 if [ "$status" != "200" ]; then
     echo "❌ Unexpected status code from frontend: $status"
     exit 1
