@@ -8,11 +8,12 @@ document.addEventListener("DOMContentLoaded", async function () {
   const imageUpload = document.getElementById("image-upload");
   const confidenceSlider = document.getElementById("confidence-slider");
   const confValueSpan = document.getElementById("conf-value");
-  const canvas = document.getElementById("preview-canvas");
-  const ctx = canvas ? canvas.getContext("2d") : null; // Check if canvas exists
+  const canvas = document.getElementById('preview-canvas');
+  const ctx = canvas.getContext('2d');
   const logoutBtn = document.getElementById("logout-btn");
   const saveBtn = document.getElementById("save-detection");
   const uploadingModal = document.getElementById("uploading-modal");
+  const modelLoading = document.getElementById('model-loading');
 
   // Toast Notification Elements
   const toastElement = document.getElementById('toast-notification');
@@ -22,6 +23,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   if (uploadPage) {
     uploadPage.classList.add('tech-panel');
   }
+  if (saveBtn) saveBtn.disabled = true;
   if (toastClose && toastElement) {
     toastClose.addEventListener('click', () => {
       toastElement.style.display = 'none';
@@ -34,6 +36,14 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   function hideUploadingModal() {
     if (uploadingModal) uploadingModal.style.display = 'none';
+  }
+
+  function showModelLoading() {
+    if (modelLoading) modelLoading.style.display = 'flex';
+  }
+
+  function hideModelLoading() {
+    if (modelLoading) modelLoading.style.display = 'none';
   }
 
   function showToast(message, type = 'success') {
@@ -217,10 +227,11 @@ document.addEventListener("DOMContentLoaded", async function () {
               imageInput.value = ''; // מנקה את שדה העלאת התמונה
           }
 
-          if (imagePreview) {
-              const ctx = imagePreview.getContext('2d'); 
-              ctx.clearRect(0, 0, imagePreview.width, imagePreview.height);           // נמחק את התמונה המוצגת ב-canvas
-          }
+      if (imagePreview) {
+          const ctx = imagePreview.getContext('2d');
+          ctx.clearRect(0, 0, imagePreview.width, imagePreview.height);           // נמחק את התמונה המוצגת ב-canvas
+      }
+      if (saveBtn) saveBtn.disabled = true;
       }, 2500);
     }, "image/jpeg", 0.95);
   });
@@ -256,6 +267,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     return;
   }
 
+  showModelLoading();
   try {
     // Prioritized model paths - using the latest road damage detection model
     const modelPaths = [
@@ -277,6 +289,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         }
       } catch (e) {
         console.log(`❌ Failed to access model at ${path}:`, e.message);
+        showToast(`⚠️ Model not found at ${path}`, 'error');
         // Continue to next path
       }
     }
@@ -300,8 +313,12 @@ document.addEventListener("DOMContentLoaded", async function () {
     );
     
     console.log("✅ YOLO model loaded!");
+    showToast('✅ Model loaded', 'success');
   } catch (err) {
     console.error("❌ Failed to load model:", err);
+    showToast('❌ Failed to load model', 'error');
+  } finally {
+    hideModelLoading();
   }
 
   let confidenceThreshold = parseFloat(confidenceSlider.value);
@@ -322,13 +339,18 @@ document.addEventListener("DOMContentLoaded", async function () {
   if (!file || !canvas) return; // Add check for canvas
 
   // 1. נתחיל קריאת EXIF ברקע (לא חוסם את התצוגה)
-  getGeoDataFromImage(file).then(data => {
-    if (data) {
-      geoData = data;      // שומר מיקום אם קיים
-    } else {
-      console.warn("אין נתוני EXIF גיאו בתמונה הזאת");
-    }
-  });
+  getGeoDataFromImage(file)
+    .then(data => {
+      if (data) {
+        geoData = data;      // שומר מיקום אם קיים
+      } else {
+        console.warn("אין נתוני EXIF גיאו בתמונה הזאת");
+      }
+    })
+    .catch(err => {
+      console.error('Failed to read EXIF data', err);
+      showToast('⚠️ Failed to read location data', 'error');
+    });
 
   // 2. תמיד תציג תצוגה ותריץ את המודל
   const reader = new FileReader();
@@ -338,6 +360,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       currentImage = img;
       canvas.width  = FIXED_SIZE;
       canvas.height = FIXED_SIZE;
+      if (saveBtn) saveBtn.disabled = true;
       await runInferenceOnImage(img);  // כאן מציירים את המסגרות
     };
     img.src = e.target.result;
@@ -348,16 +371,11 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   async function runInferenceOnImage(imageElement) {
     if (!session) {
-      console.warn("Model not loaded yet or canvas not found.");
+      console.warn("Model not loaded yet.");
       return;
     }
 
     try {
-      const offscreen = document.createElement("canvas");
-      offscreen.width = FIXED_SIZE;
-      offscreen.height = FIXED_SIZE;
-      const offCtx = offscreen.getContext("2d");
-
       const imgW = imageElement.width;
       const imgH = imageElement.height;
       const scale = Math.min(FIXED_SIZE / imgW, FIXED_SIZE / imgH);
@@ -368,7 +386,18 @@ document.addEventListener("DOMContentLoaded", async function () {
 
       letterboxParams = { offsetX, offsetY, newW, newH };
 
-      offCtx.fillStyle = "black";
+      // Draw uploaded image on the visible canvas first
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = 'black';
+      ctx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
+      ctx.drawImage(imageElement, offsetX, offsetY, newW, newH);
+
+      // Prepare offscreen canvas for model inference
+      const offscreen = document.createElement('canvas');
+      offscreen.width = FIXED_SIZE;
+      offscreen.height = FIXED_SIZE;
+      const offCtx = offscreen.getContext('2d');
+      offCtx.fillStyle = 'black';
       offCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
       offCtx.drawImage(imageElement, offsetX, offsetY, newW, newH);
 
@@ -418,6 +447,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       drawResults(filteredBoxes);
     } catch (err) {
       console.error("Error in inference:", err);
+      showToast('❌ Inference failed', 'error');
     }
   }
 
@@ -784,20 +814,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   }
 
   function drawResults(boxes) {
-    if (!ctx) return; // Check if context exists
-
-    hazardTypes = []; // Reset hazard types array
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const { offsetX, offsetY, newW, newH } = letterboxParams;
-
-    // Draw background
-    ctx.fillStyle = "black";
-    ctx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
-
-    if (currentImage) {
-      ctx.drawImage(currentImage, offsetX, offsetY, newW, newH);
-    }
-
+    hazardTypes = [];
     hasHazard = false;
     const tooltip = document.getElementById("tooltip");
     
@@ -939,6 +956,7 @@ if (saveBtn && tooltip) { // Ensure elements exist before adding listeners
         }
       } catch (error) {
         console.error("Logout failed:", error);
+        showToast('❌ Logout failed', 'error');
       }
     });
   } else {
@@ -953,6 +971,7 @@ if (saveBtn && tooltip) { // Ensure elements exist before adding listeners
           }
         } catch (error) {
           console.error("Logout failed:", error);
+          showToast('❌ Logout failed', 'error');
         }
       });
     }
