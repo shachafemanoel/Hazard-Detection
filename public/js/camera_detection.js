@@ -98,6 +98,20 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   let initialized = false;
 
+  // Ensure canvas dimensions always match the displayed video
+  function syncCanvasSize() {
+    if (!video || !canvas) return;
+    const width = video.clientWidth || video.videoWidth;
+    const height = video.clientHeight || video.videoHeight;
+    canvas.width = width;
+    canvas.height = height;
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+  }
+
+  // Keep canvas in sync when the window resizes
+  window.addEventListener('resize', syncCanvasSize);
+
   // Update UI status
   function updateConnectionStatus(status, message) {
     const indicator = connectionStatus.querySelector('.status-indicator');
@@ -509,10 +523,13 @@ document.addEventListener("DOMContentLoaded", async () => {
           return resolve();
         }
 
-        // Create composite canvas with the video frame and detection overlay
+        // Ensure overlay matches current video display before saving
+        syncCanvasSize();
+
+        // Create composite canvas that mirrors what the user sees
         const compositeCanvas = document.createElement('canvas');
-        compositeCanvas.width = videoElement.videoWidth;
-        compositeCanvas.height = videoElement.videoHeight;
+        compositeCanvas.width = canvas.width;
+        compositeCanvas.height = canvas.height;
         const snapCtx = compositeCanvas.getContext('2d');
 
         snapCtx.drawImage(videoElement, 0, 0, compositeCanvas.width, compositeCanvas.height);
@@ -556,8 +573,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Draw detection results with simple frame persistence
   function drawResults(newBoxes, useApiResults = false) {
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    syncCanvasSize();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Add new detections with persistence counter
@@ -573,10 +589,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     activeDetections = activeDetections.filter(det => {
       let [x1, y1, x2, y2, score, classId] = det.box;
 
-      // Scale coordinates back to video dimensions if needed
+      // Scale coordinates back to displayed video dimensions
       if (!det.useApi) {
-        const scaleX = video.videoWidth / FIXED_SIZE;
-        const scaleY = video.videoHeight / FIXED_SIZE;
+        const { offsetX, offsetY, newW, newH } = letterboxParams;
+        const scaleX = canvas.width / newW;
+        const scaleY = canvas.height / newH;
+        x1 = (x1 - offsetX) * scaleX;
+        y1 = (y1 - offsetY) * scaleY;
+        x2 = (x2 - offsetX) * scaleX;
+        y2 = (y2 - offsetY) * scaleY;
+      } else {
+        const scaleX = canvas.width / video.videoWidth;
+        const scaleY = canvas.height / video.videoHeight;
         x1 *= scaleX;
         y1 *= scaleY;
         x2 *= scaleX;
@@ -771,6 +795,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       updateButtonStates(); // Hide start, show stop
 
       video.addEventListener("loadeddata", () => {
+        syncCanvasSize();
         computeLetterboxParams();
         setDetectingState(true);
         
@@ -872,6 +897,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       video.srcObject = stream;
       
       video.addEventListener("loadeddata", () => {
+        syncCanvasSize();
         computeLetterboxParams();
       }, { once: true });
       
