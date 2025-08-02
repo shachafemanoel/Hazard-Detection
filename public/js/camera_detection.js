@@ -1170,7 +1170,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         processedBoxes.push(trackedObj.box);
         trackedObj.age++;
       }
-    });
+    }
   }
 
   // Professional bounding box drawing function for camera detection
@@ -1365,7 +1365,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Add new detections with persistence counter
-    for (const box of newBoxes) {
+    for (const box of boxes) {
       if (box[4] >= confidenceThreshold) {
         activeDetections.push({ box, useApi: useApiResults, framesLeft: PERSISTENCE_FRAMES });
       }
@@ -1374,39 +1374,38 @@ document.addEventListener("DOMContentLoaded", async () => {
     let currentFrameDetections = 0;
     const detectedTypes = new Set();
 
-    // Draw all tracked objects (including interpolated ones)
-    for (const [id, trackedObj] of trackedObjects) {
-      let [x1, y1, x2, y2, score, classId] = trackedObj.box;
-      
-      // Fix class ID mapping - model outputs class_id + 1, so subtract 1
-      const correctedClassId = Math.floor(classId) - 1;
-      const classIndex = Math.max(0, correctedClassId); // Ensure non-negative
+      // Draw all tracked objects (including interpolated ones)
+      for (const [id, trackedObj] of trackedObjects) {
+        let [x1, y1, x2, y2, score, classId] = trackedObj.box;
 
-      // Scale coordinates back to displayed video dimensions
-      if (!det.useApi) {
-        const { offsetX, offsetY, newW, newH } = letterboxParams;
-        const scaleX = canvas.width / newW;
-        const scaleY = canvas.height / newH;
-        x1 = (x1 - offsetX) * scaleX;
-        y1 = (y1 - offsetY) * scaleY;
-        x2 = (x2 - offsetX) * scaleX;
-        y2 = (y2 - offsetY) * scaleY;
-      } else {
-        const scaleX = canvas.width / video.videoWidth;
-        const scaleY = canvas.height / video.videoHeight;
-        x1 *= scaleX;
-        y1 *= scaleY;
-        x2 *= scaleX;
-        y2 *= scaleY;
-      }
+        // Fix class ID mapping - model outputs class_id + 1, so subtract 1
+        const correctedClassId = Math.floor(classId) - 1;
+        const classIndex = Math.max(0, correctedClassId); // Ensure non-negative
 
-      const boxW = x2 - x1;
-      const boxH = y2 - y1;
+        // Scale coordinates back to displayed video dimensions
+        if (!useApiResults) {
+          const { offsetX, offsetY, newW, newH } = letterboxParams;
+          const scaleX = canvas.width / newW;
+          const scaleY = canvas.height / newH;
+          x1 = (x1 - offsetX) * scaleX;
+          y1 = (y1 - offsetY) * scaleY;
+          x2 = (x2 - offsetX) * scaleX;
+          y2 = (y2 - offsetY) * scaleY;
+        } else {
+          const scaleX = canvas.width / video.videoWidth;
+          const scaleY = canvas.height / video.videoHeight;
+          x1 *= scaleX;
+          y1 *= scaleY;
+          x2 *= scaleX;
+          y2 *= scaleY;
+        }
 
-      if (boxW < 1 || boxH < 1) {
-        det.framesLeft--;
-        return det.framesLeft > 0;
-      }
+        const boxW = x2 - x1;
+        const boxH = y2 - y1;
+
+        if (boxW < 1 || boxH < 1) {
+          continue;
+        }
 
       currentFrameDetections++;
       const labelName = classNames[classIndex] || `Unknown Class ${classIndex}`;
@@ -1459,9 +1458,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
       }
 
-      det.framesLeft--;
-      return det.framesLeft > 0;
-    });
+    }
 
     // Update statistics
     currentDetections.textContent = currentFrameDetections;
