@@ -178,7 +178,7 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // 🔗 External API URL for separate deployment
-const API_URL = process.env.API_URL || process.env.HAZARD_API_URL || 'http://localhost:8000';
+const API_URL = process.env.API_URL || process.env.HAZARD_API_URL || 'https://hazard-api-production-production.up.railway.app:8000';
 console.log(`🔗 Using external API URL: ${API_URL}`);
 
 // API request helper function
@@ -206,7 +206,7 @@ async function makeApiRequest(endpoint, options = {}) {
     }
 }
 
-// API endpoint routes (replace proxy with direct requests)
+// API endpoint routes for session-based workflow
 app.get('/api/v1/health', async (req, res) => {
     try {
         const result = await makeApiRequest('/health');
@@ -216,7 +216,59 @@ app.get('/api/v1/health', async (req, res) => {
     }
 });
 
-app.post('/api/v1/detect', async (req, res) => {
+// Session management endpoints
+app.post('/api/v1/session/start', async (req, res) => {
+    try {
+        const result = await makeApiRequest('/session/start', {
+            method: 'POST'
+        });
+        res.json(result);
+    } catch (error) {
+        res.status(502).json({ error: error.message });
+    }
+});
+
+app.post('/api/v1/session/:sessionId/end', async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+        const result = await makeApiRequest(`/session/${sessionId}/end`, {
+            method: 'POST'
+        });
+        res.json(result);
+    } catch (error) {
+        res.status(502).json({ error: error.message });
+    }
+});
+
+// Session-based detection endpoint
+app.post('/api/v1/detect/:sessionId', upload.single('file'), async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+        
+        // Forward file upload to external API with session
+        const formData = new FormData();
+        if (req.file) {
+            formData.append('file', req.file.buffer, {
+                filename: req.file.originalname || 'frame.jpg',
+                contentType: req.file.mimetype || 'image/jpeg'
+            });
+        }
+        
+        const result = await makeApiRequest(`/detect/${sessionId}`, {
+            method: 'POST',
+            data: formData,
+            headers: {
+                ...formData.getHeaders(),
+            }
+        });
+        res.json(result);
+    } catch (error) {
+        res.status(502).json({ error: error.message });
+    }
+});
+
+// Legacy detection endpoint (for backward compatibility)
+app.post('/api/v1/detect', upload.single('file'), async (req, res) => {
     try {
         // Forward file upload to external API
         const formData = new FormData();
@@ -605,9 +657,9 @@ app.get('/api/test', (req, res) => {
 
 // API configuration endpoint for frontend
 app.get('/api/config', (req, res) => {
-    const apiUrl = process.env.API_URL || process.env.HAZARD_API_URL || 'http://localhost:8080';
-    // Ensure URL ends with slash for proper endpoint construction
-    const normalizedUrl = apiUrl.endsWith('/') ? apiUrl : `${apiUrl}/`;
+    const apiUrl = process.env.API_URL || process.env.HAZARD_API_URL || 'https://hazard-api-production-production.up.railway.app:8000';
+    // Ensure URL does NOT end with slash for proper endpoint construction in the guide
+    const normalizedUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
     
     res.json({
         apiUrl: normalizedUrl,
@@ -684,6 +736,67 @@ app.post('/api/reports', async (req, res) => {
     }
 });
 
+// Enhanced reports fetcher with improved error handling
+async function getReports() {
+    try {
+        if (!client || !redisConnected) {
+            console.warn('Redis not available - returning empty reports array');
+            return [];
+        }
+
+        const keys = await safeRedisKeys('report:*');
+        if (keys.length === 0) {
+            return [];
+        }
+
+        const reports = [];
+        
+        // Process in batches to avoid memory issues
+        const batchSize = 50;
+        for (let i = 0; i < keys.length; i += batchSize) {
+            const batchKeys = keys.slice(i, i + batchSize);
+            
+            const batchPromises = batchKeys.map(async (key) => {
+                try {
+                    const report = await client.json.get(key);
+                    return report;
+                } catch (err) {
+                    console.warn(`Skipping corrupted report ${key}:`, err.message);
+                    return null;
+                }
+            });
+
+            const batchReports = (await Promise.all(batchPromises)).filter(report => report !== null);
+            reports.push(...batchReports);
+        }
+
+        // Ensure all reports have required lat/lon for mapping
+        return reports.map(report => {
+            // If report has coordinates as lat/lon properties, keep them
+            if (report.lat && report.lon) {
+                return report;
+            }
+            
+            // Try to parse location for coordinates
+            if (typeof report.location === 'string') {
+                const coordMatch = report.location.match(/Coordinates:\s*([+-]?\d*\.?\d+),\s*([+-]?\d*\.?\d+)/);
+                if (coordMatch) {
+                    return {
+                        ...report,
+                        lat: parseFloat(coordMatch[1]),
+                        lon: parseFloat(coordMatch[2])
+                    };
+                }
+            }
+            
+            return report;
+        });
+    } catch (error) {
+        console.error('🔥 Error in getReports:', error);
+        throw new Error(`Database operation failed: ${error.message}`);
+    }
+}
+
 // שליפת דיווחים עם pagination ביצועים משופרים
 app.get('/api/reports', async (req, res) => {
     try {
@@ -692,7 +805,7 @@ app.get('/api/reports', async (req, res) => {
         
         // Pagination parameters
         const page = parseInt(filters.page) || 1;
-        const limit = parseInt(filters.limit) || 25; // Reduced default for better performance
+        const limit = parseInt(filters.limit) || 25;
         const offset = (page - 1) * limit;
         
         // Convert hazardType string to array if needed
@@ -702,20 +815,30 @@ app.get('/api/reports', async (req, res) => {
 
         console.log(`[API] Fetching reports - Page: ${page}, Limit: ${limit}, Filters:`, filters);
 
-        // Add timeout to Redis operations
-        const timeout = 15000; // 15 second timeout
-        const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Redis operation timed out')), timeout)
-        );
+        // Get all reports with error handling
+        let allReports;
+        try {
+            allReports = await getReports();
+        } catch (error) {
+            console.error('🔥 Failed to fetch reports from database:', error);
+            return res.status(500).json({ 
+                error: 'Database unavailable', 
+                details: error.message,
+                reports: [],
+                pagination: {
+                    page: 1,
+                    limit,
+                    total: 0,
+                    totalPages: 0,
+                    hasNext: false,
+                    hasPrev: false
+                }
+            });
+        }
 
-        // Get all report keys with timeout
-        const keys = await Promise.race([
-            client.keys('report:*'),
-            timeoutPromise
-        ]);
-        console.log(`[API] Found ${keys.length} report keys in ${Date.now() - startTime}ms`);
+        console.log(`[API] Found ${allReports.length} reports in ${Date.now() - startTime}ms`);
         
-        if (keys.length === 0) {
+        if (allReports.length === 0) {
             return res.json({
                 reports: [],
                 pagination: {
@@ -729,37 +852,18 @@ app.get('/api/reports', async (req, res) => {
             });
         }
 
-        // Sort keys by timestamp (newest first) for consistent ordering
-        keys.sort((a, b) => {
-            const timeA = parseInt(a.split(':')[1]) || 0;
-            const timeB = parseInt(b.split(':')[1]) || 0;
+        // Sort reports by timestamp (newest first) for consistent ordering
+        allReports.sort((a, b) => {
+            const timeA = new Date(a.time || a.createdAt || 0).getTime();
+            const timeB = new Date(b.time || b.createdAt || 0).getTime();
             return timeB - timeA; // Descending order (newest first)
         });
 
         const reports = [];
-        let processedCount = 0;
         let totalMatchingCount = 0;
 
-        // Process reports in batches to avoid memory issues
-        const batchSize = 100;
-        for (let i = 0; i < keys.length; i += batchSize) {
-            const batchKeys = keys.slice(i, i + batchSize);
-            
-            // Get multiple reports in parallel
-            const batchPromises = batchKeys.map(async (key) => {
-                try {
-                    const report = await client.json.get(key);
-                    return report;
-                } catch (err) {
-                    console.warn(`Skipping key ${key}:`, err.message);
-                    return null;
-                }
-            });
-
-            const batchReports = (await Promise.all(batchPromises)).filter(report => report !== null);
-            
-            // Apply filters to batch
-            for (const report of batchReports) {
+        // Apply filters to all reports
+        for (const report of allReports) {
                 let match = true;
 
                 // סוגי מפגעים: לפחות אחד מתוך הרשימה

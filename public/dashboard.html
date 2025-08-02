@@ -17,28 +17,49 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   
-  <!-- Leaflet CSS and JS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-o9N1jvbTYM50xT79dbDeihdj5Z8SGvtQvECOH14+rVU=" crossorigin=""></script>
-  <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+  <!-- OpenLayers assets -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol/ol.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "ol/": "https://cdn.jsdelivr.net/npm/ol/",
+        "rbush": "https://cdn.jsdelivr.net/npm/rbush@3.0.1/rbush.min.js"
+      }
+    }
+  </script>
   
   <link rel="stylesheet" href="css/dashboard.css">
   <style>
-    /* Custom styles for Leaflet markers and popups */
-    .custom-marker {
-      background: transparent !important;
-      border: none !important;
-    }
-    
-    .leaflet-popup-content-wrapper {
+    /* Popup styling for OpenLayers */
+    .ol-popup {
       background: rgba(31, 34, 53, 0.95);
       color: #cbd2d9;
+      padding: 8px 12px;
       border-radius: 8px;
+      border: 1px solid #2c2c2c;
+      min-width: 120px;
       box-shadow: 0 3px 14px rgba(0,0,0,0.4);
     }
-    
-    .leaflet-popup-tip {
-      background: rgba(31, 34, 53, 0.95);
+    .ol-popup:after, .ol-popup:before {
+      top: 100%;
+      border: solid transparent;
+      content: '';
+      height: 0;
+      width: 0;
+      position: absolute;
+      pointer-events: none;
+    }
+    .ol-popup:after {
+      border-top-color: rgba(31, 34, 53, 0.95);
+      border-width: 10px;
+      left: 50%;
+      margin-left: -10px;
+    }
+    .ol-popup:before {
+      border-top-color: #2c2c2c;
+      border-width: 11px;
+      left: 50%;
+      margin-left: -11px;
     }
     
     @keyframes pulse {
@@ -93,15 +114,8 @@
       padding: 1rem;
       box-shadow: 0 4px 12px rgba(0,0,0,0.5);
     }
-    /* Map: enlarged and centered */
-    #map {
-      width: 100%;
-      height: 70vh;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-    }
-    /* Reports log: smaller table container placed below map */
-    #reports-table-container {
+      /* Reports log: smaller table container placed below map */
+      #reports-table-container {
       max-height: 30vh;
       overflow-y: auto;
       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
@@ -253,44 +267,34 @@
 </header>
 
   <div class="dashboard-main-layout">
-    <!-- מדדים בראש הדף -->
+    <!-- Metrics overview -->
     <div id="overview-section" class="dashboard-metrics-row">
-      <div class="row g-3">
-        <div class="col-md-3">
-          <div class="stat-card bg-primary">
-            <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
-            <div class="stat-content">
-              <h4 id="total-reports-count">0</h4>
-              <p>Total Reports</p>
-            </div>
-          </div>
+      <div class="stat-card bg-primary">
+        <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
+        <div class="stat-content">
+          <h4 id="total-reports-count">0</h4>
+          <p>Total Reports</p>
         </div>
-        <div class="col-md-3">
-          <div class="stat-card bg-danger">
-            <div class="stat-icon"><i class="fas fa-clock"></i></div>
-            <div class="stat-content">
-              <h4 id="open-hazards-count">0</h4>
-              <p>Open Hazards</p>
-            </div>
-          </div>
+      </div>
+      <div class="stat-card bg-danger">
+        <div class="stat-icon"><i class="fas fa-clock"></i></div>
+        <div class="stat-content">
+          <h4 id="open-hazards-count">0</h4>
+          <p>Open Hazards</p>
         </div>
-        <div class="col-md-3">
-          <div class="stat-card bg-success">
-            <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
-            <div class="stat-content">
-              <h4 id="resolved-this-month">0</h4>
-              <p>Resolved This Month</p>
-            </div>
-          </div>
+      </div>
+      <div class="stat-card bg-success">
+        <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+        <div class="stat-content">
+          <h4 id="resolved-this-month">0</h4>
+          <p>Resolved This Month</p>
         </div>
-        <div class="col-md-3">
-          <div class="stat-card bg-info">
-            <div class="stat-icon"><i class="fas fa-users"></i></div>
-            <div class="stat-content">
-              <h4 id="active-users">0</h4>
-              <p>Active Users</p>
-            </div>
-          </div>
+      </div>
+      <div class="stat-card bg-info">
+        <div class="stat-icon"><i class="fas fa-users"></i></div>
+        <div class="stat-content">
+          <h4 id="active-users">0</h4>
+          <p>Active Users</p>
         </div>
       </div>
     </div>
@@ -308,7 +312,7 @@
             </button>
           </div>
         </div>
-        <div id="map" style="min-height:60vh;height:100%;border:2px solid #1e88e5;"></div>
+        <div id="map"></div>
       </section>
       <!-- טבלת אירועים מימין למפה -->
       <aside class="dashboard-right dashboard-panel">
@@ -337,7 +341,7 @@
           </small>
         </div>
         <!-- במקום טבלת הדיווחים, אציג בלוקים מודרניים -->
-        <div id="reports-blocks-container" class="reports-blocks-list" style="flex:1 1 0%;overflow-y:auto;min-height:0;max-height:100%;padding-bottom:0.5rem;"></div>
+        <div id="reports-blocks-container" class="reports-blocks-list"></div>
         <!-- Reports pagination controls -->
         <div id="reports-pagination" class="pagination-controls mt-3" style="display: none;">
           <div class="d-flex justify-content-between align-items-center">
@@ -362,6 +366,67 @@
           </div>
         </div>
       </aside>
+    </div>
+    
+    <!-- Reports Management Table -->
+    <div class="reports-table-section dashboard-panel">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4><i class="fas fa-table me-2"></i>Reports Management</h4>
+        <div class="table-controls d-flex gap-2">
+          <input type="text" id="table-search-input" class="form-control" placeholder="Search reports..." style="width: 200px;">
+          <select id="table-status-filter" class="form-select" style="width: 150px;">
+            <option value="">All Status</option>
+            <option value="Open">Open</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Resolved">Resolved</option>
+          </select>
+          <select id="table-type-filter" class="form-select" style="width: 150px;">
+            <option value="">All Types</option>
+            <option value="crack">Crack</option>
+            <option value="knocked">Knocked</option>
+            <option value="pothole">Pothole</option>
+            <option value="surface_damage">Surface Damage</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table id="reports-management-table" class="table table-dark table-striped">
+          <thead>
+            <tr>
+              <th><input type="checkbox" id="select-all-reports"></th>
+              <th class="sortable" data-sort="id">ID <i class="fas fa-sort"></i></th>
+              <th class="sortable" data-sort="type">Type <i class="fas fa-sort"></i></th>
+              <th class="sortable" data-sort="status">Status <i class="fas fa-sort"></i></th>
+              <th class="sortable" data-sort="location">Location <i class="fas fa-sort"></i></th>
+              <th class="sortable" data-sort="time">Time <i class="fas fa-sort"></i></th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="reports-table-body">
+            <!-- Reports will be populated here -->
+          </tbody>
+        </table>
+      </div>
+      <div class="table-pagination d-flex justify-content-between align-items-center mt-3">
+        <div>
+          <span id="table-showing-info">Showing 0-0 of 0 reports</span>
+        </div>
+        <div class="pagination-controls d-flex align-items-center gap-2">
+          <button id="table-prev-btn" class="btn btn-outline-secondary btn-sm" disabled>
+            <i class="fas fa-chevron-left"></i> Previous
+          </button>
+          <span id="table-page-info">Page 1 of 1</span>
+          <button id="table-next-btn" class="btn btn-outline-secondary btn-sm" disabled>
+            Next <i class="fas fa-chevron-right"></i>
+          </button>
+          <select id="table-page-size" class="form-select form-select-sm" style="width: auto;">
+            <option value="10">10 per page</option>
+            <option value="25" selected>25 per page</option>
+            <option value="50">50 per page</option>
+            <option value="100">100 per page</option>
+          </select>
+        </div>
+      </div>
     </div>
   </div>
   
@@ -464,14 +529,9 @@
   <button id="legend-toggle-btn" class="btn">info</button>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script type="module" src="js/map.js"></script>
-  <script type="module" src="js/reports-api.js"></script>
-  <script type="module" src="js/ui-controls.js"></script>
-  <script type="module" src="js/modals.js"></script>
-  <script type="module" src="js/notifications.js"></script>
   <script type="module" src="js/dashboard.js"></script>
   <script src="js/dashboard-personalizer.js"></script>
-  <!-- Using Leaflet for mapping instead of Google Maps -->
+  <!-- Using OpenLayers for mapping instead of Google Maps -->
   <script>
     // ...existing bootstrap modal initialization...
     document.addEventListener('DOMContentLoaded', function() {
@@ -490,16 +550,11 @@
   </script>
   <!-- Tech-Urban Floating Menu -->
   <button id="fab-btn" class="fab"><i class="fas fa-bars"></i></button>
-  <nav id="fab-menu" class="fab-menu">
-    <a href="/dashboard.html">Dashboard</a>
-    <a href="/camera.html">Live</a>
-    <a href="/logout">Logout</a>
-  </nav>
-  <script>
-    document.getElementById('fab-btn').onclick = () => {
-      document.getElementById('fab-menu').classList.toggle('open');
-    };
-  </script>
-  <!-- Ensure the document ends correctly with the closing </body> and </html> tags -->
+    <nav id="fab-menu" class="fab-menu">
+      <a href="/dashboard.html">Dashboard</a>
+      <a href="/camera.html">Live</a>
+      <a href="/logout">Logout</a>
+    </nav>
+    <!-- Ensure the document ends correctly with the closing </body> and </html> tags -->
 </body>
 </html>

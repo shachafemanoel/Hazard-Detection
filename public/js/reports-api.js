@@ -1,6 +1,31 @@
 const API_URL = '/api/reports';
 let allReports = [];
 
+// Geocoding utility using Nominatim (OpenStreetMap)
+export async function geocode(address) {
+  if (!address || typeof address !== 'string') {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`/api/geocode?address=${encodeURIComponent(address)}`);
+    const data = await response.json();
+    
+    if (data.success && data.location) {
+      return {
+        lat: data.location[0],
+        lon: data.location[1],
+        display_name: data.display_name
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.warn('Geocoding failed:', error);
+    return null;
+  }
+}
+
 export async function fetchReports(filters = {}) {
   const baseParams = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => {
@@ -31,8 +56,19 @@ export async function fetchReports(filters = {}) {
     }
   }
 
-  allReports = reports;
-  return { reports, pagination };
+  // Geocode any reports that have string locations without coordinates
+  const geocodedReports = await Promise.all(reports.map(async (report) => {
+    if (typeof report.location === 'string' && !report.lat && !report.lon) {
+      const coords = await geocode(report.location);
+      if (coords) {
+        return { ...report, lat: coords.lat, lon: coords.lon };
+      }
+    }
+    return report;
+  }));
+
+  allReports = geocodedReports;
+  return { reports: geocodedReports, pagination };
 }
 
 export function getReports() {

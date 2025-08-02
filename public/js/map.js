@@ -1,19 +1,82 @@
+import Map from 'ol/Map.js';
+import View from 'ol/View.js';
+import TileLayer from 'ol/layer/Tile.js';
+import OSM from 'ol/source/OSM.js';
+import VectorLayer from 'ol/layer/Vector.js';
+import VectorSource from 'ol/source/Vector.js';
+import Heatmap from 'ol/layer/Heatmap.js';
+import Feature from 'ol/Feature.js';
+import Point from 'ol/geom/Point.js';
+import Overlay from 'ol/Overlay.js';
+import { fromLonLat } from 'ol/proj.js';
+
 export let map;
 let heatLayer;
 let markersLayer;
+let popupOverlay;
+let popupContent;
 
 export function initMap() {
-  const israel = { lat: 31.7683, lng: 35.2137 };
-  map = L.map('map', { zoomControl: false }).setView([israel.lat, israel.lng], 8);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(map);
-  heatLayer = L.heatLayer([], { radius: 25, blur: 15 });
-  markersLayer = L.layerGroup().addTo(map);
+  const israel = [35.2137, 31.7683];
+
+  markersLayer = new VectorLayer({
+    source: new VectorSource()
+  });
+
+  heatLayer = new Heatmap({
+    source: new VectorSource(),
+    blur: 15,
+    radius: 25,
+    visible: false
+  });
+
+  map = new Map({
+    target: 'map',
+    layers: [
+      new TileLayer({
+        source: new OSM()
+      }),
+      markersLayer,
+      heatLayer
+    ],
+    view: new View({
+      center: fromLonLat(israel),
+      zoom: 8
+    })
+  });
+
+  const container = document.createElement('div');
+  container.className = 'ol-popup';
+  popupContent = document.createElement('div');
+  container.appendChild(popupContent);
+  document.getElementById('map').appendChild(container);
+  popupOverlay = new Overlay({ element: container });
+  map.addOverlay(popupOverlay);
+
+  map.on('singleclick', (evt) => {
+    const feature = map.forEachFeatureAtPixel(evt.pixel, f => f);
+    if (feature) {
+      const props = feature.getProperties();
+      const report = props.report || {};
+      const time = report.time ? new Date(report.time).toLocaleString() : '';
+      popupContent.innerHTML = `<strong>${report.type || ''}</strong><br>${time}`;
+      popupOverlay.setPosition(feature.getGeometry().getCoordinates());
+    } else {
+      popupOverlay.setPosition(undefined);
+    }
+  });
 }
 
-function parseCoords(loc) {
+function parseCoords(report) {
+  // First check if report has lat/lon properties (from geocoding)
+  if (report.lat && report.lon && isFinite(report.lat) && isFinite(report.lon)) {
+    return [report.lat, report.lon];
+  }
+  
+  // Then check the location field
+  const loc = report.location;
   if (!loc) return null;
+  
   if (Array.isArray(loc) && loc.length === 2) {
     const [lat, lng] = loc.map(Number);
     if (isFinite(lat) && isFinite(lng)) return [lat, lng];
@@ -25,7 +88,7 @@ function parseCoords(loc) {
   if (typeof loc === 'string') {
     try {
       const obj = JSON.parse(loc);
-      return parseCoords(obj);
+      return parseCoords({ location: obj });
     } catch {
       const parts = loc.split(',').map(p => parseFloat(p));
       if (parts.length === 2 && parts.every(isFinite)) return parts;
@@ -36,34 +99,39 @@ function parseCoords(loc) {
 
 export function plotReports(reports = []) {
   if (!map || !markersLayer || !heatLayer) return;
-  markersLayer.clearLayers();
-  heatLayer.setLatLngs([]);
+  const markerSrc = markersLayer.getSource();
+  const heatSrc = heatLayer.getSource();
+  markerSrc.clear();
+  heatSrc.clear();
 
-  const bounds = [];
+  const features = [];
 
   reports.forEach((r) => {
-    const coords = parseCoords(r.location);
+    const coords = parseCoords(r);
     if (!coords) return;
-    const marker = L.marker(coords);
-    const time = r.time ? new Date(r.time).toLocaleString() : '';
-    marker.bindPopup(`<strong>${r.type || ''}</strong><br>${time}`);
-    marker.addTo(markersLayer);
-
-    heatLayer.addLatLng(coords);
-    bounds.push(coords);
+    const feature = new Feature({
+      geometry: new Point(fromLonLat([coords[1], coords[0]])),
+      report: r
+    });
+    features.push(feature);
   });
 
-  if (bounds.length) {
-    map.fitBounds(bounds);
+  markerSrc.addFeatures(features);
+  heatSrc.addFeatures(features.map(f => f.clone()));
+
+  if (features.length) {
+    map.getView().fit(markerSrc.getExtent(), { padding: [50, 50, 50, 50] });
   }
 }
 
 export function toggleHeatmap() {
-  if (!map || !heatLayer) return;
-  if (map.hasLayer(heatLayer)) heatLayer.remove();
-  else heatLayer.addTo(map);
+  if (!heatLayer) return;
+  heatLayer.setVisible(!heatLayer.getVisible());
 }
 
 export function centerMap() {
-  map.setView([31.7683, 35.2137], 8);
+  if (!map) return;
+  const israel = fromLonLat([35.2137, 31.7683]);
+  map.getView().setCenter(israel);
+  map.getView().setZoom(8);
 }
