@@ -758,8 +758,15 @@ async function getReports() {
             
             const batchPromises = batchKeys.map(async (key) => {
                 try {
-                    const report = await client.json.get(key);
-                    return report;
+                    // Try to get as JSON first
+                    let report = await client.json.get(key);
+                    if (report) return report;
+
+                    // Fallback to getting as a string and parsing
+                    const str = await client.get(key);
+                    if (str) return JSON.parse(str);
+
+                    return null;
                 } catch (err) {
                     console.warn(`Skipping corrupted report ${key}:`, err.message);
                     return null;
@@ -1210,7 +1217,7 @@ async function emailExists(email) {
         if (userData.email === email) {  
             return true; // מייל קיים  
         }  
-    }  
+    }
     return false; // מייל לא קיים  
 }  
 
