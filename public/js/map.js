@@ -1,5 +1,6 @@
 let map;
 let markerCluster;
+let heatLayer;
 
 function setupMobileMapToolbar() {
   const mapEl = document.getElementById('map');
@@ -41,9 +42,26 @@ export function initializeMap() {
   markerCluster = L.markerClusterGroup();
   map.addLayer(markerCluster);
 
+  heatLayer = L.heatLayer([], { radius: 25 });
+
   if (isMobile) {
     setupMobileMapToolbar();
   }
+
+  return { heatLayer };
+}
+
+export function toggleHeatmap(layer = heatLayer) {
+  if (!map || !layer) return;
+  if (map.hasLayer(layer)) {
+    map.removeLayer(layer);
+  } else {
+    map.addLayer(layer);
+  }
+}
+
+export function centerMap() {
+  if (map) map.setView([32.0853, 34.7818], 13);
 }
 
 export async function geocode(address) {
@@ -65,6 +83,7 @@ export async function plotReports(reports) {
   if (!map || !markerCluster) return;
 
   markerCluster.clearLayers();
+  const heatPoints = [];
 
   for (const report of reports) {
     let coords;
@@ -78,6 +97,9 @@ export async function plotReports(reports) {
       const marker = L.marker(coords);
       marker.bindPopup(`<b>ID:</b> ${report.id}<br><b>Type:</b> ${report.type}<br><b>Status:</b> ${report.status}`);
       markerCluster.addLayer(marker);
+      heatPoints.push(coords);
     }
   }
+
+  heatLayer.setLatLngs(heatPoints);
 }

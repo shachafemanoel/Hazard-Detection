@@ -33,6 +33,7 @@ import os from 'os'; // מייבאים את המודול os
 import { v2 as cloudinary } from 'cloudinary';
 import multer from 'multer';
 import streamifier from 'streamifier';
+const { keys } = Object;
 
 // 🌍 ES Modules __dirname polyfill
 const __filename = fileURLToPath(import.meta.url);
@@ -95,9 +96,9 @@ app.use(express.static(path.join(__dirname, '../../public'), {
 }));
 
 // Specific route for ONNX model files
-app.get('/object_detecion_model/*.onnx', (req, res) => {
+app.get('/object_detection_model/*.onnx', (req, res) => {
     const modelName = req.params[0];
-    const modelPath = path.join(__dirname, '../../public/object_detecion_model', `${modelName}.onnx`);
+    const modelPath = path.join(__dirname, '../../public/object_detection_model', `${modelName}.onnx`);
     
     console.log(`📂 Requesting ONNX model: ${modelName}.onnx`);
     console.log(`📁 Full path: ${modelPath}`);

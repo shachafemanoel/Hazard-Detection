@@ -1,49 +1,27 @@
 /* --- Global Modern UI Theme for Hazard Reporter --- */
 
-/* Tech-Urban Variables */
+/* Theme Variables */
 :root {
-  --tech-bg: #121212;
-  --tech-panel: #1f1f1f;
-  --tech-text: #e0e0e0;
-  --tech-accent: #00e5ff;
-  --tech-accent2: #00bfa5;
-  --tech-danger: #ff5252;
-  --tech-success: #00c853;
-  --tech-radius: 8px;
-  --tech-transition: 0.25s ease-in-out;
-}
-
-:root {
-  /* Map legacy variables to Tech-Urban palette */
-  --primary: var(--tech-accent);
-  --secondary: var(--tech-accent2);
-  --accent: var(--tech-accent2);
-  --danger: var(--tech-danger);
-  --warning: #ffc107;
-  --light: var(--tech-text);
-  --dark-text: #212529;
-
-  /* Dark Theme Defaults */
-  --bg: var(--tech-bg);
-  --text: var(--tech-text);
-  --card-bg: var(--tech-panel);
-  --input-bg: var(--tech-panel);
-  --border-color: var(--tech-accent2);
-  --sidebar-bg: var(--tech-panel);
-  --sidebar-text: var(--tech-text);
-  --sidebar-hover-bg: var(--tech-accent2);
-  --sidebar-hover-text: #000;
-
-  --radius: var(--tech-radius);
+  --bg: #121212;
+  --panel-bg: #1f1f1f;
+  --text: #e0e0e0;
+  --accent: #00e5ff;
+  --accent-secondary: #00bfa5;
+  --danger: #ff5252;
+  --success: #00c853;
+  --radius: 8px;
+  --transition: 0.25s ease-in-out;
   --shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-  --transition: var(--tech-transition);
-
-  /* Additional aliases for cross-file compatibility */
-  --bg-secondary: var(--tech-panel);
-  --bg-panel: var(--tech-panel);
-  --text-primary: var(--tech-text);
-  --text-secondary: var(--tech-text);
-  --session-color: var(--tech-accent);
+  --border-color: var(--accent-secondary);
+  --sidebar-bg: var(--panel-bg);
+  --sidebar-text: var(--text);
+  --sidebar-hover-bg: var(--accent-secondary);
+  --sidebar-hover-text: #000;
+  --bg-secondary: var(--panel-bg);
+  --bg-panel: var(--panel-bg);
+  --text-primary: var(--text);
+  --text-secondary: var(--text);
+  --session-color: var(--accent);
   --glow-session: rgba(0, 229, 255, 0.2);
 }
 
@@ -51,20 +29,20 @@ body {
   /* Background image has been removed as per request */
 
   /* Fallback background color if the image fails to load or for transparency effects */
-  background-color: var(--tech-bg);
+  background-color: var(--bg);
 
-  color: var(--tech-text);
+  color: var(--text);
   font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   line-height: 1.6;
   margin: 0;
   padding: 0;
-  transition: margin-left var(--tech-transition); /* For sidebar push effect */
+  transition: margin-left var(--transition); /* For sidebar push effect */
 }
 
 button, .btn {
-  border-radius: var(--tech-radius);
+  border-radius: var(--radius);
   padding: 0.5rem 1rem;
-  transition: background-color var(--tech-transition), transform var(--tech-transition), box-shadow var(--tech-transition);
+  transition: background-color var(--transition), transform var(--transition), box-shadow var(--transition);
   font-weight: 500;
   box-shadow: 0 2px 5px rgba(0,0,0,0.15); /* Subtle shadow for buttons */
   border: none; /* Remove default browser borders if any */
@@ -77,10 +55,10 @@ button:hover, .btn:hover {
 }
 
 .card {
-  border-radius: var(--tech-radius);
+  border-radius: var(--radius);
   box-shadow: var(--shadow);
   border: none;
-  background-color: var(--tech-panel);
+  background-color: var(--panel-bg);
 }
 
 input, select, textarea {
@@ -323,28 +301,28 @@ input:focus, select:focus, textarea:focus {
 .fab {
   position: fixed; top: 20px; right: 20px;
   width: 56px; height: 56px; border-radius: 50%;
-  background: var(--tech-accent); color: #000;
+  background: var(--accent); color: #000;
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-  transition: transform var(--tech-transition);
+  transition: transform var(--transition);
   z-index: 9999;
 }
 .fab:hover { transform: scale(1.1); }
 .fab-menu {
   position: fixed; top: 84px; right: 20px; display: none;
   flex-direction: column; gap: 8px;
-  background: var(--tech-panel); padding: 8px;
-  border-radius: var(--tech-radius);
+  background: var(--panel-bg); padding: 8px;
+  border-radius: var(--radius);
   box-shadow: 0 4px 16px rgba(0,0,0,0.5); z-index: 9998;
 }
 .fab-menu.open { display: flex; }
 .fab-menu a {
-  color: var(--tech-text); text-decoration: none;
-  padding: 6px 12px; border-radius: var(--tech-radius);
-  transition: background var(--tech-transition);
+  color: var(--text); text-decoration: none;
+  padding: 6px 12px; border-radius: var(--radius);
+  transition: background var(--transition);
 }
 .fab-menu a:hover {
-  background: var(--tech-accent2); color: #000;
+  background: var(--accent-secondary); color: #000;
 }
 /* Base panels and backgrounds */
 #buttons,
@@ -364,10 +342,10 @@ input:focus, select:focus, textarea:focus {
 .info-panel,
 .loading-overlay,
 .menu-overlay {
-  background: var(--tech-panel);
-  color: var(--tech-text);
-  border-radius: var(--tech-radius);
-  transition: background var(--tech-transition), color var(--tech-transition);
+  background: var(--panel-bg);
+  color: var(--text);
+  border-radius: var(--radius);
+  transition: background var(--transition), color var(--transition);
 }
 
 /* Buttons */
@@ -378,18 +356,18 @@ input:focus, select:focus, textarea:focus {
 #delete-report-btn,
 #export-summary,
 #view-dashboard {
-  background: var(--tech-accent);
+  background: var(--accent);
   color: #000;
   border: none;
-  border-radius: var(--tech-radius);
+  border-radius: var(--radius);
   padding: 0.6rem 1rem;
-  transition: background var(--tech-transition), transform var(--tech-transition);
+  transition: background var(--transition), transform var(--transition);
 }
 .btn-modern:hover,
 .btn:hover,
 .control-btn:hover,
 .floating-menu-btn:hover {
-  background: var(--tech-accent2);
+  background: var(--accent-secondary);
   transform: translateY(-2px);
 }
 
@@ -399,15 +377,15 @@ select,
 .form-control,
 #new-password,
 #sensitivity-slider {
-  background: var(--tech-panel);
-  color: var(--tech-text);
-  border: 1px solid var(--tech-accent2);
-  border-radius: var(--tech-radius);
-  transition: border-color var(--tech-transition);
+  background: var(--panel-bg);
+  color: var(--text);
+  border: 1px solid var(--accent-secondary);
+  border-radius: var(--radius);
+  transition: border-color var(--transition);
 }
 input:focus,
 select:focus {
-  border-color: var(--tech-accent);
+  border-color: var(--accent);
   outline: none;
 }
 
@@ -416,8 +394,8 @@ select:focus {
 table,
 #hazard-types-list,
 #detections-grid {
-  background: var(--tech-panel);
-  color: var(--tech-text);
+  background: var(--panel-bg);
+  color: var(--text);
   border-collapse: collapse;
 }
 #reports th,
@@ -430,7 +408,7 @@ table td {
 #reports th,
 table th {
   background: rgba(0,0,0,0.2);
-  color: var(--tech-accent);
+  color: var(--accent);
 }
 #reports tr:hover,
 table tr:hover {
@@ -445,10 +423,10 @@ table tr:hover {
 .report-block,
 .session-summary-modal .modal-content,
 .summary-modal {
-  background: var(--tech-panel);
-  border-radius: var(--tech-radius);
+  background: var(--panel-bg);
+  border-radius: var(--radius);
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-  transition: box-shadow var(--tech-transition);
+  transition: box-shadow var(--transition);
 }
 .stat-card:hover,
 .dashboard-panel:hover,
@@ -469,7 +447,7 @@ table tr:hover {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: var(--tech-accent);
+  background: var(--accent);
   color: #000;
   display: flex;
   align-items: center;
@@ -490,9 +468,9 @@ table tr:hover {
   display: none;
   flex-direction: column;
   gap: 8px;
-  background: var(--tech-panel);
+  background: var(--panel-bg);
   padding: 8px;
-  border-radius: var(--tech-radius);
+  border-radius: var(--radius);
   box-shadow: 0 4px 16px rgba(0,0,0,0.5);
   z-index: 9998;
 }
@@ -502,15 +480,15 @@ table tr:hover {
 }
 .fab-menu a,
 #floatingMenu a {
-  color: var(--tech-text);
+  color: var(--text);
   padding: 6px 12px;
-  border-radius: var(--tech-radius);
+  border-radius: var(--radius);
   text-decoration: none;
-  transition: background var(--tech-transition);
+  transition: background var(--transition);
 }
 .fab-menu a:hover,
 #floatingMenu a:hover {
-  background: var(--tech-accent2);
+  background: var(--accent-secondary);
   color: #000;
 }
 
@@ -544,7 +522,7 @@ table tr:hover {
 }
 .camera-preview {
   position: relative;
-  border-radius: var(--tech-radius);
+  border-radius: var(--radius);
   overflow: hidden;
 }
 .camera-preview video,
@@ -565,7 +543,7 @@ table tr:hover {
 .menu-overlay,
 #loading-overlay {
   background: rgba(0,0,0,0.8);
-  color: var(--tech-text);
+  color: var(--text);
 }
 
 /* --- Tech-Urban Component Styles --- */
@@ -578,22 +556,22 @@ table tr:hover {
 #loading-overlay,
 #editReportModal,
 #reportDetailsModal {
-  background: var(--tech-panel);
-  color: var(--tech-text);
-  border-radius: var(--tech-radius);
+  background: var(--panel-bg);
+  color: var(--text);
+  border-radius: var(--radius);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  transition: background var(--tech-transition), box-shadow var(--tech-transition);
+  transition: background var(--transition), box-shadow var(--transition);
 }
 
 .btn,
 .btn-modern,
 .control-btn,
 .floating-menu-btn {
-  background: var(--tech-accent);
+  background: var(--accent);
   color: #000;
-  border-radius: var(--tech-radius);
+  border-radius: var(--radius);
   padding: 0.6rem 1.1rem;
-  transition: background var(--tech-transition), transform var(--tech-transition);
+  transition: background var(--transition), transform var(--transition);
   border: none;
 }
 
@@ -601,7 +579,7 @@ table tr:hover {
 .control-btn:hover,
 .btn-modern:hover,
 .floating-menu-btn:hover {
-  background: var(--tech-accent2);
+  background: var(--accent-secondary);
   transform: translateY(-2px);
 }
 
@@ -609,31 +587,31 @@ input,
 select,
 textarea,
 #sensitivity-slider {
-  background: var(--tech-panel);
-  color: var(--tech-text);
-  border: 1px solid var(--tech-accent2);
-  border-radius: var(--tech-radius);
-  transition: border-color var(--tech-transition);
+  background: var(--panel-bg);
+  color: var(--text);
+  border: 1px solid var(--accent-secondary);
+  border-radius: var(--radius);
+  transition: border-color var(--transition);
 }
 
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: var(--tech-accent);
+  border-color: var(--accent);
   outline: none;
 }
 
 table,
 #reports,
 #detections-grid {
-  background: var(--tech-panel);
-  color: var(--tech-text);
+  background: var(--panel-bg);
+  color: var(--text);
   border-collapse: collapse;
 }
 
 th {
   background: rgba(0,0,0,0.2);
-  color: var(--tech-accent);
+  color: var(--accent);
 }
 
 td, th {
@@ -652,7 +630,7 @@ tr:hover {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: var(--tech-accent);
+  background: var(--accent);
   color: #000;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   z-index: 1000;
@@ -664,8 +642,8 @@ tr:hover {
   position: fixed;
   top: 80px;
   right: 20px;
-  background: var(--tech-panel);
-  border-radius: var(--tech-radius);
+  background: var(--panel-bg);
+  border-radius: var(--radius);
   padding: 8px;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
 }
@@ -677,15 +655,15 @@ tr:hover {
 }
 
 #floatingMenu a {
-  color: var(--tech-text);
+  color: var(--text);
   padding: 6px 12px;
-  border-radius: var(--tech-radius);
+  border-radius: var(--radius);
   text-decoration: none;
-  transition: background var(--tech-transition);
+  transition: background var(--transition);
 }
 
 #floatingMenu a:hover {
-  background: var(--tech-accent2);
+  background: var(--accent-secondary);
   color: #000;
 }
   
