@@ -634,6 +634,16 @@ app.get('/logout', (req, res) => {
     });
 });
 
+// Authentication status endpoint used by the frontend to determine if a
+// user session is active. This mirrors the non-API auth routes (login,
+// logout) by living at the top level rather than under /api.
+app.get('/auth/status', (req, res) => {
+    res.json({
+        authenticated: req.isAuthenticated(),
+        user: req.user || null
+    });
+});
+
 // Health check endpoint (enhanced with simple mode support)
 app.get('/health', (req, res) => {
     res.json({
