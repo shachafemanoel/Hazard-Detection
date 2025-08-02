@@ -1,8 +1,38 @@
 let map;
 let markerCluster;
 
+function setupMobileMapToolbar() {
+  const mapEl = document.getElementById('map');
+  const toolbar = document.createElement('div');
+  toolbar.className = 'mobile-map-toolbar';
+
+  const toggleBtn = document.getElementById('toggle-heatmap');
+  const centerBtn = document.getElementById('center-map');
+
+  const zoomIn = document.createElement('button');
+  zoomIn.id = 'mobile-zoom-in';
+  zoomIn.innerHTML = '<i class="fas fa-plus"></i>';
+
+  const zoomOut = document.createElement('button');
+  zoomOut.id = 'mobile-zoom-out';
+  zoomOut.innerHTML = '<i class="fas fa-minus"></i>';
+
+  if (toggleBtn) toolbar.appendChild(toggleBtn);
+  if (centerBtn) toolbar.appendChild(centerBtn);
+  toolbar.appendChild(zoomIn);
+  toolbar.appendChild(zoomOut);
+  mapEl.appendChild(toolbar);
+
+  const mapControls = document.querySelector('.map-controls');
+  mapControls?.remove();
+
+  zoomIn.addEventListener('click', () => map.zoomIn());
+  zoomOut.addEventListener('click', () => map.zoomOut());
+}
+
 export function initializeMap() {
-  map = L.map('map').setView([32.0853, 34.7818], 13);
+  const isMobile = window.innerWidth <= 768;
+  map = L.map('map', { zoomControl: !isMobile }).setView([32.0853, 34.7818], 13);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -10,6 +40,10 @@ export function initializeMap() {
 
   markerCluster = L.markerClusterGroup();
   map.addLayer(markerCluster);
+
+  if (isMobile) {
+    setupMobileMapToolbar();
+  }
 }
 
 export async function geocode(address) {
