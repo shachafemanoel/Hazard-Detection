@@ -10,10 +10,10 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
-     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" defer></script>
-     <script type="module" src="./map.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" defer></script>
+  <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js" defer></script>
   <link rel="stylesheet" href="css/dashboard.css">
 </head>
 <body>
@@ -79,14 +79,14 @@
             <h4><i class="fas fa-table me-2"></i>Reports Management</h4>
           </div>
           <div class="table-controls d-flex flex-wrap gap-2 mb-3">
-            <input type="text" id="table-search-input" class="form-control" placeholder="Search..." style="flex: 2;">
+            <input type="text" id="report-search-input" class="form-control" placeholder="Search..." style="flex: 2;">
             <select id="table-status-filter" class="form-select" style="flex: 1;">
               <option value="">All Status</option>
               <option value="Open">Open</option>
               <option value="In Progress">In Progress</option>
               <option value="Resolved">Resolved</option>
             </select>
-            <select id="table-type-filter" class="form-select" style="flex: 1;">
+            <select id="hazard-type-filter" class="form-select" style="flex: 1;">
               <option value="">All Types</option>
               <option value="crack">Crack</option>
               <option value="knocked">Knocked</option>
@@ -94,6 +94,7 @@
               <option value="surface_damage">Surface Damage</option>
             </select>
           </div>
+          <div id="reports-blocks-container" class="d-none"></div>
           <div class="table-responsive">
             <table id="reports-management-table" class="table table-dark table-striped table-hover">
               <thead>
@@ -127,6 +128,7 @@
       </aside>
     </div>
   </div>
+  <div id="report-details-panel" class="d-none"></div>
 
   <!-- Modals -->
   <div class="modal fade" id="reportDetailsModal" tabindex="-1">
@@ -214,6 +216,11 @@
   </nav>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script type="module" src="js/map.js"></script>
+  <script type="module" src="js/reports-api.js"></script>
+  <script type="module" src="js/ui-controls.js"></script>
+  <script type="module" src="js/modals.js"></script>
+  <script type="module" src="js/notifications.js"></script>
   <script type="module" src="js/dashboard.js"></script>
 </body>
 </html>

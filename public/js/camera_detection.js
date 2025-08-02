@@ -501,9 +501,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     
     // Prioritized model paths - using the latest road damage detection model
     const modelPaths = [
-      './object_detecion_model/road_damage_detection_last_version.onnx', // Primary model
-      './object_detecion_model/road_damage_detection_simplified.onnx',   // Fallback 1
-      './object_detecion_model/model 18_7.onnx'                         // Fallback 2
+      './object_detection_model/road_damage_detection_last_version.onnx', // Primary model
+      './object_detection_model/road_damage_detection_simplified.onnx',   // Fallback 1
+      './object_detection_model/model 18_7.onnx'                         // Fallback 2
     ];
     
     let modelPath = null;

@@ -1,6 +1,7 @@
-import { initializeMap, plotReports } from './map.js';
+import { initializeMap, plotReports, toggleHeatmap, centerMap } from './map.js';
 import { fetchReports, updateReport, deleteReportById } from './reports-api.js';
 import { notify } from './notifications.js';
+import { initControls } from './ui-controls.js';
 
 // --- STATE MANAGEMENT ---
 const state = {
@@ -34,9 +35,9 @@ const elements = {
   tableBody: document.getElementById('reports-table-body'),
   selectAllCheckbox: document.getElementById('select-all-reports'),
   // Filters & Sort
-  searchInput: document.getElementById('table-search-input'),
+  searchInput: document.getElementById('report-search-input'),
   statusFilter: document.getElementById('table-status-filter'),
-  typeFilter: document.getElementById('table-type-filter'),
+  typeFilter: document.getElementById('hazard-type-filter'),
   sortHeaders: document.querySelectorAll('#reports-management-table .sortable'),
   // Pagination
   showingInfo: document.getElementById('table-showing-info'),
@@ -136,7 +137,7 @@ function renderAll() {
 
 async function updateDashboard() {
   state.isLoading = true;
-  // Add loading indicator here if needed
+  const loadingToast = notify('Loading reports...', 'info', true);
   try {
     const params = {
       ...state.filters,
@@ -156,6 +157,7 @@ async function updateDashboard() {
     state.pagination.total = 0;
   } finally {
     state.isLoading = false;
+    loadingToast.remove();
     renderAll();
   }
 }
@@ -301,11 +303,16 @@ function setupMobileDrawer() {
 }
 
   async function init() {
-    initializeMap();
+    const { heatLayer } = initializeMap();
+    initControls({ toggleHeatmap, centerMap, plotReports, heatLayer });
     initializeEventListeners();
     setupMobileDrawer();
-    await updateDashboard();
-    notify('Dashboard loaded.', 'success');
+    try {
+      await updateDashboard();
+      notify('Dashboard loaded.', 'success');
+    } catch (err) {
+      notify('Failed to load dashboard', 'danger');
+    }
   }
 
 document.addEventListener('DOMContentLoaded', init);

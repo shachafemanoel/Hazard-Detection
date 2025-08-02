@@ -13,16 +13,16 @@
 }
 
 .session-summary-modal .modal-content {
-    background: var(--tech-panel);
-    color: var(--tech-text);
-    border-radius: var(--tech-radius);
+    background: var(--panel-bg);
+    color: var(--text);
+    border-radius: var(--radius);
     max-width: 600px;
     width: 90%;
     max-height: 80vh;
     overflow-y: auto;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-    border: 1px solid var(--tech-accent2);
-    transition: transform var(--tech-transition), background var(--tech-transition);
+    border: 1px solid var(--accent-secondary);
+    transition: transform var(--transition), background var(--transition);
 }
 
 .session-summary-modal .modal-header {
@@ -42,14 +42,14 @@
 .session-summary-modal .close-btn {
     background: none;
     border: none;
-    color: var(--tech-text);
+    color: var(--text);
     font-size: 24px;
     cursor: pointer;
-    transition: color var(--tech-transition);
+    transition: color var(--transition);
 }
 
 .session-summary-modal .close-btn:hover {
-    color: var(--tech-accent);
+    color: var(--accent);
 }
 
 .session-summary-modal .modal-body {
@@ -57,12 +57,12 @@
 }
 
 .session-overview {
-    background: var(--tech-panel);
+    background: var(--panel-bg);
     padding: 15px;
-    border-radius: var(--tech-radius);
+    border-radius: var(--radius);
     margin-bottom: 20px;
     border-left: 4px solid var(--session-color);
-    transition: background var(--tech-transition);
+    transition: background var(--transition);
 }
 
 .session-overview p {
@@ -77,12 +77,12 @@
 }
 
 .report-item {
-    background: var(--tech-panel);
-    border: 1px solid var(--tech-accent2);
-    border-radius: var(--tech-radius);
+    background: var(--panel-bg);
+    border: 1px solid var(--accent-secondary);
+    border-radius: var(--radius);
     padding: 15px;
     margin-bottom: 15px;
-    transition: border-color var(--tech-transition), box-shadow var(--tech-transition);
+    transition: border-color var(--transition), box-shadow var(--transition);
     display: flex;
     gap: 15px;
     align-items: flex-start;

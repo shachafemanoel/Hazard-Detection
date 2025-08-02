@@ -116,8 +116,8 @@ class HazardDetectionApp {
 
     // Try multiple model paths
     const modelPaths = [
-      './object_detecion_model/model 18_7.onnx',
-      '/object_detecion_model/model 18_7.onnx'
+      './object_detection_model/model 18_7.onnx',
+      '/object_detection_model/model 18_7.onnx'
     ];
 
     for (const path of modelPaths) {

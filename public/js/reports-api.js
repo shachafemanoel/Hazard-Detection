@@ -1,4 +1,12 @@
+import { notify } from './notifications.js';
+
 const API_BASE_URL = '/api/reports';
+
+let allReports = [];
+
+export function getReports() {
+  return allReports;
+}
 
 // Geocoding utility using Nominatim (OpenStreetMap)
 async function geocode(address) {
@@ -19,28 +27,30 @@ async function geocode(address) {
 // Fetch reports with filters and pagination
 export async function fetchReports(filters = {}) {
   const params = new URLSearchParams(filters);
+  let response;
   try {
-    const response = await fetch(`${API_BASE_URL}?${params.toString()}`, { credentials: 'include' });
+    response = await fetch(`${API_BASE_URL}?${params.toString()}`, { credentials: 'include' });
     if (!response.ok) throw new Error(`Failed to load reports: ${response.statusText}`);
-    
-    const data = await response.json();
-    const reports = Array.isArray(data.reports) ? data.reports : [];
-    const pagination = data.pagination || { total: reports.length, page: 1, limit: reports.length, totalPages: 1 };
-
-    // Geocode reports that need it
-    const geocodedReports = await Promise.all(reports.map(async (report) => {
-      if (typeof report.location === 'string' && !report.lat && !report.lon) {
-        const coords = await geocode(report.location);
-        if (coords) return { ...report, lat: coords.lat, lon: coords.lon };
-      }
-      return report;
-    }));
-
-    return { reports: geocodedReports, pagination };
   } catch (error) {
+    notify('Failed to fetch reports', 'danger');
     console.error('Fetch reports error:', error);
     throw error;
   }
+
+  const data = await response.json();
+  const reports = Array.isArray(data.reports) ? data.reports : [];
+  const pagination = data.pagination || { total: reports.length, page: 1, limit: reports.length, totalPages: 1 };
+
+  const geocodedReports = await Promise.all(reports.map(async (report) => {
+    if (typeof report.location === 'string' && !report.lat && !report.lon) {
+      const coords = await geocode(report.location);
+      if (coords) return { ...report, lat: coords.lat, lon: coords.lon };
+    }
+    return report;
+  }));
+
+  allReports = geocodedReports;
+  return { reports: allReports, pagination };
 }
 
 // Update a report by ID

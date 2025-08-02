@@ -43,11 +43,11 @@ document.addEventListener("DOMContentLoaded", async function () {
     toastElement.classList.add('notification', 'tech-panel', 'tech-button');
 
     if (type === 'error') {
-      toastElement.style.background = 'var(--tech-danger)';
+      toastElement.style.background = 'var(--danger)';
     } else if (type === 'success') {
-      toastElement.style.background = 'var(--tech-success)';
+      toastElement.style.background = 'var(--success)';
     } else {
-      toastElement.style.background = 'var(--tech-accent)';
+      toastElement.style.background = 'var(--accent)';
     }
 
     toastElement.style.display = 'block';
@@ -259,9 +259,9 @@ document.addEventListener("DOMContentLoaded", async function () {
   try {
     // Prioritized model paths - using the latest road damage detection model
     const modelPaths = [
-      './object_detecion_model/road_damage_detection_last_version.onnx', // Primary model
-      './object_detecion_model/road_damage_detection_simplified.onnx',   // Fallback 1
-      './object_detecion_model/model 18_7.onnx'                         // Fallback 2
+      './object_detection_model/road_damage_detection_last_version.onnx', // Primary model
+      './object_detection_model/road_damage_detection_simplified.onnx',   // Fallback 1
+      './object_detection_model/model 18_7.onnx'                         // Fallback 2
     ];
     
     let modelPath = null;
