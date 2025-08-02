@@ -1,4 +1,13 @@
 // Enhanced Camera Detection System with Hybrid ONNX + API Detection
+import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js";
+import { storage } from "./firebaseConfig.js";
+import {
+  loadApiConfig,
+  testApiConnection,
+  startApiSession,
+  detectWithApi,
+  endApiSession
+} from "./apiClient.js";
 
 document.addEventListener("DOMContentLoaded", async () => {
   // DOM Elements
@@ -38,7 +47,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Enhanced Road Damage Detection Configuration
   const FIXED_SIZE = 480; // Optimized input size for real-time detection
-  let API_URL = "https://hazard-api-production-production.up.railway.app";
   
   // Road Damage Classes (mapping to model's 10 classes)
   const classNames = [
@@ -141,25 +149,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   setInterval(async () => {
     if (apiAvailable && useApi && detecting) {
       try {
-        const response = await fetch(`${API_URL}/health`, { 
-          method: 'GET',
-          signal: AbortSignal.timeout(2000) // 2 second timeout
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          
-          // Check if model status has improved
-          if (data.model_status && !data.model_status.includes('loading') && 
-              !data.model_status.includes('not loaded')) {
-            console.log("✅ Backend model is now ready:", data.model_status);
-            updateConnectionStatus('connected', `Enhanced Mode (${data.backend_type || 'AI'} Backend)`);
-            
-            // Reset failure count when model becomes ready
-            if (window.apiFailureCount > 0) {
-              window.apiFailureCount = 0;
-              console.log("🔄 Model ready - resetting API failure count");
-            }
+        const isHealthy = await testApiConnection();
+        if (isHealthy) {
+          console.log("✅ Periodic health check passed");
+          // Reset failure count when model becomes ready
+          if (window.apiFailureCount > 0) {
+            window.apiFailureCount = 0;
+            console.log("🔄 Model ready - resetting API failure count");
           }
         }
       } catch (error) {
@@ -309,7 +305,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.showCameraSessionSummary = showCameraSessionSummary;
   window.getOptimalVideoConstraints = getOptimalVideoConstraints;
 
-  // Enhanced detection configuration for real-time processing (10 classes)
+  // Enhanced detection configuration for real-time processing (10 classes) - following upload.js patterns
   const DETECTION_CONFIG = {
     minConfidence: 0.4,           // Higher for real-time to reduce noise
     nmsThreshold: 0.5,            // Higher NMS for more classes
@@ -376,6 +372,24 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Queue for detections awaiting upload
   const pendingDetections = [];
+
+  // Firebase upload function from upload_tf.js
+  async function uploadDetectionImage(canvas) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(async (blob) => {
+        if (!blob) return reject("❌ No blob from canvas");
+
+        const timestamp = Date.now();
+        const imageRef = ref(storage, `detections/${timestamp}.jpg`);
+
+        await uploadBytes(imageRef, blob);
+        const url = await getDownloadURL(imageRef);
+
+        console.log("☁️ Uploaded image to Firebase Storage:", url);
+        resolve(url);
+      }, "image/jpeg", 0.9);
+    });
+  }
 
   // Geolocation data for saved detections
   let geoData = null;
@@ -465,116 +479,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     }, 5000);
   }
 
-  // Test API availability following the fetch guide
-  async function testApiConnection() {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-    
-    try {
-      const response = await fetch(`${API_URL}/health`, {
-        method: 'GET',
-        signal: controller.signal
-      });
 
-      if (response.ok) {
-        clearTimeout(timeoutId);
-        const data = await response.json();
-        console.log("✅ API service is available:", data);
-        
-        // Check if it has the expected structure from the guide
-        if (data.status === 'healthy') {
-          // Additional check for model compatibility
-          if (data.model_status && data.model_status.includes('error')) {
-            console.warn("⚠️ Backend model has issues:", data.model_status);
-            showNotification('Backend model issues detected - using local detection', 'warning');
-            apiAvailable = false;
-            useApi = false;
-            updateConnectionStatus('warning', 'Backend Issues - Local ONNX Only');
-            return false;
-          }
-          
-          // API is healthy, check backend inference capability
-          apiAvailable = true;
-          useApi = true;
-          
-          // Show different status based on model readiness and backend inference
-          if (data.model_status === 'loading' || !data.backend_inference) {
-            updateConnectionStatus('connected', `API Connected (${data.model_status || 'Model Loading'}...)`);
-            showNotification(`API connected - ${data.model_status || 'model loading'}, will use when ready`, 'success');
-          } else if (data.backend_inference) {
-            updateConnectionStatus('connected', `Enhanced Mode (${data.backend_type || 'AI'} Backend)`);
-            showNotification(`API connected - ${data.model_status || 'model ready'}`, 'success');
-          }
-          return true;
-        }
-      } else {
-        console.log(`⚠️ API returned ${response.status}: ${response.statusText}`);
-      }
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        console.log("🔄 API health check timed out - using local detection");
-      } else {
-        console.log("🏠 API service not accessible - using local ONNX detection");
-      }
-    } finally {
-      clearTimeout(timeoutId);
-    }
-
-    apiAvailable = false;
-    updateConnectionStatus('ready', 'Local ONNX Detection Mode');
-    console.log("🤖 Running in local detection mode - ONNX model will handle all detection");
-    return false;
-  }
-
-  // Start API detection session following the fetch guide
-  async function startApiSession() {
-    if (!apiAvailable) return false;
-    
-    try {
-      const response = await fetch(`${API_URL}/session/start`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        apiSessionId = data.session_id;
-        console.log("✅ API session started:", apiSessionId);
-        return true;
-      } else {
-        const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
-        throw new Error(`Failed to start session: ${errorData.detail || response.statusText}`);
-      }
-    } catch (error) {
-      console.error("❌ Failed to start API session:", error);
-      apiAvailable = false;
-      updateConnectionStatus('warning', 'Session Failed - ONNX Only');
-      return false;
-    }
-  }
-
-  // End API detection session following the fetch guide
-  async function endApiSession() {
+  // End API detection session using API client
+  async function endApiSessionLocal() {
     if (!apiSessionId) return { message: "No active session" };
     
     try {
-      const response = await fetch(`${API_URL}/session/${apiSessionId}/end`, {
-        method: 'POST'
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log("✅ API session ended:", data);
-        apiSessionId = null;
-        return data;
-      } else {
-        const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
-        console.warn("⚠️ Session end warning:", errorData.detail);
-        apiSessionId = null;
-        return { message: "Session ended with warning" };
-      }
+      const result = await endApiSession(apiSessionId);
+      apiSessionId = null;
+      return result;
     } catch (error) {
       console.error("❌ Failed to end API session:", error);
       apiSessionId = null;
@@ -638,19 +551,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     return true;
   }
 
-  // Load API configuration from server
-  async function loadApiConfig() {
-    try {
-      const response = await fetch('/api/config');
-      if (response.ok) {
-        const config = await response.json();
-        API_URL = config.apiUrl;
-        console.log("🔧 API configuration loaded:", { apiUrl: API_URL });
-      }
-    } catch (error) {
-      console.warn("⚠️ Failed to load API config, using defaults:", error);
-    }
-  }
 
   // Initialize detection system
   async function initializeDetection() {
@@ -664,7 +564,22 @@ document.addEventListener("DOMContentLoaded", async () => {
       
       // Test API connection
       showLoading("Testing API connection...", 10);
-      await testApiConnection();
+      apiAvailable = await testApiConnection();
+      
+      if (apiAvailable) {
+        try {
+          showLoading("Starting API session...", 15);
+          apiSessionId = await startApiSession();
+          showNotification('API connected and session started', 'success');
+          updateConnectionStatus('connected', 'Enhanced Mode (API + ONNX)');
+        } catch (error) {
+          console.warn("Failed to start API session:", error);
+          apiAvailable = false;
+          updateConnectionStatus('warning', 'API Failed - ONNX Only');
+        }
+      } else {
+        updateConnectionStatus('ready', 'Local ONNX Detection Mode');
+      }
       
       // Load ONNX model
       const onnxLoaded = await loadModel();
@@ -856,35 +771,28 @@ document.addEventListener("DOMContentLoaded", async () => {
     return intersectionArea / unionArea;
   }
 
-  // Process frame with API using legacy detection endpoint  
-  async function detectWithApi(canvas) {
-    if (!apiAvailable) {
+  // Process frame with API using API client
+  async function detectWithApiClient(canvas) {
+    if (!apiAvailable || !apiSessionId) {
       return [];
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
-
     try {
-      // Ensure we have a valid canvas and create a proper image for OpenCV
+      // Ensure we have a valid canvas
       if (!canvas || canvas.width === 0 || canvas.height === 0) {
         console.warn("❌ Invalid canvas for API detection");
         return [];
       }
 
-      // Create a properly formatted image for the API
+      // Create blob from canvas
       const blob = await new Promise((resolve, reject) => {
-        try {
-          canvas.toBlob((blob) => {
-            if (blob) {
-              resolve(blob);
-            } else {
-              reject(new Error("Failed to create blob from canvas"));
-            }
-          }, 'image/jpeg', 0.9); // Higher quality for better API processing
-        } catch (error) {
-          reject(error);
-        }
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error("Failed to create blob from canvas"));
+          }
+        }, 'image/jpeg', 0.9);
       });
 
       if (!blob || blob.size === 0) {
@@ -892,32 +800,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         return [];
       }
 
-      const formData = new FormData();
-      formData.append('file', blob, blob.type === 'image/png' ? 'frame.png' : 'frame.jpg');
-
-      const response = await fetch(`${API_URL}/detect`, {
-        method: 'POST',
-        body: formData,
-        signal: controller.signal
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
-        throw new Error(`API detection failed: ${errorData.detail || response.statusText}`);
-      }
-
-      const result = await response.json();
-      
-      // Validate response structure from the guide
-      if (!result.success || !Array.isArray(result.detections)) {
-        console.warn("⚠️ Unexpected API response format:", result);
-        return [];
-      }
+      // Use API client for detection
+      const result = await detectWithApi(apiSessionId, blob);
       
       // Log new detections for debugging
-      const newDetections = result.detections.filter(det => det.is_new);
-      if (newDetections.length > 0) {
-        console.log("🆕 New hazards detected via API:", newDetections.map(d => `${d.class_name} (${(d.confidence * 100).toFixed(1)}%)`));
+      if (result.detections && result.detections.length > 0) {
+        const newDetections = result.detections.filter(det => det.is_new);
+        if (newDetections.length > 0) {
+          console.log("🆕 New hazards detected via API:", newDetections.map(d => `${d.class_name} (${(d.confidence * 100).toFixed(1)}%)`));
+        }
       }
 
       // Reset failure count on successful API call
@@ -926,7 +817,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.log("✅ API detection recovered");
       }
 
-      // Convert API format to internal format according to API_FETCH_GUIDE.md
+      // Convert API format to internal format
       // API returns bbox as [x, y, width, height], we need [x1, y1, x2, y2]
       return result.detections.map(det => {
         const [x, y, width, height] = det.bbox;
@@ -938,68 +829,45 @@ document.addEventListener("DOMContentLoaded", async () => {
           x + width,            // x2
           y + height,           // y2
           det.confidence,       // confidence
-          classIndex !== -1 ? classIndex : 0  // class_id (use index, not +1)
+          classIndex !== -1 ? classIndex + 1 : 1  // class_id (add 1 to match model format)
         ];
       });
     } catch (error) {
-      if (error.name === 'AbortError') {
-        console.warn("API detection request timed out");
-      } else {
-        console.warn("API detection failed:", error.message);
+      console.warn("API detection failed:", error.message);
+      
+      // Enhanced error handling
+      const errorHandled = handleApiError(error);
+      
+      // Show user notification for API errors
+      if (!errorHandled && !error.message.includes('model loading')) {
+        showNotification('API detection temporarily unavailable', 'warning');
+      }
+      
+      // Handle failure counting
+      if (!error.message.includes('model not loaded') && 
+          !error.message.includes('Service may still be starting') &&
+          !error.message.includes('PyTorch model not loaded') &&
+          !error.message.includes('OpenVino model not loaded')) {
+        if (!window.apiFailureCount) window.apiFailureCount = 0;
+        window.apiFailureCount++;
         
-        // Handle specific error types with dedicated handlers
-        const errorHandled = handleApiError(error);
-        
-        if (!errorHandled) {
-          // Handle general error types
-          if (error.message.includes('404')) {
-            console.log("🔄 API endpoint not found, check API configuration");
-          } else if (error.message.includes('OpenCV') || error.message.includes('cvtColor')) {
-            console.warn("🖼️ Image format error, API might need different preprocessing");
-            // Don't disable API completely, but log the issue
-          } else if (error.message.includes('Detection failed')) {
-            console.warn("🔍 API detection processing failed, using ONNX fallback");
-          }
-          
-          // Only count as failure if not a model loading issue
-          if (!error.message.includes('model not loaded') && 
-              !error.message.includes('Service may still be starting') &&
-              !error.message.includes('PyTorch model not loaded') &&
-              !error.message.includes('OpenVino model not loaded')) {
-            // If we get too many consecutive API failures, temporarily disable API
-            if (!window.apiFailureCount) window.apiFailureCount = 0;
-            window.apiFailureCount++;
-            
-            if (window.apiFailureCount > 5) {
-              console.warn("🚫 Too many API failures, temporarily disabling API detection");
-              useApi = false;
-              // Re-enable after 30 seconds
-              setTimeout(() => {
-                window.apiFailureCount = 0;
-                useApi = true;
-                console.log("🔄 Re-enabling API detection");
-              }, 30000);
-            }
-          } else {
-            console.log("🔄 Model loading error - not counting as API failure");
-          }
-        } else {
-          // Error was handled, reset failure count if it was a successful handling
-          if (error.message.includes('model not loaded') || 
-              error.message.includes('Service may still be starting') ||
-              error.message.includes('PyTorch model not loaded') ||
-              error.message.includes('OpenVino model not loaded')) {
-            // Don't increment failure count for startup issues
-            console.log("🕒 Backend model loading, keeping API available for retry");
-          }
+        if (window.apiFailureCount > 5) {
+          console.warn("🚫 Too many API failures, temporarily disabling API detection");
+          useApi = false;
+          // Re-enable after 30 seconds
+          setTimeout(() => {
+            window.apiFailureCount = 0;
+            useApi = true;
+            console.log("🔄 Re-enabling API detection");
+          }, 30000);
         }
       }
+      
       return [];
-    } finally {
-      clearTimeout(timeoutId);
     }
   }
 
+  // Enhanced detection saving following upload.js patterns with Firebase integration
   async function saveDetection(compositeCanvas, label, score) {
     try {
       // Ensure we have a valid canvas with image data
@@ -1008,21 +876,47 @@ document.addEventListener("DOMContentLoaded", async () => {
         return;
       }
 
-      // Create a simple detection report (matching upload_tf.js structure)
+      let imageUrl;
+      
+      // Try Firebase upload first, fallback to data URL
+      try {
+        if (typeof storage !== 'undefined' && storage) {
+          imageUrl = await uploadDetectionImage(compositeCanvas);
+          console.log("☁️ Using Firebase Storage for detection image");
+        } else {
+          throw new Error("Firebase storage not available");
+        }
+      } catch (firebaseError) {
+        console.warn("⚠️ Firebase upload failed, using data URL:", firebaseError.message);
+        imageUrl = compositeCanvas.toDataURL("image/jpeg", 0.9);
+      }
+
+      // Create a detection report following upload.js structure with enhanced metadata
       const report = {
         type: label,
-        location: geoData ? JSON.parse(geoData) : "Unknown",
+        location: geoData ? JSON.parse(geoData) : { lat: 31.7683, lng: 35.2137 }, // Default Israel coordinates
         time: new Date().toISOString(),
-        image: compositeCanvas.toDataURL("image/jpeg", 0.9),
+        image: imageUrl,
         status: "unreviewed",
         reportedBy: "live_camera",
-        confidence: Math.round(score * 100)
+        confidence: Math.round(score * 100),
+        sessionId: apiSessionId || 'local_session',
+        frameNumber: frameCount,
+        detectionMode: apiAvailable ? 'hybrid' : 'onnx_only'
       };
 
       pendingDetections.push(report);
-      console.log("📝 Detection queued:", { type: label, confidence: `${Math.round(score * 100)}%`, timestamp: report.time });
+      console.log("📝 Detection queued:", { 
+        type: label, 
+        confidence: `${Math.round(score * 100)}%`, 
+        timestamp: report.time,
+        mode: report.detectionMode,
+        imageType: imageUrl.startsWith('data:') ? 'dataURL' : 'firebase'
+      });
     } catch (err) {
       console.error("❌ Error during image preparation:", err);
+      // Show user notification for saving errors
+      showNotification('Failed to save detection image', 'error');
     }
   }
 
@@ -1590,8 +1484,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       const imageData = offCtx.getImageData(0, 0, FIXED_SIZE, FIXED_SIZE);
 
-      // Try API detection first (if available), then fallback to ONNX
-      if (apiAvailable && useApi && frameCount % 4 === 0) { // Use API every 4th frame for better responsiveness
+      // Try session-based API detection first (if available), then fallback to ONNX
+      if (apiAvailable && useApi && apiSessionId && frameCount % 4 === 0) { // Use API every 4th frame for better responsiveness
         try {
           // Create a proper canvas with video frame for API detection
           const apiCanvas = document.createElement('canvas');
@@ -1599,21 +1493,21 @@ document.addEventListener("DOMContentLoaded", async () => {
           apiCanvas.height = FIXED_SIZE;
           const apiCtx = apiCanvas.getContext('2d');
           
-          // Draw video frame properly formatted for OpenCV
+          // Draw video frame properly formatted for detection
           apiCtx.fillStyle = "black";
           apiCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
           apiCtx.drawImage(video, letterboxParams.offsetX, letterboxParams.offsetY, letterboxParams.newW, letterboxParams.newH);
           
-          console.log("🌐 Attempting API detection...");
-          detections = await detectWithApi(apiCanvas);
+          console.log("🌐 Attempting session-based API detection...");
+          detections = await detectWithApiClient(apiCanvas);
           if (detections.length > 0) {
             useApiResults = true;
-            console.log("🔥 Using API detection results:", detections.length, "detections");
+            console.log("🔥 Using session-based API detection results:", detections.length, "detections");
           } else {
-            console.log("🔍 API returned no detections");
+            console.log("🔍 Session-based API returned no detections");
           }
         } catch (error) {
-          console.warn("API detection failed, using ONNX fallback:", error);
+          console.warn("Session-based API detection failed, using ONNX fallback:", error);
         }
       }
 
@@ -1641,10 +1535,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       startBtn.disabled = true;
       updateConnectionStatus('processing', 'Starting Camera...');
 
-      // API is available but doesn't require sessions
-      if (apiAvailable) {
-        updateConnectionStatus('processing', 'API Ready for Detection...');
-      }
+      // API session was already started during initialization
 
       // Get optimal constraints based on device capabilities
       updateConnectionStatus('processing', 'Optimizing camera settings...');
@@ -1710,9 +1601,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     // End camera session tracking
     endCameraSession();
 
-    // API cleanup (no sessions to end)
-    if (apiAvailable) {
-      console.log("📊 API detection session completed");
+    // End API session and get summary
+    if (apiAvailable && apiSessionId) {
+      try {
+        const sessionSummary = await endApiSessionLocal();
+        console.log("📊 API detection session completed:", sessionSummary);
+      } catch (error) {
+        console.warn("⚠️ Failed to properly end API session:", error);
+      }
     }
 
     // Send queued detections to API (matching upload_tf.js logic)
