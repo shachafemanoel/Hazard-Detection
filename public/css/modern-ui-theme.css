@@ -1,5 +1,18 @@
 /* --- Global Modern UI Theme for Hazard Reporter --- */
 
+/* Tech-Urban Variables */
+:root {
+  --tech-bg: #121212;
+  --tech-panel: #1f1f1f;
+  --tech-text: #e0e0e0;
+  --tech-accent: #00e5ff;
+  --tech-accent2: #00bfa5;
+  --tech-danger: #ff5252;
+  --tech-success: #00c853;
+  --tech-radius: 8px;
+  --tech-transition: 0.2s ease-in-out;
+}
+
 :root {
   /* Replace these with colors from your icon.png logo */
   --primary: #007bff; /* Example Primary Color (e.g., a main color from your logo) */
@@ -30,20 +43,20 @@ body {
   /* Background image has been removed as per request */
 
   /* Fallback background color if the image fails to load or for transparency effects */
-  background-color: var(--bg); 
+  background-color: var(--tech-bg);
 
-  color: var(--text);
+  color: var(--tech-text);
   font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   line-height: 1.6;
   margin: 0;
   padding: 0;
-  transition: margin-left var(--transition); /* For sidebar push effect */ 
+  transition: margin-left var(--tech-transition); /* For sidebar push effect */
 }
 
 button, .btn {
-  border-radius: var(--radius);
+  border-radius: var(--tech-radius);
   padding: 0.5rem 1rem;
-  transition: background-color var(--transition), transform var(--transition), box-shadow var(--transition);
+  transition: background-color var(--tech-transition), transform var(--tech-transition), box-shadow var(--tech-transition);
   font-weight: 500;
   box-shadow: 0 2px 5px rgba(0,0,0,0.15); /* Subtle shadow for buttons */
   border: none; /* Remove default browser borders if any */
@@ -56,10 +69,10 @@ button:hover, .btn:hover {
 }
 
 .card {
-  border-radius: var(--radius);
+  border-radius: var(--tech-radius);
   box-shadow: var(--shadow);
   border: none;
-  background-color: var(--card-bg);
+  background-color: var(--tech-panel);
 }
 
 input, select, textarea {
@@ -296,5 +309,86 @@ input:focus, select:focus, textarea:focus {
   display: none;
   box-shadow: var(--shadow);
   pointer-events: none; /* Ensure tooltip doesn't interfere with mouse events */
+}
+
+/* Tech-Urban Overrides */
+.fab {
+  position: fixed; top: 20px; right: 20px;
+  width: 56px; height: 56px; border-radius: 50%;
+  background: var(--tech-accent); color: #000;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  transition: transform var(--tech-transition);
+  z-index: 9999;
+}
+.fab:hover { transform: scale(1.1); }
+.fab-menu {
+  position: fixed; top: 84px; right: 20px; display: none;
+  flex-direction: column; gap: 8px;
+  background: var(--tech-panel); padding: 8px;
+  border-radius: var(--tech-radius);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5); z-index: 9998;
+}
+.fab-menu.open { display: flex; }
+.fab-menu a {
+  color: var(--tech-text); text-decoration: none;
+  padding: 6px 12px; border-radius: var(--tech-radius);
+  transition: background var(--tech-transition);
+}
+.fab-menu a:hover {
+  background: var(--tech-accent2); color: #000;
+}
+
+.btn, .btn-modern, .control-btn {
+  background: var(--tech-accent);
+  color: #000;
+  border-radius: var(--tech-radius);
+  transition: background var(--tech-transition), transform var(--tech-transition);
+}
+.btn:hover, .btn-modern:hover, .control-btn:hover {
+  background: var(--tech-accent2);
+  transform: translateY(-2px);
+}
+
+input, select, .form-control, .slider {
+  background: var(--tech-panel);
+  color: var(--tech-text);
+  border: 1px solid var(--tech-accent2);
+  border-radius: var(--tech-radius);
+  transition: border-color var(--tech-transition);
+}
+input:focus, select:focus {
+  border-color: var(--tech-accent);
+  outline: none;
+}
+
+#reports table, .table {
+  width: 100%; border-collapse: collapse;
+  background: var(--tech-panel);
+  color: var(--tech-text);
+}
+#reports th, #reports td {
+  padding: 0.75rem; border: 1px solid #333;
+}
+#reports th {
+  background: #222; color: var(--tech-accent);
+}
+#reports tr:hover {
+  background: rgba(0,255,255,0.1);
+}
+
+.card, .dashboard-panel, .info-panel, .stat-card {
+  background: var(--tech-panel);
+  border-radius: var(--tech-radius);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  transition: box-shadow var(--tech-transition);
+}
+.card:hover, .dashboard-panel:hover, .stat-card:hover {
+  box-shadow: 0 6px 18px rgba(0,255,255,0.3);
+}
+
+.modal, .menu-overlay, #loading-overlay {
+  background: rgba(0,0,0,0.8);
+  color: var(--tech-text);
 }
   
