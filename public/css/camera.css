@@ -26,25 +26,25 @@ html, body {
 }
 
 :root {
-    --primary-color: #0066ff;
-    --secondary-color: #00ff88;
-    --danger-color: #ff4757;
-    --warning-color: #ffa502;
-    --session-color: #FF6B35;
-    --bg-primary: #0a0e1a;
-    --bg-secondary: #1a1f2e;
-    --bg-panel: rgba(26, 31, 46, 0.95);
-    --text-primary: #ffffff;
-    --text-secondary: #94a3b8;
-    --border-color: rgba(255, 255, 255, 0.1);
-    --glow-primary: rgba(0, 102, 255, 0.3);
-    --glow-success: rgba(0, 255, 136, 0.3);
-    --glow-danger: rgba(255, 71, 87, 0.3);
-    --glow-session: rgba(255, 107, 53, 0.3);
-    --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    --gradient-success: linear-gradient(135deg, #00ff88 0%, #00d4ff 100%);
-    --gradient-danger: linear-gradient(135deg, #ff4757 0%, #ff3742 100%);
-    --gradient-session: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
+    --primary-color: var(--tech-accent);
+    --secondary-color: var(--tech-accent2);
+    --danger-color: var(--tech-danger);
+    --warning-color: var(--tech-accent2);
+    --session-color: var(--tech-accent);
+    --bg-primary: var(--tech-bg);
+    --bg-secondary: var(--tech-panel);
+    --bg-panel: var(--tech-panel);
+    --text-primary: var(--tech-text);
+    --text-secondary: var(--tech-text);
+    --border-color: var(--tech-accent2);
+    --glow-primary: rgba(0, 229, 255, 0.2);
+    --glow-success: rgba(0, 191, 165, 0.2);
+    --glow-danger: rgba(255, 82, 82, 0.2);
+    --glow-session: rgba(0, 229, 255, 0.2);
+    --gradient-primary: var(--tech-accent);
+    --gradient-success: var(--tech-accent2);
+    --gradient-danger: var(--tech-danger);
+    --gradient-session: var(--tech-accent);
 }
 
 body {
@@ -164,10 +164,10 @@ body {
     position: relative;
     width: 100%;
     max-width: min(100vw - 2rem, 1200px);
-    border-radius: var(--radius);
+    border-radius: var(--tech-radius);
     overflow: hidden;
-    background: var(--bg-secondary);
-    box-shadow: 
+    background: var(--tech-panel);
+    box-shadow:
         0 20px 60px rgba(0, 0, 0, 0.4),
         inset 0 1px 0 rgba(255, 255, 255, 0.1);
     animation: scaleIn 1s ease-out;
@@ -202,8 +202,8 @@ body {
     position: absolute;
     inset: -2px;
     padding: 2px;
-    background: var(--gradient-primary);
-    border-radius: var(--radius);
+    background: var(--tech-accent);
+    border-radius: var(--tech-radius);
     mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
     mask-composite: subtract;
     opacity: 0.6;
@@ -452,16 +452,15 @@ body {
     gap: 0.5rem;
     padding: clamp(0.75rem, 3vw, 1rem) clamp(1rem, 4vw, 1.25rem);
     border: none;
-    border-radius: clamp(8px, 2vw, 12px);
+    border-radius: var(--tech-radius);
     font-weight: 600;
     font-size: clamp(0.85rem, 2.5vw, 0.9rem);
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: background var(--tech-transition), transform var(--tech-transition);
     position: relative;
     overflow: hidden;
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-    border: 1px solid var(--border-color);
+    background: var(--tech-accent);
+    color: #000;
     min-height: 48px; /* Touch-friendly minimum size */
     touch-action: manipulation;
     user-select: none;
@@ -488,8 +487,8 @@ body {
 }
 
 .control-btn.primary {
-    background: var(--gradient-primary);
-    border: 1px solid var(--primary-color);
+    background: var(--tech-accent);
+    border: none;
     box-shadow: 0 0 20px var(--glow-primary);
 }
 
@@ -498,8 +497,8 @@ body {
 }
 
 .control-btn.danger {
-    background: var(--gradient-danger);
-    border: 1px solid var(--danger-color);
+    background: var(--tech-danger);
+    border: none;
     box-shadow: 0 0 20px var(--glow-danger);
     display: none;
 }
@@ -594,19 +593,19 @@ body {
 }
 
 .info-panel {
-    background: var(--bg-panel);
-    border-radius: 16px;
-    border: 1px solid var(--border-color);
+    background: var(--tech-panel);
+    border-radius: var(--tech-radius);
+    border: 1px solid var(--tech-accent2);
     backdrop-filter: blur(20px);
     overflow: hidden;
-    transition: all 0.3s ease;
+    transition: background var(--tech-transition), box-shadow var(--tech-transition);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
 }
 
 .info-panel:hover {
     transform: translateY(-4px);
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
-    border-color: var(--secondary-color);
+    border-color: var(--tech-accent2);
 }
 
 .panel-header {
@@ -711,7 +710,7 @@ body {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(10, 14, 26, 0.95);
+    background: var(--tech-panel);
     display: flex; /* Keep flex for centering */
     align-items: center;
     justify-content: center;
@@ -719,13 +718,13 @@ body {
     backdrop-filter: blur(10px);
     opacity: 0; /* Hidden by default */
     visibility: hidden; /* Hide from interactions */
-    transition: opacity 0.4s ease, visibility 0s linear 0.4s;
+    transition: opacity var(--tech-transition), visibility 0s linear 0.4s;
 }
 
 .loading-overlay.show {
     opacity: 1;
     visibility: visible;
-    transition: opacity 0.4s ease;
+    transition: opacity var(--tech-transition);
 }
 
 .loading-content {

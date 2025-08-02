@@ -13,14 +13,16 @@
 }
 
 .session-summary-modal .modal-content {
-    background: var(--bg-secondary);
-    border-radius: var(--radius);
+    background: var(--tech-panel);
+    color: var(--tech-text);
+    border-radius: var(--tech-radius);
     max-width: 600px;
     width: 90%;
     max-height: 80vh;
     overflow-y: auto;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--tech-accent2);
+    transition: transform var(--tech-transition), background var(--tech-transition);
 }
 
 .session-summary-modal .modal-header {
@@ -40,14 +42,14 @@
 .session-summary-modal .close-btn {
     background: none;
     border: none;
-    color: var(--text-secondary);
+    color: var(--tech-text);
     font-size: 24px;
     cursor: pointer;
-    transition: color 0.3s ease;
+    transition: color var(--tech-transition);
 }
 
 .session-summary-modal .close-btn:hover {
-    color: var(--text-primary);
+    color: var(--tech-accent);
 }
 
 .session-summary-modal .modal-body {
@@ -55,11 +57,12 @@
 }
 
 .session-overview {
-    background: var(--bg-panel);
+    background: var(--tech-panel);
     padding: 15px;
-    border-radius: var(--radius);
+    border-radius: var(--tech-radius);
     margin-bottom: 20px;
     border-left: 4px solid var(--session-color);
+    transition: background var(--tech-transition);
 }
 
 .session-overview p {
@@ -74,12 +77,12 @@
 }
 
 .report-item {
-    background: var(--bg-panel);
-    border: 1px solid var(--border-color);
-    border-radius: var(--radius);
+    background: var(--tech-panel);
+    border: 1px solid var(--tech-accent2);
+    border-radius: var(--tech-radius);
     padding: 15px;
     margin-bottom: 15px;
-    transition: all 0.3s ease;
+    transition: border-color var(--tech-transition), box-shadow var(--tech-transition);
     display: flex;
     gap: 15px;
     align-items: flex-start;
