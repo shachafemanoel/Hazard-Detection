@@ -174,7 +174,8 @@ app.use(
     allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with']
 }));
 
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // 🔗 External API URL for separate deployment
 const API_URL = process.env.API_URL || process.env.HAZARD_API_URL || 'http://localhost:8000';
