@@ -367,9 +367,15 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   let sessionDetectionsSummary = []; // Store detailed detection information for summary
 
-  // Persist detections for a few frames without complex tracking
-  let activeDetections = [];
-  const PERSISTENCE_FRAMES = 3;
+  // Object tracking state
+  let trackedObjects = new Map();
+  let nextObjectId = 0;
+  const INTERPOLATION_FRAMES = 5;
+  const TRACKING_PERSISTENCE_FRAMES = 30;
+  const MAX_TRACKING_DISTANCE = 50;
+
+  // Queue for detections awaiting upload
+  const pendingDetections = [];
 
   // Geolocation data for saved detections
   let geoData = null;
@@ -1364,12 +1370,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     canvas.height = video.videoHeight;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Add new detections with persistence counter
-    for (const box of boxes) {
-      if (box[4] >= confidenceThreshold) {
-        activeDetections.push({ box, useApi: useApiResults, framesLeft: PERSISTENCE_FRAMES });
-      }
-    }
+    // Update tracked objects with current detections
+    trackObjects(boxes);
 
     let currentFrameDetections = 0;
     const detectedTypes = new Set();
@@ -1741,7 +1743,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Reset stats and clear tracking data
     frameCount = 0;
-    activeDetections = [];
 
     // Don't reset detection stats immediately - keep for summary modal
     // They will be reset when starting a new session
