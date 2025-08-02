@@ -289,11 +289,23 @@ function initializeEventListeners() {
   elements.fabBtn?.addEventListener('click', () => elements.fabMenu?.classList.toggle('open'));
 }
 
-async function init() {
-  initializeMap();
-  initializeEventListeners();
-  await updateDashboard();
-  notify('Dashboard loaded.', 'success');
+function setupMobileDrawer() {
+  if (window.innerWidth > 768) return;
+  const sidebar = document.querySelector('.dashboard-right');
+  if (!sidebar) return;
+  const toggle = document.createElement('button');
+  toggle.id = 'mobile-drawer-toggle';
+  toggle.innerHTML = '<i class="fas fa-bars"></i>';
+  document.body.appendChild(toggle);
+  toggle.addEventListener('click', () => sidebar.classList.toggle('open'));
 }
+
+  async function init() {
+    initializeMap();
+    initializeEventListeners();
+    setupMobileDrawer();
+    await updateDashboard();
+    notify('Dashboard loaded.', 'success');
+  }
 
 document.addEventListener('DOMContentLoaded', init);
