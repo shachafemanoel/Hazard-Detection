@@ -911,12 +911,11 @@ app.get('/api/reports', async (req, res) => {
                         reports.push(report);
                     }
                 }
-            }
 
-            // Early exit if we have enough reports for this page
-            if (reports.length >= limit) {
-                break;
-            }
+                // Early exit if we have enough reports for this page
+                if (reports.length >= limit) {
+                    break;
+                }
         }
 
         const totalPages = Math.ceil(totalMatchingCount / limit);
@@ -1127,13 +1126,12 @@ app.patch('/api/reports/:id', async (req, res) => {
     const reportKey = `report:${reportId}`;
 
     try {
-        // Get existing report
-        const existingReport = await client.get(reportKey);
-        if (!existingReport) {
+        const existingReportStr = await client.get(reportKey);
+        if (!existingReportStr) {
             return res.status(404).json({ error: 'Report not found' });
         }
 
-        const report = JSON.parse(existingReport);
+        const report = JSON.parse(existingReportStr);
         
         // Update only the fields that are provided
         const updates = req.body;
@@ -1150,6 +1148,7 @@ app.patch('/api/reports/:id', async (req, res) => {
         // Save back to Redis
         await client.set(reportKey, JSON.stringify(report));
 
+        broadcastSSEEvent({ type: 'report_updated', report });
         res.json({ message: 'Report updated successfully', report });
     } catch (err) {
         console.error('Error updating report:', err);
