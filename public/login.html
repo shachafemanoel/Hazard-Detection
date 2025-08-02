@@ -14,9 +14,10 @@
     
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    
+
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/modern-ui-theme.css">
     
     <style>
       body {
@@ -33,22 +34,22 @@
       }
     </style>
 </head>
-<body class="bg-gray-100 dark:bg-gray-900 dark:text-white min-h-screen flex items-center justify-center px-4">
+<body class="min-h-screen flex items-center justify-center px-4">
 
-  <div class="w-full max-w-md bg-white dark:bg-gray-800 p-6 rounded-xl shadow-xl transition-all">
+  <div class="w-full max-w-md card p-6 transition-all">
     <div class="flex flex-col items-center space-y-4">
       <img src="icon.png" alt="Hazard Detection Logo" class="w-full max-w-xs aspect-square rounded-lg shadow">
-      <h1 class="text-2xl font-bold text-gray-800 dark:text-white text-center">Sign in to Hazard Reporter</h1>
+      <h1 class="text-2xl font-bold text-center">Sign in to Hazard Reporter</h1>
     </div>
 
     <!-- ראשי -->
     <div id="buttons" class="mt-6 space-y-4">
       <!-- New order: Email button first, then Google button -->
-      <button class="btn-modern w-full flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white py-3 px-4 rounded-xl shadow-md transition-all" onclick="toggleForm()">
+      <button class="btn-modern w-full flex items-center justify-center py-3 px-4" onclick="toggleForm()">
         <i class="far fa-envelope text-xl mr-3"></i>
         <span class="text-sm font-medium">Continue with Email</span>
       </button>
-      <button class="btn-modern w-full flex items-center justify-center bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 py-3 px-4 rounded-xl shadow-md transition-all" onclick="location.href='/auth/google'">
+      <button class="btn-modern w-full flex items-center justify-center py-3 px-4" onclick="location.href='/auth/google'">
         <i class="fab fa-google text-xl mr-3"></i>
         <span class="text-sm font-medium">Continue with Google</span>
       </button>
@@ -56,10 +57,10 @@
 
     <!-- אפשרויות אימייל -->
     <div id="email-options" class="mt-6 space-y-3 hidden">
-      <button class="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 rounded-full shadow-sm uppercase tracking-wide" onclick="showSignupForm()">sign up</button>
-      <button class="w-full bg-green-600 hover:bg-green-700 text-white text-xs py-2 rounded-full shadow-sm uppercase tracking-wide" onclick="showLoginForm()">log in</button>
-      <button class="w-full bg-yellow-500 hover:bg-yellow-600 text-white text-xs py-2 rounded-full shadow-sm uppercase tracking-wide" onclick="toggleForgotPassword()">forgot password</button>
-      <button id="back-options" class="w-full border border-gray-300 bg-white dark:bg-gray-700 dark:text-white text-xs py-2 rounded-full shadow-sm uppercase tracking-wide" onclick="backToMainScreen()">back</button>
+      <button class="btn-modern w-full text-xs uppercase tracking-wide" onclick="showSignupForm()">sign up</button>
+      <button class="btn-modern w-full text-xs uppercase tracking-wide" onclick="showLoginForm()">log in</button>
+      <button class="btn-modern w-full text-xs uppercase tracking-wide" onclick="toggleForgotPassword()">forgot password</button>
+      <button id="back-options" class="btn-modern w-full text-xs uppercase tracking-wide" onclick="backToMainScreen()">back</button>
     </div>
 
     <!-- טופס אימייל -->
@@ -67,33 +68,33 @@
 
       <!-- טופס הרשמה -->
       <div id="signup-form" class="hidden">
-        <h2 class="text-center text-lg font-semibold text-gray-800 dark:text-white mb-3">Sign Up</h2>
+        <h2 class="text-center text-lg font-semibold mb-3">Sign Up</h2>
         <form id="register-form" class="space-y-3">
-          <input type="email" id="email" placeholder="Email" name="email" required class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:text-white">
-          <input type="text" id="username" placeholder="Username" name="username" required minlength="3" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:text-white">
-          <input type="password" id="password" placeholder="Password" name="password" required minlength="8" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:text-white">
-          <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs py-2 rounded-full shadow-sm uppercase tracking-wide">register</button>
+          <input type="email" id="email" placeholder="Email" name="email" required class="w-full px-4 py-2">
+          <input type="text" id="username" placeholder="Username" name="username" required minlength="3" class="w-full px-4 py-2">
+          <input type="password" id="password" placeholder="Password" name="password" required minlength="8" class="w-full px-4 py-2">
+          <button type="submit" class="btn-modern w-full text-xs uppercase tracking-wide">register</button>
         </form>
         <div id="email-error" class="hidden mt-3 text-sm text-red-500"></div>
       </div>
 
       <!-- טופס התחברות -->
       <div id="login-form" class="hidden">
-        <h2 class="text-center text-lg font-semibold text-gray-800 dark:text-white mb-3">Log In</h2>
+        <h2 class="text-center text-lg font-semibold mb-3">Log In</h2>
         <form id="login-form-inner" class="space-y-3">
-          <input type="email" id="login-email" placeholder="Email" name="email" required class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:text-white">
-          <input type="password" id="login-password" placeholder="Password" name="password" required minlength="8" class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:text-white">
-          <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white text-xs py-2 rounded-full shadow-sm uppercase tracking-wide">log in</button>
+          <input type="email" id="login-email" placeholder="Email" name="email" required class="w-full px-4 py-2">
+          <input type="password" id="login-password" placeholder="Password" name="password" required minlength="8" class="w-full px-4 py-2">
+          <button type="submit" class="btn-modern w-full text-xs uppercase tracking-wide">log in</button>
         </form>
         <div id="login-error" class="hidden mt-3 text-sm text-red-500"></div>
       </div>
 
       <!-- טופס איפוס סיסמה -->
       <div id="forgot-password-form" class="hidden">
-        <h2 class="text-center text-lg font-semibold text-gray-800 dark:text-white mb-3">Reset Password</h2>
+        <h2 class="text-center text-lg font-semibold mb-3">Reset Password</h2>
         <form id="reset-password-form" class="space-y-3">
-          <input type="email" id="reset-email" placeholder="Enter your email" name="email" required class="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:text-white">
-          <button type="submit" class="w-full bg-yellow-500 hover:bg-yellow-600 text-white text-xs py-2 rounded-full shadow-sm uppercase tracking-wide">reset password</button>
+          <input type="email" id="reset-email" placeholder="Enter your email" name="email" required class="w-full px-4 py-2">
+          <button type="submit" class="btn-modern w-full text-xs uppercase tracking-wide">reset password</button>
         </form>
         <div id="reset-password-error" class="hidden mt-3 text-sm text-red-500"></div>
       </div>
@@ -101,5 +102,13 @@
   </div>
 
   <script src="js/login.js" defer></script>
+  <!-- Tech-Urban Floating Menu -->
+  <button id="fab-btn" class="fab"><i class="fas fa-bars"></i></button>
+  <nav id="fab-menu" class="fab-menu">
+    <a href="/dashboard.html">Dashboard</a>
+    <a href="/camera.html">Live</a>
+    <a href="/logout">Logout</a>
+  </nav>
+  <script src="js/fab-menu.js"></script>
 </body>
 </html>
