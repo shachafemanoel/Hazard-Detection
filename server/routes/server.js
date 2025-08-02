@@ -951,7 +951,8 @@ app.get('/api/reports', async (req, res) => {
             },
             filters: filters,
             performance: {
-                totalKeys: keys.length,
+                // Use the number of retrieved reports instead of undefined Redis keys
+                totalKeys: allReports.length,
                 processedInMs: Date.now() - startTime
             }
         };
