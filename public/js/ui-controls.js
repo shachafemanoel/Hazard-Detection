@@ -1,4 +1,5 @@
-import { getReports } from './reports-api.js';
+// Alias getReports to avoid clashing with any global declarations
+import { getReports as fetchAllReports } from './reports-api.js';
 import { renderReports } from './modals.js';
 
 export function filterReportsByType(reports, term) {
@@ -13,7 +14,7 @@ export function initControls({ toggleHeatmap, centerMap, plotReports } = {}) {
   const searchInput = document.getElementById('report-search-input');
   if (searchInput) {
     searchInput.addEventListener('input', (e) => {
-      const filtered = filterReportsByType(getReports(), e.target.value);
+      const filtered = filterReportsByType(fetchAllReports(), e.target.value);
       renderReports(filtered);
       if (typeof plotReports === 'function') plotReports(filtered);
     });
@@ -32,7 +33,7 @@ export function initControls({ toggleHeatmap, centerMap, plotReports } = {}) {
         const label = document.getElementById('current-hazard-type-label');
         if (label) label.textContent = option.textContent;
         hazardDropdownMenu.classList.remove('active');
-        const filtered = type ? getReports().filter(r => r.type === type) : getReports();
+        const filtered = type ? fetchAllReports().filter(r => r.type === type) : fetchAllReports();
         renderReports(filtered);
         if (typeof plotReports === 'function') plotReports(filtered);
       });
