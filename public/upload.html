@@ -63,6 +63,28 @@
       padding: 1rem;
       margin-top: 1rem;
     }
+
+    /* Simple uploading modal */
+    #uploading-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    #uploading-modal .modal-content {
+      background: var(--tech-panel);
+      color: var(--tech-text);
+      padding: 1.5rem 2rem;
+      border-radius: var(--tech-radius);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
   </style>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
@@ -91,6 +113,11 @@
       <div id="toast-body"></div>
       <button type="button" id="toast-close" class="tech-button">&times;</button>
     </div>
+  </div>
+
+  <!-- Uploading modal -->
+  <div id="uploading-modal">
+    <div class="modal-content">Uploading...</div>
   </div>
 
   <script type="module" src="js/upload.js" defer></script>

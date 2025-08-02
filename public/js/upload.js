@@ -12,6 +12,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   const ctx = canvas ? canvas.getContext("2d") : null; // Check if canvas exists
   const logoutBtn = document.getElementById("logout-btn");
   const saveBtn = document.getElementById("save-detection");
+  const uploadingModal = document.getElementById("uploading-modal");
 
   // Toast Notification Elements
   const toastElement = document.getElementById('toast-notification');
@@ -25,6 +26,14 @@ document.addEventListener("DOMContentLoaded", async function () {
     toastClose.addEventListener('click', () => {
       toastElement.style.display = 'none';
     });
+  }
+
+  function showUploadingModal() {
+    if (uploadingModal) uploadingModal.style.display = 'flex';
+  }
+
+  function hideUploadingModal() {
+    if (uploadingModal) uploadingModal.style.display = 'none';
   }
 
   function showToast(message, type = 'success') {
@@ -119,39 +128,44 @@ document.addEventListener("DOMContentLoaded", async function () {
 
 
 // שמירת התמונה והנתונים
-saveBtn.addEventListener("click", () => {
-  if (!canvas) {
-    showToast("❌ Canvas element not found.", "error");
-    return;
-  }
+  saveBtn.addEventListener("click", () => {
+    if (!canvas) {
+      showToast("❌ Canvas element not found.", "error");
+      return;
+    }
 
-  // Make geoData optional but prefer it when available
-  if (!geoData) {
-    console.warn("No geolocation data available, using default location");
-    // Use default Israel coordinates as fallback
-    geoData = JSON.stringify({ lat: 31.7683, lng: 35.2137 });
-    showToast("⚠️ Using default location (no GPS data)", "warning");
-  }
+    // Make geoData optional but prefer it when available
+    if (!geoData) {
+      console.warn("No geolocation data available, using default location");
+      // Use default Israel coordinates as fallback
+      geoData = JSON.stringify({ lat: 31.7683, lng: 35.2137 });
+      showToast("⚠️ Using default location (no GPS data)", "warning");
+    }
 
-  // Create composite canvas that includes the original image and the overlay
-  const compositeCanvas = document.createElement("canvas");
-  compositeCanvas.width = canvas.width;
-  compositeCanvas.height = canvas.height;
-  const compositeCtx = compositeCanvas.getContext("2d");
+    // Create composite canvas that includes the original image and the overlay
+    const compositeCanvas = document.createElement("canvas");
+    compositeCanvas.width = canvas.width;
+    compositeCanvas.height = canvas.height;
+    const compositeCtx = compositeCanvas.getContext("2d");
 
-  // Draw the original uploaded image using the same letterbox parameters
-  if (currentImage) {
-      const { offsetX, offsetY, newW, newH } = letterboxParams;
-      compositeCtx.fillStyle = "black";
-      compositeCtx.fillRect(0, 0, compositeCanvas.width, compositeCanvas.height);
-      compositeCtx.drawImage(currentImage, offsetX, offsetY, newW, newH);
-  }
+    // Draw the original uploaded image using the same letterbox parameters
+    if (currentImage) {
+        const { offsetX, offsetY, newW, newH } = letterboxParams;
+        compositeCtx.fillStyle = "black";
+        compositeCtx.fillRect(0, 0, compositeCanvas.width, compositeCanvas.height);
+        compositeCtx.drawImage(currentImage, offsetX, offsetY, newW, newH);
+    }
 
-  // Draw the detection overlays
-  compositeCtx.drawImage(canvas, 0, 0);
+    // Draw the detection overlays
+    compositeCtx.drawImage(canvas, 0, 0);
 
-  compositeCanvas.toBlob(async (blob) => {
-      if (!blob) return alert("❌ Failed to get image blob");
+    showUploadingModal();
+
+    compositeCanvas.toBlob(async (blob) => {
+        if (!blob) {
+          hideUploadingModal();
+          return alert("❌ Failed to get image blob");
+        }
   
       // Create FormData for file upload
       const formData = new FormData();
@@ -161,12 +175,12 @@ saveBtn.addEventListener("click", () => {
       formData.append('time', new Date().toISOString());
       formData.append('locationNote', 'GPS');
 
-      try {
-          const res = await fetch("/upload-detection", {
-              method: "POST",
-              body: formData,
-              credentials: "include",
-          });
+        try {
+            const res = await fetch("/upload-detection", {
+                method: "POST",
+                body: formData,
+                credentials: "include",
+            });
 
           if (!res.ok) {
               const contentType = res.headers.get("content-type");
@@ -182,15 +196,17 @@ saveBtn.addEventListener("click", () => {
               throw new Error(errorMessage);
           }
 
-          const result = await res.json();
-          detectionSession.savedReports++;
-          updateDetectionSessionSummary();
-          showToast("✅ Saved to server: " + result.message, "success");
-          
-      } catch (err) {
-          showToast("❌ Failed to save image to server.", "error");
-          console.error(err);
-      }
+            const result = await res.json();
+            detectionSession.savedReports++;
+            updateDetectionSessionSummary();
+            showToast("✅ Saved to server: " + result.message, "success");
+
+        } catch (err) {
+            showToast("❌ Failed to save image to server.", "error");
+            console.error(err);
+        } finally {
+            hideUploadingModal();
+        }
 
       // נמחק את התמונה אחרי 5 שניות
       setTimeout(() => {
@@ -206,8 +222,8 @@ saveBtn.addEventListener("click", () => {
               ctx.clearRect(0, 0, imagePreview.width, imagePreview.height);           // נמחק את התמונה המוצגת ב-canvas
           }
       }, 2500);
-  }, "image/jpeg", 0.95);
-});
+    }, "image/jpeg", 0.95);
+  });
   
   // Enhanced Road Damage Detection Model Configuration
   const FIXED_SIZE = 512; // Optimized for road_damage_detection_last_version.onnx
