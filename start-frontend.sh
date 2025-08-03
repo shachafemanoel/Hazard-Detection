@@ -49,5 +49,5 @@ echo "   🔗 API Service: ${API_URL:-https://hazard-api-production-production.u
 
 echo "🔄 Frontend is running. Press Ctrl+C to stop."
 
-# Wait for the process
-wait
+# Wait indefinitely to keep the script running in the background
+tail -f /dev/null

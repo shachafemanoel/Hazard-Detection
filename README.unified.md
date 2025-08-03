@@ -133,7 +133,7 @@ The system searches for models in this order:
 1. `/app/models/openvino/` (OpenVINO format)
 2. `/app/models/pytorch/` (PyTorch format)  
 3. `/app/api/best_openvino_model/` (Legacy OpenVINO)
-4. `/app/public/object_detecion_model/` (Legacy PyTorch/ONNX)
+4. `/app/public/object_detection_model/` (Legacy PyTorch/ONNX)
 
 ### Custom Models
 

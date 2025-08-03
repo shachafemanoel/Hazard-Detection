@@ -1,4 +1,5 @@
-import { getReports } from './reports-api.js';
+// Alias getReports to avoid clashing with any global declarations
+import { getReports as fetchAllReports } from './reports-api.js';
 import { renderReports } from './modals.js';
 
 export function filterReportsByType(reports, term) {
@@ -9,39 +10,29 @@ export function filterReportsByType(reports, term) {
   });
 }
 
-export function initControls({ toggleHeatmap, centerMap, plotReports } = {}) {
+export function initControls({ toggleHeatmap, centerMap, plotReports, heatLayer } = {}) {
   const searchInput = document.getElementById('report-search-input');
   if (searchInput) {
     searchInput.addEventListener('input', (e) => {
-      const filtered = filterReportsByType(getReports(), e.target.value);
+      const filtered = filterReportsByType(fetchAllReports(), e.target.value);
       renderReports(filtered);
       if (typeof plotReports === 'function') plotReports(filtered);
     });
   }
 
-  const hazardDropdownBtn = document.getElementById('hazard-type-dropdown-btn');
-  const hazardDropdownMenu = document.getElementById('hazard-type-dropdown-menu');
-  if (hazardDropdownBtn && hazardDropdownMenu) {
-    hazardDropdownBtn.addEventListener('click', () => {
-      hazardDropdownMenu.classList.toggle('active');
-    });
-
-    hazardDropdownMenu.querySelectorAll('.hazard-type-option').forEach(option => {
-      option.addEventListener('click', () => {
-        const type = option.dataset.value;
-        const label = document.getElementById('current-hazard-type-label');
-        if (label) label.textContent = option.textContent;
-        hazardDropdownMenu.classList.remove('active');
-        const filtered = type ? getReports().filter(r => r.type === type) : getReports();
-        renderReports(filtered);
-        if (typeof plotReports === 'function') plotReports(filtered);
-      });
+  const typeFilter = document.getElementById('hazard-type-filter');
+  if (typeFilter) {
+    typeFilter.addEventListener('change', () => {
+      const type = typeFilter.value;
+      const filtered = type ? fetchAllReports().filter(r => r.type === type) : fetchAllReports();
+      renderReports(filtered);
+      if (typeof plotReports === 'function') plotReports(filtered);
     });
   }
 
   const heatmapBtn = document.getElementById('toggle-heatmap');
   if (heatmapBtn && typeof toggleHeatmap === 'function') {
-    heatmapBtn.addEventListener('click', toggleHeatmap);
+    heatmapBtn.addEventListener('click', () => toggleHeatmap(heatLayer));
   }
 
   const centerBtn = document.getElementById('center-map');

@@ -1,0 +1,40 @@
+# Simple Node.js Dockerfile for Hazard Detection Frontend
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install system dependencies for canvas (if needed)
+RUN apk add --no-cache \
+    bash \
+    curl \
+    build-base \
+    cairo-dev \
+    jpeg-dev \
+    pango-dev \
+    giflib-dev \
+    pixman-dev \
+    libjpeg-turbo-dev
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm ci --omit=dev && npm cache clean --force
+
+# Copy application files
+COPY server/ ./server/
+COPY public/ ./public/
+
+# Environment
+ENV NODE_ENV=production
+ENV PORT=3000
+
+# Expose port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-3000}/health || exit 1
+
+# Start the application
+CMD ["npm", "start"]

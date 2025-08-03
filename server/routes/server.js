@@ -33,6 +33,7 @@ import os from 'os'; // מייבאים את המודול os
 import { v2 as cloudinary } from 'cloudinary';
 import multer from 'multer';
 import streamifier from 'streamifier';
+const { keys } = Object;
 
 // 🌍 ES Modules __dirname polyfill
 const __filename = fileURLToPath(import.meta.url);
@@ -95,9 +96,9 @@ app.use(express.static(path.join(__dirname, '../../public'), {
 }));
 
 // Specific route for ONNX model files
-app.get('/object_detecion_model/*.onnx', (req, res) => {
+app.get('/object_detection_model/*.onnx', (req, res) => {
     const modelName = req.params[0];
-    const modelPath = path.join(__dirname, '../../public/object_detecion_model', `${modelName}.onnx`);
+    const modelPath = path.join(__dirname, '../../public/object_detection_model', `${modelName}.onnx`);
     
     console.log(`📂 Requesting ONNX model: ${modelName}.onnx`);
     console.log(`📁 Full path: ${modelPath}`);
@@ -634,6 +635,16 @@ app.get('/logout', (req, res) => {
     });
 });
 
+// Authentication status endpoint used by the frontend to determine if a
+// user session is active. This mirrors the non-API auth routes (login,
+// logout) by living at the top level rather than under /api.
+app.get('/auth/status', (req, res) => {
+    res.json({
+        authenticated: req.isAuthenticated(),
+        user: req.user || null
+    });
+});
+
 // Health check endpoint (enhanced with simple mode support)
 app.get('/health', (req, res) => {
     res.json({
@@ -758,8 +769,15 @@ async function getReports() {
             
             const batchPromises = batchKeys.map(async (key) => {
                 try {
-                    const report = await client.json.get(key);
-                    return report;
+                    // Try to get as JSON first
+                    let report = await client.json.get(key);
+                    if (report) return report;
+
+                    // Fallback to getting as a string and parsing
+                    const str = await client.get(key);
+                    if (str) return JSON.parse(str);
+
+                    return null;
                 } catch (err) {
                     console.warn(`Skipping corrupted report ${key}:`, err.message);
                     return null;
@@ -904,6 +922,13 @@ app.get('/api/reports', async (req, res) => {
                     if (!reporter.includes(search)) match = false;
                 }
 
+                // Filter by the current user's reports
+                if (match && filters.my_reports === 'true' && req.isAuthenticated()) {
+                    if (report.reportedBy !== req.user.username) {
+                        match = false;
+                    }
+                }
+
                 if (match) {
                     totalMatchingCount++;
                     // Only include in result if within pagination range
@@ -934,7 +959,8 @@ app.get('/api/reports', async (req, res) => {
             },
             filters: filters,
             performance: {
-                totalKeys: keys.length,
+                // Use the number of retrieved reports instead of undefined Redis keys
+                totalKeys: allReports.length,
                 processedInMs: Date.now() - startTime
             }
         };
@@ -1126,13 +1152,12 @@ app.patch('/api/reports/:id', async (req, res) => {
     const reportKey = `report:${reportId}`;
 
     try {
-        // Get existing report
-        const existingReport = await client.get(reportKey);
-        if (!existingReport) {
+        const existingReportStr = await client.get(reportKey);
+        if (!existingReportStr) {
             return res.status(404).json({ error: 'Report not found' });
         }
 
-        const report = JSON.parse(existingReport);
+        const report = JSON.parse(existingReportStr);
         
         // Update only the fields that are provided
         const updates = req.body;
@@ -1149,6 +1174,7 @@ app.patch('/api/reports/:id', async (req, res) => {
         // Save back to Redis
         await client.set(reportKey, JSON.stringify(report));
 
+        broadcastSSEEvent({ type: 'report_updated', report });
         res.json({ message: 'Report updated successfully', report });
     } catch (err) {
         console.error('Error updating report:', err);
@@ -1210,7 +1236,7 @@ async function emailExists(email) {
         if (userData.email === email) {  
             return true; // מייל קיים  
         }  
-    }  
+    }
     return false; // מייל לא קיים  
 }  
 
@@ -1244,14 +1270,23 @@ app.post('/register', async (req, res) => {
         return res.status(500).json({ error: 'Internal server error' });
     }
 
-    req.session.user = {  
-        email,  
-        username  
-    };  
+    // Use Passport login to properly authenticate the new user
+    req.login(newUser, function(err) {
+        if (err) {
+            console.error('Passport login error after registration:', err);
+            return res.status(500).json({ error: 'Registration successful but login failed' });
+        }
+        
+        // Also save to session for compatibility
+        req.session.user = {  
+            email,  
+            username  
+        };  
 
-    res.status(201).json({   
-        message: 'User registered successfully',   
-        user: { email, username }   
+        res.status(201).json({   
+            message: 'User registered successfully',   
+            user: { email, username }   
+        });
     });  
 });
 
@@ -1267,20 +1302,33 @@ app.post('/login', async (req, res) => {
     // Simple mode: accept any credentials for testing
     if (isSimpleMode) {
         // For testing purposes, accept any email/password combination
-        req.session = req.session || {};
-        req.session.user = {
+        const simpleUser = {
             email: email,
-            username: email.split('@')[0] // Use email prefix as username
+            username: email.split('@')[0], // Use email prefix as username
+            type: 'user'
         };
         
-        return res.json({
-            success: true,
-            message: 'Login successful (simple mode)',
-            user: {
+        req.login(simpleUser, function(err) {
+            if (err) {
+                console.error('Passport login error in simple mode:', err);
+                return res.status(500).json({ error: 'Login failed' });
+            }
+            
+            req.session.user = {
                 email: email,
                 username: email.split('@')[0]
-            }
+            };
+            
+            return res.json({
+                success: true,
+                message: 'Login successful (simple mode)',
+                user: {
+                    email: email,
+                    username: email.split('@')[0]
+                }
+            });
         });
+        return; // Exit early to prevent further execution
     }
 
     // Full mode: check Redis
@@ -1296,13 +1344,22 @@ app.post('/login', async (req, res) => {
 
             if (user.email === email) {
                 if (user.password === password) {
-                    // ✅ שמירה בסשן – כמו שעשית בהתחברות עם גוגל
-                    req.session.user = {
-                        email: user.email,
-                        username: user.username
-                    };
+                    // ✅ Use Passport login to properly authenticate the user
+                    req.login(user, function(err) {
+                        if (err) {
+                            console.error('Passport login error:', err);
+                            return res.status(500).json({ error: 'Login failed' });
+                        }
+                        
+                        // Also save to session for compatibility
+                        req.session.user = {
+                            email: user.email,
+                            username: user.username
+                        };
 
-                    return res.status(200).json({ message: 'Login successful', user: { email, username: user.username } });
+                        return res.status(200).json({ message: 'Login successful', user: { email, username: user.username } });
+                    });
+                    return; // Exit early to prevent further execution
                 } else {
                     return res.status(401).json({ error: 'Incorrect password' });
                 }
@@ -1421,6 +1478,73 @@ app.post('/reset-password', async (req, res) => {
     res.status(200).json({ message: 'Password reset successfully' });
 });
 
+
+// New endpoint for camera detection images with bounding boxes
+app.post('/api/upload-detection', upload.single('image'), async (req, res) => {
+    try {
+        console.log("📸 Camera detection upload request");
+        
+        // Check if file was uploaded
+        if (!req.file) {
+            return res.status(400).json({ error: 'No image uploaded' });
+        }
+
+        // Authentication check (skip in simple mode)
+        if (!isSimpleMode && !req.isAuthenticated()) {
+            console.log("Authentication failed for detection upload");
+            return res.status(401).json({ error: 'Authentication required' });
+        }
+
+        // Parse metadata if provided
+        let metadata = {};
+        if (req.body.metadata) {
+            try {
+                metadata = JSON.parse(req.body.metadata);
+            } catch (e) {
+                console.warn("Failed to parse metadata:", e.message);
+            }
+        }
+
+        // Upload to Cloudinary with detection folder
+        const uploadResult = await new Promise((resolve, reject) => {
+            const uploadStream = cloudinary.uploader.upload_stream(
+                {
+                    folder: 'detections',
+                    public_id: `detection_${Date.now()}`,
+                    resource_type: 'image',
+                    transformation: [
+                        { quality: 'auto:good' },
+                        { fetch_format: 'auto' }
+                    ]
+                },
+                (error, result) => {
+                    if (error) reject(error);
+                    else resolve(result);
+                }
+            );
+            
+            streamifier.createReadStream(req.file.buffer).pipe(uploadStream);
+        });
+
+        console.log("✅ Detection image uploaded to Cloudinary:", uploadResult.secure_url);
+
+        // Return the URL and metadata
+        res.json({
+            success: true,
+            url: uploadResult.secure_url,
+            public_id: uploadResult.public_id,
+            metadata: metadata,
+            message: 'Detection image uploaded successfully'
+        });
+
+    } catch (error) {
+        console.error("❌ Detection upload error:", error);
+        res.status(500).json({ 
+            error: 'Failed to upload detection image',
+            details: error.message
+        });
+    }
+});
 
 app.post('/upload-detection', upload.single('file'), async (req, res) => {
     console.error(req);

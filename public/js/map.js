@@ -1,137 +1,105 @@
-import Map from 'ol/Map.js';
-import View from 'ol/View.js';
-import TileLayer from 'ol/layer/Tile.js';
-import OSM from 'ol/source/OSM.js';
-import VectorLayer from 'ol/layer/Vector.js';
-import VectorSource from 'ol/source/Vector.js';
-import Heatmap from 'ol/layer/Heatmap.js';
-import Feature from 'ol/Feature.js';
-import Point from 'ol/geom/Point.js';
-import Overlay from 'ol/Overlay.js';
-import { fromLonLat } from 'ol/proj.js';
-
-export let map;
+let map;
+let markerCluster;
 let heatLayer;
-let markersLayer;
-let popupOverlay;
-let popupContent;
 
-export function initMap() {
-  const israel = [35.2137, 31.7683];
+function setupMobileMapToolbar() {
+  const mapEl = document.getElementById('map');
+  const toolbar = document.createElement('div');
+  toolbar.className = 'mobile-map-toolbar';
 
-  markersLayer = new VectorLayer({
-    source: new VectorSource()
-  });
+  const toggleBtn = document.getElementById('toggle-heatmap');
+  const centerBtn = document.getElementById('center-map');
 
-  heatLayer = new Heatmap({
-    source: new VectorSource(),
-    blur: 15,
-    radius: 25,
-    visible: false
-  });
+  const zoomIn = document.createElement('button');
+  zoomIn.id = 'mobile-zoom-in';
+  zoomIn.innerHTML = '<i class="fas fa-plus"></i>';
 
-  map = new Map({
-    target: 'map',
-    layers: [
-      new TileLayer({
-        source: new OSM()
-      }),
-      markersLayer,
-      heatLayer
-    ],
-    view: new View({
-      center: fromLonLat(israel),
-      zoom: 8
-    })
-  });
+  const zoomOut = document.createElement('button');
+  zoomOut.id = 'mobile-zoom-out';
+  zoomOut.innerHTML = '<i class="fas fa-minus"></i>';
 
-  const container = document.createElement('div');
-  container.className = 'ol-popup';
-  popupContent = document.createElement('div');
-  container.appendChild(popupContent);
-  document.getElementById('map').appendChild(container);
-  popupOverlay = new Overlay({ element: container });
-  map.addOverlay(popupOverlay);
+  if (toggleBtn) toolbar.appendChild(toggleBtn);
+  if (centerBtn) toolbar.appendChild(centerBtn);
+  toolbar.appendChild(zoomIn);
+  toolbar.appendChild(zoomOut);
+  mapEl.appendChild(toolbar);
 
-  map.on('singleclick', (evt) => {
-    const feature = map.forEachFeatureAtPixel(evt.pixel, f => f);
-    if (feature) {
-      const props = feature.getProperties();
-      const report = props.report || {};
-      const time = report.time ? new Date(report.time).toLocaleString() : '';
-      popupContent.innerHTML = `<strong>${report.type || ''}</strong><br>${time}`;
-      popupOverlay.setPosition(feature.getGeometry().getCoordinates());
-    } else {
-      popupOverlay.setPosition(undefined);
-    }
-  });
+  const mapControls = document.querySelector('.map-controls');
+  mapControls?.remove();
+
+  zoomIn.addEventListener('click', () => map.zoomIn());
+  zoomOut.addEventListener('click', () => map.zoomOut());
 }
 
-function parseCoords(report) {
-  // First check if report has lat/lon properties (from geocoding)
-  if (report.lat && report.lon && isFinite(report.lat) && isFinite(report.lon)) {
-    return [report.lat, report.lon];
+export function initializeMap() {
+  const isMobile = window.innerWidth <= 768;
+  map = L.map('map', { zoomControl: !isMobile }).setView([32.0853, 34.7818], 13);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  }).addTo(map);
+
+  markerCluster = L.markerClusterGroup();
+  map.addLayer(markerCluster);
+
+  heatLayer = L.heatLayer([], { radius: 25 });
+
+  if (isMobile) {
+    setupMobileMapToolbar();
   }
-  
-  // Then check the location field
-  const loc = report.location;
-  if (!loc) return null;
-  
-  if (Array.isArray(loc) && loc.length === 2) {
-    const [lat, lng] = loc.map(Number);
-    if (isFinite(lat) && isFinite(lng)) return [lat, lng];
-  }
-  if (typeof loc === 'object') {
-    const { lat, lng } = loc;
-    if (isFinite(lat) && isFinite(lng)) return [lat, lng];
-  }
-  if (typeof loc === 'string') {
-    try {
-      const obj = JSON.parse(loc);
-      return parseCoords({ location: obj });
-    } catch {
-      const parts = loc.split(',').map(p => parseFloat(p));
-      if (parts.length === 2 && parts.every(isFinite)) return parts;
-    }
-  }
-  return null;
+
+  return { heatLayer };
 }
 
-export function plotReports(reports = []) {
-  if (!map || !markersLayer || !heatLayer) return;
-  const markerSrc = markersLayer.getSource();
-  const heatSrc = heatLayer.getSource();
-  markerSrc.clear();
-  heatSrc.clear();
-
-  const features = [];
-
-  reports.forEach((r) => {
-    const coords = parseCoords(r);
-    if (!coords) return;
-    const feature = new Feature({
-      geometry: new Point(fromLonLat([coords[1], coords[0]])),
-      report: r
-    });
-    features.push(feature);
-  });
-
-  markerSrc.addFeatures(features);
-  heatSrc.addFeatures(features.map(f => f.clone()));
-
-  if (features.length) {
-    map.getView().fit(markerSrc.getExtent(), { padding: [50, 50, 50, 50] });
+export function toggleHeatmap(layer = heatLayer) {
+  if (!map || !layer) return;
+  if (map.hasLayer(layer)) {
+    map.removeLayer(layer);
+  } else {
+    map.addLayer(layer);
   }
-}
-
-export function toggleHeatmap() {
-  if (!heatLayer) return;
-  heatLayer.setVisible(!heatLayer.getVisible());
 }
 
 export function centerMap() {
-  if (!map) return;
-  const israel = fromLonLat([35.2137, 31.7683]);
-  map.getView().setCenter(israel);
-  map.getView().setZoom(8);
+  if (map) map.setView([32.0853, 34.7818], 13);
+}
+
+export async function geocode(address) {
+  try {
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`);
+    const data = await response.json();
+    if (data && data.length > 0) {
+      const { lat, lon } = data[0];
+      return [Number(lat), Number(lon)];
+    }
+    return null;
+  } catch (error) {
+    console.error('Geocoding error:', error);
+    return null;
+  }
+}
+
+export async function plotReports(reports) {
+  if (!map || !markerCluster) return;
+
+  markerCluster.clearLayers();
+  const heatPoints = [];
+
+  for (const report of reports) {
+    let coords;
+    if (report.lat && report.lon) {
+      coords = [report.lat, report.lon];
+    } else if (report.address) {
+      coords = await geocode(report.address);
+    }
+
+    if (coords) {
+      const marker = L.marker(coords);
+      marker.bindPopup(`<b>ID:</b> ${report.id}<br><b>Type:</b> ${report.type}<br><b>Status:</b> ${report.status}`);
+      markerCluster.addLayer(marker);
+      heatPoints.push(coords);
+    }
+  }
+
+  heatLayer.setLatLngs(heatPoints);
 }

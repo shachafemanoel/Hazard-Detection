@@ -16,10 +16,10 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy minimal requirements
-COPY unified-requirements.slim.txt /app/unified-requirements.txt
+COPY requirements.txt /app/requirements.txt
 
 # Install Python dependencies
-RUN pip install --no-cache-dir --user -r /app/unified-requirements.txt
+RUN pip install --no-cache-dir --user -r /app/requirements.txt
 
 # Stage 3: Final Runtime
 FROM python:3.11-slim
@@ -52,7 +52,7 @@ COPY package*.json ./
 
 # Copy models to unified location (only from public directory)
 RUN mkdir -p /app/models/pytorch
-COPY public/object_detecion_model/ ./models/pytorch/
+COPY public/object_detection_model/ ./models/pytorch/
 
 # Create CPU detection script
 COPY <<EOF /app/scripts/detect-cpu.py

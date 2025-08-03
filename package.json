@@ -4,7 +4,7 @@
   "description": "Hazard Detection Project",
   "main": "server/routes/server.js",
   "scripts": {
-    "start": "cross-env PORT=$PORT node server/routes/server.js",
+    "start": "node server/routes/server.js",
     "dev": "nodemon server/routes/server.js",
     "build": "echo 'No build step needed'",
     "stream:check": "node scripts/stream-check.js",
@@ -23,7 +23,6 @@
     "concurrently": "^8.2.2",
     "connect-redis": "^8.0.3",
     "cors": "^2.8.5",
-    "cross-env": "^7.0.3",
     "dotenv": "^16.6.1",
     "express": "^4.21.2",
     "express-session": "^1.18.1",

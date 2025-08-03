@@ -29,10 +29,10 @@ document.addEventListener("DOMContentLoaded", () => {
   async function loadModel() {
     try {
       try {
-        session = await ort.InferenceSession.create("/object_detecion_model/road_damage_detection_last_version.onnx", { executionProviders: ['webgl'] });
+        session = await ort.InferenceSession.create("/object_detection_model/road_damage_detection_last_version.onnx", { executionProviders: ['webgl'] });
       } catch (err) {
         console.warn("WebGL backend failed, falling back:", err);
-        session = await ort.InferenceSession.create("/object_detecion_model/road_damage_detection_last_version.onnx");
+        session = await ort.InferenceSession.create("/object_detection_model/road_damage_detection_last_version.onnx");
       }
       console.log("✅ YOLO model loaded (live camera)!");
     } catch (err) {

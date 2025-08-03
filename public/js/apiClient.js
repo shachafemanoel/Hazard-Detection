@@ -1,22 +1,22 @@
-// Enhanced apiClient.js with private-first realtime connectivity
-// Backwards compatible with existing API while adding new realtime features
-
+// apiClient.js
 const DEFAULT_TIMEOUT = 5000;
-let API_URL = "https://hazard-api-production-production.up.railway.app";
+// Always talk to the backend through the same origin proxy
+// exposed by server.js under the /api/v1 prefix
+let API_URL = '/api/v1';
 
-// Legacy API functions (maintained for backwards compatibility)
-export async function loadApiConfig() {
+async function loadApiConfig() {
+  // Previously this function fetched remote configuration and adjusted
+  // the API base URL to an external service. The server now proxies all
+  // requests, so we simply ensure the base URL points to the proxy.
   try {
-    const res = await fetch("/api/config");
-    const { apiUrl } = await res.json();
-    API_URL = apiUrl.replace(/:8000$/, ""); // Remove port 8000 if present
-    console.log("🔧 API configuration loaded:", { apiUrl: API_URL });
+    await fetch('/api/config');
+    console.log('🔧 API configuration loaded via proxy:', API_URL);
   } catch (error) {
-    console.warn("⚠️ Failed to load API config, using defaults:", error);
+    console.warn('⚠️ Failed to load API config, using proxy defaults:', error);
   }
 }
 
-export async function testApiConnection() {
+async function testApiConnection() {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
   try {
@@ -53,7 +53,7 @@ export async function testApiConnection() {
   }
 }
 
-export async function startApiSession() {
+async function startApiSession() {
   try {
     const res = await fetch(`${API_URL}/session/start`, { 
       method: "POST",
@@ -76,7 +76,7 @@ export async function startApiSession() {
   }
 }
 
-export async function detectWithApi(sessionId, blob) {
+async function detectWithApi(sessionId, blob) {
   try {
     const form = new FormData();
     form.append("file", blob, 'frame.jpg');
@@ -106,7 +106,7 @@ export async function detectWithApi(sessionId, blob) {
   }
 }
 
-export async function endApiSession(sessionId) {
+async function endApiSession(sessionId) {
   try {
     const res = await fetch(`${API_URL}/session/${sessionId}/end`, { 
       method: "POST" 
@@ -128,135 +128,16 @@ export async function endApiSession(sessionId) {
 }
 
 // Export API_URL for debugging purposes
-export function getApiUrl() {
+function getApiUrl() {
   return API_URL;
 }
 
-// NEW: Enhanced realtime client factory function
-export function createRealtimeClient(config = {}) {
-  // Ensure RealtimeClient is available
-  if (typeof window.createRealtimeClient === 'function') {
-    return window.createRealtimeClient({
-      timeout: config.timeout || 30000,
-      maxRetries: config.maxRetries || 5,
-      backoffMs: config.backoffMs || 500,
-      authToken: config.authToken,
-      networkPreference: config.networkPreference || 'auto', // auto, private, public
-      ...config
-    });
-  } else {
-    console.error('RealtimeClient not available. Include realtimeClient.js first.');
-    throw new Error('RealtimeClient not available');
-  }
-}
-
-// NEW: Smart API client that automatically selects best available method
-export class SmartApiClient {
-  constructor(config = {}) {
-    this.config = config;
-    this.realtimeClient = null;
-    this.fallbackToLegacy = false;
-    this.sessionId = null;
-  }
-
-  async initialize() {
-    try {
-      // Try to create realtime client first
-      this.realtimeClient = createRealtimeClient(this.config);
-      await this.realtimeClient.connect();
-      console.log('🚀 Smart API Client: Using enhanced realtime client');
-      return 'realtime';
-    } catch (error) {
-      console.warn('⚠️ Realtime client failed, falling back to legacy API:', error.message);
-      this.fallbackToLegacy = true;
-      
-      // Fallback to legacy session-based API
-      try {
-        await loadApiConfig();
-        const isHealthy = await testApiConnection();
-        if (isHealthy) {
-          this.sessionId = await startApiSession();
-          console.log('🔄 Smart API Client: Using legacy session API');
-          return 'legacy';
-        }
-      } catch (legacyError) {
-        console.error('❌ Legacy API also failed:', legacyError.message);
-        throw new Error('No API methods available');
-      }
-    }
-  }
-
-  async detect(payload) {
-    if (this.realtimeClient && !this.fallbackToLegacy) {
-      // Use realtime client
-      return new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('Detection timeout'));
-        }, this.config.timeout || 30000);
-
-        this.realtimeClient.onMessage((result) => {
-          clearTimeout(timeout);
-          resolve(result);
-        });
-
-        this.realtimeClient.onError((error) => {
-          clearTimeout(timeout);
-          reject(error);
-        });
-
-        this.realtimeClient.send(payload);
-      });
-    } else if (this.sessionId) {
-      // Use legacy API
-      return await detectWithApi(this.sessionId, payload);
-    } else {
-      throw new Error('No active connection available');
-    }
-  }
-
-  async disconnect() {
-    if (this.realtimeClient && !this.fallbackToLegacy) {
-      await this.realtimeClient.disconnect();
-    } else if (this.sessionId) {
-      await endApiSession(this.sessionId);
-      this.sessionId = null;
-    }
-  }
-
-  onMessage(callback) {
-    if (this.realtimeClient && !this.fallbackToLegacy) {
-      this.realtimeClient.onMessage(callback);
-    }
-  }
-
-  onError(callback) {
-    if (this.realtimeClient && !this.fallbackToLegacy) {
-      this.realtimeClient.onError(callback);
-    }
-  }
-
-  onStatus(callback) {
-    if (this.realtimeClient && !this.fallbackToLegacy) {
-      this.realtimeClient.onStatus(callback);
-    }
-  }
-
-  isConnected() {
-    if (this.realtimeClient && !this.fallbackToLegacy) {
-      return this.realtimeClient.isConnected();
-    }
-    return !!this.sessionId;
-  }
-
-  getStatus() {
-    if (this.realtimeClient && !this.fallbackToLegacy) {
-      return this.realtimeClient.getStatus();
-    }
-    return this.sessionId ? 'connected' : 'disconnected';
-  }
-}
-
-// NEW: Easy-to-use smart client factory
-export function createSmartApiClient(config = {}) {
-  return new SmartApiClient(config);
+// Make functions globally available
+if (typeof window !== 'undefined') {
+  window.loadApiConfig = loadApiConfig;
+  window.testApiConnection = testApiConnection;
+  window.startApiSession = startApiSession;
+  window.detectWithApi = detectWithApi;
+  window.endApiSession = endApiSession;
+  window.getApiUrl = getApiUrl;
 }

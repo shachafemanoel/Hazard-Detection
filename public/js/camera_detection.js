@@ -5,14 +5,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   const startBtn = document.getElementById("start-camera");
   const stopBtn = document.getElementById("stop-camera");
   const switchCameraBtn = document.getElementById("switch-camera");
+  const settingsBtn = document.getElementById("settings-btn");
   const video = document.getElementById("camera-stream");
   const canvas = document.getElementById("overlay-canvas");
   const ctx = canvas.getContext("2d");
   const sensitivitySlider = document.getElementById("sensitivity-slider");
+  const settingsPanel = document.getElementById("settings-panel");
+  const loadingOverlay = document.getElementById("loading-overlay");
   
   // Status and stats elements
   const connectionStatus = document.getElementById("connection-status");
-  const loadingOverlay = document.getElementById("loading-overlay");
   const loadingStatus = document.getElementById("loading-status");
   const loadingProgressBar = document.getElementById("loading-progress-bar");
   const fpsDisplay = document.getElementById("fps-display");
@@ -25,9 +27,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const fpsBadge = document.getElementById("fps-badge");
 
   // Summary modal elements
-  const summaryModalOverlay = document.getElementById("summary-modal-overlay");
-  const summaryModal = document.getElementById("summary-modal");
-  const closeSummaryBtn = document.getElementById("close-summary");
+  const summaryModal = new bootstrap.Modal(document.getElementById('summaryModal'));
   const exportSummaryBtn = document.getElementById("export-summary");
   const viewDashboardBtn = document.getElementById("view-dashboard");
   const totalDetectionsCount = document.getElementById("total-detections-count");
@@ -36,25 +36,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   const detectionsGrid = document.getElementById("detections-grid");
   const savedReportsList = document.getElementById("saved-reports-list");
 
-  // Enhanced Road Damage Detection Configuration
-  const FIXED_SIZE = 480; // Optimized input size for real-time detection
-  let API_URL = "https://hazard-api-production-production.up.railway.app";
-  
-  // NEW: Import the enhanced API client modules
-  import { createSmartApiClient, testApiConnection, loadApiConfig } from './apiClient.js';
-  
-  // Road Damage Classes (mapping to model's 10 classes)
-  const classNames = [
-    'Alligator Crack',    // 0: Interconnected cracking resembling alligator skin
-    'Block Crack',        // 1: Rectangular crack patterns in pavement
-    'Crosswalk Blur',     // 2: Faded or unclear crosswalk markings
-    'Lane Blur',          // 3: Faded or unclear lane markings
-    'Longitudinal Crack', // 4: Cracks parallel to traffic direction
-    'Manhole',            // 5: Manhole covers and surrounding issues
-    'Patch Repair',       // 6: Previous repair work areas
-    'Pothole',            // 7: Circular/oval holes in road surface
-    'Transverse Crack',   // 8: Cracks perpendicular to traffic direction
-    'Wheel Mark Crack'    // 9: Cracks caused by wheel loading
+  // Constants
+  const FIXED_SIZE = 480;
+  const API_HEALTH_CHECK_INTERVAL = 10000; // 10 seconds
+  const SESSION_UPDATE_INTERVAL = 1000; // 1 second
+  const DETECTION_SAVE_INTERVAL = 120; // frames
+  const PERFORMANCE_UPDATE_INTERVAL = 1000; // 1 second
+
+  // Road Damage Classes
+  const CLASS_NAMES = [
+    'Alligator Crack', 'Block Crack', 'Crosswalk Blur', 'Lane Blur',
+    'Longitudinal Crack', 'Manhole', 'Patch Repair', 'Pothole',
+    'Transverse Crack', 'Wheel Mark Crack'
   ];
 
   // Camera Detection Session Tracking
@@ -121,16 +114,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   
   // Function to show camera session summary
   function showCameraSessionSummary() {
-    // This will integrate with the existing camera summary modal
-    const sessionData = {
-      duration: Date.now() - cameraSession.startTime,
-      totalDetections: cameraSession.totalDetections,
-      uniqueHazards: Array.from(cameraSession.uniqueHazards),
-      detections: cameraSession.detections
-    };
-    
-    console.log('Camera Session Summary:', sessionData);
-    // The existing camera summary modal will be enhanced to show this data
+    updateSummaryData();
+    summaryModal.show();
+  }
+
+  function hideSummaryModal() {
+    summaryModal.hide();
   }
   
   // Start periodic camera session updates
@@ -144,25 +133,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   setInterval(async () => {
     if (apiAvailable && useApi && detecting) {
       try {
-        const response = await fetch(`${API_URL}/health`, { 
-          method: 'GET',
-          signal: AbortSignal.timeout(2000) // 2 second timeout
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          
-          // Check if model status has improved
-          if (data.model_status && !data.model_status.includes('loading') && 
-              !data.model_status.includes('not loaded')) {
-            console.log("✅ Backend model is now ready:", data.model_status);
-            updateConnectionStatus('connected', `Enhanced Mode (${data.backend_type || 'AI'} Backend)`);
-            
-            // Reset failure count when model becomes ready
-            if (window.apiFailureCount > 0) {
-              window.apiFailureCount = 0;
-              console.log("🔄 Model ready - resetting API failure count");
-            }
+        const isHealthy = await window.testApiConnection();
+        if (isHealthy) {
+          console.log("✅ Periodic health check passed");
+          // Reset failure count when model becomes ready
+          if (window.apiFailureCount > 0) {
+            window.apiFailureCount = 0;
+            console.log("🔄 Model ready - resetting API failure count");
           }
         }
       } catch (error) {
@@ -256,54 +233,39 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Function to handle different API error types and implement fallbacks
   function handleApiError(error) {
     const errorMessage = error.message || '';
-    
-    // Handle model loading/startup errors (PyTorch, OpenVino, etc.)
-    if (errorMessage.includes('model not loaded') || 
-        errorMessage.includes('Service may still be starting') ||
-        errorMessage.includes('Model is loading') ||
-        errorMessage.includes('Backend not ready') ||
-        errorMessage.includes('PyTorch model not loaded') ||
-        errorMessage.includes('OpenVino model not loaded') ||
-        errorMessage.includes('Model initialization')) {
+    const modelLoadingErrors = ['model not loaded', 'Service may still be starting', 'Model is loading', 'Backend not ready', 'PyTorch model not loaded', 'OpenVino model not loaded', 'Model initialization'];
+    const backendDependencyErrors = ['ExportOptions', 'torch.onnx._internal.exporter'];
+    const imageFormatErrors = ['cvtColor', 'OpenCV'];
+    const sessionErrors = ['Session', '404'];
+
+    if (modelLoadingErrors.some(e => errorMessage.includes(e))) {
       console.warn('🚀 Backend model still loading - this is temporary during startup');
-      console.log('💡 Model backend (OpenVino/PyTorch) is initializing, will retry automatically');
-      
-      // Don't disable API completely, just skip this detection cycle
       showNotification('Backend model loading - will use when ready', 'info');
       updateConnectionStatus('connected', 'API Connected (Model Loading...)');
-      
-      return true; // Error handled, but keep API available
+      return true;
     }
-    
-    // Handle specific PyTorch ONNX export error
-    if (errorMessage.includes('ExportOptions') || errorMessage.includes('torch.onnx._internal.exporter')) {
+
+    if (backendDependencyErrors.some(e => errorMessage.includes(e))) {
       console.warn('🔧 PyTorch ONNX export error detected - this is a backend dependency issue');
-      console.log('💡 Suggestion: Backend needs PyTorch update or ONNX export fix');
-      
-      // Temporarily disable API detection for this session
       apiAvailable = false;
       useApi = false;
-      
       showNotification('Backend model error detected - using local detection only', 'warning');
       updateConnectionStatus('warning', 'Local ONNX Detection (Backend Issue)');
-      
-      return true; // Error handled
+      return true;
     }
-    
-    // Handle OpenCV image format errors
-    if (errorMessage.includes('cvtColor') || errorMessage.includes('OpenCV')) {
+
+    if (imageFormatErrors.some(e => errorMessage.includes(e))) {
       console.warn('🖼️ Image format error - adjusting image preprocessing');
-      return false; // Continue with other error handling
+      return false;
     }
-    
-    // Handle session/authentication errors
-    if (errorMessage.includes('Session') || errorMessage.includes('404')) {
+
+    if (sessionErrors.some(e => errorMessage.includes(e))) {
       console.log('🔄 Session expired - will create new session');
       apiSessionId = null;
-      return false; // Continue with session recreation
+      return false;
     }
-    
-    return false; // Unknown error, continue with default handling
+
+    return false;
   }
   
   // Make camera session functions globally available
@@ -312,7 +274,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.showCameraSessionSummary = showCameraSessionSummary;
   window.getOptimalVideoConstraints = getOptimalVideoConstraints;
 
-  // Enhanced detection configuration for real-time processing (10 classes)
+  // Enhanced detection configuration for real-time processing (10 classes) - following upload.js patterns
   const DETECTION_CONFIG = {
     minConfidence: 0.4,           // Higher for real-time to reduce noise
     nmsThreshold: 0.5,            // Higher NMS for more classes
@@ -370,10 +332,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   let sessionDetectionsSummary = []; // Store detailed detection information for summary
 
-  // NEW: Smart API client instance
-  let smartApiClient = null;
-  let realtimeClientActive = false;
-
   // Object tracking state
   let trackedObjects = new Map();
   let nextObjectId = 0;
@@ -383,6 +341,115 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Queue for detections awaiting upload
   const pendingDetections = [];
+
+  // Create detection image with bounding boxes
+  function createDetectionImage(videoElement, detections) {
+    const detectionCanvas = document.createElement('canvas');
+    const detectionCtx = detectionCanvas.getContext('2d');
+    
+    // Set canvas size to match video
+    detectionCanvas.width = videoElement.videoWidth || videoElement.clientWidth;
+    detectionCanvas.height = videoElement.videoHeight || videoElement.clientHeight;
+    
+    // Draw video frame
+    detectionCtx.drawImage(videoElement, 0, 0, detectionCanvas.width, detectionCanvas.height);
+    
+    // Draw detections on the image
+    detections.forEach((detection, index) => {
+      let [x1, y1, x2, y2, score, classId] = detection;
+      
+      // Fix class ID mapping
+      const correctedClassId = Math.floor(classId) - 1;
+      const classIndex = Math.max(0, correctedClassId);
+      const labelName = classNames[classIndex] || `Unknown Class ${classIndex}`;
+      
+      // Scale coordinates to canvas size
+      const scaleX = detectionCanvas.width / FIXED_SIZE;
+      const scaleY = detectionCanvas.height / FIXED_SIZE;
+      
+      if (!letterboxParams) return;
+      
+      const { offsetX, offsetY, newW, newH } = letterboxParams;
+      x1 = (x1 - offsetX) * scaleX * (detectionCanvas.width / newW);
+      y1 = (y1 - offsetY) * scaleY * (detectionCanvas.height / newH);
+      x2 = (x2 - offsetX) * scaleX * (detectionCanvas.width / newW);
+      y2 = (y2 - offsetY) * scaleY * (detectionCanvas.height / newH);
+      
+      const boxW = x2 - x1;
+      const boxH = y2 - y1;
+      
+      if (boxW < 1 || boxH < 1) return;
+      
+      // Draw bounding box
+      const color = hazardColors[labelName] || '#00FF00';
+      detectionCtx.strokeStyle = color;
+      detectionCtx.lineWidth = 3;
+      detectionCtx.strokeRect(x1, y1, boxW, boxH);
+      
+      // Draw label background
+      const text = `${labelName} ${(score * 100).toFixed(1)}%`;
+      detectionCtx.font = 'bold 14px Arial';
+      const textWidth = detectionCtx.measureText(text).width;
+      const labelHeight = 20;
+      
+      detectionCtx.fillStyle = color;
+      detectionCtx.fillRect(x1, y1 - labelHeight, textWidth + 10, labelHeight);
+      
+      // Draw label text
+      detectionCtx.fillStyle = '#000000';
+      detectionCtx.fillText(text, x1 + 5, y1 - 5);
+    });
+    
+    return detectionCanvas;
+  }
+
+  // Upload detection image to server
+  async function uploadToServer(canvas, detections) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(async (blob) => {
+        if (!blob) return reject("❌ No blob from canvas");
+
+        try {
+          const formData = new FormData();
+          formData.append('image', blob, `detection_${Date.now()}.jpg`);
+          formData.append('metadata', JSON.stringify({
+            detections: detections.map(det => {
+              const [x1, y1, x2, y2, score, classId] = det;
+              const correctedClassId = Math.floor(classId) - 1;
+              const classIndex = Math.max(0, correctedClassId);
+              return {
+                class: classNames[classIndex] || `Unknown Class ${classIndex}`,
+                confidence: score,
+                bbox: [x1, y1, x2, y2]
+              };
+            }),
+            timestamp: new Date().toISOString(),
+            source: 'live_camera'
+          }));
+
+          const response = await fetch('/api/upload-detection', {
+            method: 'POST',
+            body: formData
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            console.log("✅ Detection uploaded to server:", result);
+            resolve(result.url || result.path);
+          } else {
+            throw new Error(`Server upload failed: ${response.status}`);
+          }
+        } catch (error) {
+          console.warn("Server upload failed, using data URL:", error);
+          // Fallback to data URL
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        }
+      }, "image/jpeg", 0.9);
+    });
+  }
 
   // Geolocation data for saved detections
   let geoData = null;
@@ -437,225 +504,32 @@ document.addEventListener("DOMContentLoaded", async () => {
     text.textContent = message;
   }
 
-  // Show loading overlay with progress
+// Show loading overlay with progress
   function showLoading(message, progress = 0) {
-    loadingOverlay.classList.add('show');
     loadingStatus.textContent = message;
     loadingProgressBar.style.width = `${progress}%`;
+    loadingOverlay.style.display = 'flex';
   }
 
   // Hide loading overlay
   function hideLoading() {
-    loadingOverlay.classList.remove('show');
+    loadingOverlay.style.display = 'none';
   }
 
   // Show notification
   function showNotification(message, type = 'info') {
-    const container = document.getElementById('notifications-container');
-    const notification = document.createElement('div');
-    notification.className = `notification ${type}`;
-    notification.innerHTML = `
-      <i class="fas fa-${type === 'error' ? 'exclamation-triangle' : type === 'success' ? 'check-circle' : 'info-circle'}"></i>
-      <span class="notification-text">${message}</span>
-      <button onclick="this.parentElement.remove()"><i class="fas fa-times"></i></button>
-    `;
-    container.appendChild(notification);
-    
-    // Trigger animation
-    requestAnimationFrame(() => {
-      notification.classList.add('show');
-    });
-    
-    setTimeout(() => {
-      notification.classList.remove('show');
-      setTimeout(() => notification.remove(), 300);
-    }, 5000);
+    notify(message, type);
   }
 
-  // NEW: Enhanced API connection testing with smart client
-  async function initializeApiConnection() {
-    try {
-      // Try to initialize smart API client first
-      smartApiClient = createSmartApiClient({
-        timeout: 30000,
-        maxRetries: 3,
-        networkPreference: 'auto' // Use private-first connectivity
-      });
-      
-      const connectionType = await smartApiClient.initialize();
-      realtimeClientActive = (connectionType === 'realtime');
-      
-      // Set up event listeners for smart client
-      smartApiClient.onMessage((result) => {
-        console.log('🔥 Smart API detection result:', result);
-        // Handle detection results in the existing pipeline
-        handleApiDetectionResult(result);
-      });
-      
-      smartApiClient.onError((error) => {
-        console.warn('⚠️ Smart API error:', error.message);
-        // Fallback handled automatically by SmartApiClient
-      });
-      
-      smartApiClient.onStatus((status) => {
-        console.log('📊 Smart API status:', status);
-        updateSmartApiStatus(status, connectionType);
-      });
-      
-      apiAvailable = true;
-      useApi = true;
-      
-      const statusMessage = realtimeClientActive 
-        ? 'Enhanced Realtime Mode (Private-First)' 
-        : 'API Connected (Legacy Mode)';
-      updateConnectionStatus('connected', statusMessage);
-      showNotification(`Smart API initialized: ${connectionType} mode`, 'success');
-      
-      return true;
-    } catch (error) {
-      console.warn('🔄 Smart API failed, trying legacy connection:', error.message);
-      
-      // Fallback to legacy API testing
-      return await testApiConnectionLegacy();
-    }
-  }
-  
-  // Legacy API connection test (preserved for fallback)
-  async function testApiConnectionLegacy() {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-    
-    try {
-      const response = await fetch(`${API_URL}/health`, {
-        method: 'GET',
-        signal: controller.signal
-      });
 
-      if (response.ok) {
-        clearTimeout(timeoutId);
-        const data = await response.json();
-        console.log("✅ Legacy API service is available:", data);
-        
-        if (data.status === 'healthy') {
-          if (data.model_status && data.model_status.includes('error')) {
-            console.warn("⚠️ Backend model has issues:", data.model_status);
-            showNotification('Backend model issues detected - using local detection', 'warning');
-            apiAvailable = false;
-            useApi = false;
-            updateConnectionStatus('warning', 'Backend Issues - Local ONNX Only');
-            return false;
-          }
-          
-          apiAvailable = true;
-          useApi = true;
-          updateConnectionStatus('connected', 'Legacy API Mode');
-          showNotification('Legacy API connected', 'success');
-          return true;
-        }
-      }
-    } catch (error) {
-      console.log("🏠 Legacy API also not accessible");
-    } finally {
-      clearTimeout(timeoutId);
-    }
-
-    apiAvailable = false;
-    updateConnectionStatus('ready', 'Local ONNX Detection Mode');
-    console.log("🤖 Running in local detection mode - ONNX model will handle all detection");
-    return false;
-  }
-  
-  // NEW: Handle API detection results from smart client
-  function handleApiDetectionResult(result) {
-    if (!result.detections || !Array.isArray(result.detections)) {
-      console.warn("⚠️ Unexpected API response format:", result);
-      return [];
-    }
-    
-    // Convert API format to internal format
-    const convertedDetections = result.detections.map(det => {
-      const [x, y, width, height] = det.bbox || [0, 0, 0, 0];
-      const classIndex = classNames.indexOf(det.class_name);
-      
-      return [
-        x,                    // x1
-        y,                    // y1  
-        x + width,            // x2
-        y + height,           // y2
-        det.confidence,       // confidence
-        classIndex !== -1 ? classIndex : 0  // class_id
-      ];
-    });
-    
-    // Process through existing detection pipeline
-    drawResults(convertedDetections, true);
-    
-    console.log(`🎯 Smart API processed ${convertedDetections.length} detections`);
-    return convertedDetections;
-  }
-  
-  // NEW: Update status based on smart API client state
-  function updateSmartApiStatus(status, connectionType) {
-    const statusMessages = {
-      'connecting': 'Connecting to Smart API...',
-      'connected': realtimeClientActive ? 'Realtime Mode Active' : 'API Connected',
-      'uploading': 'Processing Detection...',
-      'disconnected': 'Disconnected'
-    };
-    
-    const message = statusMessages[status] || status;
-    updateConnectionStatus(status === 'disconnected' ? 'warning' : 'connected', message);
-  }
-
-  // Start API detection session following the fetch guide
-  async function startApiSession() {
-    if (!apiAvailable) return false;
-    
-    try {
-      const response = await fetch(`${API_URL}/session/start`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        apiSessionId = data.session_id;
-        console.log("✅ API session started:", apiSessionId);
-        return true;
-      } else {
-        const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
-        throw new Error(`Failed to start session: ${errorData.detail || response.statusText}`);
-      }
-    } catch (error) {
-      console.error("❌ Failed to start API session:", error);
-      apiAvailable = false;
-      updateConnectionStatus('warning', 'Session Failed - ONNX Only');
-      return false;
-    }
-  }
-
-  // End API detection session following the fetch guide
-  async function endApiSession() {
+  // End API detection session using API client
+  async function endApiSessionLocal() {
     if (!apiSessionId) return { message: "No active session" };
     
     try {
-      const response = await fetch(`${API_URL}/session/${apiSessionId}/end`, {
-        method: 'POST'
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log("✅ API session ended:", data);
-        apiSessionId = null;
-        return data;
-      } else {
-        const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
-        console.warn("⚠️ Session end warning:", errorData.detail);
-        apiSessionId = null;
-        return { message: "Session ended with warning" };
-      }
+      const result = await window.endApiSession(apiSessionId);
+      apiSessionId = null;
+      return result;
     } catch (error) {
       console.error("❌ Failed to end API session:", error);
       apiSessionId = null;
@@ -669,10 +543,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     
     // Prioritized model paths - using the latest road damage detection model
     const modelPaths = [
-      './object_detecion_model/road_damage_detection_last_version.onnx', // Primary model
-      './object_detecion_model/last_model_train12052025.onnx',          // Backup
-      './object_detecion_model/road_damage_detection_simplified.onnx',   // Fallback 1
-      './object_detecion_model/model 18_7.onnx'                         // Fallback 2
+      './object_detection_model/road_damage_detection_last_version.onnx', // Primary model
+      './object_detection_model/road_damage_detection_simplified.onnx',   // Fallback 1
+      './object_detection_model/model 18_7.onnx'                         // Fallback 2
     ];
     
     let modelPath = null;
@@ -719,51 +592,46 @@ document.addEventListener("DOMContentLoaded", async () => {
     return true;
   }
 
-  // Load API configuration from server
-  async function loadApiConfig() {
-    try {
-      const response = await fetch('/api/config');
-      if (response.ok) {
-        const config = await response.json();
-        API_URL = config.apiUrl;
-        console.log("🔧 API configuration loaded:", { apiUrl: API_URL });
-      }
-    } catch (error) {
-      console.warn("⚠️ Failed to load API config, using defaults:", error);
-    }
-  }
 
-  // NEW: Enhanced detection system initialization
+  // Initialize detection system
   async function initializeDetection() {
-    showLoading("Initializing Enhanced Detection System...", 0);
+    showLoading("Initializing Detection System...", 0);
     initialized = false;
 
     try {
       // Load API configuration first
       showLoading("Loading API configuration...", 5);
-      await loadApiConfig();
+      await window.loadApiConfig();
       
-      // Initialize smart API connection with private-first connectivity
-      showLoading("Initializing Smart API Connection...", 15);
-      const apiConnected = await initializeApiConnection();
+      // Test API connection
+      showLoading("Testing API connection...", 10);
+      apiAvailable = await window.testApiConnection();
       
-      // Load ONNX model for hybrid/fallback detection
-      showLoading("Loading ONNX model...", 50);
+      if (apiAvailable) {
+        try {
+          showLoading("Starting API session...", 15);
+          apiSessionId = await window.startApiSession();
+          showNotification('API connected and session started', 'success');
+          updateConnectionStatus('connected', 'Enhanced Mode (API + ONNX)');
+        } catch (error) {
+          console.warn("Failed to start API session:", error);
+          apiAvailable = false;
+          updateConnectionStatus('warning', 'API Failed - ONNX Only');
+        }
+      } else {
+        updateConnectionStatus('ready', 'Local ONNX Detection Mode');
+      }
+      
+      // Load ONNX model
       const onnxLoaded = await loadModel();
       
       if (!onnxLoaded && !apiAvailable) {
         throw new Error("No detection models available. Please check your connection.");
       }
 
-      // Determine operation mode
-      let modeMessage;
-      if (apiAvailable && realtimeClientActive) {
-        modeMessage = "🚀 Enhanced realtime detection ready (Private-First API + ONNX hybrid)";
-      } else if (apiAvailable) {
-        modeMessage = "🚀 Enhanced detection ready (Legacy API + ONNX hybrid)";
-      } else {
-        modeMessage = "🎯 Local detection ready with ONNX model";
-      }
+      const modeMessage = apiAvailable 
+        ? "🚀 Enhanced detection ready with API + ONNX support" 
+        : "🎯 Local detection ready with ONNX model";
       
       showNotification(modeMessage, 'success');
       initialized = true;
@@ -944,35 +812,28 @@ document.addEventListener("DOMContentLoaded", async () => {
     return intersectionArea / unionArea;
   }
 
-  // Process frame with API using legacy detection endpoint  
-  async function detectWithApi(canvas) {
-    if (!apiAvailable) {
+  // Process frame with API using API client
+  async function detectWithApiClient(canvas) {
+    if (!apiAvailable || !apiSessionId) {
       return [];
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000);
-
     try {
-      // Ensure we have a valid canvas and create a proper image for OpenCV
+      // Ensure we have a valid canvas
       if (!canvas || canvas.width === 0 || canvas.height === 0) {
         console.warn("❌ Invalid canvas for API detection");
         return [];
       }
 
-      // Create a properly formatted image for the API
+      // Create blob from canvas
       const blob = await new Promise((resolve, reject) => {
-        try {
-          canvas.toBlob((blob) => {
-            if (blob) {
-              resolve(blob);
-            } else {
-              reject(new Error("Failed to create blob from canvas"));
-            }
-          }, 'image/jpeg', 0.9); // Higher quality for better API processing
-        } catch (error) {
-          reject(error);
-        }
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error("Failed to create blob from canvas"));
+          }
+        }, 'image/jpeg', 0.9);
       });
 
       if (!blob || blob.size === 0) {
@@ -980,32 +841,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         return [];
       }
 
-      const formData = new FormData();
-      formData.append('file', blob, blob.type === 'image/png' ? 'frame.png' : 'frame.jpg');
-
-      const response = await fetch(`${API_URL}/detect`, {
-        method: 'POST',
-        body: formData,
-        signal: controller.signal
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
-        throw new Error(`API detection failed: ${errorData.detail || response.statusText}`);
-      }
-
-      const result = await response.json();
-      
-      // Validate response structure from the guide
-      if (!result.success || !Array.isArray(result.detections)) {
-        console.warn("⚠️ Unexpected API response format:", result);
-        return [];
-      }
+      // Use API client for detection
+      const result = await window.detectWithApi(apiSessionId, blob);
       
       // Log new detections for debugging
-      const newDetections = result.detections.filter(det => det.is_new);
-      if (newDetections.length > 0) {
-        console.log("🆕 New hazards detected via API:", newDetections.map(d => `${d.class_name} (${(d.confidence * 100).toFixed(1)}%)`));
+      if (result.detections && result.detections.length > 0) {
+        const newDetections = result.detections.filter(det => det.is_new);
+        if (newDetections.length > 0) {
+          console.log("🆕 New hazards detected via API:", newDetections.map(d => `${d.class_name} (${(d.confidence * 100).toFixed(1)}%)`));
+        }
       }
 
       // Reset failure count on successful API call
@@ -1014,7 +858,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.log("✅ API detection recovered");
       }
 
-      // Convert API format to internal format according to API_FETCH_GUIDE.md
+      // Convert API format to internal format
       // API returns bbox as [x, y, width, height], we need [x1, y1, x2, y2]
       return result.detections.map(det => {
         const [x, y, width, height] = det.bbox;
@@ -1026,91 +870,119 @@ document.addEventListener("DOMContentLoaded", async () => {
           x + width,            // x2
           y + height,           // y2
           det.confidence,       // confidence
-          classIndex !== -1 ? classIndex : 0  // class_id (use index, not +1)
+          classIndex !== -1 ? classIndex + 1 : 1  // class_id (add 1 to match model format)
         ];
       });
     } catch (error) {
-      if (error.name === 'AbortError') {
-        console.warn("API detection request timed out");
-      } else {
-        console.warn("API detection failed:", error.message);
+      console.warn("API detection failed:", error.message);
+      
+      // Enhanced error handling
+      const errorHandled = handleApiError(error);
+      
+      // Show user notification for API errors
+      if (!errorHandled && !error.message.includes('model loading')) {
+        showNotification('API detection temporarily unavailable', 'warning');
+      }
+      
+      // Handle failure counting
+      if (!error.message.includes('model not loaded') && 
+          !error.message.includes('Service may still be starting') &&
+          !error.message.includes('PyTorch model not loaded') &&
+          !error.message.includes('OpenVino model not loaded')) {
+        if (!window.apiFailureCount) window.apiFailureCount = 0;
+        window.apiFailureCount++;
         
-        // Handle specific error types with dedicated handlers
-        const errorHandled = handleApiError(error);
-        
-        if (!errorHandled) {
-          // Handle general error types
-          if (error.message.includes('404')) {
-            console.log("🔄 API endpoint not found, check API configuration");
-          } else if (error.message.includes('OpenCV') || error.message.includes('cvtColor')) {
-            console.warn("🖼️ Image format error, API might need different preprocessing");
-            // Don't disable API completely, but log the issue
-          } else if (error.message.includes('Detection failed')) {
-            console.warn("🔍 API detection processing failed, using ONNX fallback");
-          }
-          
-          // Only count as failure if not a model loading issue
-          if (!error.message.includes('model not loaded') && 
-              !error.message.includes('Service may still be starting') &&
-              !error.message.includes('PyTorch model not loaded') &&
-              !error.message.includes('OpenVino model not loaded')) {
-            // If we get too many consecutive API failures, temporarily disable API
-            if (!window.apiFailureCount) window.apiFailureCount = 0;
-            window.apiFailureCount++;
-            
-            if (window.apiFailureCount > 5) {
-              console.warn("🚫 Too many API failures, temporarily disabling API detection");
-              useApi = false;
-              // Re-enable after 30 seconds
-              setTimeout(() => {
-                window.apiFailureCount = 0;
-                useApi = true;
-                console.log("🔄 Re-enabling API detection");
-              }, 30000);
-            }
-          } else {
-            console.log("🔄 Model loading error - not counting as API failure");
-          }
-        } else {
-          // Error was handled, reset failure count if it was a successful handling
-          if (error.message.includes('model not loaded') || 
-              error.message.includes('Service may still be starting') ||
-              error.message.includes('PyTorch model not loaded') ||
-              error.message.includes('OpenVino model not loaded')) {
-            // Don't increment failure count for startup issues
-            console.log("🕒 Backend model loading, keeping API available for retry");
-          }
+        if (window.apiFailureCount > 5) {
+          console.warn("🚫 Too many API failures, temporarily disabling API detection");
+          useApi = false;
+          // Re-enable after 30 seconds
+          setTimeout(() => {
+            window.apiFailureCount = 0;
+            useApi = true;
+            console.log("🔄 Re-enabling API detection");
+          }, 30000);
         }
       }
+      
       return [];
-    } finally {
-      clearTimeout(timeoutId);
     }
   }
 
-  async function saveDetection(compositeCanvas, label, score) {
+  // Enhanced detection saving with bounding box images
+  async function saveDetection(videoElement, detections, primaryDetection) {
     try {
-      // Ensure we have a valid canvas with image data
-      if (!compositeCanvas || compositeCanvas.width === 0 || compositeCanvas.height === 0) {
-        console.warn("❌ Invalid canvas for detection saving");
+      if (!videoElement || detections.length === 0) {
+        console.warn("❌ Invalid video or no detections for saving");
         return;
       }
 
-      // Create a simple detection report (matching upload_tf.js structure)
+      // Create detection image with bounding boxes
+      const detectionCanvas = createDetectionImage(videoElement, detections);
+      
+      let imageUrl;
+      
+      // Try server upload first, fallback to data URL
+      try {
+        imageUrl = await uploadToServer(detectionCanvas, detections);
+        console.log("☁️ Detection image uploaded to server");
+      } catch (uploadError) {
+        console.warn("⚠️ Server upload failed, using data URL:", uploadError.message);
+        imageUrl = detectionCanvas.toDataURL("image/jpeg", 0.9);
+      }
+
+      // Create a detection report with primary detection info
+      const [x1, y1, x2, y2, score, classId] = primaryDetection;
+      const correctedClassId = Math.floor(classId) - 1;
+      const classIndex = Math.max(0, correctedClassId);
+      const label = classNames[classIndex] || `Unknown Class ${classIndex}`;
+
       const report = {
         type: label,
-        location: geoData ? JSON.parse(geoData) : "Unknown",
+        location: geoData ? JSON.parse(geoData) : { lat: 31.7683, lng: 35.2137 },
         time: new Date().toISOString(),
-        image: compositeCanvas.toDataURL("image/jpeg", 0.9),
+        image: imageUrl,
         status: "unreviewed",
         reportedBy: "live_camera",
-        confidence: Math.round(score * 100)
+        confidence: Math.round(score * 100),
+        sessionId: apiSessionId || 'local_session',
+        frameNumber: frameCount,
+        detectionMode: apiAvailable ? 'hybrid' : 'onnx_only',
+        // Additional metadata for summary
+        allDetections: detections.map(det => {
+          const [dx1, dy1, dx2, dy2, dscore, dclassId] = det;
+          const dcorrectedClassId = Math.floor(dclassId) - 1;
+          const dclassIndex = Math.max(0, dcorrectedClassId);
+          return {
+            type: classNames[dclassIndex] || `Unknown Class ${dclassIndex}`,
+            confidence: dscore,
+            bbox: [dx1, dy1, dx2, dy2]
+          };
+        })
       };
 
       pendingDetections.push(report);
-      console.log("📝 Detection queued:", { type: label, confidence: `${Math.round(score * 100)}%`, timestamp: report.time });
+      
+      // Add to session summary with image
+      sessionDetectionsSummary.push({
+        type: label,
+        confidence: score,
+        timestamp: Date.now(),
+        frame: frameCount,
+        image: imageUrl,
+        allDetections: report.allDetections
+      });
+
+      console.log("📝 Detection with image queued:", { 
+        type: label, 
+        confidence: `${Math.round(score * 100)}%`, 
+        timestamp: report.time,
+        mode: report.detectionMode,
+        imageType: imageUrl.startsWith('data:') ? 'dataURL' : 'server',
+        totalDetections: detections.length
+      });
     } catch (err) {
-      console.error("❌ Error during image preparation:", err);
+      console.error("❌ Error during detection saving:", err);
+      showNotification('Failed to save detection image', 'error');
     }
   }
 
@@ -1537,15 +1409,19 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
       }
 
-      // Save detection periodically and add to summary
-      if (frameCount % 60 === 0) {
-        saveDetection(video, canvas, labelName, score).catch((e) => console.error(e));
-        sessionDetectionsSummary.push({
-          type: labelName,
-          confidence: score,
-          timestamp: Date.now(),
-          frame: frameCount
-        });
+      // Save detection periodically with bounding box image
+      if (frameCount % 120 === 0 && !isInterpolated) { // Save every 2 seconds for real detections only
+        // Get current frame detections for this class
+        const currentFrameDetections = [];
+        for (const [id, trackedObj] of trackedObjects) {
+          if (Math.floor(trackedObj.box[5]) - 1 === classIndex) {
+            currentFrameDetections.push(trackedObj.box);
+          }
+        }
+        
+        if (currentFrameDetections.length > 0) {
+          saveDetection(video, currentFrameDetections, trackedObj.box).catch((e) => console.error(e));
+        }
       }
 
     }
@@ -1678,8 +1554,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       const imageData = offCtx.getImageData(0, 0, FIXED_SIZE, FIXED_SIZE);
 
-      // NEW: Try Smart API detection first (if available), then fallback to ONNX
-      if (smartApiClient && smartApiClient.isConnected() && frameCount % 4 === 0) {
+      // Try session-based API detection first (if available), then fallback to ONNX
+      if (apiAvailable && useApi && apiSessionId && frameCount % 4 === 0) { // Use API every 4th frame for better responsiveness
         try {
           // Create a proper canvas with video frame for API detection
           const apiCanvas = document.createElement('canvas');
@@ -1687,53 +1563,21 @@ document.addEventListener("DOMContentLoaded", async () => {
           apiCanvas.height = FIXED_SIZE;
           const apiCtx = apiCanvas.getContext('2d');
           
-          // Draw video frame properly formatted for API
+          // Draw video frame properly formatted for detection
           apiCtx.fillStyle = "black";
           apiCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
           apiCtx.drawImage(video, letterboxParams.offsetX, letterboxParams.offsetY, letterboxParams.newW, letterboxParams.newH);
           
-          console.log("🌐 Attempting Smart API detection...");
-          
-          if (realtimeClientActive) {
-            // For realtime client, send async and results will come via event handlers
-            smartApiClient.detect(apiCanvas).catch(error => {
-              console.warn("Realtime API detection failed, using ONNX fallback:", error);
-            });
-            // Don't wait for results, use ONNX concurrently for hybrid detection
-          } else {
-            // For legacy API client, wait for results
-            const result = await smartApiClient.detect(apiCanvas);
-            detections = handleApiDetectionResult(result);
-            if (detections.length > 0) {
-              useApiResults = true;
-              console.log("🔥 Using Smart API detection results:", detections.length, "detections");
-            } else {
-              console.log("🔍 Smart API returned no detections");
-            }
-          }
-        } catch (error) {
-          console.warn("Smart API detection failed, using ONNX fallback:", error);
-        }
-      } else if (apiAvailable && useApi && frameCount % 4 === 0) {
-        // Legacy API fallback (preserved for compatibility)
-        try {
-          const apiCanvas = document.createElement('canvas');
-          apiCanvas.width = FIXED_SIZE;
-          apiCanvas.height = FIXED_SIZE;
-          const apiCtx = apiCanvas.getContext('2d');
-          
-          apiCtx.fillStyle = "black";
-          apiCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
-          apiCtx.drawImage(video, letterboxParams.offsetX, letterboxParams.offsetY, letterboxParams.newW, letterboxParams.newH);
-          
-          console.log("🌐 Attempting legacy API detection...");
-          detections = await detectWithApi(apiCanvas);
+          console.log("🌐 Attempting session-based API detection...");
+          detections = await detectWithApiClient(apiCanvas);
           if (detections.length > 0) {
             useApiResults = true;
-            console.log("🔥 Using legacy API detection results:", detections.length, "detections");
+            console.log("🔥 Using session-based API detection results:", detections.length, "detections");
+          } else {
+            console.log("🔍 Session-based API returned no detections");
           }
         } catch (error) {
-          console.warn("Legacy API detection failed, using ONNX fallback:", error);
+          console.warn("Session-based API detection failed, using ONNX fallback:", error);
         }
       }
 
@@ -1761,10 +1605,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       startBtn.disabled = true;
       updateConnectionStatus('processing', 'Starting Camera...');
 
-      // API is available but doesn't require sessions
-      if (apiAvailable) {
-        updateConnectionStatus('processing', 'API Ready for Detection...');
-      }
+      // API session was already started during initialization
 
       // Get optimal constraints based on device capabilities
       updateConnectionStatus('processing', 'Optimizing camera settings...');
@@ -1830,16 +1671,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     // End camera session tracking
     endCameraSession();
 
-    // NEW: Smart API client cleanup
-    if (smartApiClient && smartApiClient.isConnected()) {
+    // End API session and get summary
+    if (apiAvailable && apiSessionId) {
       try {
-        await smartApiClient.disconnect();
-        console.log("📊 Smart API client disconnected successfully");
+        const sessionSummary = await endApiSessionLocal();
+        console.log("📊 API detection session completed:", sessionSummary);
       } catch (error) {
-        console.warn("⚠️ Smart API client disconnect warning:", error.message);
+        console.warn("⚠️ Failed to properly end API session:", error);
       }
-    } else if (apiAvailable) {
-      console.log("📊 API detection session completed");
     }
 
     // Send queued detections to API (matching upload_tf.js logic)
@@ -1911,21 +1750,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
+  // Settings button toggle
+  settingsBtn.addEventListener("click", () => {
+    settingsPanel.classList.toggle('show');
+  });
+
   // sensitivity
   sensitivitySlider.addEventListener("input", (e) => {
     confidenceThreshold = parseFloat(e.target.value);
-    e.target.parentElement.querySelector('.value').textContent = `${Math.round(confidenceThreshold * 100)}%`;
+    const valueElement = e.target.parentElement.querySelector('.settings-value');
+    if (valueElement) {
+      valueElement.textContent = `${Math.round(confidenceThreshold * 100)}%`;
+    }
   });
   // Summary Modal Functions
   function showSummaryModal() {
     updateSummaryData();
-    summaryModalOverlay.classList.add('show');
-    document.body.style.overflow = 'hidden'; // Prevent background scrolling
+    summaryModal.show();
   }
 
   function hideSummaryModal() {
-    summaryModalOverlay.classList.remove('show');
-    document.body.style.overflow = ''; // Restore scrolling
+    summaryModal.hide();
   }
 
   function updateSummaryData() {
@@ -1959,19 +1804,110 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
 
-    detectionsGrid.innerHTML = sessionDetectionsSummary.map(detection => `
+    detectionsGrid.innerHTML = sessionDetectionsSummary.map((detection, index) => `
       <div class="detection-item">
-        <div class="detection-item-header">
-          <span class="detection-type">${detection.type}</span>
-          <span class="detection-confidence">${Math.round(detection.confidence * 100)}%</span>
-        </div>
-        <div class="detection-timestamp">${new Date(detection.timestamp).toLocaleTimeString()}</div>
-        <div class="detection-location">
-          <i class="fas fa-map-marker-alt"></i>
-          Live Camera Feed
+        ${detection.image ? `
+          <div class="detection-image">
+            <img src="${detection.image}" alt="${detection.type}" onclick="showImageModal('${detection.image}', '${detection.type}')" />
+          </div>
+        ` : ''}
+        <div class="detection-content">
+          <div class="detection-item-header">
+            <span class="detection-type">${detection.type}</span>
+            <span class="detection-confidence">${Math.round(detection.confidence * 100)}%</span>
+          </div>
+          <div class="detection-timestamp">${new Date(detection.timestamp).toLocaleTimeString()}</div>
+          <div class="detection-location">
+            <i class="fas fa-map-marker-alt"></i>
+            Live Camera Feed
+          </div>
+          ${detection.allDetections && detection.allDetections.length > 1 ? `
+            <div class="detection-extras">
+              +${detection.allDetections.length - 1} more detections
+            </div>
+          ` : ''}
         </div>
       </div>
     `).join('');
+  }
+
+  // Show image in modal
+  function showImageModal(imageSrc, title) {
+    const modal = document.createElement('div');
+    modal.className = 'image-modal';
+    modal.innerHTML = `
+      <div class="image-modal-overlay" onclick="this.parentElement.remove()">
+        <div class="image-modal-content" onclick="event.stopPropagation()">
+          <div class="image-modal-header">
+            <h3>${title}</h3>
+            <button onclick="this.closest('.image-modal').remove()" class="image-modal-close">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          <div class="image-modal-body">
+            <img src="${imageSrc}" alt="${title}" style="max-width: 100%; max-height: 80vh;" />
+          </div>
+        </div>
+      </div>
+    `;
+    
+    // Add modal styles
+    const style = document.createElement('style');
+    style.textContent = `
+      .image-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 9999;
+      }
+      .image-modal-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+      }
+      .image-modal-content {
+        background: #fff;
+        border-radius: 8px;
+        max-width: 90vw;
+        max-height: 90vh;
+        overflow: auto;
+        cursor: default;
+      }
+      .image-modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 15px 20px;
+        border-bottom: 1px solid #eee;
+      }
+      .image-modal-header h3 {
+        margin: 0;
+        color: #333;
+      }
+      .image-modal-close {
+        background: none;
+        border: none;
+        font-size: 18px;
+        cursor: pointer;
+        color: #666;
+      }
+      .image-modal-body {
+        padding: 20px;
+        text-align: center;
+      }
+    `;
+    
+    document.head.appendChild(style);
+    document.body.appendChild(modal);
   }
 
   async function loadSavedReports() {
@@ -2102,25 +2038,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     showNotification('Summary exported successfully', 'success');
   }
 
-  // Event listeners for summary modal
-  closeSummaryBtn.addEventListener('click', hideSummaryModal);
-  summaryModalOverlay.addEventListener('click', (e) => {
-    if (e.target === summaryModalOverlay) {
-      hideSummaryModal();
-    }
-  });
-
-  exportSummaryBtn.addEventListener('click', exportSummary);
+exportSummaryBtn.addEventListener('click', exportSummary);
   
   viewDashboardBtn.addEventListener('click', () => {
     window.location.href = '/dashboard.html';
-  });
-
-  // Keyboard shortcuts
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && summaryModalOverlay.classList.contains('show')) {
-      hideSummaryModal();
-    }
   });
 
   // Initialize on load

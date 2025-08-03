@@ -336,7 +336,4 @@ if (typeof module !== 'undefined' && module.exports) {
   // Browser global
   window.createRealtimeClient = createRealtimeClient;
   window.RealtimeClient = RealtimeClient;
-} else {
-  // ES6 module export (if supported)
-  export { createRealtimeClient, RealtimeClient };
 }
