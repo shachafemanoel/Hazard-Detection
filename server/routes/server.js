@@ -634,16 +634,14 @@ app.get('/logout', (req, res) => {
     });
 });
 
-// Health check endpoint (enhanced with simple mode support)
-app.get('/health', (req, res) => {
-    res.json({
-        status: 'OK',
-        timestamp: new Date().toISOString(),
-        env: process.env.NODE_ENV || 'development',
-        port: port,
-        mode: isSimpleMode ? 'simple' : 'full',
-        redis: redisConnected ? 'connected' : 'disconnected'
-    });
+// Health check endpoint (supports GET/HEAD)
+app.get('/health', (_req, res) => {
+    res.status(200).json({ status: 'OK' });
+});
+
+// Some platforms use HEAD for health probes
+app.head('/health', (_req, res) => {
+    res.status(200).end();
 });
 
 // Test API endpoint (from simple-server)
@@ -911,12 +909,11 @@ app.get('/api/reports', async (req, res) => {
                         reports.push(report);
                     }
                 }
-            }
 
-            // Early exit if we have enough reports for this page
-            if (reports.length >= limit) {
-                break;
-            }
+                // Early exit if we have enough reports for this page
+                if (reports.length >= limit) {
+                    break;
+                }
         }
 
         const totalPages = Math.ceil(totalMatchingCount / limit);
