@@ -1,10 +1,4 @@
 document.addEventListener("DOMContentLoaded", async function () {
-  // אלמנטים של מסך הבית וממשק ההעלאה
-  const homeScreenContent = document.getElementById('home-screen-content');
-  const detectionSection = document.getElementById('detection-section');
-  const showUploadSectionBtn = document.getElementById('show-upload-section-btn');
-  const closeUploadSectionBtn = document.getElementById('close-upload-section-btn');
-
   const imageUpload = document.getElementById("image-upload");
   const confidenceSlider = document.getElementById("confidence-slider");
   const confValueSpan = document.getElementById("conf-value");
@@ -14,46 +8,20 @@ document.addEventListener("DOMContentLoaded", async function () {
   const saveBtn = document.getElementById("save-detection");
   const uploadingModal = document.getElementById("uploading-modal");
 
-  // Toast Notification Elements
-  const toastElement = document.getElementById('toast-notification');
-  const toastBody = document.getElementById('toast-body');
-  const toastClose = document.getElementById('toast-close');
-  const uploadPage = document.getElementById('upload-page');
-  if (uploadPage) {
-    uploadPage.classList.add('tech-panel');
-  }
-  if (toastClose && toastElement) {
-    toastClose.addEventListener('click', () => {
-      toastElement.style.display = 'none';
-    });
-  }
+import { notify } from './notifications.js';
+
+  const uploadingModal = new bootstrap.Modal(document.getElementById('uploading-modal'));
 
   function showUploadingModal() {
-    if (uploadingModal) uploadingModal.style.display = 'flex';
+    uploadingModal.show();
   }
 
   function hideUploadingModal() {
-    if (uploadingModal) uploadingModal.style.display = 'none';
+    uploadingModal.hide();
   }
 
   function showToast(message, type = 'success') {
-    if (!toastElement || !toastBody) return;
-
-    toastBody.textContent = message;
-    toastElement.classList.add('notification', 'tech-panel', 'tech-button');
-
-    if (type === 'error') {
-      toastElement.style.background = 'var(--danger)';
-    } else if (type === 'success') {
-      toastElement.style.background = 'var(--success)';
-    } else {
-      toastElement.style.background = 'var(--accent)';
-    }
-
-    toastElement.style.display = 'block';
-    setTimeout(() => {
-      toastElement.style.display = 'none';
-    }, 5000); // Hide after 5 seconds
+    notify(message, type);
   }
 
   let geoData = null;
@@ -96,35 +64,6 @@ document.addEventListener("DOMContentLoaded", async function () {
     });
   }
 
-  // ניהול תצוגת מסך הבית וממשק ההעלאה
-  if (showUploadSectionBtn && homeScreenContent && detectionSection) {
-    showUploadSectionBtn.addEventListener('click', () => {
-      homeScreenContent.style.display = 'none';
-      detectionSection.style.display = 'block';
-    });
-  }
-
-  if (closeUploadSectionBtn && homeScreenContent && detectionSection) {
-    closeUploadSectionBtn.addEventListener('click', () => {
-      detectionSection.style.display = 'none';
-      homeScreenContent.style.display = 'block';
-      // איפוס אופציונלי של שדות וקנבס בעת סגירה
-      if (imageUpload) {
-        imageUpload.value = ''; // מנקה את שדה העלאת התמונה
-      }
-      if (ctx && canvas) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height); // נמחק את התמונה המוצגת ב-canvas
-      }
-      if (confValueSpan && confidenceSlider) {
-        confValueSpan.textContent = confidenceSlider.value; // מאפס את תצוגת הסף
-      }
-      currentImage = null; // מאפס את התמונה הנוכחית
-      geoData = null; // מאפס נתוני מיקום
-      if (saveBtn) saveBtn.disabled = true; // מנטרל כפתור שמירה
-      const tooltip = document.getElementById("tooltip");
-      if (tooltip) tooltip.style.display = "none";
-    });
-  }
 
 
 // שמירת התמונה והנתונים

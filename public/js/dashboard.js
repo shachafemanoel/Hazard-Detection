@@ -11,6 +11,7 @@ const state = {
     search: '',
     status: '',
     type: '',
+    my_reports: false,
   },
   sort: {
     field: 'time',
@@ -39,6 +40,7 @@ const elements = {
   searchInput: document.getElementById('report-search-input'),
   statusFilter: document.getElementById('table-status-filter'),
   typeFilter: document.getElementById('hazard-type-filter'),
+  myReportsFilter: document.getElementById('my-reports-filter'),
   sortHeaders: document.querySelectorAll('#reports-management-table .sortable'),
   // Pagination
   showingInfo: document.getElementById('table-showing-info'),
@@ -49,9 +51,6 @@ const elements = {
   // Modals
   editModal: document.getElementById('editReportModal'),
   detailsModal: document.getElementById('reportDetailsModal'),
-  // FAB Menu
-  fabBtn: document.getElementById('fab-btn'),
-  fabMenu: document.getElementById('fab-menu'),
 };
 
 // --- RENDER FUNCTIONS ---
@@ -164,6 +163,7 @@ function handleFilterChange() {
   state.filters.search = elements.searchInput.value;
   state.filters.status = elements.statusFilter.value;
   state.filters.type = elements.typeFilter.value;
+  state.filters.my_reports = elements.myReportsFilter.checked;
   state.pagination.currentPage = 1;
   updateDashboard();
 }
@@ -275,6 +275,7 @@ function initializeEventListeners() {
   elements.searchInput?.addEventListener('input', handleFilterChange);
   elements.statusFilter?.addEventListener('change', handleFilterChange);
   elements.typeFilter?.addEventListener('change', handleFilterChange);
+  elements.myReportsFilter?.addEventListener('change', handleFilterChange);
   elements.pageSizeSelect?.addEventListener('change', handlePageSizeChange);
   elements.prevBtn?.addEventListener('click', () => handlePaginationChange('prev'));
   elements.nextBtn?.addEventListener('click', () => handlePaginationChange('next'));
@@ -283,8 +284,6 @@ function initializeEventListeners() {
   
   const editForm = document.getElementById('edit-report-form');
   editForm?.addEventListener('submit', handleFormSubmit);
-
-  elements.fabBtn?.addEventListener('click', () => elements.fabMenu?.classList.toggle('open'));
 }
 
 function showMetricsLoading() {
