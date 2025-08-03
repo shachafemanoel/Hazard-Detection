@@ -1,0 +1,54 @@
+# Lightweight Frontend-only Dockerfile for Hazard Detection
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install system dependencies including build tools for canvas
+RUN apk add --no-cache \
+    bash \
+    curl \
+    build-base \
+    cairo-dev \
+    jpeg-dev \
+    pango-dev \
+    musl-dev \
+    giflib-dev \
+    pixman-dev \
+    pangomm-dev \
+    libjpeg-turbo-dev \
+    freetype-dev
+
+# Copy package files and install only production dependencies
+COPY package*.json ./
+RUN npm ci --only=production && npm cache clean --force
+
+# Copy only necessary application files
+COPY server/ ./server/
+COPY public/ ./public/
+
+# Create lightweight startup script
+RUN echo '#!/bin/bash\n\
+set -e\n\
+\n\
+echo "🚀 Starting Hazard Detection Frontend"\n\
+WEB_PORT=${PORT:-3000}\n\
+\n\
+echo "🌐 Starting web server on port ${WEB_PORT}..."\n\
+cd /app\n\
+exec npm start' > /app/start-frontend.sh
+
+RUN chmod +x /app/start-frontend.sh
+
+# Environment
+ENV NODE_ENV=production
+ENV PORT=3000
+
+# Expose port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-3000}/health || exit 1
+
+# Use the lightweight startup script
+CMD ["/app/start-frontend.sh"]

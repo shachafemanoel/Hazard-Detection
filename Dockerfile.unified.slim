@@ -15,30 +15,8 @@ RUN apt-get update && apt-get install -y \
     libgl1-mesa-glx libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Create minimal requirements
-RUN cat > /app/unified-requirements.txt << EOF
-# Core FastAPI and web server dependencies
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-python-multipart==0.0.6
-pydantic==2.5.0
-
-# AI/ML Dependencies - minimal set
-numpy==1.24.3
-opencv-python-headless==4.8.1.78
-pillow==10.0.1
-
-# PyTorch CPU-only (smaller)
-torch>=2.0.0 --index-url https://download.pytorch.org/whl/cpu
-torchvision>=0.15.0 --index-url https://download.pytorch.org/whl/cpu
-
-# Utilities
-aiohttp==3.9.1
-redis==5.0.1
-py-cpuinfo==9.0.0
-requests==2.31.0
-python-dotenv==1.0.0
-EOF
+# Copy minimal requirements
+COPY unified-requirements.slim.txt /app/unified-requirements.txt
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --user -r /app/unified-requirements.txt
@@ -67,17 +45,14 @@ COPY --from=python-builder /root/.local /root/.local
 # Copy Node.js modules from builder  
 COPY --from=node-builder /app/node_modules ./node_modules
 
-# Copy application files
-COPY api/ ./api/
+# Copy application files (frontend only - no API directory)
 COPY server/ ./server/
 COPY public/ ./public/
 COPY package*.json ./
 
-# Copy models to unified location
-RUN mkdir -p /app/models/openvino /app/models/pytorch
-COPY api/best_openvino_model/ ./models/openvino/
+# Copy models to unified location (only from public directory)
+RUN mkdir -p /app/models/pytorch
 COPY public/object_detecion_model/ ./models/pytorch/
-COPY api/best.pt ./models/pytorch/best.pt
 
 # Create CPU detection script
 COPY <<EOF /app/scripts/detect-cpu.py
@@ -123,45 +98,28 @@ if __name__ == "__main__":
     detect_cpu_and_select_model()
 EOF
 
-# Create startup script
+# Create startup script (frontend only)
 COPY <<EOF /app/start-unified.sh
 #!/bin/bash
 set -e
 
-echo "🚀 Starting Hazard Detection Unified Container"
-
-# Detect CPU and select model
-echo "🔍 Detecting CPU capabilities..."
-python3 /app/scripts/detect-cpu.py
-
-# Start FastAPI backend in background
-echo "🤖 Starting FastAPI backend..."
-cd /app
-python3 -m uvicorn api.app:app --host 0.0.0.0 --port 8000 &
-
-# Wait for backend to start
-sleep 5
+echo "🚀 Starting Hazard Detection Frontend"
 
 # Start Node.js web server
 echo "🌐 Starting web server..."
 cd /app
-node server/routes/simple-server.js &
 
-# Wait for services to be ready
-echo "⏳ Waiting for services to start..."
-sleep 10
+# Use the main server with full features
+node server/routes/server.js
 
-echo "✅ All services started successfully!"
-
-# Keep container running
-wait
+echo "✅ Frontend server started successfully!"
 EOF
 
-# Create health check script
+# Create health check script (frontend only)
 COPY <<EOF /app/health-check.sh
 #!/bin/bash
-curl -f http://localhost:8080/health >/dev/null 2>&1 || exit 1
-curl -f http://localhost:8000/health >/dev/null 2>&1 || exit 1
+# Check if the frontend web server is running
+curl -f http://localhost:\${PORT:-3000}/health >/dev/null 2>&1 || exit 1
 EOF
 
 # Make scripts executable
@@ -169,8 +127,8 @@ RUN chmod +x /app/scripts/detect-cpu.py
 RUN chmod +x /app/start-unified.sh
 RUN chmod +x /app/health-check.sh
 
-# Expose ports
-EXPOSE 8000 8080
+# Expose port (frontend only)
+EXPOSE 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=15s --start-period=60s --retries=3 \

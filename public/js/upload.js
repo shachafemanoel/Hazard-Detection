@@ -113,65 +113,76 @@ saveBtn.addEventListener("click", () => {
     return;
   }
 
+  // Make geoData optional but prefer it when available
   if (!geoData) {
-    showToast("❌ Cannot save report without geolocation data.", "error");
-    return;
+    console.warn("No geolocation data available, using default location");
+    // Use default Israel coordinates as fallback
+    geoData = JSON.stringify({ lat: 31.7683, lng: 35.2137 });
+    showToast("⚠️ Using default location (no GPS data)", "warning");
   }
 
-  canvas.toBlob(async (blob) => {
+  // Create composite canvas that includes the original image and the overlay
+  const compositeCanvas = document.createElement("canvas");
+  compositeCanvas.width = canvas.width;
+  compositeCanvas.height = canvas.height;
+  const compositeCtx = compositeCanvas.getContext("2d");
+
+  // Draw the original uploaded image using the same letterbox parameters
+  if (currentImage) {
+      const { offsetX, offsetY, newW, newH } = letterboxParams;
+      compositeCtx.fillStyle = "black";
+      compositeCtx.fillRect(0, 0, compositeCanvas.width, compositeCanvas.height);
+      compositeCtx.drawImage(currentImage, offsetX, offsetY, newW, newH);
+  }
+
+  // Draw the detection overlays
+  compositeCtx.drawImage(canvas, 0, 0);
+
+  compositeCanvas.toBlob(async (blob) => {
       if (!blob) return alert("❌ Failed to get image blob");
   
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-          const base64Image = reader.result;
-          let location = "Unknown";
-          try {
-              const { lat, lng } = JSON.parse(geoData);
-              location = `Coordinates: ${lat}, ${lng}`;
-          } catch (e) {
-              console.warn("Failed to parse geolocation data", e);
-          }
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append('file', blob, 'detection.jpg');
+      formData.append('hazardTypes', hazardTypes.join(","));
+      formData.append('geoData', geoData);
+      formData.append('time', new Date().toISOString());
+      formData.append('locationNote', 'GPS');
 
-          const reportData = {
-              type: hazardTypes.join(","),
-              location,
-              time: new Date().toISOString(),
-              image: base64Image,
-              status: "New",
-              reportedBy: "anonymous",
-              locationNote: "GPS"
-          };
+      try {
+          const res = await fetch("/upload-detection", {
+              method: "POST",
+              body: formData,
+              credentials: "include",
+          });
 
-          try {
-              const res = await fetch("/api/reports", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify(reportData),
-                  credentials: "include",
-              });
-
-              if (!res.ok) {
-                  const contentType = res.headers.get("content-type");
-                  let errorMessage = `HTTP ${res.status}`;
-                  
-                  if (contentType && contentType.includes("application/json")) {
-                      const errorData = await res.json();
-                      errorMessage = errorData.error || errorMessage;
-                  } else {
-                      errorMessage = res.status === 401 ? "Authentication required" : `Server error (${res.status})`;
-                  }
-                  
-                  throw new Error(errorMessage);
+          if (!res.ok) {
+              const contentType = res.headers.get("content-type");
+              let errorMessage = `HTTP ${res.status}`;
+              
+              if (contentType && contentType.includes("application/json")) {
+                  const errorData = await res.json();
+                  errorMessage = errorData.error || errorMessage;
+              } else {
+                  errorMessage = res.status === 401 ? "Authentication required" : `Server error (${res.status})`;
               }
-
-              const result = await res.json();
-              showToast("✅ Saved to server: " + result.message, "success");
-          } catch (err) {
-              showToast("❌ Failed to save image to server.", "error");
-              console.error(err);
+              
+              throw new Error(errorMessage);
           }
-      };
-      reader.readAsDataURL(blob);
+
+          const result = await res.json();
+          detectionSession.savedReports++;
+          updateDetectionSessionSummary();
+          showToast("✅ Saved to server: " + result.message, "success");
+          
+          // Show session summary after successful save
+          setTimeout(() => {
+            showDetectionSessionSummary();
+          }, 1000);
+      } catch (err) {
+          showToast("❌ Failed to save image to server.", "error");
+          console.error(err);
+      }
 
       // נמחק את התמונה אחרי 5 שניות
       setTimeout(() => {
@@ -190,10 +201,10 @@ saveBtn.addEventListener("click", () => {
   }, "image/jpeg", 0.95);
 });
   
-  // המודל (YOLO באון-אן-אקס) מיוצא לגודל 640x640
-  const FIXED_SIZE =640;
-
-  // רשימת המחלקות
+  // Enhanced Road Damage Detection Model Configuration
+  const FIXED_SIZE = 512; // Optimized for road_damage_detection_last_version.onnx
+  
+  // Road Damage Classes (mapping to model's 10 classes)
   const classNames = [
     'crack',
     'knocked', 
@@ -222,12 +233,12 @@ saveBtn.addEventListener("click", () => {
   }
 
   try {
-    // Enhanced model path detection with fallbacks
+    // Prioritized model paths - using the latest road damage detection model
     const modelPaths = [
-      './object_detecion_model/model 18_7.onnx',
-      './object_detecion_model/road_damage_detection_last_version.onnx',
-      './object_detecion_model/last_model_train12052025.onnx',
-      './object_detecion_model/road_damage_detection_simplified.onnx'
+      './object_detecion_model/road_damage_detection_last_version.onnx', // Primary model
+      './object_detecion_model/last_model_train12052025.onnx',          // Backup
+      './object_detecion_model/road_damage_detection_simplified.onnx',   // Fallback 1
+      './object_detecion_model/model 18_7.onnx'                         // Fallback 2
     ];
     
     let modelPath = null;
@@ -368,14 +379,20 @@ saveBtn.addEventListener("click", () => {
 
       console.log("Raw outputData:", outputData);
 
-      const boxes = [];
+      // Enhanced detection parsing with filtering
+      const rawBoxes = [];
       for (let i = 0; i < outputData.length; i += 6) {
         const box = outputData.slice(i, i + 6);
-        boxes.push(box);
+        rawBoxes.push(box);
       }
 
-      console.log("Parsed boxes:", boxes.slice(0, 5));
-      drawResults(boxes);
+      // Apply intelligent filtering for road damage detection
+      const filteredBoxes = applyDetectionFilters(rawBoxes);
+      
+      console.log(`Detection Results: ${rawBoxes.length} raw → ${filteredBoxes.length} filtered`);
+      console.log("Top detections:", filteredBoxes.slice(0, 5));
+      
+      drawResults(filteredBoxes);
     } catch (err) {
       console.error("Error in inference:", err);
     }
@@ -383,14 +400,560 @@ saveBtn.addEventListener("click", () => {
 
   let hazardTypes = [];
   let hasHazard = false;
+  
+  // Detection Session Tracking
+  let detectionSession = {
+    startTime: Date.now(),
+    detections: [],
+    totalReports: 0,
+    uniqueHazards: new Set(),
+    savedReports: 0
+  };
+  
+  // Function to add detection to session
+  function addDetectionToSession(detection) {
+    detectionSession.detections.push({
+      ...detection,
+      timestamp: Date.now(),
+      id: Date.now() + Math.random()
+    });
+    detectionSession.totalReports++;
+    detectionSession.uniqueHazards.add(detection.type);
+    updateDetectionSessionSummary();
+  }
+  
+  // Function to update session summary display
+  function updateDetectionSessionSummary() {
+    const sessionDuration = Date.now() - detectionSession.startTime;
+    const durationMinutes = Math.floor(sessionDuration / 60000);
+    const durationSeconds = Math.floor((sessionDuration % 60000) / 1000);
+    
+    // Update session stats if elements exist
+    const totalDetectionsEl = document.getElementById('session-total-detections');
+    const sessionDurationEl = document.getElementById('session-duration');
+    const uniqueHazardsEl = document.getElementById('session-unique-hazards');
+    const savedReportsEl = document.getElementById('session-saved-reports');
+    
+    if (totalDetectionsEl) totalDetectionsEl.textContent = detectionSession.totalReports;
+    if (sessionDurationEl) sessionDurationEl.textContent = `${durationMinutes}:${durationSeconds.toString().padStart(2, '0')}`;
+    if (uniqueHazardsEl) uniqueHazardsEl.textContent = detectionSession.uniqueHazards.size;
+    if (savedReportsEl) savedReportsEl.textContent = detectionSession.savedReports;
+  }
+  
+  // Function to show Detection Session Summary Modal
+  function showDetectionSessionSummary() {
+    const sessionDuration = Date.now() - detectionSession.startTime;
+    const durationMinutes = Math.floor(sessionDuration / 60000);
+    const durationSeconds = Math.floor((sessionDuration % 60000) / 1000);
+    
+    // Group detections by type
+    const detectionsByType = {};
+    detectionSession.detections.forEach(detection => {
+      if (!detectionsByType[detection.type]) {
+        detectionsByType[detection.type] = {
+          count: 0,
+          maxConfidence: 0,
+          minConfidence: 1,
+          avgConfidence: 0,
+          total: 0
+        };
+      }
+      detectionsByType[detection.type].count++;
+      detectionsByType[detection.type].maxConfidence = Math.max(detectionsByType[detection.type].maxConfidence, detection.confidence);
+      detectionsByType[detection.type].minConfidence = Math.min(detectionsByType[detection.type].minConfidence, detection.confidence);
+      detectionsByType[detection.type].total += detection.confidence;
+    });
+    
+    // Calculate averages
+    Object.keys(detectionsByType).forEach(type => {
+      detectionsByType[type].avgConfidence = detectionsByType[type].total / detectionsByType[type].count;
+    });
+    
+    // Create detailed detection grid HTML
+    const detectionGridHTML = Object.entries(detectionsByType).map(([type, stats]) => `
+      <div class="detection-summary-card bg-light p-3 rounded mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="mb-0 text-primary">
+            <i class="fas fa-exclamation-triangle me-2"></i>${type}
+          </h6>
+          <span class="badge bg-primary">${stats.count} detections</span>
+        </div>
+        <div class="row text-center">
+          <div class="col-4">
+            <small class="text-muted">Min Confidence</small>
+            <div class="fw-bold">${(stats.minConfidence * 100).toFixed(1)}%</div>
+          </div>
+          <div class="col-4">
+            <small class="text-muted">Avg Confidence</small>
+            <div class="fw-bold">${(stats.avgConfidence * 100).toFixed(1)}%</div>
+          </div>
+          <div class="col-4">
+            <small class="text-muted">Max Confidence</small>
+            <div class="fw-bold">${(stats.maxConfidence * 100).toFixed(1)}%</div>
+          </div>
+        </div>
+      </div>
+    `).join('');
+    
+    // Create modal HTML
+    const modalHTML = `
+      <div class="modal fade" id="detectionSessionModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+              <h5 class="modal-title">
+                <i class="fas fa-chart-bar me-2"></i>Detection Session Summary
+              </h5>
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <!-- Session Stats -->
+              <div class="row mb-4">
+                <div class="col-md-3">
+                  <div class="text-center p-3 bg-success bg-opacity-10 rounded">
+                    <div class="display-6 text-success fw-bold">${detectionSession.totalReports}</div>
+                    <small class="text-muted">Total Detections</small>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="text-center p-3 bg-info bg-opacity-10 rounded">
+                    <div class="display-6 text-info fw-bold">${durationMinutes}:${durationSeconds.toString().padStart(2, '0')}</div>
+                    <small class="text-muted">Session Duration</small>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="text-center p-3 bg-warning bg-opacity-10 rounded">
+                    <div class="display-6 text-warning fw-bold">${detectionSession.uniqueHazards.size}</div>
+                    <small class="text-muted">Unique Hazards</small>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div class="text-center p-3 bg-primary bg-opacity-10 rounded">
+                    <div class="display-6 text-primary fw-bold">${detectionSession.savedReports}</div>
+                    <small class="text-muted">Saved Reports</small>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Detection Details -->
+              <h6 class="mb-3"><i class="fas fa-list me-2"></i>Detection Breakdown</h6>
+              ${detectionGridHTML || '<p class="text-muted text-center py-4">No detections in this session</p>'}
+              
+              <!-- Recent Detections Timeline -->
+              <h6 class="mb-3 mt-4"><i class="fas fa-clock me-2"></i>Recent Activity</h6>
+              <div class="detection-timeline" style="max-height: 200px; overflow-y: auto;">
+                ${detectionSession.detections.slice(-10).reverse().map(detection => `
+                  <div class="d-flex align-items-center mb-2 p-2 bg-light rounded">
+                    <div class="flex-grow-1">
+                      <div class="fw-bold">${detection.type}</div>
+                      <small class="text-muted">${new Date(detection.timestamp).toLocaleTimeString()}</small>
+                    </div>
+                    <span class="badge bg-secondary">${(detection.confidence * 100).toFixed(1)}%</span>
+                  </div>
+                `).join('') || '<p class="text-muted text-center py-2">No recent activity</p>'}
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-success" onclick="exportSessionData()">
+                <i class="fas fa-download me-2"></i>Export Data
+              </button>
+              <button type="button" class="btn btn-warning" onclick="resetSession()">
+                <i class="fas fa-refresh me-2"></i>Reset Session
+              </button>
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    // Remove existing modal and add new one
+    const existingModal = document.getElementById('detectionSessionModal');
+    if (existingModal) existingModal.remove();
+    
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('detectionSessionModal'));
+    modal.show();
+  }
+  
+  // Function to export session data
+  function exportSessionData() {
+    const sessionData = {
+      sessionStart: new Date(detectionSession.startTime).toISOString(),
+      sessionEnd: new Date().toISOString(),
+      duration: Date.now() - detectionSession.startTime,
+      totalDetections: detectionSession.totalReports,
+      uniqueHazardTypes: Array.from(detectionSession.uniqueHazards),
+      savedReports: detectionSession.savedReports,
+      detections: detectionSession.detections
+    };
+    
+    const blob = new Blob([JSON.stringify(sessionData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `detection-session-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showToast('Session data exported successfully', 'success');
+  }
+  
+  // Function to reset session
+  function resetSession() {
+    detectionSession = {
+      startTime: Date.now(),
+      detections: [],
+      totalReports: 0,
+      uniqueHazards: new Set(),
+      savedReports: 0
+    };
+    updateDetectionSessionSummary();
+    
+    // Close modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('detectionSessionModal'));
+    if (modal) modal.hide();
+    
+    showToast('Detection session reset', 'info');
+  }
+  
+  // Make functions globally available
+  window.showDetectionSessionSummary = showDetectionSessionSummary;
+  window.exportSessionData = exportSessionData;
+  window.resetSession = resetSession;
+  
+  // Start periodic session summary updates
+  setInterval(updateDetectionSessionSummary, 1000); // Update every second
+  
+  // Initialize session summary on page load
+  updateDetectionSessionSummary();
+
+  // Enhanced detection filtering for road damage
+  function applyDetectionFilters(boxes) {
+    let validBoxes = [];
+    
+    // Filter by confidence, size and aspect ratio
+    for (const box of boxes) {
+      let [x1, y1, x2, y2, score, classId] = box;
+      
+      // Fix class ID mapping - model outputs class_id + 1, so subtract 1
+      const correctedClassId = Math.floor(classId) - 1;
+      const classIndex = Math.max(0, correctedClassId); // Ensure non-negative
+      
+      // Use class-specific confidence thresholds if available
+      const minThreshold = DETECTION_CONFIG.classThresholds[classIndex] || DETECTION_CONFIG.minConfidence;
+      
+      // Skip low confidence detections
+      if (score < minThreshold) continue;
+      
+      // Validate coordinates
+      if (x1 >= x2 || y1 >= y2) continue;
+      
+      const width = x2 - x1;
+      const height = y2 - y1;
+      
+      // Filter tiny boxes
+      if (width < DETECTION_CONFIG.minBoxSize || height < DETECTION_CONFIG.minBoxSize) continue;
+      
+      // Filter extreme aspect ratios (likely false positives)
+      const aspectRatio = Math.max(width/height, height/width);
+      if (aspectRatio > DETECTION_CONFIG.aspectRatioFilter) continue;
+      
+      // Ensure box is within image bounds
+      if (x1 < 0 || y1 < 0 || x2 > FIXED_SIZE || y2 > FIXED_SIZE) continue;
+      
+      validBoxes.push(box);
+    }
+    
+    // Sort by confidence (highest first)
+    validBoxes.sort((a, b) => b[4] - a[4]);
+    
+    // Limit number of detections
+    if (validBoxes.length > DETECTION_CONFIG.maxDetections) {
+      validBoxes = validBoxes.slice(0, DETECTION_CONFIG.maxDetections);
+    }
+    
+    // Apply Non-Maximum Suppression (simplified)
+    return applyNMS(validBoxes, DETECTION_CONFIG.nmsThreshold);
+  }
+
+  // Simplified Non-Maximum Suppression
+  function applyNMS(boxes, threshold) {
+    if (boxes.length === 0) return [];
+    
+    const result = [];
+    const indices = boxes.map((_, i) => i);
+    
+    // Sort by confidence score
+    indices.sort((a, b) => boxes[b][4] - boxes[a][4]);
+    
+    while (indices.length > 0) {
+      const current = indices.shift();
+      result.push(boxes[current]);
+      
+      // Remove boxes with high IoU
+      for (let i = indices.length - 1; i >= 0; i--) {
+        const iou = calculateIoU(boxes[current], boxes[indices[i]]);
+        if (iou > threshold) {
+          indices.splice(i, 1);
+        }
+      }
+    }
+    
+    return result;
+  }
+
+  // Calculate Intersection over Union
+  function calculateIoU(box1, box2) {
+    const [x1a, y1a, x2a, y2a] = [box1[0], box1[1], box1[2], box1[3]];
+    const [x1b, y1b, x2b, y2b] = [box2[0], box2[1], box2[2], box2[3]];
+    
+    const xLeft = Math.max(x1a, x1b);
+    const yTop = Math.max(y1a, y1b);
+    const xRight = Math.min(x2a, x2b);
+    const yBottom = Math.min(y2a, y2b);
+    
+    if (xRight < xLeft || yBottom < yTop) return 0;
+    
+    const intersectionArea = (xRight - xLeft) * (yBottom - yTop);
+    const box1Area = (x2a - x1a) * (y2a - y1a);
+    const box2Area = (x2b - x1b) * (y2b - y1b);
+    const unionArea = box1Area + box2Area - intersectionArea;
+    
+    return intersectionArea / unionArea;
+  }
+
+  // Update detection information panel
+  function updateDetectionInfoPanel(boxes, detectionCount, hazardTypes) {
+    const detectionInfo = document.getElementById('detection-info');
+    const detectionCountEl = document.getElementById('detection-count');
+    const confidenceAvgEl = document.getElementById('confidence-avg');
+    const hazardTypesCountEl = document.getElementById('hazard-types-count');
+    const detectedHazardsEl = document.getElementById('detected-hazards');
+    
+    if (!detectionInfo || !detectionCountEl || !confidenceAvgEl || !hazardTypesCountEl || !detectedHazardsEl) return;
+    
+    // Show/hide panel based on detections
+    if (detectionCount > 0) {
+      detectionInfo.classList.remove('hidden');
+      
+      // Update counts
+      detectionCountEl.textContent = detectionCount;
+      hazardTypesCountEl.textContent = hazardTypes.length;
+      
+      // Calculate average confidence
+      const validBoxes = boxes.filter(box => {
+        const threshold = Math.max(confidenceThreshold, DETECTION_CONFIG.minConfidence);
+        return box[4] >= threshold;
+      });
+      
+      const avgConfidence = validBoxes.length > 0 
+        ? validBoxes.reduce((sum, box) => sum + box[4], 0) / validBoxes.length
+        : 0;
+      
+      confidenceAvgEl.textContent = `${Math.round(avgConfidence * 100)}%`;
+      
+      // Show detected hazards with confidence ranges
+      const hazardDetails = hazardTypes.map(hazardType => {
+        const hazardBoxes = validBoxes.filter(box => {
+          const correctedClassId = Math.floor(box[5]) - 1;
+          const classIndex = Math.max(0, correctedClassId);
+          return classNames[classIndex] === hazardType;
+        });
+        
+        const count = hazardBoxes.length;
+        const maxConf = Math.max(...hazardBoxes.map(box => box[4]));
+        const minConf = Math.min(...hazardBoxes.map(box => box[4]));
+        
+        return `${hazardType}: ${count} detected (${Math.round(minConf * 100)}-${Math.round(maxConf * 100)}% confidence)`;
+      });
+      
+      detectedHazardsEl.innerHTML = hazardDetails.join('<br>');
+    } else {
+      detectionInfo.classList.add('hidden');
+    }
+  }
+
+  // Professional bounding box drawing function
+  function drawProfessionalBoundingBox(ctx, options) {
+    const { x1, y1, x2, y2, label, confidence, classIndex, detectionIndex, color } = options;
+    
+    const boxW = x2 - x1;
+    const boxH = y2 - y1;
+    const scorePerc = (confidence * 100).toFixed(1);
+    
+    // Save current context state
+    ctx.save();
+    
+    // Calculate dynamic styling based on confidence
+    const alpha = Math.min(0.7 + confidence * 0.3, 1.0);
+    const lineWidth = Math.max(2, Math.min(6, confidence * 8));
+    const cornerSize = Math.max(8, Math.min(16, confidence * 20));
+    
+    // Set shadow for depth effect
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+    ctx.shadowBlur = 4;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
+    
+    // Draw main bounding box
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.strokeRect(x1, y1, boxW, boxH);
+    
+    // Reset shadow for corner markers
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+    
+    // Draw professional corner markers
+    ctx.fillStyle = color;
+    ctx.globalAlpha = Math.min(alpha + 0.2, 1.0);
+    
+    const cornerThickness = Math.max(2, lineWidth / 2);
+    const cornerLength = cornerSize;
+    
+    // Top-left corner
+    ctx.fillRect(x1 - cornerThickness, y1 - cornerThickness, cornerLength, cornerThickness);
+    ctx.fillRect(x1 - cornerThickness, y1 - cornerThickness, cornerThickness, cornerLength);
+    
+    // Top-right corner
+    ctx.fillRect(x2 - cornerLength + cornerThickness, y1 - cornerThickness, cornerLength, cornerThickness);
+    ctx.fillRect(x2, y1 - cornerThickness, cornerThickness, cornerLength);
+    
+    // Bottom-left corner
+    ctx.fillRect(x1 - cornerThickness, y2, cornerLength, cornerThickness);
+    ctx.fillRect(x1 - cornerThickness, y2 - cornerLength + cornerThickness, cornerThickness, cornerLength);
+    
+    // Bottom-right corner
+    ctx.fillRect(x2 - cornerLength + cornerThickness, y2, cornerLength, cornerThickness);
+    ctx.fillRect(x2, y2 - cornerLength + cornerThickness, cornerThickness, cornerLength);
+    
+    // Draw confidence indicator bar
+    const confBarWidth = Math.min(boxW * 0.8, 60);
+    const confBarHeight = 4;
+    const confBarX = x1 + (boxW - confBarWidth) / 2;
+    const confBarY = y2 - 8;
+    
+    // Background bar
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(confBarX, confBarY, confBarWidth, confBarHeight);
+    
+    // Confidence fill
+    ctx.globalAlpha = 0.8;
+    ctx.fillStyle = color;
+    ctx.fillRect(confBarX, confBarY, confBarWidth * confidence, confBarHeight);
+    
+    // Professional label design
+    ctx.font = 'bold 12px "Segoe UI", Arial, sans-serif';
+    const mainText = label;
+    const confText = `${scorePerc}%`;
+    const idText = `#${detectionIndex}`;
+    
+    const mainTextWidth = ctx.measureText(mainText).width;
+    const confTextWidth = ctx.measureText(confText).width;
+    const idTextWidth = ctx.measureText(idText).width;
+    
+    const labelPadding = 8;
+    const labelSpacing = 4;
+    const totalLabelWidth = mainTextWidth + confTextWidth + idTextWidth + labelPadding * 2 + labelSpacing * 2;
+    const labelHeight = 22;
+    
+    // Smart label positioning
+    let labelX = x1;
+    let labelY = y1 - labelHeight - 4;
+    
+    // Adjust if label goes outside image bounds
+    if (labelX + totalLabelWidth > FIXED_SIZE) {
+      labelX = FIXED_SIZE - totalLabelWidth - 4;
+    }
+    if (labelY < 0) {
+      labelY = y2 + 4;
+    }
+    
+    // Draw label background with gradient effect
+    ctx.globalAlpha = 0.95;
+    
+    // Create gradient background
+    const gradient = ctx.createLinearGradient(labelX, labelY, labelX, labelY + labelHeight);
+    gradient.addColorStop(0, color);
+    gradient.addColorStop(1, adjustColorBrightness(color, -20));
+    
+    ctx.fillStyle = gradient;
+    drawRoundedRect(ctx, labelX, labelY, totalLabelWidth, labelHeight, 4);
+    
+    // Draw label text with shadow
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+    ctx.shadowBlur = 1;
+    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetY = 1;
+    
+    ctx.globalAlpha = 1.0;
+    ctx.fillStyle = '#FFFFFF';
+    
+    // Main label text
+    ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(mainText, labelX + labelPadding, labelY + 14);
+    
+    // Confidence text
+    ctx.font = 'bold 10px "Segoe UI", Arial, sans-serif';
+    ctx.fillStyle = '#E0E0E0';
+    ctx.fillText(confText, labelX + labelPadding + mainTextWidth + labelSpacing, labelY + 14);
+    
+    // Detection ID
+    ctx.font = 'bold 8px "Segoe UI", Arial, sans-serif';
+    ctx.fillStyle = '#CCCCCC';
+    ctx.fillText(idText, labelX + labelPadding + mainTextWidth + confTextWidth + labelSpacing * 2, labelY + 13);
+    
+    // Restore context state
+    ctx.restore();
+  }
+  
+  // Helper function to draw rounded rectangles
+  function drawRoundedRect(ctx, x, y, width, height, radius) {
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + width - radius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+    ctx.lineTo(x + width, y + height - radius);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    ctx.lineTo(x + radius, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+    ctx.fill();
+  }
+  
+  // Helper function to adjust color brightness
+  function adjustColorBrightness(color, amount) {
+    const usePound = color[0] === '#';
+    const col = usePound ? color.slice(1) : color;
+    const num = parseInt(col, 16);
+    let r = (num >> 16) + amount;
+    let g = (num >> 8 & 0x00FF) + amount;
+    let b = (num & 0x0000FF) + amount;
+    r = r > 255 ? 255 : r < 0 ? 0 : r;
+    g = g > 255 ? 255 : g < 0 ? 0 : g;
+    b = b > 255 ? 255 : b < 0 ? 0 : b;
+    return (usePound ? '#' : '') + (r << 16 | g << 8 | b).toString(16).padStart(6, '0');
+  }
 
   function drawResults(boxes) {
     if (!ctx) return; // Check if context exists
 
-    hazardTypes = []; // מאתחל את המערך של סוגי המפגעים
+    hazardTypes = []; // Reset hazard types array
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const { offsetX, offsetY, newW, newH } = letterboxParams;
 
+    // Draw background
     ctx.fillStyle = "black";
     ctx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
 
@@ -398,49 +961,83 @@ saveBtn.addEventListener("click", () => {
       ctx.drawImage(currentImage, offsetX, offsetY, newW, newH);
     }
 
-    hasHazard = false; // משתנה שמבצע את הבדיקה אם יש מפגע
+    hasHazard = false;
     const tooltip = document.getElementById("tooltip");
+    
+    // Enhanced color scheme for different road damage types
+    const hazardColors = {
+      'Alligator Crack': '#FF4444',    // Red - Critical structural damage
+      'Block Crack': '#FF6600',        // Red-Orange - Significant cracking
+      'Crosswalk Blur': '#4444FF',     // Blue - Safety marking issues
+      'Lane Blur': '#6644FF',          // Purple - Traffic marking issues  
+      'Longitudinal Crack': '#FF8844', // Orange - Directional cracking
+      'Manhole': '#888888',            // Gray - Infrastructure elements
+      'Patch Repair': '#44FF88',       // Green - Previous repairs
+      'Pothole': '#FF0088',            // Pink - Critical surface damage
+      'Transverse Crack': '#FFAA44',   // Light Orange - Cross cracking
+      'Wheel Mark Crack': '#AA4444'    // Dark Red - Load-induced damage
+    };
 
-    boxes.forEach((box) => {
+    let detectionCount = 0;
+    boxes.forEach((box, index) => {
       let [x1, y1, x2, y2, score, classId] = box;
-      if (score < confidenceThreshold) return;
+      
+      // Fix class ID mapping - model outputs class_id + 1, so subtract 1
+      const correctedClassId = Math.floor(classId) - 1;
+      const classIndex = Math.max(0, correctedClassId); // Ensure non-negative
+      
+      // Use class-specific confidence threshold or dynamic threshold
+      const classThreshold = DETECTION_CONFIG.classThresholds[classIndex] || DETECTION_CONFIG.minConfidence;
+      const threshold = Math.max(confidenceThreshold, classThreshold);
+      if (score < threshold) return;
 
       const boxW = x2 - x1;
       const boxH = y2 - y1;
 
-      if (boxW <= 1 || boxH <= 1 || boxW > FIXED_SIZE || boxH > FIXED_SIZE) return;
+      if (boxW <= 1 || boxH <= 1) return;
 
-      // אם מצאנו לפחות קופסה שמאובחנת כמפגע, נעדכן את המשתנה
       hasHazard = true;
+      detectionCount++;
 
-      const labelName = classNames[Math.floor(classId)] || `Class ${classId}`;
+      // Get the correct class name using corrected class ID
+      const labelName = classNames[classIndex] || `Unknown Class ${classIndex}`;
+      
+      console.log(`🔍 Detection: Raw classId=${classId}, Corrected=${classIndex}, Label="${labelName}"`);  // Debug log
       const scorePerc = (score * 100).toFixed(1);
 
-      // מוסיפים את סוג המפגע למערך אם הוא לא כבר שם
+      // Add to hazard types if not already present
       if (!hazardTypes.includes(labelName)) {
-      hazardTypes.push(labelName);
+        hazardTypes.push(labelName);
       }
-      console.log("Hazard types:", hazardTypes);
 
-      // --- שינוי סגנון התיבות ---
-      const color = '#00FF00'; // ירוק בהיר
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 3; // קו עבה יותר
-      ctx.strokeRect(x1, y1, boxW, boxH);
-
-      // --- שינוי סגנון הטקסט והוספת רקע ---
-      ctx.fillStyle = color;
-      ctx.font='bold 16px Arial'; // פונט מודגש
-      const textWidth = ctx.measureText(`${labelName} (${scorePerc}%)`).width;
-      // מיקום הרקע מעל התיבה, עם התאמה אם התיבה קרובה לקצה העליון
-      const textBgX = x1;
-      const textBgY = y1 > 20 ? y1 - 20 : y1;
-      const textBgWidth = textWidth + 8; // רוחב הטקסט + ריווח קטן
-      const textBgHeight = 20; // גובה קבוע לרקע הטקסט
-      ctx.fillRect(textBgX, textBgY, textBgWidth, textBgHeight); // רקע לטקסט
-      ctx.fillStyle = 'black'; // צבע טקסט שחור על הרקע הבהיר
-      ctx.fillText(`${labelName} (${scorePerc}%)`, textBgX + 4, textBgY + 15); // מיקום הטקסט בתוך הרקע
+      // Professional bounding box drawing
+      drawProfessionalBoundingBox(ctx, {
+        x1, y1, x2, y2,
+        label: labelName,
+        confidence: score,
+        classIndex: classIndex,
+        detectionIndex: index + 1,
+        color: hazardColors[labelName] || '#00FF00'
+      });
+      
+      // Add detection to session tracking
+      addDetectionToSession({
+        type: labelName,
+        confidence: score,
+        classIndex: classIndex,
+        coordinates: { x1, y1, x2, y2 },
+        imageDimensions: { width: canvas.width, height: canvas.height }
+      });
     });
+
+    // Update detection information panel
+    updateDetectionInfoPanel(boxes, detectionCount, hazardTypes);
+    
+    // Log detection summary
+    console.log(`✅ Detected ${detectionCount} hazards:`, hazardTypes);
+    if (detectionCount > 0) {
+      console.log(`📊 Detection confidence scores:`, boxes.slice(0, 5).map(b => `${(b[4] * 100).toFixed(1)}%`));
+    }
 
   // שליטה בכפתור השמירה לפי האם יש מפגעים
   if (!saveBtn || !tooltip) return;

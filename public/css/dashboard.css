@@ -1,17 +1,17 @@
 :root {
-  /* Dark Mode Palette */
-  --bg-main: #121212;
-  --bg-panel: #1E1E1E;
-  --text-main: #E0E0E0;
+  /* Map dashboard palette to Tech-Urban variables */
+  --bg-main: var(--tech-bg);
+  --bg-panel: var(--tech-panel);
+  --text-main: var(--tech-text);
   --text-muted: #AAAAAA;
-  --accent: #1E88E5;
-  --accent-hover: #1565C0;
-  --border-color: #2C2C2C;
+  --accent: var(--tech-accent);
+  --accent-hover: var(--tech-accent2);
+  --border-color: var(--tech-accent2);
   /* Spacing & Typography */
   --font-family-base: 'Poppins', sans-serif;
   --font-size-base: 16px;
   --font-size-heading: 2rem;
-  --transition-speed: 0.3s;
+  --transition-speed: var(--tech-transition);
   --sidebar-width: 250px;
   --shadow-color: rgba(0,0,0,0.3);
 }
@@ -19,11 +19,10 @@
 /* Global Styles */
 body {
   font-family: var(--font-family-base);
-  background: linear-gradient(135deg, #12141d 0%, #1f2235 100%), url('/images/cityscape-overlay.png');
-  background-blend-mode: multiply;
-  background-size: cover;
-  color: #cbd2d9;
+  background: var(--tech-bg);
+  color: var(--tech-text);
   direction: ltr; /* Force global left-to-right layout */
+  transition: background var(--tech-transition);
 }
 
 /* Ensure header and dropdown navigation are styled LTR */
@@ -51,7 +50,7 @@ header {
   font-weight: 600;
   border: none;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: background var(--tech-transition), transform var(--tech-transition), box-shadow var(--tech-transition);
 }
 
 .btn:focus {
@@ -77,11 +76,12 @@ select {
   border: 1px solid var(--border-color);
   border-radius: var(--radius);
   padding: 0.4rem 0.6rem;
-  transition: border-color 0.3s;
+  transition: border-color var(--tech-transition);
 }
 input:focus,
 select:focus {
   border-color: var(--accent);
+  outline: none;
 }
 
 /* Dashboard Layout */
@@ -230,8 +230,10 @@ select:focus {
 /* Dashboard specific styles */
 #map {
     width: 100%;
+    height: 60vh;
+    border: 2px solid var(--tech-accent);
     border-radius: 0.375rem; /* Bootstrap's default border radius */
-}
+  }
 
 #reports {
     width: 100%;
@@ -946,12 +948,12 @@ select:focus, input:focus {
   box-shadow: 0 4px 10px rgba(0,0,0,0.3);
   padding: 1.5rem 2rem 1rem 2rem;
 }
-.dashboard-center-row {
-  display: flex;
-  flex-direction: row;
-  gap: 2rem;
-  width: 100%;
-}
+  .dashboard-center-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 2rem;
+    width: 100%;
+  }
 .dashboard-center {
   flex: 1 1 0%;
   min-width: 0;
@@ -975,37 +977,37 @@ select:focus, input:focus {
   flex-direction: column;
   justify-content: flex-start;
 }
-@media (max-width: 1200px) {
-  .dashboard-center-row {
-    flex-direction: column;
-    gap: 1.5rem;
+  @media (max-width: 1200px) {
+    .dashboard-center-row {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+    .dashboard-right {
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+      padding: 1rem 0.5rem;
+    }
   }
-  .dashboard-right {
-    width: 100%;
-    min-width: 0;
-    max-width: 100%;
-    padding: 1rem 0.5rem;
+  @media (max-width: 768px) {
+    .dashboard-main-layout {
+      padding: 0.5rem;
+      gap: 1rem;
+    }
+    .dashboard-metrics-row {
+      padding: 1rem 0.5rem 0.5rem 0.5rem;
+    }
+    .dashboard-center-row {
+      grid-template-columns: 1fr;
+      height: auto;
+    }
+    .dashboard-center {
+      padding: 1rem 0.5rem;
+    }
+    .dashboard-right {
+      padding: 1rem 0.5rem;
+    }
   }
-}
-@media (max-width: 768px) {
-  .dashboard-main-layout {
-    padding: 0.5rem;
-    gap: 1rem;
-  }
-  .dashboard-metrics-row {
-    padding: 1rem 0.5rem 0.5rem 0.5rem;
-  }
-  .dashboard-center-row {
-    flex-direction: column;
-    gap: 1rem;
-  }
-  .dashboard-center {
-    padding: 1rem 0.5rem;
-  }
-  .dashboard-right {
-    padding: 1rem 0.5rem;
-  }
-}
 .reports-sort-bar {
   position: relative;
   display: flex;
@@ -1081,10 +1083,10 @@ select:focus, input:focus {
   margin-bottom: 1rem;
 }
 .hazard-type-dropdown-btn {
-  background: #232946;
-  color: #fff;
+  background: var(--tech-accent);
+  color: #000;
   border: none;
-  border-radius: 999px;
+  border-radius: var(--tech-radius);
   padding: 0.5rem 1.2rem;
   font-size: 1rem;
   font-weight: 600;
@@ -1093,10 +1095,11 @@ select:focus, input:focus {
   align-items: center;
   gap: 0.5rem;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background var(--tech-transition), transform var(--tech-transition);
 }
 .hazard-type-dropdown-btn:hover {
-  background: #343a50;
+  background: var(--tech-accent2);
+  transform: translateY(-2px);
 }
 .hazard-type-dropdown-menu {
   display: none;
@@ -1115,25 +1118,31 @@ select:focus, input:focus {
   display: flex;
 }
 .hazard-type-option {
-  background: none;
+  background: var(--tech-accent);
   border: none;
-  color: #fff;
+  color: #000;
   text-align: right;
   padding: 0.7rem 1.2rem;
   font-size: 1rem;
   cursor: pointer;
-  border-radius: 0;
-  transition: background 0.15s;
+  border-radius: var(--tech-radius);
+  transition: background var(--tech-transition), transform var(--tech-transition);
 }
 .hazard-type-option:hover, .hazard-type-option.selected {
-  background: #1e88e5;
-  color: #fff;
+  background: var(--tech-accent2);
+  color: #000;
+  transform: translateY(-2px);
 }
 .reports-blocks-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1.2rem;
-}
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+    flex: 1 1 0%;
+    overflow-y: auto;
+    min-height: 0;
+    max-height: 100%;
+    padding-bottom: 0.5rem;
+  }
 .report-block {
   background: #232946;
   border-radius: 18px;
@@ -1204,7 +1213,158 @@ select:focus, input:focus {
     padding: 0.7rem 0.7rem 1rem 0.7rem;
   }
 }
-#reports-table-container, #reports-table { display: none !important; }
+/* Reports Table Section */
+.reports-table-section {
+  margin-top: 2rem;
+}
+
+#reports-management-table {
+  background: var(--tech-panel);
+  color: var(--tech-text);
+  border-collapse: collapse;
+}
+
+#reports-management-table th {
+  background: rgba(0,0,0,0.3);
+  color: var(--tech-accent);
+  font-weight: 600;
+  border: 1px solid #333;
+  padding: 0.75rem;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s ease;
+}
+
+#reports-management-table th:hover {
+  background: rgba(0,255,255,0.1);
+}
+
+#reports-management-table th.sortable {
+  position: relative;
+}
+
+#reports-management-table th.sortable i {
+  margin-left: 0.5rem;
+  opacity: 0.5;
+}
+
+#reports-management-table td {
+  border: 1px solid #333;
+  padding: 0.75rem;
+  vertical-align: middle;
+}
+
+#reports-management-table tbody tr {
+  transition: background-color 0.2s ease;
+}
+
+#reports-management-table tbody tr:hover {
+  background: rgba(0,255,255,0.05);
+}
+
+.table-controls input,
+.table-controls select {
+  background: var(--tech-panel);
+  color: var(--tech-text);
+  border: 1px solid var(--tech-accent2);
+  border-radius: var(--tech-radius);
+}
+
+.table-controls input:focus,
+.table-controls select:focus {
+  border-color: var(--tech-accent);
+  outline: none;
+}
+
+.table-pagination {
+  font-size: 0.9rem;
+  color: var(--tech-text);
+}
+
+.pagination-controls .btn {
+  background: var(--tech-accent);
+  color: #000;
+  border: none;
+  transition: background var(--tech-transition);
+}
+
+.pagination-controls .btn:hover:not(:disabled) {
+  background: var(--tech-accent2);
+}
+
+.pagination-controls .btn:disabled {
+  background: #333;
+  color: #666;
+  cursor: not-allowed;
+}
+
+.pagination-controls select {
+  background: var(--tech-panel);
+  color: var(--tech-text);
+  border: 1px solid var(--tech-accent2);
+  border-radius: var(--tech-radius);
+}
+
+/* Action buttons in table */
+.btn-group .btn {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.btn-outline-info {
+  border-color: var(--tech-accent);
+  color: var(--tech-accent);
+}
+
+.btn-outline-info:hover {
+  background: var(--tech-accent);
+  color: #000;
+}
+
+.btn-outline-warning {
+  border-color: #ffc107;
+  color: #ffc107;
+}
+
+.btn-outline-warning:hover {
+  background: #ffc107;
+  color: #000;
+}
+
+.btn-outline-danger {
+  border-color: var(--tech-danger);
+  color: var(--tech-danger);
+}
+
+.btn-outline-danger:hover {
+  background: var(--tech-danger);
+  color: #fff;
+}
+
+/* Responsive table */
+@media (max-width: 768px) {
+  .table-controls {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .table-controls input,
+  .table-controls select {
+    width: 100% !important;
+  }
+  
+  .pagination-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+  
+  .pagination-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
 
 /* Responsive: Edit Report Modal */
 @media (max-width: 600px) {
@@ -1342,38 +1502,41 @@ header h1 {
   background: none;
 }
 
-.floating-menu-btn {
-  background: linear-gradient(135deg, #cbd2d9 60%, #5c7fa3 100%);
-  color: #2d3a4a;
-  font-size: 1.3rem;
-  border: 1.5px solid #b0b8c1;
-  box-shadow: 0 2px 8px #b0b8c122;
-}
-.floating-menu-btn:hover {
-  background: #5c7fa3;
-  color: #fff;
-}
+  .floating-menu-btn {
+    background: var(--tech-accent);
+    color: #000;
+    font-size: 1.3rem;
+    border: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .floating-menu-btn:hover {
+    background: var(--tech-accent2);
+    color: #000;
+  }
 
 #legend-toggle-btn {
-  border: 1.5px solid #b0b8c1;
-  background: #cbd2d9;
-  color: #2d3a4a;
+  background: var(--tech-accent);
+  color: #000;
+  border: none;
+  border-radius: var(--tech-radius);
   font-weight: 600;
+  transition: background var(--tech-transition), transform var(--tech-transition);
 }
 #legend-toggle-btn:hover {
-  background: #5c7fa3;
-  color: #fff;
+  background: var(--tech-accent2);
+  color: #000;
+  transform: translateY(-2px);
 }
 
-input, select {
-  background: #fff;
-  color: #2d3a4a;
-  border: 1.5px solid #b0b8c1;
-  font-weight: 500;
-}
-input:focus, select:focus {
-  border-color: #5c7fa3;
-}
+  input, select {
+    background: var(--tech-panel);
+    color: var(--tech-text);
+    border: 1.5px solid var(--tech-accent2);
+    font-weight: 500;
+  }
+  input:focus, select:focus {
+    border-color: var(--tech-accent);
+  }
 
 .report-block:hover, .stat-card:hover {
   box-shadow: 0 6px 20px #5c7fa344;
@@ -1435,4 +1598,29 @@ input:focus, select:focus {
     width: 80px;
     height: 80px;
   }
+}
+
+/* Tech-Urban Dashboard Layout */
+.dashboard-main-layout {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 1rem;
+  padding: 1rem;
+}
+.dashboard-metrics-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+  }
+.dashboard-center-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1rem;
+  height: calc(100vh - 120px);
+}
+.dashboard-center, .dashboard-right {
+  background: var(--tech-panel);
+  border-radius: var(--tech-radius);
+  padding: 1rem;
+  overflow: auto;
 }

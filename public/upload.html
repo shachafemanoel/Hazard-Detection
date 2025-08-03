@@ -145,13 +145,91 @@
           </div>
           <div>
             <label for="confidence-slider" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Confidence Threshold: <span id="conf-value" class="font-semibold text-indigo-600">0.5</span>
+              Detection Sensitivity: <span id="conf-value" class="font-semibold text-indigo-600">0.5</span>
+              <span class="text-xs text-gray-500">(Lower = More Sensitive)</span>
             </label>
-            <input type="range" id="confidence-slider" min="0" max="1" step="0.05" value="0.5" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+            <input type="range" id="confidence-slider" min="0.25" max="0.8" step="0.05" value="0.5" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+            <div class="flex justify-between text-xs text-gray-500 mt-1">
+              <span>High Sensitivity</span>
+              <span>Balanced</span>  
+              <span>High Precision</span>
+            </div>
           </div>
           <div class="canvas-container border-2 border-dashed border-gray-300 rounded-xl overflow-hidden bg-gray-50 flex items-center justify-center transition-all duration-200 hover:border-indigo-400 mx-auto" style="min-height: 400px; max-width: 800px;">
             <canvas id="preview-canvas" class="max-w-full max-h-[60vh]"></canvas>
           </div>
+          
+          <!-- Detection Information Panel -->
+          <div id="detection-info" class="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 space-y-3 hidden">
+            <div class="flex items-center justify-between">
+              <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300">
+                <i class="fas fa-search mr-2"></i>Detection Results
+              </h3>
+              <div class="flex flex-wrap gap-1">
+                <span class="px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">
+                  <i class="fas fa-circle text-red-500 mr-1"></i>Cracks
+                </span>
+                <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                  <i class="fas fa-circle text-blue-500 mr-1"></i>Markings
+                </span>
+                <span class="px-2 py-1 bg-pink-100 text-pink-800 text-xs rounded-full">
+                  <i class="fas fa-circle text-pink-500 mr-1"></i>Potholes
+                </span>
+                <span class="px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded-full">
+                  <i class="fas fa-circle text-gray-500 mr-1"></i>Infrastructure
+                </span>
+                <span class="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
+                  <i class="fas fa-circle text-green-500 mr-1"></i>Repairs
+                </span>
+              </div>
+            </div>
+            <div class="grid grid-cols-3 gap-4 text-center">
+              <div class="bg-white dark:bg-gray-700 rounded-lg p-3">
+                <div class="text-2xl font-bold text-blue-600" id="detection-count">0</div>
+                <div class="text-sm text-gray-500">Detected</div>
+              </div>
+              <div class="bg-white dark:bg-gray-700 rounded-lg p-3">
+                <div class="text-2xl font-bold text-green-600" id="confidence-avg">0%</div>
+                <div class="text-sm text-gray-500">Avg Confidence</div>
+              </div>
+              <div class="bg-white dark:bg-gray-700 rounded-lg p-3">
+                <div class="text-2xl font-bold text-purple-600" id="hazard-types-count">0</div>
+                <div class="text-sm text-gray-500">Types</div>
+              </div>
+            </div>
+            <div id="detected-hazards" class="text-sm text-gray-600 dark:text-gray-400"></div>
+          </div>
+          
+          <!-- Detection Session Summary Panel -->
+          <div class="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 space-y-3 mb-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300">
+                <i class="fas fa-chart-bar mr-2"></i>Session Summary
+              </h3>
+              <button onclick="showDetectionSessionSummary()" class="bg-blue-500 hover:bg-blue-600 text-white text-xs px-3 py-1.5 rounded-full">
+                <i class="fas fa-eye mr-1"></i>Details
+              </button>
+            </div>
+            <div class="grid grid-cols-4 gap-3 text-center">
+              <div class="bg-white dark:bg-gray-700 rounded-lg p-2">
+                <div class="text-xl font-bold text-green-600" id="session-total-detections">0</div>
+                <div class="text-xs text-gray-500">Total</div>
+              </div>
+              <div class="bg-white dark:bg-gray-700 rounded-lg p-2">
+                <div class="text-xl font-bold text-blue-600" id="session-duration">0:00</div>
+                <div class="text-xs text-gray-500">Duration</div>
+              </div>
+              <div class="bg-white dark:bg-gray-700 rounded-lg p-2">
+                <div class="text-xl font-bold text-purple-600" id="session-unique-hazards">0</div>
+                <div class="text-xs text-gray-500">Types</div>
+              </div>
+              <div class="bg-white dark:bg-gray-700 rounded-lg p-2">
+                <div class="text-xl font-bold text-orange-600" id="session-saved-reports">0</div>
+                <div class="text-xs text-gray-500">Saved</div>
+              </div>
+            </div>
+          </div>
+          
           <button id="save-detection" class="btn-modern flex items-center justify-center w-full bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-xl shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
             <i class="fas fa-save text-xl mr-3"></i>
             <span class="text-sm font-medium">Save Detection</span>

@@ -1,32 +1,39 @@
-# Dockerfile לריפו Hazard-Detection (Frontend בלבד)
-FROM node:20-alpine
+# Unified Dockerfile for Hazard Detection service with Node.js and Python
+FROM node:20-bullseye
 
 WORKDIR /app
 
-# Install build tools and libraries for node-canvas
-RUN apk add --no-cache \
-    build-base \
-    python3 \
-    cairo-dev \
-    jpeg-dev \
-    pango-dev \
-    giflib-dev \
+# Install bash, curl, Python and pip, plus canvas dependencies
+RUN apt-get update && apt-get install -y \
+    bash curl python3 python3-pip \
+    build-essential \
+    libcairo2-dev \
+    libpango1.0-dev \
+    libjpeg-dev \
+    libgif-dev \
+    librsvg2-dev \
+    && rm -rf /var/lib/apt/lists/* \
     && npm config set python /usr/bin/python3
 
-# העתקת תלויות והתקנה
+# Copy Node.js dependencies and install
 COPY package*.json ./
 RUN npm install --omit=dev
 
-# העתקת קוד המקור
+# Copy Python requirements and install
+COPY unified-requirements.txt ./
+RUN pip3 install --no-cache-dir -r unified-requirements.txt
+
+# Copy application source
 COPY . .
 
-# אופציונלי: אם יש לך סקריפט build
-# RUN npm run build
+# Ensure startup scripts are executable
+RUN chmod +x /app/start-unified.sh || true
+RUN chmod +x /app/start-frontend.sh || chmod +x ./start-frontend.sh || true
 
-# הגדרות סביבה ופורט
+# Environment and ports
 ENV NODE_ENV=production
 ENV PORT=3000
 EXPOSE 3000
 
-# פקודת הרצה
-CMD ["npm", "start"]
+# Default command starts the unified script
+CMD ["/bin/bash", "/app/start-unified.sh"]

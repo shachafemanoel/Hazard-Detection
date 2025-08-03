@@ -1,154 +1,262 @@
-const axios = require('axios');
-const WebSocket = require('ws');
+// Enhanced apiClient.js with private-first realtime connectivity
+// Backwards compatible with existing API while adding new realtime features
 
-axios.interceptors.request.use(request => {
-  console.log('Starting Request', JSON.stringify(request, null, 2))
-  return request
-})
+const DEFAULT_TIMEOUT = 5000;
+let API_URL = "https://hazard-api-production-production.up.railway.app";
 
-async function probeHealth(base, timeout = 2000) {
+// Legacy API functions (maintained for backwards compatibility)
+export async function loadApiConfig() {
   try {
-    const res = await axios.get(base.replace(/\/+$/, '') + '/health', {
-      timeout,
-      validateStatus: () => true
+    const res = await fetch("/api/config");
+    const { apiUrl } = await res.json();
+    API_URL = apiUrl.replace(/:8000$/, ""); // Remove port 8000 if present
+    console.log("🔧 API configuration loaded:", { apiUrl: API_URL });
+  } catch (error) {
+    console.warn("⚠️ Failed to load API config, using defaults:", error);
+  }
+}
+
+export async function testApiConnection() {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
+  try {
+    const res = await fetch(`${API_URL}/health`, { 
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Hazard-Detection-Web/1.0'
+      }
     });
-    return res.status >= 200 && res.status < 300;
-  } catch {
+    clearTimeout(id);
+    
+    if (res.ok) {
+      const data = await res.json();
+      console.log("✅ API service is available:", data);
+      
+      // Check if model is ready
+      if (data.status === 'healthy') {
+        if (data.model_status && data.model_status.includes('error')) {
+          console.warn("⚠️ Backend model has issues:", data.model_status);
+          return false;
+        }
+        return true;
+      }
+    }
+    return false;
+  } catch (error) {
+    clearTimeout(id);
+    if (error.name === 'AbortError') {
+      console.log("🔄 API health check timed out");
+    } else {
+      console.log("🏠 API service not accessible");
+    }
     return false;
   }
 }
 
-async function resolveBaseUrl() {
-  const priv = process.env.HAZARD_API_URL_PRIVATE || 'http://ideal-learning.railway.internal:8080';
-  const pub = process.env.HAZARD_API_URL_PUBLIC || 'https://hazard-api-production-production.up.railway.app';
-  const pref = process.env.HAZARD_USE_PRIVATE || 'auto';
-
-  if (pref === 'true') return priv;
-  if (pref === 'false') return pub;
-
-  if (await probeHealth(priv)) {
-    console.log('Private network selected');
-    return priv;
-  }
-  if (await probeHealth(pub)) {
-    console.log('Public network selected');
-    return pub;
-  }
-  throw new Error('No healthy endpoint found (private/public)');
-}
-
-function toWsUrl(httpBase) {
-  return httpBase.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:');
-}
-
-function createRealtimeClient(config) {
-  const {
-    authToken,
-    timeout = 30000,
-    maxRetries = 5,
-    backoffMs = 500,
-    heartbeatMs = 0,
-  } = config || {};
-
-  let baseUrl;
-  let sessionId;
-  let status = 'disconnected';
-  let listeners = {
-    message: [],
-    error: [],
-    status: [],
-  };
-
-  function setStatus(newStatus) {
-    status = newStatus;
-    listeners.status.forEach(cb => cb(status));
-  }
-
-  async function connect() {
-    setStatus('connecting');
-    try {
-      baseUrl = await resolveBaseUrl();
-      const response = await axios.post(`${baseUrl}/session/start`);
-      sessionId = response.data.session_id;
-      setStatus('connected');
-    } catch (error) {
-      setStatus('disconnected');
-      listeners.error.forEach(cb => cb(error));
+export async function startApiSession() {
+  try {
+    const res = await fetch(`${API_URL}/session/start`, { 
+      method: "POST",
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
+      throw new Error(`Failed to start session: ${errorData.detail || res.statusText}`);
     }
+    
+    const { session_id } = await res.json();
+    console.log("✅ API session started:", session_id);
+    return session_id;
+  } catch (error) {
+    console.error("❌ Failed to start API session:", error);
+    throw error;
+  }
+}
+
+export async function detectWithApi(sessionId, blob) {
+  try {
+    const form = new FormData();
+    form.append("file", blob, 'frame.jpg');
+    
+    const res = await fetch(`${API_URL}/detect/${sessionId}`, {
+      method: "POST",
+      body: form
+    });
+    
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
+      throw new Error(`API detection failed: ${errorData.detail || res.statusText}`);
+    }
+    
+    const result = await res.json();
+    
+    // Validate response structure
+    if (!Array.isArray(result.detections)) {
+      console.warn("⚠️ Unexpected API response format:", result);
+      return { detections: [] };
+    }
+    
+    return result;
+  } catch (error) {
+    console.warn("API detection failed:", error.message);
+    throw error;
+  }
+}
+
+export async function endApiSession(sessionId) {
+  try {
+    const res = await fetch(`${API_URL}/session/${sessionId}/end`, { 
+      method: "POST" 
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      console.log("✅ API session ended:", data);
+      return data;
+    } else {
+      const errorData = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
+      console.warn("⚠️ Session end warning:", errorData.detail);
+      return { message: "Session ended with warning" };
+    }
+  } catch (error) {
+    console.error("❌ Failed to end API session:", error);
+    return { message: "Session ended with error" };
+  }
+}
+
+// Export API_URL for debugging purposes
+export function getApiUrl() {
+  return API_URL;
+}
+
+// NEW: Enhanced realtime client factory function
+export function createRealtimeClient(config = {}) {
+  // Ensure RealtimeClient is available
+  if (typeof window.createRealtimeClient === 'function') {
+    return window.createRealtimeClient({
+      timeout: config.timeout || 30000,
+      maxRetries: config.maxRetries || 5,
+      backoffMs: config.backoffMs || 500,
+      authToken: config.authToken,
+      networkPreference: config.networkPreference || 'auto', // auto, private, public
+      ...config
+    });
+  } else {
+    console.error('RealtimeClient not available. Include realtimeClient.js first.');
+    throw new Error('RealtimeClient not available');
+  }
+}
+
+// NEW: Smart API client that automatically selects best available method
+export class SmartApiClient {
+  constructor(config = {}) {
+    this.config = config;
+    this.realtimeClient = null;
+    this.fallbackToLegacy = false;
+    this.sessionId = null;
   }
 
-  async function disconnect() {
-    if (sessionId) {
+  async initialize() {
+    try {
+      // Try to create realtime client first
+      this.realtimeClient = createRealtimeClient(this.config);
+      await this.realtimeClient.connect();
+      console.log('🚀 Smart API Client: Using enhanced realtime client');
+      return 'realtime';
+    } catch (error) {
+      console.warn('⚠️ Realtime client failed, falling back to legacy API:', error.message);
+      this.fallbackToLegacy = true;
+      
+      // Fallback to legacy session-based API
       try {
-        await axios.post(`${baseUrl}/session/${sessionId}/end`);
-      } catch (error) {
-        // Ignore errors on disconnect
+        await loadApiConfig();
+        const isHealthy = await testApiConnection();
+        if (isHealthy) {
+          this.sessionId = await startApiSession();
+          console.log('🔄 Smart API Client: Using legacy session API');
+          return 'legacy';
+        }
+      } catch (legacyError) {
+        console.error('❌ Legacy API also failed:', legacyError.message);
+        throw new Error('No API methods available');
       }
     }
-    setStatus('disconnected');
   }
 
-  async function send(payload) {
-    if (status !== 'connected') {
-      const error = new Error('Not connected');
-      listeners.error.forEach(cb => cb(error));
-      return;
-    }
+  async detect(payload) {
+    if (this.realtimeClient && !this.fallbackToLegacy) {
+      // Use realtime client
+      return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Detection timeout'));
+        }, this.config.timeout || 30000);
 
-    setStatus('uploading');
-    try {
-      const FormData = require('form-data');
-      const formData = new FormData();
-      formData.append('file', payload);
+        this.realtimeClient.onMessage((result) => {
+          clearTimeout(timeout);
+          resolve(result);
+        });
 
-      const response = await axios.post(
-        `${baseUrl}/detect/${sessionId}`,
-        formData,
-        {
-          headers: {
-            ...formData.getHeaders()
-          }
-        }
-      );
+        this.realtimeClient.onError((error) => {
+          clearTimeout(timeout);
+          reject(error);
+        });
 
-      listeners.message.forEach(cb => cb(response.data));
-      setStatus('connected');
-    } catch (error) {
-      setStatus('connected');
-      listeners.error.forEach(cb => cb(error));
-      // Implement retry logic here
+        this.realtimeClient.send(payload);
+      });
+    } else if (this.sessionId) {
+      // Use legacy API
+      return await detectWithApi(this.sessionId, payload);
+    } else {
+      throw new Error('No active connection available');
     }
   }
 
-  function onMessage(cb) {
-    listeners.message.push(cb);
+  async disconnect() {
+    if (this.realtimeClient && !this.fallbackToLegacy) {
+      await this.realtimeClient.disconnect();
+    } else if (this.sessionId) {
+      await endApiSession(this.sessionId);
+      this.sessionId = null;
+    }
   }
 
-  function onError(cb) {
-    listeners.error.push(cb);
+  onMessage(callback) {
+    if (this.realtimeClient && !this.fallbackToLegacy) {
+      this.realtimeClient.onMessage(callback);
+    }
   }
 
-  function onStatus(cb) {
-    listeners.status.push(cb);
+  onError(callback) {
+    if (this.realtimeClient && !this.fallbackToLegacy) {
+      this.realtimeClient.onError(callback);
+    }
   }
 
-  function isConnected() {
-    return status === 'connected';
+  onStatus(callback) {
+    if (this.realtimeClient && !this.fallbackToLegacy) {
+      this.realtimeClient.onStatus(callback);
+    }
   }
 
-  return {
-    connect,
-    disconnect,
-    send,
-    onMessage,
-    onError,
-    onStatus,
-    isConnected,
-  };
+  isConnected() {
+    if (this.realtimeClient && !this.fallbackToLegacy) {
+      return this.realtimeClient.isConnected();
+    }
+    return !!this.sessionId;
+  }
+
+  getStatus() {
+    if (this.realtimeClient && !this.fallbackToLegacy) {
+      return this.realtimeClient.getStatus();
+    }
+    return this.sessionId ? 'connected' : 'disconnected';
+  }
 }
 
-module.exports = {
-  createRealtimeClient,
-  resolveBaseUrl,
-  toWsUrl
-};
+// NEW: Easy-to-use smart client factory
+export function createSmartApiClient(config = {}) {
+  return new SmartApiClient(config);
+}

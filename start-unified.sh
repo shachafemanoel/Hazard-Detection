@@ -1,10 +1,14 @@
 #!/bin/bash
 set -e
 
+# Respect Railway's provided PORT if WEB_PORT isn't explicitly set
+WEB_PORT=${WEB_PORT:-${PORT:-3000}}
+API_PORT=${API_PORT:-8000}
+
 echo "🚀 Starting Unified Hazard Detection Service..."
 echo "🐳 Container Environment: ${NODE_ENV:-production}"
-echo "🌐 Web Server Port: ${WEB_PORT:-3000}"
-echo "🐍 API Server Port: ${API_PORT:-8000}"
+echo "🌐 Web Server Port: ${WEB_PORT}"
+echo "🐍 API Server Port: ${API_PORT}"
 
 # Function to cleanup on exit
 cleanup() {
@@ -41,9 +45,9 @@ echo "⚙️ Configuring API service for ${MODEL_BACKEND} backend..."
 
 # Set common environment variables
 export PYTHONPATH=/app
-export API_URL=http://localhost:${API_PORT:-8000}
-export WEB_PORT=${WEB_PORT:-3000}
-export API_PORT=${API_PORT:-8000}
+export API_URL=http://localhost:${API_PORT}
+export WEB_PORT=${WEB_PORT}
+export API_PORT=${API_PORT}
 
 # Step 3: Start FastAPI service on configured API port
 echo "🐍 Starting FastAPI (${MODEL_BACKEND} backend) on port ${API_PORT}..."

@@ -36,25 +36,327 @@ document.addEventListener("DOMContentLoaded", async () => {
   const detectionsGrid = document.getElementById("detections-grid");
   const savedReportsList = document.getElementById("saved-reports-list");
 
-  // Configuration
-  const FIXED_SIZE = 480;
-  const API_URL = "https://hazard-api-production-production.up.railway.app";
-  const RAILWAY_TOKEN = window.RAILWAY_TOKEN || '';
-  const API_HEADERS = RAILWAY_TOKEN ? { 'Authorization': `Bearer ${RAILWAY_TOKEN}` } : {};
+  // Enhanced Road Damage Detection Configuration
+  const FIXED_SIZE = 480; // Optimized input size for real-time detection
+  let API_URL = "https://hazard-api-production-production.up.railway.app";
   
-  // Updated class names to match the API service
+  // NEW: Import the enhanced API client modules
+  import { createSmartApiClient, testApiConnection, loadApiConfig } from './apiClient.js';
+  
+  // Road Damage Classes (mapping to model's 10 classes)
   const classNames = [
-    'crack',
-    'knocked', 
-    'pothole',
-    'surface_damage'
+    'Alligator Crack',    // 0: Interconnected cracking resembling alligator skin
+    'Block Crack',        // 1: Rectangular crack patterns in pavement
+    'Crosswalk Blur',     // 2: Faded or unclear crosswalk markings
+    'Lane Blur',          // 3: Faded or unclear lane markings
+    'Longitudinal Crack', // 4: Cracks parallel to traffic direction
+    'Manhole',            // 5: Manhole covers and surrounding issues
+    'Patch Repair',       // 6: Previous repair work areas
+    'Pothole',            // 7: Circular/oval holes in road surface
+    'Transverse Crack',   // 8: Cracks perpendicular to traffic direction
+    'Wheel Mark Crack'    // 9: Cracks caused by wheel loading
   ];
+
+  // Camera Detection Session Tracking
+  let cameraSession = {
+    startTime: null,
+    detections: [],
+    totalDetections: 0,
+    uniqueHazards: new Set(),
+    isActive: false
+  };
+  
+  // Function to start camera session
+  function startCameraSession() {
+    cameraSession = {
+      startTime: Date.now(),
+      detections: [],
+      totalDetections: 0,
+      uniqueHazards: new Set(),
+      isActive: true
+    };
+    updateCameraSessionDisplay();
+  }
+  
+  // Function to end camera session
+  function endCameraSession() {
+    cameraSession.isActive = false;
+    // Show final summary
+    if (cameraSession.totalDetections > 0) {
+      setTimeout(() => showCameraSessionSummary(), 1000);
+    }
+  }
+  
+  // Function to add detection to camera session
+  function addCameraDetection(detection) {
+    if (!cameraSession.isActive) return;
+    
+    cameraSession.detections.push({
+      ...detection,
+      timestamp: Date.now(),
+      id: Date.now() + Math.random()
+    });
+    cameraSession.totalDetections++;
+    cameraSession.uniqueHazards.add(detection.type);
+    updateCameraSessionDisplay();
+  }
+  
+  // Function to update camera session display
+  function updateCameraSessionDisplay() {
+    if (!cameraSession.startTime) return;
+    
+    const sessionDuration = Date.now() - cameraSession.startTime;
+    const durationMinutes = Math.floor(sessionDuration / 60000);
+    const durationSeconds = Math.floor((sessionDuration % 60000) / 1000);
+    
+    // Update session displays in camera interface
+    const sessionTotalEl = document.getElementById('camera-session-total');
+    const sessionDurationEl = document.getElementById('camera-session-duration');
+    const sessionTypesEl = document.getElementById('camera-session-types');
+    
+    if (sessionTotalEl) sessionTotalEl.textContent = cameraSession.totalDetections;
+    if (sessionDurationEl) sessionDurationEl.textContent = `${durationMinutes}:${durationSeconds.toString().padStart(2, '0')}`;
+    if (sessionTypesEl) sessionTypesEl.textContent = cameraSession.uniqueHazards.size;
+  }
+  
+  // Function to show camera session summary
+  function showCameraSessionSummary() {
+    // This will integrate with the existing camera summary modal
+    const sessionData = {
+      duration: Date.now() - cameraSession.startTime,
+      totalDetections: cameraSession.totalDetections,
+      uniqueHazards: Array.from(cameraSession.uniqueHazards),
+      detections: cameraSession.detections
+    };
+    
+    console.log('Camera Session Summary:', sessionData);
+    // The existing camera summary modal will be enhanced to show this data
+  }
+  
+  // Start periodic camera session updates
+  setInterval(() => {
+    if (cameraSession.isActive) {
+      updateCameraSessionDisplay();
+    }
+  }, 1000); // Update every second
+  
+  // Periodic API health check to detect when model becomes ready
+  setInterval(async () => {
+    if (apiAvailable && useApi && detecting) {
+      try {
+        const response = await fetch(`${API_URL}/health`, { 
+          method: 'GET',
+          signal: AbortSignal.timeout(2000) // 2 second timeout
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          // Check if model status has improved
+          if (data.model_status && !data.model_status.includes('loading') && 
+              !data.model_status.includes('not loaded')) {
+            console.log("✅ Backend model is now ready:", data.model_status);
+            updateConnectionStatus('connected', `Enhanced Mode (${data.backend_type || 'AI'} Backend)`);
+            
+            // Reset failure count when model becomes ready
+            if (window.apiFailureCount > 0) {
+              window.apiFailureCount = 0;
+              console.log("🔄 Model ready - resetting API failure count");
+            }
+          }
+        }
+      } catch (error) {
+        // Silently ignore health check failures during periodic checks
+      }
+    }
+  }, 10000); // Check every 10 seconds
+  
+  // Function to determine optimal video constraints based on screen and device
+  async function getOptimalVideoConstraints() {
+    const screenWidth = window.screen.width;
+    const screenHeight = window.screen.height;
+    const devicePixelRatio = window.devicePixelRatio || 1;
+    
+    // Detect device type and capabilities
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const isTablet = /(iPad|tablet|playbook|silk)|(android(?!.*mobi))/i.test(navigator.userAgent);
+    
+    // Calculate optimal resolution based on screen size and device type
+    let idealWidth, idealHeight, maxWidth, maxHeight;
+    
+    if (isMobile && !isTablet) {
+      // Mobile phones - optimize for performance
+      idealWidth = Math.min(640, screenWidth * devicePixelRatio * 0.8);
+      idealHeight = Math.min(480, screenHeight * devicePixelRatio * 0.6);
+      maxWidth = 1280;
+      maxHeight = 720;
+    } else if (isTablet) {
+      // Tablets - balance quality and performance
+      idealWidth = Math.min(1280, screenWidth * devicePixelRatio * 0.7);
+      idealHeight = Math.min(720, screenHeight * devicePixelRatio * 0.5);
+      maxWidth = 1920;
+      maxHeight = 1080;
+    } else {
+      // Desktop/laptop - prioritize quality
+      idealWidth = Math.min(1920, screenWidth * 0.8);
+      idealHeight = Math.min(1080, screenHeight * 0.6);
+      maxWidth = 3840; // 4K support
+      maxHeight = 2160;
+    }
+    
+    // Test camera capabilities to find best supported resolution
+    const testConstraints = {
+      video: {
+        width: { ideal: idealWidth, max: maxWidth },
+        height: { ideal: idealHeight, max: maxHeight },
+        facingMode: currentCamera,
+        frameRate: { ideal: 30, max: 60 }
+      }
+    };
+    
+    try {
+      // Test if the device supports the ideal constraints
+      const testStream = await navigator.mediaDevices.getUserMedia(testConstraints);
+      const videoTrack = testStream.getVideoTracks()[0];
+      const settings = videoTrack.getSettings();
+      
+      // Stop test stream immediately
+      testStream.getTracks().forEach(track => track.stop());
+      
+      console.log(`✅ Camera capabilities detected:`, {
+        resolution: `${settings.width}x${settings.height}`,
+        frameRate: settings.frameRate,
+        deviceType: isMobile ? 'Mobile' : isTablet ? 'Tablet' : 'Desktop'
+      });
+      
+      // Return optimized constraints based on actual capabilities
+      return {
+        video: {
+          width: { ideal: settings.width, max: maxWidth },
+          height: { ideal: settings.height, max: maxHeight },
+          facingMode: currentCamera,
+          frameRate: { ideal: Math.min(30, settings.frameRate || 30) }
+        }
+      };
+    } catch (error) {
+      console.warn('🔄 Camera capability test failed, using fallback constraints:', error);
+      
+      // Fallback to conservative constraints
+      return {
+        video: {
+          width: { ideal: 640, max: 1280 },
+          height: { ideal: 480, max: 720 },
+          facingMode: currentCamera,
+          frameRate: { ideal: 30 }
+        }
+      };
+    }
+  }
+  
+  // Function to handle different API error types and implement fallbacks
+  function handleApiError(error) {
+    const errorMessage = error.message || '';
+    
+    // Handle model loading/startup errors (PyTorch, OpenVino, etc.)
+    if (errorMessage.includes('model not loaded') || 
+        errorMessage.includes('Service may still be starting') ||
+        errorMessage.includes('Model is loading') ||
+        errorMessage.includes('Backend not ready') ||
+        errorMessage.includes('PyTorch model not loaded') ||
+        errorMessage.includes('OpenVino model not loaded') ||
+        errorMessage.includes('Model initialization')) {
+      console.warn('🚀 Backend model still loading - this is temporary during startup');
+      console.log('💡 Model backend (OpenVino/PyTorch) is initializing, will retry automatically');
+      
+      // Don't disable API completely, just skip this detection cycle
+      showNotification('Backend model loading - will use when ready', 'info');
+      updateConnectionStatus('connected', 'API Connected (Model Loading...)');
+      
+      return true; // Error handled, but keep API available
+    }
+    
+    // Handle specific PyTorch ONNX export error
+    if (errorMessage.includes('ExportOptions') || errorMessage.includes('torch.onnx._internal.exporter')) {
+      console.warn('🔧 PyTorch ONNX export error detected - this is a backend dependency issue');
+      console.log('💡 Suggestion: Backend needs PyTorch update or ONNX export fix');
+      
+      // Temporarily disable API detection for this session
+      apiAvailable = false;
+      useApi = false;
+      
+      showNotification('Backend model error detected - using local detection only', 'warning');
+      updateConnectionStatus('warning', 'Local ONNX Detection (Backend Issue)');
+      
+      return true; // Error handled
+    }
+    
+    // Handle OpenCV image format errors
+    if (errorMessage.includes('cvtColor') || errorMessage.includes('OpenCV')) {
+      console.warn('🖼️ Image format error - adjusting image preprocessing');
+      return false; // Continue with other error handling
+    }
+    
+    // Handle session/authentication errors
+    if (errorMessage.includes('Session') || errorMessage.includes('404')) {
+      console.log('🔄 Session expired - will create new session');
+      apiSessionId = null;
+      return false; // Continue with session recreation
+    }
+    
+    return false; // Unknown error, continue with default handling
+  }
+  
+  // Make camera session functions globally available
+  window.startCameraSession = startCameraSession;
+  window.endCameraSession = endCameraSession;
+  window.showCameraSessionSummary = showCameraSessionSummary;
+  window.getOptimalVideoConstraints = getOptimalVideoConstraints;
+
+  // Enhanced detection configuration for real-time processing (10 classes)
+  const DETECTION_CONFIG = {
+    minConfidence: 0.4,           // Higher for real-time to reduce noise
+    nmsThreshold: 0.5,            // Higher NMS for more classes
+    maxDetections: 30,            // Lower limit for real-time performance
+    minBoxSize: 6,                // Smaller for crack detection
+    aspectRatioFilter: 25.0,      // Allow longer shapes for cracks/markings
+    trackingEnabled: true,        // Enable object tracking
+    confidenceDecayRate: 0.92,    // Slightly faster decay for more classes
+    detectionInterval: 4,         // Process every 4th frame for performance
+    // Class-specific minimum confidences for real-time
+    classThresholds: {
+      0: 0.35, // Alligator Crack - real-time adjusted
+      1: 0.40, // Block Crack - standard
+      2: 0.45, // Crosswalk Blur - higher (avoid false marking detections)
+      3: 0.45, // Lane Blur - higher (avoid false marking detections)
+      4: 0.35, // Longitudinal Crack - real-time adjusted
+      5: 0.50, // Manhole - higher (avoid false infrastructure detections)
+      6: 0.40, // Patch Repair - standard
+      7: 0.35, // Pothole - clear damage, allow lower threshold
+      8: 0.35, // Transverse Crack - real-time adjusted
+      9: 0.40  // Wheel Mark Crack - standard
+    }
+  };
+
+  // Enhanced color scheme for different road damage types
+  const hazardColors = {
+    'Alligator Crack': '#FF4444',    // Red - Critical structural damage
+    'Block Crack': '#FF6600',        // Red-Orange - Significant cracking
+    'Crosswalk Blur': '#4444FF',     // Blue - Safety marking issues
+    'Lane Blur': '#6644FF',          // Purple - Traffic marking issues  
+    'Longitudinal Crack': '#FF8844', // Orange - Directional cracking
+    'Manhole': '#888888',            // Gray - Infrastructure elements
+    'Patch Repair': '#44FF88',       // Green - Previous repairs
+    'Pothole': '#FF0088',            // Pink - Critical surface damage
+    'Transverse Crack': '#FFAA44',   // Light Orange - Cross cracking
+    'Wheel Mark Crack': '#AA4444'    // Dark Red - Load-induced damage
+  };
 
   // Detection state
   let stream = null;
   let detecting = false;
   let currentCamera = 'user'; // 'user' for front, 'environment' for back
   let session = null;
+  let optimalConstraints = null; // Store optimal video constraints
   let apiSessionId = null; // Session ID for API detection
   let apiAvailable = false;
   let useApi = false; // Flag to control API usage
@@ -66,15 +368,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     detectedHazards: new Set()
   };
 
-  const pendingDetections = [];
   let sessionDetectionsSummary = []; // Store detailed detection information for summary
 
-  // Object tracking system
+  // NEW: Smart API client instance
+  let smartApiClient = null;
+  let realtimeClientActive = false;
+
+  // Object tracking state
   let trackedObjects = new Map();
-  let nextObjectId = 1;
-  const MAX_TRACKING_DISTANCE = 150; // Maximum distance for object matching
-  const TRACKING_PERSISTENCE_FRAMES = 20; // Keep tracked objects for 20 frames
-  const INTERPOLATION_FRAMES = 4; // Number of frames to interpolate between detections
+  let nextObjectId = 0;
+  const INTERPOLATION_FRAMES = 5;
+  const TRACKING_PERSISTENCE_FRAMES = 30;
+  const MAX_TRACKING_DISTANCE = 50;
+
+  // Queue for detections awaiting upload
+  const pendingDetections = [];
 
   // Geolocation data for saved detections
   let geoData = null;
@@ -92,6 +400,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Performance monitoring
   let fpsCounter = 0;
   let lastFpsUpdate = Date.now();
+  let performanceHistory = [];
+  let adaptiveQualityEnabled = true;
   
   // Offscreen canvas for processing
   const offscreen = document.createElement("canvas");
@@ -103,6 +413,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   let confidenceThreshold = 0.5;
 
   let initialized = false;
+
+  // Ensure canvas dimensions always match the displayed video
+  function syncCanvasSize() {
+    if (!video || !canvas) return;
+    const width = video.clientWidth || video.videoWidth;
+    const height = video.clientHeight || video.videoHeight;
+    canvas.width = width;
+    canvas.height = height;
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+  }
+
+  // Keep canvas in sync when the window resizes
+  window.addEventListener('resize', syncCanvasSize);
 
   // Update UI status
   function updateConnectionStatus(status, message) {
@@ -148,33 +472,89 @@ document.addEventListener("DOMContentLoaded", async () => {
     }, 5000);
   }
 
-  // Test API availability and start session
-  async function testApiConnection() {
+  // NEW: Enhanced API connection testing with smart client
+  async function initializeApiConnection() {
+    try {
+      // Try to initialize smart API client first
+      smartApiClient = createSmartApiClient({
+        timeout: 30000,
+        maxRetries: 3,
+        networkPreference: 'auto' // Use private-first connectivity
+      });
+      
+      const connectionType = await smartApiClient.initialize();
+      realtimeClientActive = (connectionType === 'realtime');
+      
+      // Set up event listeners for smart client
+      smartApiClient.onMessage((result) => {
+        console.log('🔥 Smart API detection result:', result);
+        // Handle detection results in the existing pipeline
+        handleApiDetectionResult(result);
+      });
+      
+      smartApiClient.onError((error) => {
+        console.warn('⚠️ Smart API error:', error.message);
+        // Fallback handled automatically by SmartApiClient
+      });
+      
+      smartApiClient.onStatus((status) => {
+        console.log('📊 Smart API status:', status);
+        updateSmartApiStatus(status, connectionType);
+      });
+      
+      apiAvailable = true;
+      useApi = true;
+      
+      const statusMessage = realtimeClientActive 
+        ? 'Enhanced Realtime Mode (Private-First)' 
+        : 'API Connected (Legacy Mode)';
+      updateConnectionStatus('connected', statusMessage);
+      showNotification(`Smart API initialized: ${connectionType} mode`, 'success');
+      
+      return true;
+    } catch (error) {
+      console.warn('🔄 Smart API failed, trying legacy connection:', error.message);
+      
+      // Fallback to legacy API testing
+      return await testApiConnectionLegacy();
+    }
+  }
+  
+  // Legacy API connection test (preserved for fallback)
+  async function testApiConnectionLegacy() {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
     try {
       const response = await fetch(`${API_URL}/health`, {
         method: 'GET',
-        signal: controller.signal,
-        headers: API_HEADERS
+        signal: controller.signal
       });
 
       if (response.ok) {
         clearTimeout(timeoutId);
         const data = await response.json();
-        console.log("✅ API service is available:", data);
-        apiAvailable = true;
-        useApi = true;
-        updateConnectionStatus('connected', 'Enhanced API + ONNX Mode');
-        showNotification("API service connected - Enhanced detection available", 'success');
-        return true;
+        console.log("✅ Legacy API service is available:", data);
+        
+        if (data.status === 'healthy') {
+          if (data.model_status && data.model_status.includes('error')) {
+            console.warn("⚠️ Backend model has issues:", data.model_status);
+            showNotification('Backend model issues detected - using local detection', 'warning');
+            apiAvailable = false;
+            useApi = false;
+            updateConnectionStatus('warning', 'Backend Issues - Local ONNX Only');
+            return false;
+          }
+          
+          apiAvailable = true;
+          useApi = true;
+          updateConnectionStatus('connected', 'Legacy API Mode');
+          showNotification('Legacy API connected', 'success');
+          return true;
+        }
       }
     } catch (error) {
-      if (error.name === 'AbortError') {
-        console.log("🔄 API health check timed out - using local detection");
-      } else {
-        console.log("🏠 API service not accessible - using local ONNX detection");
-      }
+      console.log("🏠 Legacy API also not accessible");
     } finally {
       clearTimeout(timeoutId);
     }
@@ -184,15 +564,59 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.log("🤖 Running in local detection mode - ONNX model will handle all detection");
     return false;
   }
+  
+  // NEW: Handle API detection results from smart client
+  function handleApiDetectionResult(result) {
+    if (!result.detections || !Array.isArray(result.detections)) {
+      console.warn("⚠️ Unexpected API response format:", result);
+      return [];
+    }
+    
+    // Convert API format to internal format
+    const convertedDetections = result.detections.map(det => {
+      const [x, y, width, height] = det.bbox || [0, 0, 0, 0];
+      const classIndex = classNames.indexOf(det.class_name);
+      
+      return [
+        x,                    // x1
+        y,                    // y1  
+        x + width,            // x2
+        y + height,           // y2
+        det.confidence,       // confidence
+        classIndex !== -1 ? classIndex : 0  // class_id
+      ];
+    });
+    
+    // Process through existing detection pipeline
+    drawResults(convertedDetections, true);
+    
+    console.log(`🎯 Smart API processed ${convertedDetections.length} detections`);
+    return convertedDetections;
+  }
+  
+  // NEW: Update status based on smart API client state
+  function updateSmartApiStatus(status, connectionType) {
+    const statusMessages = {
+      'connecting': 'Connecting to Smart API...',
+      'connected': realtimeClientActive ? 'Realtime Mode Active' : 'API Connected',
+      'uploading': 'Processing Detection...',
+      'disconnected': 'Disconnected'
+    };
+    
+    const message = statusMessages[status] || status;
+    updateConnectionStatus(status === 'disconnected' ? 'warning' : 'connected', message);
+  }
 
-  // Start API detection session
+  // Start API detection session following the fetch guide
   async function startApiSession() {
     if (!apiAvailable) return false;
     
     try {
       const response = await fetch(`${API_URL}/session/start`, {
         method: 'POST',
-        headers: API_HEADERS
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
       
       if (response.ok) {
@@ -201,7 +625,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.log("✅ API session started:", apiSessionId);
         return true;
       } else {
-        throw new Error(`Failed to start session: ${response.status}`);
+        const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
+        throw new Error(`Failed to start session: ${errorData.detail || response.statusText}`);
       }
     } catch (error) {
       console.error("❌ Failed to start API session:", error);
@@ -211,14 +636,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // End API detection session
+  // End API detection session following the fetch guide
   async function endApiSession() {
-    if (!apiSessionId) return;
+    if (!apiSessionId) return { message: "No active session" };
     
     try {
       const response = await fetch(`${API_URL}/session/${apiSessionId}/end`, {
-        method: 'POST',
-        headers: API_HEADERS
+        method: 'POST'
       });
       
       if (response.ok) {
@@ -226,23 +650,29 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.log("✅ API session ended:", data);
         apiSessionId = null;
         return data;
+      } else {
+        const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
+        console.warn("⚠️ Session end warning:", errorData.detail);
+        apiSessionId = null;
+        return { message: "Session ended with warning" };
       }
     } catch (error) {
       console.error("❌ Failed to end API session:", error);
+      apiSessionId = null;
+      return { message: "Session ended with error" };
     }
-    apiSessionId = null;
   }
 
   // Load ONNX model
   async function loadModel() {
     showLoading("Loading ONNX Runtime model...", 25);
     
-    // Enhanced model path detection with fallbacks
+    // Prioritized model paths - using the latest road damage detection model
     const modelPaths = [
-      './object_detecion_model/model 18_7.onnx',
-      './object_detecion_model/road_damage_detection_last_version.onnx',
-      './object_detecion_model/last_model_train12052025.onnx',
-      './object_detecion_model/road_damage_detection_simplified.onnx'
+      './object_detecion_model/road_damage_detection_last_version.onnx', // Primary model
+      './object_detecion_model/last_model_train12052025.onnx',          // Backup
+      './object_detecion_model/road_damage_detection_simplified.onnx',   // Fallback 1
+      './object_detecion_model/model 18_7.onnx'                         // Fallback 2
     ];
     
     let modelPath = null;
@@ -289,26 +719,51 @@ document.addEventListener("DOMContentLoaded", async () => {
     return true;
   }
 
-  // Initialize detection system
+  // Load API configuration from server
+  async function loadApiConfig() {
+    try {
+      const response = await fetch('/api/config');
+      if (response.ok) {
+        const config = await response.json();
+        API_URL = config.apiUrl;
+        console.log("🔧 API configuration loaded:", { apiUrl: API_URL });
+      }
+    } catch (error) {
+      console.warn("⚠️ Failed to load API config, using defaults:", error);
+    }
+  }
+
+  // NEW: Enhanced detection system initialization
   async function initializeDetection() {
-    showLoading("Initializing Detection System...", 0);
+    showLoading("Initializing Enhanced Detection System...", 0);
     initialized = false;
 
     try {
-      // Test API connection
-      showLoading("Testing API connection...", 10);
-      await testApiConnection();
+      // Load API configuration first
+      showLoading("Loading API configuration...", 5);
+      await loadApiConfig();
       
-      // Load ONNX model
+      // Initialize smart API connection with private-first connectivity
+      showLoading("Initializing Smart API Connection...", 15);
+      const apiConnected = await initializeApiConnection();
+      
+      // Load ONNX model for hybrid/fallback detection
+      showLoading("Loading ONNX model...", 50);
       const onnxLoaded = await loadModel();
       
       if (!onnxLoaded && !apiAvailable) {
         throw new Error("No detection models available. Please check your connection.");
       }
 
-      const modeMessage = apiAvailable 
-        ? "🚀 Enhanced detection ready with API + ONNX support" 
-        : "🎯 Local detection ready with ONNX model";
+      // Determine operation mode
+      let modeMessage;
+      if (apiAvailable && realtimeClientActive) {
+        modeMessage = "🚀 Enhanced realtime detection ready (Private-First API + ONNX hybrid)";
+      } else if (apiAvailable) {
+        modeMessage = "🚀 Enhanced detection ready (Legacy API + ONNX hybrid)";
+      } else {
+        modeMessage = "🎯 Local detection ready with ONNX model";
+      }
       
       showNotification(modeMessage, 'success');
       initialized = true;
@@ -371,60 +826,181 @@ document.addEventListener("DOMContentLoaded", async () => {
       const output = results[outputKey];
       const outputData = output.data;
 
-      // Parse detections (matching upload_tf.js logic)
-      const boxes = [];
+      // Enhanced detection parsing with filtering
+      const rawBoxes = [];
       for (let i = 0; i < outputData.length; i += 6) {
-        boxes.push(outputData.slice(i, i + 6));
+        rawBoxes.push(outputData.slice(i, i + 6));
       }
+
+      // Apply intelligent filtering for road damage detection
+      const filteredBoxes = applyDetectionFilters(rawBoxes);
 
       const processingTime = performance.now() - startTime;
       detectionStats.frameProcessingTimes.push(processingTime);
       
-      return boxes;
+      if (filteredBoxes.length > 0) {
+        console.log(`🔍 Frame ${frameCount}: ${rawBoxes.length} raw → ${filteredBoxes.length} filtered detections`);
+      }
+      
+      return filteredBoxes;
     } catch (error) {
       console.error("ONNX detection error:", error);
       return [];
     }
   }
 
-  // Process frame with API using session-based detection
-  async function detectWithApi(canvas) {
-    if (!apiAvailable || !apiSessionId) {
-      // Try to start session if not available
-      if (apiAvailable && !apiSessionId) {
-        await startApiSession();
+  // Enhanced detection filtering for road damage (real-time optimized)
+  function applyDetectionFilters(boxes) {
+    let validBoxes = [];
+    
+    // Filter by confidence, size and aspect ratio
+    for (const box of boxes) {
+      let [x1, y1, x2, y2, score, classId] = box;
+      
+      // Fix class ID mapping - model outputs class_id + 1, so subtract 1
+      const correctedClassId = Math.floor(classId) - 1;
+      const classIndex = Math.max(0, correctedClassId); // Ensure non-negative
+      
+      // Use class-specific confidence thresholds if available
+      const minThreshold = DETECTION_CONFIG.classThresholds[classIndex] || DETECTION_CONFIG.minConfidence;
+      
+      // Skip low confidence detections
+      if (score < minThreshold) continue;
+      
+      // Validate coordinates
+      if (x1 >= x2 || y1 >= y2) continue;
+      
+      const width = x2 - x1;
+      const height = y2 - y1;
+      
+      // Filter tiny boxes
+      if (width < DETECTION_CONFIG.minBoxSize || height < DETECTION_CONFIG.minBoxSize) continue;
+      
+      // Filter extreme aspect ratios (likely false positives)
+      const aspectRatio = Math.max(width/height, height/width);
+      if (aspectRatio > DETECTION_CONFIG.aspectRatioFilter) continue;
+      
+      // Ensure box is within image bounds
+      if (x1 < 0 || y1 < 0 || x2 > FIXED_SIZE || y2 > FIXED_SIZE) continue;
+      
+      validBoxes.push(box);
+    }
+    
+    // Sort by confidence (highest first)
+    validBoxes.sort((a, b) => b[4] - a[4]);
+    
+    // Limit number of detections for real-time performance
+    if (validBoxes.length > DETECTION_CONFIG.maxDetections) {
+      validBoxes = validBoxes.slice(0, DETECTION_CONFIG.maxDetections);
+    }
+    
+    // Apply Non-Maximum Suppression (simplified for real-time)
+    return applyNMSRealtime(validBoxes, DETECTION_CONFIG.nmsThreshold);
+  }
+
+  // Optimized Non-Maximum Suppression for real-time processing
+  function applyNMSRealtime(boxes, threshold) {
+    if (boxes.length === 0) return [];
+    
+    const result = [];
+    const suppressed = new Array(boxes.length).fill(false);
+    
+    for (let i = 0; i < boxes.length; i++) {
+      if (suppressed[i]) continue;
+      
+      result.push(boxes[i]);
+      
+      // Mark overlapping boxes as suppressed
+      for (let j = i + 1; j < boxes.length; j++) {
+        if (suppressed[j]) continue;
+        
+        const iou = calculateIoUFast(boxes[i], boxes[j]);
+        if (iou > threshold) {
+          suppressed[j] = true;
+        }
       }
-      if (!apiSessionId) return [];
+    }
+    
+    return result;
+  }
+
+  // Fast IoU calculation optimized for real-time
+  function calculateIoUFast(box1, box2) {
+    const [x1a, y1a, x2a, y2a] = [box1[0], box1[1], box1[2], box1[3]];
+    const [x1b, y1b, x2b, y2b] = [box2[0], box2[1], box2[2], box2[3]];
+    
+    const xLeft = Math.max(x1a, x1b);
+    const yTop = Math.max(y1a, y1b);
+    const xRight = Math.min(x2a, x2b);
+    const yBottom = Math.min(y2a, y2b);
+    
+    if (xRight <= xLeft || yBottom <= yTop) return 0;
+    
+    const intersectionArea = (xRight - xLeft) * (yBottom - yTop);
+    const box1Area = (x2a - x1a) * (y2a - y1a);
+    const box2Area = (x2b - x1b) * (y2b - y1b);
+    const unionArea = box1Area + box2Area - intersectionArea;
+    
+    return intersectionArea / unionArea;
+  }
+
+  // Process frame with API using legacy detection endpoint  
+  async function detectWithApi(canvas) {
+    if (!apiAvailable) {
+      return [];
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000); // Increased timeout for session-based detection
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
 
     try {
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.8));
-      const formData = new FormData();
-      formData.append('file', blob, 'frame.jpg');
+      // Ensure we have a valid canvas and create a proper image for OpenCV
+      if (!canvas || canvas.width === 0 || canvas.height === 0) {
+        console.warn("❌ Invalid canvas for API detection");
+        return [];
+      }
 
-      const response = await fetch(`${API_URL}/detect/${apiSessionId}`, {
+      // Create a properly formatted image for the API
+      const blob = await new Promise((resolve, reject) => {
+        try {
+          canvas.toBlob((blob) => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              reject(new Error("Failed to create blob from canvas"));
+            }
+          }, 'image/jpeg', 0.9); // Higher quality for better API processing
+        } catch (error) {
+          reject(error);
+        }
+      });
+
+      if (!blob || blob.size === 0) {
+        console.warn("❌ Invalid blob created from canvas");
+        return [];
+      }
+
+      const formData = new FormData();
+      formData.append('file', blob, blob.type === 'image/png' ? 'frame.png' : 'frame.jpg');
+
+      const response = await fetch(`${API_URL}/detect`, {
         method: 'POST',
         body: formData,
-        signal: controller.signal,
-        headers: API_HEADERS
+        signal: controller.signal
       });
 
       if (!response.ok) {
-        if (response.status === 404) {
-          // Session expired, try to start new one
-          console.warn("Session expired, starting new session");
-          apiSessionId = null;
-          if (await startApiSession()) {
-            return await detectWithApi(canvas); // Retry with new session
-          }
-        }
-        throw new Error(`API error: ${response.status}`);
+        const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
+        throw new Error(`API detection failed: ${errorData.detail || response.statusText}`);
       }
 
       const result = await response.json();
+      
+      // Validate response structure from the guide
+      if (!result.success || !Array.isArray(result.detections)) {
+        console.warn("⚠️ Unexpected API response format:", result);
+        return [];
+      }
       
       // Log new detections for debugging
       const newDetections = result.detections.filter(det => det.is_new);
@@ -432,20 +1008,78 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.log("🆕 New hazards detected via API:", newDetections.map(d => `${d.class_name} (${(d.confidence * 100).toFixed(1)}%)`));
       }
 
-      return result.detections.map(det => [
-        det.bbox[0], det.bbox[1],
-        det.bbox[0] + det.bbox[2], det.bbox[1] + det.bbox[3],
-        det.confidence,
-        classNames.indexOf(det.class_name) !== -1 ? classNames.indexOf(det.class_name) : 0
-      ]);
+      // Reset failure count on successful API call
+      if (window.apiFailureCount > 0) {
+        window.apiFailureCount = 0;
+        console.log("✅ API detection recovered");
+      }
+
+      // Convert API format to internal format according to API_FETCH_GUIDE.md
+      // API returns bbox as [x, y, width, height], we need [x1, y1, x2, y2]
+      return result.detections.map(det => {
+        const [x, y, width, height] = det.bbox;
+        const classIndex = classNames.indexOf(det.class_name);
+        
+        return [
+          x,                    // x1
+          y,                    // y1  
+          x + width,            // x2
+          y + height,           // y2
+          det.confidence,       // confidence
+          classIndex !== -1 ? classIndex : 0  // class_id (use index, not +1)
+        ];
+      });
     } catch (error) {
       if (error.name === 'AbortError') {
         console.warn("API detection request timed out");
       } else {
-        console.warn("API detection failed:", error);
-        // If session-related error, reset session
-        if (error.message.includes('404') || error.message.includes('session')) {
-          apiSessionId = null;
+        console.warn("API detection failed:", error.message);
+        
+        // Handle specific error types with dedicated handlers
+        const errorHandled = handleApiError(error);
+        
+        if (!errorHandled) {
+          // Handle general error types
+          if (error.message.includes('404')) {
+            console.log("🔄 API endpoint not found, check API configuration");
+          } else if (error.message.includes('OpenCV') || error.message.includes('cvtColor')) {
+            console.warn("🖼️ Image format error, API might need different preprocessing");
+            // Don't disable API completely, but log the issue
+          } else if (error.message.includes('Detection failed')) {
+            console.warn("🔍 API detection processing failed, using ONNX fallback");
+          }
+          
+          // Only count as failure if not a model loading issue
+          if (!error.message.includes('model not loaded') && 
+              !error.message.includes('Service may still be starting') &&
+              !error.message.includes('PyTorch model not loaded') &&
+              !error.message.includes('OpenVino model not loaded')) {
+            // If we get too many consecutive API failures, temporarily disable API
+            if (!window.apiFailureCount) window.apiFailureCount = 0;
+            window.apiFailureCount++;
+            
+            if (window.apiFailureCount > 5) {
+              console.warn("🚫 Too many API failures, temporarily disabling API detection");
+              useApi = false;
+              // Re-enable after 30 seconds
+              setTimeout(() => {
+                window.apiFailureCount = 0;
+                useApi = true;
+                console.log("🔄 Re-enabling API detection");
+              }, 30000);
+            }
+          } else {
+            console.log("🔄 Model loading error - not counting as API failure");
+          }
+        } else {
+          // Error was handled, reset failure count if it was a successful handling
+          if (error.message.includes('model not loaded') || 
+              error.message.includes('Service may still be starting') ||
+              error.message.includes('PyTorch model not loaded') ||
+              error.message.includes('OpenVino model not loaded')) {
+            // Don't increment failure count for startup issues
+            console.log("🕒 Backend model loading, keeping API available for retry");
+          }
         }
       }
       return [];
@@ -534,8 +1168,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     const processedBoxes = [];
     const usedDetections = new Set();
     
-    // Filter detections by confidence
-    const validDetections = newDetections.filter(box => box[4] >= confidenceThreshold);
+    // Filter detections by confidence using class-specific thresholds
+    const validDetections = newDetections.filter(box => {
+      const classIndex = Math.floor(box[5]);
+      const classThreshold = DETECTION_CONFIG.classThresholds[classIndex] || DETECTION_CONFIG.minConfidence;
+      const threshold = Math.max(confidenceThreshold, classThreshold);
+      return box[4] >= threshold;
+    });
     
     // Update existing tracked objects
     for (const [id, trackedObj] of trackedObjects) {
@@ -550,7 +1189,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         const [x1, y1, x2, y2, score, classId] = detection;
         
         // Only match same class
-        if (Math.floor(classId) !== trackedObj.classId) return;
+        // Fix class ID mapping for comparison
+        const correctedClassId = Math.floor(classId) - 1;
+        const detectionClassIndex = Math.max(0, correctedClassId);
+        if (detectionClassIndex !== trackedObj.classId) return;
         
         // Calculate matching score (combination of IoU and distance)
         const iou = calculateIoU(trackedObj.box, [x1, y1, x2, y2]);
@@ -604,7 +1246,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       trackedObjects.set(newId, {
         id: newId,
         box: [x1, y1, x2, y2, score, classId],
-        classId: Math.floor(classId),
+        // Fix class ID mapping - model outputs class_id + 1, so subtract 1
+        classId: Math.max(0, Math.floor(classId) - 1),
         confidence: score,
         lastSeen: currentFrame,
         lastDetectionFrame: currentFrame,
@@ -622,116 +1265,289 @@ document.addEventListener("DOMContentLoaded", async () => {
         trackedObj.age++;
       }
     }
-    
-    return processedBoxes;
   }
 
-  // Draw detection results with object tracking
+  // Professional bounding box drawing function for camera detection
+  function drawProfessionalBoundingBox(ctx, options) {
+    const { x1, y1, x2, y2, label, confidence, classIndex, detectionIndex, color, isInterpolated } = options;
+    
+    const boxW = x2 - x1;
+    const boxH = y2 - y1;
+    const scorePerc = (confidence * 100).toFixed(1);
+    
+    // Save current context state
+    ctx.save();
+    
+    // Calculate dynamic styling based on confidence
+    const alpha = Math.min(0.6 + confidence * 0.4, 1.0);
+    const lineWidth = Math.max(2, Math.min(5, confidence * 6));
+    const cornerSize = Math.max(8, Math.min(14, confidence * 16));
+    
+    // Adjust for interpolated/tracked objects
+    if (isInterpolated) {
+      ctx.globalAlpha = alpha * 0.7;
+      ctx.setLineDash([6, 3]);
+    } else {
+      ctx.globalAlpha = alpha;
+      ctx.setLineDash([]);
+    }
+    
+    // Set shadow for depth effect
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+    ctx.shadowBlur = 3;
+    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetY = 1;
+    
+    // Draw main bounding box
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.strokeRect(x1, y1, boxW, boxH);
+    
+    // Reset shadow for corner markers
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+    
+    // Draw professional corner markers
+    ctx.fillStyle = color;
+    ctx.globalAlpha = Math.min(alpha + 0.2, 1.0);
+    
+    const cornerThickness = Math.max(2, lineWidth / 2);
+    const cornerLength = cornerSize;
+    
+    // Top-left corner
+    ctx.fillRect(x1 - cornerThickness, y1 - cornerThickness, cornerLength, cornerThickness);
+    ctx.fillRect(x1 - cornerThickness, y1 - cornerThickness, cornerThickness, cornerLength);
+    
+    // Top-right corner
+    ctx.fillRect(x2 - cornerLength + cornerThickness, y1 - cornerThickness, cornerLength, cornerThickness);
+    ctx.fillRect(x2, y1 - cornerThickness, cornerThickness, cornerLength);
+    
+    // Bottom-left corner
+    ctx.fillRect(x1 - cornerThickness, y2, cornerLength, cornerThickness);
+    ctx.fillRect(x1 - cornerThickness, y2 - cornerLength + cornerThickness, cornerThickness, cornerLength);
+    
+    // Bottom-right corner
+    ctx.fillRect(x2 - cornerLength + cornerThickness, y2, cornerLength, cornerThickness);
+    ctx.fillRect(x2, y2 - cornerLength + cornerThickness, cornerThickness, cornerLength);
+    
+    // Draw confidence indicator bar
+    const confBarWidth = Math.min(boxW * 0.6, 40);
+    const confBarHeight = 3;
+    const confBarX = x1 + (boxW - confBarWidth) / 2;
+    const confBarY = y2 - 6;
+    
+    // Background bar
+    ctx.globalAlpha = 0.4;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(confBarX, confBarY, confBarWidth, confBarHeight);
+    
+    // Confidence fill
+    ctx.globalAlpha = 0.8;
+    ctx.fillStyle = color;
+    ctx.fillRect(confBarX, confBarY, confBarWidth * confidence, confBarHeight);
+    
+    // Professional label design
+    ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+    const mainText = label;
+    const confText = `${scorePerc}%`;
+    const idText = `#${detectionIndex}`;
+    const trackingText = isInterpolated ? 'TRACKED' : '';
+    
+    const mainTextWidth = ctx.measureText(mainText).width;
+    const confTextWidth = ctx.measureText(confText).width;
+    const idTextWidth = ctx.measureText(idText).width;
+    const trackingTextWidth = trackingText ? ctx.measureText(trackingText).width : 0;
+    
+    const labelPadding = 6;
+    const labelSpacing = 3;
+    const totalLabelWidth = mainTextWidth + confTextWidth + idTextWidth + trackingTextWidth + labelPadding * 2 + labelSpacing * 3;
+    const labelHeight = 18;
+    
+    // Smart label positioning
+    let labelX = x1;
+    let labelY = y1 - labelHeight - 3;
+    
+    // Adjust if label goes outside canvas bounds
+    if (labelX + totalLabelWidth > canvas.width) {
+      labelX = canvas.width - totalLabelWidth - 3;
+    }
+    if (labelY < 0) {
+      labelY = y2 + 3;
+    }
+    
+    // Draw label background with gradient effect
+    ctx.globalAlpha = 0.9;
+    
+    // Create gradient background
+    const gradient = ctx.createLinearGradient(labelX, labelY, labelX, labelY + labelHeight);
+    gradient.addColorStop(0, color);
+    gradient.addColorStop(1, adjustColorBrightness(color, -15));
+    
+    ctx.fillStyle = gradient;
+    drawRoundedRect(ctx, labelX, labelY, totalLabelWidth, labelHeight, 3);
+    
+    // Draw label text with shadow
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.shadowBlur = 1;
+    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetY = 1;
+    
+    ctx.globalAlpha = 1.0;
+    ctx.fillStyle = '#FFFFFF';
+    
+    // Main label text
+    ctx.font = 'bold 10px "Segoe UI", Arial, sans-serif';
+    ctx.fillText(mainText, labelX + labelPadding, labelY + 12);
+    
+    // Confidence text
+    ctx.font = 'bold 9px "Segoe UI", Arial, sans-serif';
+    ctx.fillStyle = '#E0E0E0';
+    ctx.fillText(confText, labelX + labelPadding + mainTextWidth + labelSpacing, labelY + 12);
+    
+    // Detection ID
+    ctx.font = 'bold 8px "Segoe UI", Arial, sans-serif';
+    ctx.fillStyle = '#CCCCCC';
+    ctx.fillText(idText, labelX + labelPadding + mainTextWidth + confTextWidth + labelSpacing * 2, labelY + 12);
+    
+    // Tracking indicator
+    if (trackingText) {
+      ctx.font = 'bold 7px "Segoe UI", Arial, sans-serif';
+      ctx.fillStyle = '#FFD700';
+      ctx.fillText(trackingText, labelX + labelPadding + mainTextWidth + confTextWidth + idTextWidth + labelSpacing * 3, labelY + 11);
+    }
+    
+    // Restore context state
+    ctx.restore();
+  }
+  
+  // Helper function to draw rounded rectangles
+  function drawRoundedRect(ctx, x, y, width, height, radius) {
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + width - radius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+    ctx.lineTo(x + width, y + height - radius);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    ctx.lineTo(x + radius, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+    ctx.fill();
+  }
+  
+  // Helper function to adjust color brightness
+  function adjustColorBrightness(color, amount) {
+    const usePound = color[0] === '#';
+    const col = usePound ? color.slice(1) : color;
+    const num = parseInt(col, 16);
+    let r = (num >> 16) + amount;
+    let g = (num >> 8 & 0x00FF) + amount;
+    let b = (num & 0x0000FF) + amount;
+    r = r > 255 ? 255 : r < 0 ? 0 : r;
+    g = g > 255 ? 255 : g < 0 ? 0 : g;
+    b = b > 255 ? 255 : b < 0 ? 0 : b;
+    return (usePound ? '#' : '') + (r << 16 | g << 8 | b).toString(16).padStart(6, '0');
+  }
+
+  // Draw detection results with object tracking and professional bounding boxes
   function drawResults(boxes, useApiResults = false) {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Apply object tracking to detections
-    const trackedBoxes = trackObjects(boxes);
+    // Update tracked objects with current detections
+    trackObjects(boxes);
 
     let currentFrameDetections = 0;
     const detectedTypes = new Set();
 
-    // Draw all tracked objects (including interpolated ones)
-    for (const [id, trackedObj] of trackedObjects) {
-      let [x1, y1, x2, y2, score, classId] = trackedObj.box;
+      // Draw all tracked objects (including interpolated ones)
+      for (const [id, trackedObj] of trackedObjects) {
+        let [x1, y1, x2, y2, score, classId] = trackedObj.box;
 
-      // Scale coordinates back to video dimensions
-      if (!useApiResults) {
-        const scaleX = video.videoWidth / FIXED_SIZE;
-        const scaleY = video.videoHeight / FIXED_SIZE;
-        x1 = x1 * scaleX;
-        y1 = y1 * scaleY;
-        x2 = x2 * scaleX;
-        y2 = y2 * scaleY;
-      }
+        // Fix class ID mapping - model outputs class_id + 1, so subtract 1
+        const correctedClassId = Math.floor(classId) - 1;
+        const classIndex = Math.max(0, correctedClassId); // Ensure non-negative
 
-      const boxW = x2 - x1;
-      const boxH = y2 - y1;
+        // Scale coordinates back to displayed video dimensions
+        if (!useApiResults) {
+          const { offsetX, offsetY, newW, newH } = letterboxParams;
+          const scaleX = canvas.width / newW;
+          const scaleY = canvas.height / newH;
+          x1 = (x1 - offsetX) * scaleX;
+          y1 = (y1 - offsetY) * scaleY;
+          x2 = (x2 - offsetX) * scaleX;
+          y2 = (y2 - offsetY) * scaleY;
+        } else {
+          const scaleX = canvas.width / video.videoWidth;
+          const scaleY = canvas.height / video.videoHeight;
+          x1 *= scaleX;
+          y1 *= scaleY;
+          x2 *= scaleX;
+          y2 *= scaleY;
+        }
 
-      if (boxW < 1 || boxH < 1) continue;
+        const boxW = x2 - x1;
+        const boxH = y2 - y1;
+
+        if (boxW < 1 || boxH < 1) {
+          continue;
+        }
 
       currentFrameDetections++;
-      const labelName = classNames[Math.floor(classId)] || `Class ${classId}`;
-      const scorePerc = (trackedObj.confidence * 100).toFixed(1);
+      const labelName = classNames[classIndex] || `Unknown Class ${classIndex}`;
+      
+      console.log(`🔍 Camera Detection: Raw classId=${classId}, Corrected=${classIndex}, Label="${labelName}"`);  // Debug log
       
       detectedTypes.add(labelName);
       detectionStats.detectedHazards.add(labelName);
 
-      // Enhanced visual styling with tracking indicators
+      // Enhanced visual styling with hazard-specific colors and tracking
       const framesSinceLastDetection = frameCount - trackedObj.lastDetectionFrame;
       const isInterpolated = framesSinceLastDetection > 0;
       
-      // Color and alpha based on tracking state
-      let color = useApiResults ? '#00FF41' : '#00FF00';
-      let alpha = Math.min(trackedObj.confidence + 0.2, 1.0);
+      // Use hazard-specific colors
+      let baseColor = hazardColors[labelName] || '#00FF00';
+      let color = isInterpolated ? '#FFD700' : baseColor; // Gold for interpolated
       
-      // Different visual style for interpolated vs detected boxes
-      if (isInterpolated) {
-        color = '#FFD700'; // Gold color for interpolated
-        alpha *= 0.8; // Slightly more transparent
-        ctx.setLineDash([5, 5]); // Dashed line for interpolated
-      } else {
-        ctx.setLineDash([]); // Solid line for detected
-      }
+      // Professional bounding box drawing
+      drawProfessionalBoundingBox(ctx, {
+        x1, y1, x2, y2,
+        label: labelName,
+        confidence: trackedObj.confidence,
+        classIndex: classIndex,
+        detectionIndex: trackedObj.id,
+        color: color,
+        isInterpolated: isInterpolated
+      });
+
+      console.log(`📦 Tracked object #${trackedObj.id}:`, labelName, (trackedObj.confidence * 100).toFixed(1) + "%", isInterpolated ? "(interpolated)" : "(detected)");
       
-      ctx.globalAlpha = alpha;
-      ctx.strokeStyle = color;
-      ctx.lineWidth = isInterpolated ? 2 : 3;
-      ctx.strokeRect(x1, y1, boxW, boxH);
-
-      // Draw tracking ID (small number in top-left corner)
-      ctx.fillStyle = color;
-      ctx.font = 'bold 12px Arial';
-      ctx.fillText(`#${trackedObj.id}`, x1 + 2, y1 + 12);
-
-      // Label background (improved styling)
-      ctx.font = 'bold 16px Arial';
-      const text = `${labelName} (${scorePerc}%)`;
-      const textWidth = ctx.measureText(text).width;
-      const textBgY = y1 > 20 ? y1 - 20 : y1;
-      
-      ctx.fillRect(x1, textBgY, textWidth + 8, 20);
-      ctx.fillStyle = 'black';
-      ctx.fillText(text, x1 + 4, textBgY + 15);
-      
-      // Reset drawing state
-      ctx.globalAlpha = 1.0;
-      ctx.setLineDash([]);
-
-      console.log(`📦 Tracked object #${trackedObj.id}:`, labelName, scorePerc + "%", isInterpolated ? "(interpolated)" : "(detected)");
-
-      // Save detection periodically and add to summary
-      if (frameCount % 60 === 0 && !isInterpolated) {
-        // Create composite canvas with video + bounding boxes
-        const snap = document.createElement('canvas');
-        snap.width = video.videoWidth;
-        snap.height = video.videoHeight;
-        const snapCtx = snap.getContext('2d');
-        
-        // Draw the video frame first
-        snapCtx.drawImage(video, 0, 0, snap.width, snap.height);
-        
-        // Then draw the bounding boxes overlay
-        snapCtx.drawImage(canvas, 0, 0, snap.width, snap.height);
-        
-        saveDetection(snap, labelName, trackedObj.confidence).catch((e) => console.error(e));
-        
-        // Add to session detections summary
-        sessionDetectionsSummary.push({
+      // Add to camera session tracking (only for new detections, not interpolated)
+      if (!isInterpolated) {
+        addCameraDetection({
           type: labelName,
           confidence: trackedObj.confidence,
+          classIndex: classIndex,
+          coordinates: { x1, y1, x2, y2 },
+          objectId: trackedObj.id
+        });
+      }
+
+      // Save detection periodically and add to summary
+      if (frameCount % 60 === 0) {
+        saveDetection(video, canvas, labelName, score).catch((e) => console.error(e));
+        sessionDetectionsSummary.push({
+          type: labelName,
+          confidence: score,
           timestamp: Date.now(),
-          objectId: trackedObj.id,
           frame: frameCount
         });
       }
+
     }
 
     // Update statistics
@@ -750,7 +1566,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // Update FPS and performance stats
+  // Update FPS and performance stats with adaptive quality
   function updatePerformanceStats() {
     fpsCounter++;
     const now = Date.now();
@@ -766,12 +1582,56 @@ document.addEventListener("DOMContentLoaded", async () => {
         : 0;
       processingTime.textContent = `${avgProcessingTime}ms`;
       
+      // Performance monitoring for adaptive quality
+      performanceHistory.push({
+        fps: fps,
+        processingTime: avgProcessingTime,
+        timestamp: now
+      });
+      
+      // Keep only recent performance data (last 10 seconds)
+      performanceHistory = performanceHistory.filter(entry => now - entry.timestamp < 10000);
+      
+      // Adaptive quality adjustment
+      if (adaptiveQualityEnabled && performanceHistory.length >= 3) {
+        checkAndAdjustQuality();
+      }
+      
       fpsCounter = 0;
       lastFpsUpdate = now;
       
       // Keep only recent processing times
       if (detectionStats.frameProcessingTimes.length > 30) {
         detectionStats.frameProcessingTimes = detectionStats.frameProcessingTimes.slice(-30);
+      }
+    }
+  }
+  
+  // Adaptive quality adjustment based on performance
+  function checkAndAdjustQuality() {
+    const avgFps = performanceHistory.reduce((sum, entry) => sum + entry.fps, 0) / performanceHistory.length;
+    const avgProcessingTime = performanceHistory.reduce((sum, entry) => sum + entry.processingTime, 0) / performanceHistory.length;
+    
+    // Poor performance thresholds
+    const lowFpsThreshold = 15;
+    const highProcessingThreshold = 150; // ms
+    
+    // Good performance thresholds  
+    const goodFpsThreshold = 25;
+    const lowProcessingThreshold = 50; // ms
+    
+    if (avgFps < lowFpsThreshold || avgProcessingTime > highProcessingThreshold) {
+      // Performance is poor - reduce quality
+      if (DETECTION_CONFIG.detectionInterval < 8) {
+        DETECTION_CONFIG.detectionInterval += 1;
+        console.log(`⚡ Performance low (${avgFps.toFixed(1)} FPS, ${avgProcessingTime.toFixed(1)}ms) - reducing detection frequency to every ${DETECTION_CONFIG.detectionInterval} frames`);
+        showNotification(`Adjusting detection frequency for better performance`, 'info');
+      }
+    } else if (avgFps > goodFpsThreshold && avgProcessingTime < lowProcessingThreshold) {
+      // Performance is good - can increase quality
+      if (DETECTION_CONFIG.detectionInterval > 2) {
+        DETECTION_CONFIG.detectionInterval -= 1;
+        console.log(`🚀 Performance good (${avgFps.toFixed(1)} FPS, ${avgProcessingTime.toFixed(1)}ms) - increasing detection frequency to every ${DETECTION_CONFIG.detectionInterval} frames`);
       }
     }
   }
@@ -806,32 +1666,74 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (!letterboxParams) computeLetterboxParams();
 
-    // Always draw current persistent detections for smooth visualization
-    drawResults([], false);
-    updatePerformanceStats();
+    let detections = [];
+    let useApiResults = false;
 
-    // Process detection every 4th frame for better performance
-    if (frameCount % 4 === 0) {
+    // Process detection using configurable interval for better performance
+    if (frameCount % DETECTION_CONFIG.detectionInterval === 0) {
       // Prepare frame for detection
       offCtx.fillStyle = "black";
       offCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
       offCtx.drawImage(video, letterboxParams.offsetX, letterboxParams.offsetY, letterboxParams.newW, letterboxParams.newH);
 
       const imageData = offCtx.getImageData(0, 0, FIXED_SIZE, FIXED_SIZE);
-      
-      let detections = [];
-      let useApiResults = false;
 
-      // Try API detection first (if available), then fallback to ONNX
-      if (apiAvailable && useApi && apiSessionId && frameCount % 8 === 0) { // Use API every 8th frame
+      // NEW: Try Smart API detection first (if available), then fallback to ONNX
+      if (smartApiClient && smartApiClient.isConnected() && frameCount % 4 === 0) {
         try {
-          detections = await detectWithApi(offscreen);
-          if (detections.length > 0) {
-            useApiResults = true;
-            console.log("🔥 Using API detection results");
+          // Create a proper canvas with video frame for API detection
+          const apiCanvas = document.createElement('canvas');
+          apiCanvas.width = FIXED_SIZE;
+          apiCanvas.height = FIXED_SIZE;
+          const apiCtx = apiCanvas.getContext('2d');
+          
+          // Draw video frame properly formatted for API
+          apiCtx.fillStyle = "black";
+          apiCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
+          apiCtx.drawImage(video, letterboxParams.offsetX, letterboxParams.offsetY, letterboxParams.newW, letterboxParams.newH);
+          
+          console.log("🌐 Attempting Smart API detection...");
+          
+          if (realtimeClientActive) {
+            // For realtime client, send async and results will come via event handlers
+            smartApiClient.detect(apiCanvas).catch(error => {
+              console.warn("Realtime API detection failed, using ONNX fallback:", error);
+            });
+            // Don't wait for results, use ONNX concurrently for hybrid detection
+          } else {
+            // For legacy API client, wait for results
+            const result = await smartApiClient.detect(apiCanvas);
+            detections = handleApiDetectionResult(result);
+            if (detections.length > 0) {
+              useApiResults = true;
+              console.log("🔥 Using Smart API detection results:", detections.length, "detections");
+            } else {
+              console.log("🔍 Smart API returned no detections");
+            }
           }
         } catch (error) {
-          console.warn("API detection failed, using ONNX fallback:", error);
+          console.warn("Smart API detection failed, using ONNX fallback:", error);
+        }
+      } else if (apiAvailable && useApi && frameCount % 4 === 0) {
+        // Legacy API fallback (preserved for compatibility)
+        try {
+          const apiCanvas = document.createElement('canvas');
+          apiCanvas.width = FIXED_SIZE;
+          apiCanvas.height = FIXED_SIZE;
+          const apiCtx = apiCanvas.getContext('2d');
+          
+          apiCtx.fillStyle = "black";
+          apiCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
+          apiCtx.drawImage(video, letterboxParams.offsetX, letterboxParams.offsetY, letterboxParams.newW, letterboxParams.newH);
+          
+          console.log("🌐 Attempting legacy API detection...");
+          detections = await detectWithApi(apiCanvas);
+          if (detections.length > 0) {
+            useApiResults = true;
+            console.log("🔥 Using legacy API detection results:", detections.length, "detections");
+          }
+        } catch (error) {
+          console.warn("Legacy API detection failed, using ONNX fallback:", error);
         }
       }
 
@@ -839,12 +1741,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (detections.length === 0 && session) {
         detections = await detectWithOnnx(imageData);
       }
-
-      // Update detections with new results
-      if (detections.length > 0) {
-        drawResults(detections, useApiResults);
-      }
     }
+
+    // Draw detections (new and persisted)
+    drawResults(detections, useApiResults);
+    updatePerformanceStats();
 
     requestAnimationFrame(detectionLoop);
   }
@@ -860,19 +1761,17 @@ document.addEventListener("DOMContentLoaded", async () => {
       startBtn.disabled = true;
       updateConnectionStatus('processing', 'Starting Camera...');
 
-      // Start API session if available
-      if (apiAvailable && !apiSessionId) {
-        updateConnectionStatus('processing', 'Starting API Session...');
-        await startApiSession();
+      // API is available but doesn't require sessions
+      if (apiAvailable) {
+        updateConnectionStatus('processing', 'API Ready for Detection...');
       }
 
-      const constraints = {
-        video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-          facingMode: currentCamera
-        }
-      };
+      // Get optimal constraints based on device capabilities
+      updateConnectionStatus('processing', 'Optimizing camera settings...');
+      optimalConstraints = await getOptimalVideoConstraints();
+      
+      console.log('🎯 Using optimal video constraints:', optimalConstraints);
+      const constraints = optimalConstraints;
 
       stream = await navigator.mediaDevices.getUserMedia(constraints);
       video.srcObject = stream;
@@ -881,6 +1780,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       updateButtonStates(); // Hide start, show stop
 
       video.addEventListener("loadeddata", () => {
+        syncCanvasSize();
         computeLetterboxParams();
         setDetectingState(true);
         
@@ -893,7 +1793,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         };
         sessionDetectionsSummary = [];
         
-        const statusMsg = apiSessionId ? 'API + ONNX Detection Active' : 'ONNX Detection Active';
+        // Start camera session tracking
+        startCameraSession();
+        
+        const statusMsg = apiAvailable && useApi ? 'Enhanced API + ONNX Detection Active' : 'ONNX Detection Active';
         updateConnectionStatus('processing', statusMsg);
         detectionLoop();
       }, { once: true });
@@ -923,21 +1826,20 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     console.log("Camera stopped");
+    
+    // End camera session tracking
+    endCameraSession();
 
-    // End API session and get summary
-    if (apiSessionId) {
-      updateConnectionStatus('processing', 'Ending API Session...');
+    // NEW: Smart API client cleanup
+    if (smartApiClient && smartApiClient.isConnected()) {
       try {
-        const sessionSummary = await endApiSession();
-        if (sessionSummary) {
-          console.log("📊 Session Summary:", sessionSummary);
-          if (sessionSummary.total_detections > 0) {
-            showNotification(`Session ended: ${sessionSummary.total_detections} total detections`, 'success');
-          }
-        }
+        await smartApiClient.disconnect();
+        console.log("📊 Smart API client disconnected successfully");
       } catch (error) {
-        console.error("Failed to get session summary:", error);
+        console.warn("⚠️ Smart API client disconnect warning:", error.message);
       }
+    } else if (apiAvailable) {
+      console.log("📊 API detection session completed");
     }
 
     // Send queued detections to API (matching upload_tf.js logic)
@@ -968,8 +1870,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Reset stats and clear tracking data
     frameCount = 0;
-    trackedObjects.clear();
-    nextObjectId = 1;
 
     // Don't reset detection stats immediately - keep for summary modal
     // They will be reset when starting a new session
@@ -990,18 +1890,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     
     // Start with new camera
     try {
-      const constraints = {
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: currentCamera
-        }
-      };
+      // Recalculate optimal constraints for new camera
+      updateConnectionStatus('processing', 'Optimizing new camera settings...');
+      optimalConstraints = await getOptimalVideoConstraints();
+      
+      console.log('🔄 Camera switch - new optimal constraints:', optimalConstraints);
+      const constraints = optimalConstraints;
 
       stream = await navigator.mediaDevices.getUserMedia(constraints);
       video.srcObject = stream;
       
       video.addEventListener("loadeddata", () => {
+        syncCanvasSize();
         computeLetterboxParams();
       }, { once: true });
       

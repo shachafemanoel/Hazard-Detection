@@ -16,9 +16,15 @@ echo "✅ Railway CLI found"
 # Login check
 echo "🔐 Checking Railway authentication..."
 if ! railway whoami &> /dev/null; then
-    echo "❌ Not logged in to Railway. Please login first:"
-    echo "   railway login"
-    exit 1
+    if [ -n "$RAILWAY_TOKEN" ]; then
+        echo "🔑 Logging in with Railway token..."
+        railway login --token "$RAILWAY_TOKEN" >/dev/null 2>&1
+    else
+        echo "❌ Not logged in to Railway. Please login first:"
+        echo "   railway login"
+        echo "   or set RAILWAY_TOKEN"
+        exit 1
+    fi
 fi
 
 echo "✅ Railway authentication verified"
@@ -35,14 +41,23 @@ echo "Frontend URL: https://hazard-detection-production.up.railway.app"
 echo "API URL: https://hazard-api-production-production.up.railway.app"
 
 echo "🧪 Testing API connectivity..."
-curl -s -o /dev/null -w "%{http_code}" https://hazard-api-production-production.up.railway.app/health
 
-API_STATUS=$?
-if [ $API_STATUS -eq 0 ]; then
-    echo "✅ API service is responding"
+# Test public API
+echo "Testing public API endpoint..."
+PUBLIC_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://hazard-api-production-production.up.railway.app/health)
+if [ "$PUBLIC_STATUS" -eq 200 ]; then
+    echo "✅ Public API service is responding (HTTP $PUBLIC_STATUS)"
 else
-    echo "⚠️ API service not responding (this is expected if API service is not deployed)"
+    echo "⚠️ Public API service not responding (HTTP $PUBLIC_STATUS)"
 fi
+
+# Test private API (only works within Railway network)
+echo "🔒 Private API endpoint configured: http://ideal-learning.railway.internal:8080"
+echo "   (Private network testing requires deployment environment)"
+
+echo "🔄 Realtime client will automatically select best endpoint:"
+echo "   1. Private: http://ideal-learning.railway.internal:8080 (preferred)"
+echo "   2. Public: https://hazard-api-production-production.up.railway.app (fallback)"
 
 echo "🎉 Deployment complete! Check your Railway dashboard for details."
 echo "📱 Frontend: https://hazard-detection-production.up.railway.app"

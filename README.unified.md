@@ -57,6 +57,9 @@ cd hazard-detection
 
 # Or build manually
 docker build -f Dockerfile.unified -t hazard-detection-unified .
+
+# For a slimmer image (recommended for platforms like Railway):
+docker build -f Dockerfile.unified.slim -t hazard-detection-unified .
 ```
 
 ### 2. Run the Application

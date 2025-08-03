@@ -17,28 +17,49 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
   
-  <!-- Leaflet CSS and JS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- OpenLayers assets -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol/ol.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "ol/": "https://cdn.jsdelivr.net/npm/ol/",
+        "rbush": "https://cdn.jsdelivr.net/npm/rbush@3.0.1/rbush.min.js"
+      }
+    }
+  </script>
   
   <link rel="stylesheet" href="css/dashboard.css">
-  <link rel="stylesheet" href="css/floating-menu.css">
   <style>
-    /* Custom styles for Leaflet markers and popups */
-    .custom-marker {
-      background: transparent !important;
-      border: none !important;
-    }
-    
-    .leaflet-popup-content-wrapper {
+    /* Popup styling for OpenLayers */
+    .ol-popup {
       background: rgba(31, 34, 53, 0.95);
       color: #cbd2d9;
+      padding: 8px 12px;
       border-radius: 8px;
+      border: 1px solid #2c2c2c;
+      min-width: 120px;
       box-shadow: 0 3px 14px rgba(0,0,0,0.4);
     }
-    
-    .leaflet-popup-tip {
-      background: rgba(31, 34, 53, 0.95);
+    .ol-popup:after, .ol-popup:before {
+      top: 100%;
+      border: solid transparent;
+      content: '';
+      height: 0;
+      width: 0;
+      position: absolute;
+      pointer-events: none;
+    }
+    .ol-popup:after {
+      border-top-color: rgba(31, 34, 53, 0.95);
+      border-width: 10px;
+      left: 50%;
+      margin-left: -10px;
+    }
+    .ol-popup:before {
+      border-top-color: #2c2c2c;
+      border-width: 11px;
+      left: 50%;
+      margin-left: -11px;
     }
     
     @keyframes pulse {
@@ -57,17 +78,15 @@
     }
     /* New comprehensive layout for an urban command-center look */
     body {
-      background: linear-gradient(135deg, #12141d 0%, #1f2235 100%), url('/assets/images/cityscape-overlay.png');
-      background-blend-mode: multiply;
-      background-size: cover;
+      background: var(--tech-bg);
       font-family: 'Poppins', sans-serif;
-      color: #cbd2d9;
+      color: var(--tech-text);
       margin: 0;
       padding: 0;
     }
     header {
-      background: rgba(31,34,53,0.95);
-      border-bottom: 2px solid #f7c873;
+      background: var(--tech-panel);
+      border-bottom: 2px solid var(--tech-accent);
       box-shadow: 0 4px 12px rgba(0,0,0,0.7);
       padding: 1rem 1.5rem;
       position: sticky;
@@ -79,7 +98,7 @@
       margin: 0;
       font-size: 1.8rem; /* smaller title */
       font-weight: 700;
-      color: #f7c873;
+      color: var(--tech-accent);
     }
     .container-flex {
       display: flex;
@@ -95,15 +114,8 @@
       padding: 1rem;
       box-shadow: 0 4px 12px rgba(0,0,0,0.5);
     }
-    /* Map: enlarged and centered */
-    #map {
-      width: 100%;
-      height: 70vh;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-    }
-    /* Reports log: smaller table container placed below map */
-    #reports-table-container {
+      /* Reports log: smaller table container placed below map */
+      #reports-table-container {
       max-height: 30vh;
       overflow-y: auto;
       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
@@ -146,71 +158,6 @@
       #reports-table-container {
         max-height: 40vh;
       }
-    }
-    /* NEW: Floating Menu styles */
-    .floating-menu-btn {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background: #f7c873;
-      color: #12141d;
-      border: none;
-      border-radius: 50%;
-      width: 60px;
-      height: 60px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-size: 1.5rem;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-      cursor: pointer;
-      z-index: 1400;
-      transition: background 0.3s;
-    }
-    .floating-menu-btn:hover {
-      background: #e6b55f;
-    }
-    .floating-menu {
-      position: fixed;
-      bottom: 80px;
-      right: 20px;
-      background: rgba(31,34,53,0.95);
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.7);
-      display: none;
-      flex-direction: column;
-      gap: 10px;
-      padding: 10px;
-      z-index: 1500;
-    }
-    .floating-menu.active {
-      display: flex;
-    }
-    .floating-menu a {
-      color: #cbd2d9;
-      text-decoration: none;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px;
-      border-radius: 4px;
-      transition: background 0.3s;
-    }
-    .floating-menu a:hover {
-      background: rgba(247,200,115,0.1);
-    }
-    .menu-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.7);
-      display: none;
-      z-index: 1400;
-    }
-    .menu-overlay.active {
-      display: block;
     }
     /* Updated: Styles for the legend toggle button repositioned to the right between header and map */
     #legend-toggle-btn {
@@ -308,21 +255,6 @@
   </style>
 </head>
 <body>
-  <!-- Floating Menu Button -->
-  <button class="floating-menu-btn" id="menuBtn">
-    <i class="fas fa-bars"></i>
-  </button>
-
-  <!-- Floating Menu -->
-  <div class="floating-menu" id="floatingMenu">
-    <a href="/dashboard.html"><i class="fas fa-chart-line"></i><span>Dashboard</span></a>
-    <a href="/camera.html"><i class="fas fa-camera"></i><span>Camera</span></a>
-    <a href="/upload.html"><i class="fas fa-upload"></i><span>Upload</span></a>
-    <a href="/logout"><i class="fas fa-sign-out-alt"></i><span>Logout</span></a>
-  </div>
-
-  <!-- Menu Overlay -->
-  <div class="menu-overlay" id="menuOverlay"></div>
 
   <!-- Existing Header -->
   <header class="my-3" style="background:rgba(31,34,53,0.97);box-shadow:0 4px 12px rgba(0,0,0,0.7);">
@@ -334,51 +266,41 @@
   </div>
 </header>
 
-  <main class="dashboard-main-layout" style="min-height:90vh;">
-    <!-- מדדים בראש הדף -->
-    <section id="overview-section" class="dashboard-panel dashboard-metrics-row mb-3" style="box-shadow:0 8px 32px #1e88e555;">
-      <div class="row g-3">
-        <div class="col-md-3">
-          <div class="stat-card bg-primary">
-            <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
-            <div class="stat-content">
-              <h4 id="total-reports-count">0</h4>
-              <p>Total Reports</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-3">
-          <div class="stat-card bg-danger">
-            <div class="stat-icon"><i class="fas fa-clock"></i></div>
-            <div class="stat-content">
-              <h4 id="open-hazards-count">0</h4>
-              <p>Open Hazards</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-3">
-          <div class="stat-card bg-success">
-            <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
-            <div class="stat-content">
-              <h4 id="resolved-this-month">0</h4>
-              <p>Resolved This Month</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-3">
-          <div class="stat-card bg-info">
-            <div class="stat-icon"><i class="fas fa-users"></i></div>
-            <div class="stat-content">
-              <h4 id="active-users">0</h4>
-              <p>Active Users</p>
-            </div>
-          </div>
+  <div class="dashboard-main-layout">
+    <!-- Metrics overview -->
+    <div id="overview-section" class="dashboard-metrics-row">
+      <div class="stat-card bg-primary">
+        <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
+        <div class="stat-content">
+          <h4 id="total-reports-count">0</h4>
+          <p>Total Reports</p>
         </div>
       </div>
-    </section>
-    <div class="dashboard-center-row d-flex gap-4" style="gap:1.2rem;">
+      <div class="stat-card bg-danger">
+        <div class="stat-icon"><i class="fas fa-clock"></i></div>
+        <div class="stat-content">
+          <h4 id="open-hazards-count">0</h4>
+          <p>Open Hazards</p>
+        </div>
+      </div>
+      <div class="stat-card bg-success">
+        <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+        <div class="stat-content">
+          <h4 id="resolved-this-month">0</h4>
+          <p>Resolved This Month</p>
+        </div>
+      </div>
+      <div class="stat-card bg-info">
+        <div class="stat-icon"><i class="fas fa-users"></i></div>
+        <div class="stat-content">
+          <h4 id="active-users">0</h4>
+          <p>Active Users</p>
+        </div>
+      </div>
+    </div>
+    <div class="dashboard-center-row">
       <!-- מפה במרכז -->
-      <section class="dashboard-center dashboard-panel flex-grow-1" style="min-height:70vh;height:70vh;">
+      <section class="dashboard-center dashboard-panel">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h4><i class="fas fa-map me-2"></i>Hazard Map</h4>
           <div class="map-controls">
@@ -390,23 +312,23 @@
             </button>
           </div>
         </div>
-        <div id="map" style="min-height:60vh;height:100%;border:2px solid #1e88e5;"></div>
+        <div id="map"></div>
       </section>
       <!-- טבלת אירועים מימין למפה -->
-      <aside class="dashboard-right dashboard-panel" style="min-width:380px;max-width:480px;width:32%;min-height:70vh;height:70vh;overflow:hidden;box-shadow:0 8px 32px #1e88e555;">
+      <aside class="dashboard-right dashboard-panel">
         <div id="reports-filters" class="d-flex flex-wrap gap-3 mb-3">
           <input id="report-search-input" class="form-control" type="search" placeholder="Search reports..." aria-label="Search reports">
           <div class="hazard-type-filter-bar mb-3">
-            <button id="hazard-type-dropdown-btn" class="hazard-type-dropdown-btn" aria-label="Hazard Type Filter">
+            <button id="hazard-type-dropdown-btn" class="hazard-type-dropdown-btn btn" aria-label="Hazard Type Filter">
               <span id="current-hazard-type-label">All Types</span>
               <i class="fas fa-chevron-down"></i>
             </button>
             <div id="hazard-type-dropdown-menu" class="hazard-type-dropdown-menu">
-              <button class="hazard-type-option" data-value="">All Types</button>
-              <button class="hazard-type-option" data-value="crack">Crack</button>
-              <button class="hazard-type-option" data-value="knocked">Knocked</button>
-              <button class="hazard-type-option" data-value="pothole">Pothole</button>
-              <button class="hazard-type-option" data-value="surface_damage">Surface Damage</button>
+              <button class="hazard-type-option btn" data-value="">All Types</button>
+              <button class="hazard-type-option btn" data-value="crack">Crack</button>
+              <button class="hazard-type-option btn" data-value="knocked">Knocked</button>
+              <button class="hazard-type-option btn" data-value="pothole">Pothole</button>
+              <button class="hazard-type-option btn" data-value="surface_damage">Surface Damage</button>
             </div>
           </div>
           <div id="hazard-types-container" class="d-flex flex-wrap gap-2"></div>
@@ -419,7 +341,7 @@
           </small>
         </div>
         <!-- במקום טבלת הדיווחים, אציג בלוקים מודרניים -->
-        <div id="reports-blocks-container" class="reports-blocks-list" style="flex:1 1 0%;overflow-y:auto;min-height:0;max-height:100%;padding-bottom:0.5rem;"></div>
+        <div id="reports-blocks-container" class="reports-blocks-list"></div>
         <!-- Reports pagination controls -->
         <div id="reports-pagination" class="pagination-controls mt-3" style="display: none;">
           <div class="d-flex justify-content-between align-items-center">
@@ -445,7 +367,68 @@
         </div>
       </aside>
     </div>
-  </main>
+    
+    <!-- Reports Management Table -->
+    <div class="reports-table-section dashboard-panel">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4><i class="fas fa-table me-2"></i>Reports Management</h4>
+        <div class="table-controls d-flex gap-2">
+          <input type="text" id="table-search-input" class="form-control" placeholder="Search reports..." style="width: 200px;">
+          <select id="table-status-filter" class="form-select" style="width: 150px;">
+            <option value="">All Status</option>
+            <option value="Open">Open</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Resolved">Resolved</option>
+          </select>
+          <select id="table-type-filter" class="form-select" style="width: 150px;">
+            <option value="">All Types</option>
+            <option value="crack">Crack</option>
+            <option value="knocked">Knocked</option>
+            <option value="pothole">Pothole</option>
+            <option value="surface_damage">Surface Damage</option>
+          </select>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table id="reports-management-table" class="table table-dark table-striped">
+          <thead>
+            <tr>
+              <th><input type="checkbox" id="select-all-reports"></th>
+              <th class="sortable" data-sort="id">ID <i class="fas fa-sort"></i></th>
+              <th class="sortable" data-sort="type">Type <i class="fas fa-sort"></i></th>
+              <th class="sortable" data-sort="status">Status <i class="fas fa-sort"></i></th>
+              <th class="sortable" data-sort="location">Location <i class="fas fa-sort"></i></th>
+              <th class="sortable" data-sort="time">Time <i class="fas fa-sort"></i></th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="reports-table-body">
+            <!-- Reports will be populated here -->
+          </tbody>
+        </table>
+      </div>
+      <div class="table-pagination d-flex justify-content-between align-items-center mt-3">
+        <div>
+          <span id="table-showing-info">Showing 0-0 of 0 reports</span>
+        </div>
+        <div class="pagination-controls d-flex align-items-center gap-2">
+          <button id="table-prev-btn" class="btn btn-outline-secondary btn-sm" disabled>
+            <i class="fas fa-chevron-left"></i> Previous
+          </button>
+          <span id="table-page-info">Page 1 of 1</span>
+          <button id="table-next-btn" class="btn btn-outline-secondary btn-sm" disabled>
+            Next <i class="fas fa-chevron-right"></i>
+          </button>
+          <select id="table-page-size" class="form-select form-select-sm" style="width: auto;">
+            <option value="10">10 per page</option>
+            <option value="25" selected>25 per page</option>
+            <option value="50">50 per page</option>
+            <option value="100">100 per page</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
   
   <!-- Modals -->
   <!-- Image Modal -->
@@ -543,30 +526,13 @@
     </div>
   </div>
   <!-- Updated: Legend Toggle Button label remains "info" -->
-  <button id="legend-toggle-btn">info</button>
+  <button id="legend-toggle-btn" class="btn">info</button>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="js/dashboard.js" type="module"></script>
+  <script type="module" src="js/dashboard.js"></script>
   <script src="js/dashboard-personalizer.js"></script>
-  <!-- Using Leaflet for mapping instead of Google Maps -->
+  <!-- Using OpenLayers for mapping instead of Google Maps -->
   <script>
-    // Menu functionality
-    document.addEventListener('DOMContentLoaded', function() {
-      const menuBtn = document.getElementById('menuBtn');
-      const floatingMenu = document.getElementById('floatingMenu');
-      const menuOverlay = document.getElementById('menuOverlay');
-
-      menuBtn.addEventListener('click', () => {
-        floatingMenu.classList.toggle('active');
-        menuOverlay.classList.toggle('active');
-      });
-
-      menuOverlay.addEventListener('click', () => {
-        floatingMenu.classList.remove('active');
-        menuOverlay.classList.remove('active');
-      });
-    });
-
     // ...existing bootstrap modal initialization...
     document.addEventListener('DOMContentLoaded', function() {
       const modalEl = document.getElementById('reportDetailsModal');
@@ -582,6 +548,13 @@
       }
     });
   </script>
-  <!-- Ensure the document ends correctly with the closing </body> and </html> tags -->
+  <!-- Tech-Urban Floating Menu -->
+  <button id="fab-btn" class="fab"><i class="fas fa-bars"></i></button>
+    <nav id="fab-menu" class="fab-menu">
+      <a href="/dashboard.html">Dashboard</a>
+      <a href="/camera.html">Live</a>
+      <a href="/logout">Logout</a>
+    </nav>
+    <!-- Ensure the document ends correctly with the closing </body> and </html> tags -->
 </body>
 </html>

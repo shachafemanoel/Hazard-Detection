@@ -1,51 +1,60 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile.unified"
+dockerfilePath = "Dockerfile.frontend"
 
 [deploy]
-startCommand = "bash scripts/start-united.sh"
-
+startCommand = "bash /app/start-frontend.sh"
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
 
 [deploy.env]
 # Railway automatically provides PORT - don't override unless needed
 NODE_ENV = "production"
-MODEL_BACKEND = "auto"
-MODEL_DIR = "/app"
-PYTHONPATH = "/app"
 
-# Cloudinary Configuration (set actual values in Railway dashboard)
-CLOUDINARY_CLOUD_NAME = ""
-CLOUDINARY_API_KEY = ""
-CLOUDINARY_API_SECRET = ""
+# Cloudinary Configuration
+CLOUDINARY_CLOUD_NAME = "dgn5da9f8"
+CLOUDINARY_API_KEY = "688173149321172"
+CLOUDINARY_API_SECRET = "Mb_3IFGPoWA1_AM-XzOd6AH_Pyg"
 
 # Session Configuration
-SESSION_SECRET = ""
+SESSION_SECRET = "aVeryStrongAndRandomSecretKeyForYourSessionManagement123!@#$"
 
 # SendGrid Configuration
-SENDGRID_API_KEY = ""
+SENDGRID_API_KEY = "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"
 
 # Redis Configuration
-REDIS_HOST = ""
-REDIS_PORT = ""
-REDIS_USERNAME = ""
-REDIS_PASSWORD = ""
+REDIS_HOST = "redis-13437.c44.us-east-1-2.ec2.redns.redis-cloud.com"
+REDIS_PORT = "13437"
+REDIS_USERNAME = "default"
+REDIS_PASSWORD = "e7uFJGU10TYEVhTJFoOkyPog0fBMhJMG"
 
 # Google OAuth Configuration
-GOOGLE_CLIENT_ID = ""
-GOOGLE_CLIENT_SECRET = ""
-GOOGLE_CALLBACK_URL = ""
+GOOGLE_CLIENT_ID = "46375555882-rmivba20noas9slfskb3cfvugssladrr.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET = "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"
+GOOGLE_CALLBACK_URL = "https://hazard-detection-production-8735.up.railway.app/auth/google/callback"
 
 # Google Maps/Geocoding API
-GOOGLE_GEOCODING_API_KEY = ""
-GOOGLE_MAPS_API_KEY = ""
+GOOGLE_GEOCODING_API_KEY = "AIzaSyAJ4073PjQ5koFcU9O3WCt8IsK43NNMPcc"
+GOOGLE_MAPS_API_KEY = "AIzaSyAJ4073PjQ5koFcU9O3WCt8IsK43NNMPcc"
 
-# API Integration - Need to determine correct API service URL
-API_URL = ""
-HAZARD_API_URL = ""
+# API Integration - Using exact URL format from fetch guide
+API_URL = "https://hazard-api-production-production.up.railway.app/"
+HAZARD_API_URL = "https://hazard-api-production-production.up.railway.app/"
 
-# Railway Public Domain Configuration - Updated to match actual deployed URL
-RENDER_EXTERNAL_URL = ""
-RAILWAY_PUBLIC_DOMAIN = ""
+# NEW: Realtime Client Configuration for Private-First Connectivity
+HAZARD_API_URL_PRIVATE = "http://ideal-learning.railway.internal:8080"
+HAZARD_API_URL_PUBLIC = "https://hazard-api-production-production.up.railway.app"
+HAZARD_USE_PRIVATE = "auto"
+REALTIME_TIMEOUT_MS = "30000"
+REALTIME_MAX_RETRIES = "5"
+REALTIME_BACKOFF_MS = "500"
+REALTIME_HEARTBEAT_MS = "0"
+
+# Railway Public Domain Configuration
+RENDER_EXTERNAL_URL = "https://hazard-detection-production-8735.up.railway.app"
+RAILWAY_PUBLIC_DOMAIN = "hazard-detection-production-8735.up.railway.app"
 
 [[sharedEnvironments]]
 project = "hazard-api-production"
