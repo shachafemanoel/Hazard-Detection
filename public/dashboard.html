@@ -16,51 +16,50 @@
   <link rel="stylesheet" href="css/main.css">
 </head>
 <body>
-
   <header class="my-4 text-center">
     <h1 class="h2"><i class="fas fa-road me-2"></i>RoadGuardian</h1>
     <p class="text-secondary">Live Hazard Tracker</p>
   </header>
 
-  <div class="container-fluid">
-    <div id="overview-section" class="row g-4 mb-4">
+  <main class="container-fluid">
+    <section id="overview-section" class="row g-4 mb-4">
       <div class="col-lg-3 col-md-6">
-        <div class="stat-card card h-100">
+        <article class="stat-card card h-100">
           <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
           <div class="stat-content">
             <h4 id="total-reports-count">—</h4>
             <p>Total Reports</p>
           </div>
-        </div>
+        </article>
       </div>
       <div class="col-lg-3 col-md-6">
-        <div class="stat-card card h-100">
+        <article class="stat-card card h-100">
           <div class="stat-icon"><i class="fas fa-clock"></i></div>
           <div class="stat-content">
             <h4 id="open-hazards-count">—</h4>
             <p>Open Hazards</p>
           </div>
-        </div>
+        </article>
       </div>
       <div class="col-lg-3 col-md-6">
-        <div class="stat-card card h-100">
+        <article class="stat-card card h-100">
           <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
           <div class="stat-content">
             <h4 id="resolved-this-month-count">—</h4>
             <p>Resolved This Month</p>
           </div>
-        </div>
+        </article>
       </div>
       <div class="col-lg-3 col-md-6">
-        <div class="stat-card card h-100">
+        <article class="stat-card card h-100">
           <div class="stat-icon"><i class="fas fa-users"></i></div>
           <div class="stat-content">
             <h4 id="active-users-count">—</h4>
             <p>Active Users</p>
           </div>
-        </div>
+        </article>
       </div>
-    </div>
+    </section>
     <div class="row g-4">
       <section class="col-lg-8">
         <div class="dashboard-panel card h-100 d-flex flex-column">
@@ -79,20 +78,20 @@
         </div>
       </section>
       <aside class="col-lg-4">
-        <div class="dashboard-panel card h-100 d-flex flex-column">
+        <section class="dashboard-panel card h-100 d-flex flex-column">
           <div class="card-header">
             <h5 class="mb-0"><i class="fas fa-table me-2"></i>Reports Management</h5>
           </div>
           <div class="card-body">
             <div class="table-controls d-flex flex-wrap gap-2 mb-3">
-              <input type="text" id="report-search-input" class="form-control" placeholder="Search...">
-              <select id="table-status-filter" class="form-select">
+              <input type="text" id="report-search-input" class="form-control" placeholder="Search reports..." aria-label="Search reports">
+              <select id="table-status-filter" class="form-select" aria-label="Filter by status">
                 <option value="">All Status</option>
                 <option value="Open">Open</option>
                 <option value="In Progress">In Progress</option>
                 <option value="Resolved">Resolved</option>
               </select>
-              <select id="hazard-type-filter" class="form-select">
+              <select id="hazard-type-filter" class="form-select" aria-label="Filter by hazard type">
                 <option value="">All Types</option>
                 <option value="crack">Crack</option>
                 <option value="knocked">Knocked</option>
@@ -111,7 +110,7 @@
               <table id="reports-management-table" class="table table-hover">
                 <thead>
                   <tr>
-                    <th><input type="checkbox" id="select-all-reports"></th>
+                    <th><input type="checkbox" id="select-all-reports" aria-label="Select all reports"></th>
                     <th class="sortable" data-sort="id">ID <i class="fas fa-sort"></i></th>
                     <th class="sortable" data-sort="type">Type <i class="fas fa-sort"></i></th>
                     <th class="sortable" data-sort="status">Status <i class="fas fa-sort"></i></th>
@@ -127,20 +126,20 @@
           <div class="card-footer d-flex justify-content-between align-items-center">
             <span id="table-showing-info"></span>
             <div class="pagination-controls d-flex align-items-center gap-2">
-              <button id="table-prev-btn" class="btn btn-sm"><i class="fas fa-chevron-left"></i></button>
+              <button id="table-prev-btn" class="btn btn-sm" aria-label="Previous page"><i class="fas fa-chevron-left"></i></button>
               <span id="table-page-info"></span>
-              <button id="table-next-btn" class="btn btn-sm"><i class="fas fa-chevron-right"></i></button>
-              <select id="table-page-size" class="form-select form-select-sm" style="width: auto;">
+              <button id="table-next-btn" class="btn btn-sm" aria-label="Next page"><i class="fas fa-chevron-right"></i></button>
+              <select id="table-page-size" class="form-select form-select-sm" style="width: auto;" aria-label="Reports per page">
                 <option value="10">10</option>
                 <option value="25">25</option>
                 <option value="50">50</option>
               </select>
             </div>
           </div>
-        </div>
+        </section>
       </aside>
     </div>
-  </div>
+  </main>
   <div id="report-details-panel" class="d-none"></div>
 
   <!-- Modals -->

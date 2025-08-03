@@ -403,19 +403,14 @@
     </style>
 </head>
 <body>
-
-    <!-- iPhone Style Camera App -->
-    <div class="camera-app">
-        <!-- Full Screen Camera View -->
+    <main class="camera-app">
         <div class="camera-view">
             <video id="camera-stream" autoplay playsinline muted></video>
             <canvas id="overlay-canvas"></canvas>
         </div>
-        
-        <!-- iPhone Style UI Overlay -->
+
         <div class="camera-ui">
-            <!-- Top Status Bar -->
-            <div class="top-bar">
+            <header class="top-bar">
                 <div class="status-indicator" id="connection-status">
                     <div class="status-dot"></div>
                     <span class="status-text">System Ready</span>
@@ -423,10 +418,9 @@
                 <div class="model-info">
                     <span>Road Damage AI</span>
                 </div>
-            </div>
-            
-            <!-- Detection Info Badges -->
-            <div class="detection-overlay">
+            </header>
+
+            <section class="detection-overlay" aria-live="polite">
                 <div class="detection-badge">
                     <i class="fas fa-search"></i>
                     <span class="detection-count" id="detection-count-badge">0 hazards</span>
@@ -439,10 +433,9 @@
                     <i class="fas fa-exclamation-triangle"></i>
                     <span id="hazard-types-list">No hazards</span>
                 </div>
-            </div>
-            
-            <!-- Session Statistics -->
-            <div class="session-stats">
+            </section>
+
+            <section class="session-stats" aria-label="Session Statistics">
                 <div class="session-stat">
                     <div class="session-stat-value" id="camera-session-total">0</div>
                     <div class="session-stat-label">Total</div>
@@ -455,45 +448,42 @@
                     <div class="session-stat-value" id="camera-session-types">0</div>
                     <div class="session-stat-label">Types</div>
                 </div>
-            </div>
-            
-            <!-- Settings Panel -->
-            <div class="settings-panel" id="settings-panel">
+            </section>
+
+            <aside class="settings-panel" id="settings-panel">
                 <div class="settings-item">
-                    <label>Detection Sensitivity</label>
+                    <label for="sensitivity-slider">Detection Sensitivity</label>
                     <input type="range" class="settings-slider" id="sensitivity-slider" min="0.3" max="0.9" step="0.1" value="0.5">
                     <span class="settings-value">50%</span>
                 </div>
-            </div>
-            
-            <!-- Bottom Camera Controls -->
-            <div class="bottom-controls">
+            </aside>
+
+            <footer class="bottom-controls">
                 <div class="main-controls">
-                    <button class="camera-button secondary" id="settings-btn">
+                    <button class="camera-button secondary" id="settings-btn" aria-label="Open settings">
                         <i class="fas fa-cog"></i>
                     </button>
-                    <button class="camera-button primary" id="start-camera">
+                    <button class="camera-button primary" id="start-camera" aria-label="Start detection">
                         <i class="fas fa-play"></i>
                     </button>
-                    <button class="camera-button primary" id="stop-camera" style="display: none;">
+                    <button class="camera-button primary" id="stop-camera" style="display: none;" aria-label="Stop detection">
                         <i class="fas fa-stop"></i>
                     </button>
-                    <button class="camera-button secondary" id="switch-camera">
+                    <button class="camera-button secondary" id="switch-camera" aria-label="Switch camera">
                         <i class="fas fa-sync-alt"></i>
                     </button>
                 </div>
-            </div>
+            </footer>
         </div>
-        
-        <!-- Loading Overlay -->
-        <div class="loading-overlay" id="loading-overlay" style="display: none;">
+
+        <section class="loading-overlay" id="loading-overlay" style="display: none;" aria-live="assertive">
             <div class="loading-spinner"></div>
             <div class="loading-text" id="loading-status">Initializing...</div>
             <div class="loading-progress">
                 <div class="loading-progress-bar" id="loading-progress-bar" style="width: 0%;"></div>
             </div>
-        </div>
-    </div>
+        </section>
+    </main>
 
     <!-- Hidden Elements for Compatibility -->
     <div style="display: none;">
