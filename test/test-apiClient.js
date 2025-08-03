@@ -1,7 +1,7 @@
 const { expect } = require('chai');
 const sinon = require('sinon');
 const axios = require('axios');
-const { createRealtimeClient, resolveBaseUrl, probeHealth } = require('../lib/realtimeClient');
+const { createRealtimeClient, resolveBaseUrl, probeHealth } = require('hazard-detection/realtime');
 
 describe('Realtime API Client', () => {
   let axiosStub;
