@@ -1,12 +1,13 @@
 // realtime-client.js - Universal realtime client for Hazard Detection API
 // Supports both Node.js and browser environments with network utilities
 
+// Internal imports
 import { resolveBaseUrl, toWsUrl, withTimeout } from '../utils/network.js';
 
 // Dynamic imports for Node.js-specific modules
 let axios, FormData;
 if (typeof window === 'undefined') {
-  // Node.js environment
+  // Node.js environment - external packages
   try {
     const axiosModule = await import('axios');
     const formDataModule = await import('form-data');

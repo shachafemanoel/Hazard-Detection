@@ -36,11 +36,11 @@ async function probeHealth(base, timeoutMs = 2000) {
       method: 'GET',
       signal: withTimeout(timeoutMs),
       headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'Hazard-Detection-Client/1.0'
-      }
+        Accept: 'application/json',
+        'User-Agent': 'Hazard-Detection-Client/1.0',
+      },
     });
-    
+
     // Return true for 200-299 status codes
     return response.status >= 200 && response.status < 300;
   } catch (error) {
@@ -64,12 +64,16 @@ async function resolveBaseUrl(options = {}) {
   if (process.env.DEBUG_ENV === 'true') {
     console.log('🔎 Resolving API endpoint...');
   }
-  
+
   // Environment variables with defaults
-  const privateUrl = process.env.HAZARD_API_URL_PRIVATE || 'http://ideal-learning.railway.internal:8080';
-  const publicUrl = process.env.HAZARD_API_URL_PUBLIC || 'https://hazard-api-production-production.up.railway.app';
+  const privateUrl =
+    process.env.HAZARD_API_URL_PRIVATE ||
+    'http://ideal-learning.railway.internal:8080';
+  const publicUrl =
+    process.env.HAZARD_API_URL_PUBLIC ||
+    'https://hazard-api-production-production.up.railway.app';
   const localUrl = process.env.HAZARD_API_URL_LOCAL || 'http://localhost:8080';
-  
+
   // Local-Dev Override - highest priority
   if (process.env.NODE_ENV === 'development') {
     if (process.env.DEBUG_ENV === 'true') {
@@ -78,10 +82,11 @@ async function resolveBaseUrl(options = {}) {
     }
     return localUrl;
   }
-  
+
   // Get preference from options or environment
-  const usePrivate = options.usePrivate || process.env.HAZARD_USE_PRIVATE || 'auto';
-  
+  const usePrivate =
+    options.usePrivate || process.env.HAZARD_USE_PRIVATE || 'auto';
+
   // Direct private override
   if (usePrivate === 'true') {
     if (process.env.DEBUG_ENV === 'true') {
@@ -89,7 +94,7 @@ async function resolveBaseUrl(options = {}) {
     }
     return privateUrl;
   }
-  
+
   // Direct public override
   if (usePrivate === 'false') {
     if (process.env.DEBUG_ENV === 'true') {
@@ -97,7 +102,7 @@ async function resolveBaseUrl(options = {}) {
     }
     return publicUrl;
   }
-  
+
   // Auto-selection: Private-First → Public → Error
   if (usePrivate === 'auto') {
     // Try private first with 2s timeout
@@ -107,7 +112,7 @@ async function resolveBaseUrl(options = {}) {
       }
       return privateUrl;
     }
-    
+
     // Fallback to public
     if (await probeHealth(publicUrl, 2000)) {
       if (process.env.DEBUG_ENV === 'true') {
@@ -115,12 +120,14 @@ async function resolveBaseUrl(options = {}) {
       }
       return publicUrl;
     }
-    
+
     // Both failed
     throw new Error('No healthy endpoint found');
   }
-  
-  throw new Error(`Invalid HAZARD_USE_PRIVATE value: ${usePrivate}. Must be 'auto', 'true', or 'false'`);
+
+  throw new Error(
+    `Invalid HAZARD_USE_PRIVATE value: ${usePrivate}. Must be 'auto', 'true', or 'false'`
+  );
 }
 
 /**
@@ -138,7 +145,7 @@ if (typeof module !== 'undefined' && module.exports) {
     withTimeout,
     probeHealth,
     resolveBaseUrl,
-    toWsUrl
+    toWsUrl,
   };
 }
 
