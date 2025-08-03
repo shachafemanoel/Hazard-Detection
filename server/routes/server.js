@@ -674,7 +674,18 @@ app.get('/api/config', (req, res) => {
     
     res.json({
         apiUrl: normalizedUrl,
-        hasApiService: !!(process.env.API_URL || process.env.HAZARD_API_URL)
+        hasApiService: !!(process.env.API_URL || process.env.HAZARD_API_URL),
+
+        // Real-time client configuration
+        HAZARD_API_URL_PRIVATE: process.env.HAZARD_API_URL_PRIVATE || 'http://ideal-learning.railway.internal:8080',
+        HAZARD_API_URL_PUBLIC: process.env.HAZARD_API_URL_PUBLIC || 'https://hazard-api-production-production.up.railway.app',
+        HAZARD_USE_PRIVATE: process.env.HAZARD_USE_PRIVATE || 'auto',
+        REALTIME_TRANSPORT: process.env.REALTIME_TRANSPORT || 'auto',
+        REALTIME_AUTH_TOKEN: process.env.REALTIME_AUTH_TOKEN || null,
+        REALTIME_TIMEOUT_MS: parseInt(process.env.REALTIME_TIMEOUT_MS, 10) || 30000,
+        REALTIME_MAX_RETRIES: parseInt(process.env.REALTIME_MAX_RETRIES, 10) || 5,
+        REALTIME_BACKOFF_MS: parseInt(process.env.REALTIME_BACKOFF_MS, 10) || 500,
+        REALTIME_HEARTBEAT_MS: parseInt(process.env.REALTIME_HEARTBEAT_MS, 10) || 0,
     });
 });
 
