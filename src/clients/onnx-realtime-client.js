@@ -1,7 +1,8 @@
 // Client-side realtime detection using local ONNX models
 // Eliminates dependency on external API services
 
-import { loadModel, preprocessImageToTensor, runInference, parseBoxes } from './yolo_tfjs.js';
+// Internal imports
+import { loadModel, preprocessImageToTensor, runInference, parseBoxes } from '../utils/yolo-tfjs.js';
 
 class ClientSideRealtimeClient {
   constructor(config = {}) {
