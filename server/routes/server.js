@@ -103,8 +103,12 @@ app.use(express.static(path.join(__dirname, '../../public'), {
 
 // Specific route for ONNX model files
 app.get('/object_detection_model/*.onnx', (req, res) => {
-    const modelName = req.params[0];
-    const modelPath = path.join(__dirname, '../../public/object_detection_model', `${modelName}.onnx`);
+    const modelName = decodeURIComponent(req.params[0]);
+    const modelPath = path.join(
+      __dirname,
+      '../../public/object_detection_model',
+      `${modelName}.onnx`
+    );
     
     console.log(`📂 Requesting ONNX model: ${modelName}.onnx`);
     console.log(`📁 Full path: ${modelPath}`);

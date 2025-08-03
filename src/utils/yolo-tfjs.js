@@ -129,7 +129,7 @@ export async function runInference(session, tensor) {
     const outputKey = Object.keys(results)[0];
     const outputData = results[outputKey].data;
 
-    // Convert to array of arrays [x1, y1, x2, y2, score, classId]
+    // Convert to array of arrays [cx, cy, width, height, score, classId]
     const boxes = [];
     for (let i = 0; i < outputData.length; i += 6) {
       boxes.push(Array.from(outputData.slice(i, i + 6)));
@@ -152,13 +152,16 @@ export function parseBoxes(boxes, confidenceThreshold = 0.5) {
   const parsedBoxes = [];
 
   for (const box of boxes) {
-    const [x1, y1, x2, y2, score, classId] = box;
+    const [cx, cy, w, h, score, classId] = box;
 
     // Filter by confidence threshold and reasonable box size
     if (score < confidenceThreshold) continue;
-    const boxW = x2 - x1;
-    const boxH = y2 - y1;
-    if (boxW <= 1 || boxH <= 1) continue;
+    if (w <= 1 || h <= 1) continue;
+
+    const x1 = cx - w / 2;
+    const y1 = cy - h / 2;
+    const x2 = cx + w / 2;
+    const y2 = cy + h / 2;
 
     parsedBoxes.push({
       x1,
@@ -200,11 +203,14 @@ export function drawDetections(
   // Calculate scale factors
   let scaleX = ctx.canvas.width / 640;
   let scaleY = ctx.canvas.height / 640;
+  let offsetX = 0;
+  let offsetY = 0;
 
   // If letterbox parameters exist, use them for more accurate calculation
   if (letterboxParams) {
-    scaleX = displayWidth / 640;
-    scaleY = displayHeight / 640;
+    ({ offsetX, offsetY } = letterboxParams);
+    scaleX = displayWidth / letterboxParams.newW;
+    scaleY = displayHeight / letterboxParams.newH;
   }
 
   // Draw boxes
@@ -214,8 +220,8 @@ export function drawDetections(
     // Box dimensions adapted to screen
     const boxW = (x2 - x1) * scaleX;
     const boxH = (y2 - y1) * scaleY;
-    const left = x1 * scaleX;
-    const top = y1 * scaleY;
+    const left = (x1 - offsetX) * scaleX;
+    const top = (y1 - offsetY) * scaleY;
 
     // Draw box
     ctx.strokeStyle = 'red';
