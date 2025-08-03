@@ -2,6 +2,24 @@
 // Provides private-first connectivity with local-dev override
 
 /**
+ * Cross-browser compatible timeout utility for fetch requests
+ * Replaces AbortSignal.timeout which isn't supported in all browsers
+ * @param {number} ms - Timeout in milliseconds
+ * @returns {AbortSignal} - AbortSignal that triggers after timeout
+ */
+function withTimeout(ms) {
+  if (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) {
+    // Use native implementation if available
+    return AbortSignal.timeout(ms);
+  }
+
+  // Fallback for older browsers
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+
+/**
  * Probes a health endpoint to check if it's responsive.
  * Calls exactly GET ${base}/health (no /api/v1 prefix)
  * @param {string} base The base URL to probe (will be cleaned of trailing slashes)
@@ -13,26 +31,23 @@ async function probeHealth(base, timeoutMs = 2000) {
     // Clean base URL of trailing slashes and ensure /health endpoint
     const cleanBase = base.replace(/\/+$/, '');
     const healthUrl = `${cleanBase}/health`;
-    
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     const response = await fetch(healthUrl, {
       method: 'GET',
-      signal: controller.signal,
+      signal: withTimeout(timeoutMs),
       headers: {
         'Accept': 'application/json',
         'User-Agent': 'Hazard-Detection-Client/1.0'
       }
     });
-
-    clearTimeout(timeoutId);
     
     // Return true for 200-299 status codes
     return response.status >= 200 && response.status < 300;
   } catch (error) {
     // Log probe failures for debugging
-    console.warn(`⚠️ Health probe failed for ${base}:`, error.message);
+    if (process.env.DEBUG_ENV === 'true') {
+      console.warn(`⚠️ Health probe failed for ${base}:`, error.message);
+    }
     return false;
   }
 }
@@ -46,7 +61,9 @@ async function probeHealth(base, timeoutMs = 2000) {
  * @throws {Error} If no healthy endpoint is found
  */
 async function resolveBaseUrl(options = {}) {
-  console.log('🔎 Resolving API endpoint...');
+  if (process.env.DEBUG_ENV === 'true') {
+    console.log('🔎 Resolving API endpoint...');
+  }
   
   // Environment variables with defaults
   const privateUrl = process.env.HAZARD_API_URL_PRIVATE || 'http://ideal-learning.railway.internal:8080';
@@ -55,8 +72,10 @@ async function resolveBaseUrl(options = {}) {
   
   // Local-Dev Override - highest priority
   if (process.env.NODE_ENV === 'development') {
-    console.log('🔧 NODE_ENV=development → using LOCAL endpoint');
-    console.log(`🔒 Private network selected: ${localUrl}`);
+    if (process.env.DEBUG_ENV === 'true') {
+      console.log('🔧 NODE_ENV=development → using LOCAL endpoint');
+      console.log(`🔒 Private network selected: ${localUrl}`);
+    }
     return localUrl;
   }
   
@@ -65,13 +84,17 @@ async function resolveBaseUrl(options = {}) {
   
   // Direct private override
   if (usePrivate === 'true') {
-    console.log(`🔒 Private network selected: ${privateUrl}`);
+    if (process.env.DEBUG_ENV === 'true') {
+      console.log(`🔒 Private network selected: ${privateUrl}`);
+    }
     return privateUrl;
   }
   
   // Direct public override
   if (usePrivate === 'false') {
-    console.log(`🌐 Public network selected: ${publicUrl}`);
+    if (process.env.DEBUG_ENV === 'true') {
+      console.log(`🌐 Public network selected: ${publicUrl}`);
+    }
     return publicUrl;
   }
   
@@ -79,13 +102,17 @@ async function resolveBaseUrl(options = {}) {
   if (usePrivate === 'auto') {
     // Try private first with 2s timeout
     if (await probeHealth(privateUrl, 2000)) {
-      console.log(`🔒 Private network selected: ${privateUrl}`);
+      if (process.env.DEBUG_ENV === 'true') {
+        console.log(`🔒 Private network selected: ${privateUrl}`);
+      }
       return privateUrl;
     }
     
     // Fallback to public
     if (await probeHealth(publicUrl, 2000)) {
-      console.log(`🌐 Public network selected: ${publicUrl}`);
+      if (process.env.DEBUG_ENV === 'true') {
+        console.log(`🌐 Public network selected: ${publicUrl}`);
+      }
       return publicUrl;
     }
     
@@ -108,6 +135,7 @@ function toWsUrl(httpBase) {
 // CommonJS exports for Node.js compatibility
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
+    withTimeout,
     probeHealth,
     resolveBaseUrl,
     toWsUrl
@@ -116,10 +144,11 @@ if (typeof module !== 'undefined' && module.exports) {
 
 // Browser compatibility - expose as globals or ES6 exports
 if (typeof window !== 'undefined') {
+  window.withTimeout = withTimeout;
   window.probeHealth = probeHealth;
   window.resolveBaseUrl = resolveBaseUrl;
   window.toWsUrl = toWsUrl;
 }
 
 // ES6 module exports (for modern environments)
-export { probeHealth, resolveBaseUrl, toWsUrl };
+export { withTimeout, probeHealth, resolveBaseUrl, toWsUrl };
