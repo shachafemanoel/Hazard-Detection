@@ -911,12 +911,11 @@ app.get('/api/reports', async (req, res) => {
                         reports.push(report);
                     }
                 }
-            }
 
-            // Early exit if we have enough reports for this page
-            if (reports.length >= limit) {
-                break;
-            }
+                // Early exit if we have enough reports for this page
+                if (reports.length >= limit) {
+                    break;
+                }
         }
 
         const totalPages = Math.ceil(totalMatchingCount / limit);
