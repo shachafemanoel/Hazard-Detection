@@ -7,21 +7,58 @@ document.addEventListener("DOMContentLoaded", async function () {
   const logoutBtn = document.getElementById("logout-btn");
   const saveBtn = document.getElementById("save-detection");
   const uploadingModal = document.getElementById("uploading-modal");
-
-import { notify } from './notifications.js';
-
-  const uploadingModal = new bootstrap.Modal(document.getElementById('uploading-modal'));
+  const uploadingModalBootstrap = new bootstrap.Modal(document.getElementById('uploading-modal'));
 
   function showUploadingModal() {
-    uploadingModal.show();
+    uploadingModalBootstrap.show();
   }
 
   function hideUploadingModal() {
-    uploadingModal.hide();
+    uploadingModalBootstrap.hide();
   }
 
   function showToast(message, type = 'success') {
     notify(message, type);
+  }
+
+  // Update detection modal with current detection results
+  function updateDetectionModal(boxes, hazardTypes) {
+    const detectionResults = document.getElementById('detection-results');
+    
+    if (boxes.length === 0) {
+      detectionResults.innerHTML = '<p class="text-muted">No detections found in this image.</p>';
+      return;
+    }
+
+    let html = `
+      <div class="detection-summary mb-3">
+        <h6>Detection Summary</h6>
+        <p><strong>Total Detections:</strong> ${boxes.length}</p>
+        <p><strong>Hazard Types:</strong> ${hazardTypes.join(', ')}</p>
+      </div>
+      <div class="detection-list">
+        <h6>Individual Detections</h6>
+    `;
+
+    boxes.forEach((box, index) => {
+      let [x1, y1, x2, y2, score, classId] = box;
+      const correctedClassId = Math.floor(classId) - 1;
+      const classIndex = Math.max(0, correctedClassId);
+      const labelName = classNames[classIndex] || `Unknown Class ${classIndex}`;
+      const scorePerc = (score * 100).toFixed(1);
+
+      html += `
+        <div class="detection-item border rounded p-2 mb-2">
+          <strong>Detection #${index + 1}</strong><br>
+          <span class="text-info">${labelName}</span><br>
+          <small class="text-muted">Confidence: ${scorePerc}%</small><br>
+          <small class="text-muted">Location: (${Math.round(x1)}, ${Math.round(y1)}) to (${Math.round(x2)}, ${Math.round(y2)})</small>
+        </div>
+      `;
+    });
+
+    html += '</div>';
+    detectionResults.innerHTML = html;
   }
 
   let geoData = null;
@@ -808,6 +845,16 @@ import { notify } from './notifications.js';
 
     // Update detection information panel
     updateDetectionInfoPanel(boxes, detectionCount, hazardTypes);
+    
+    // Update detection modal with filtered results
+    updateDetectionModal(boxes.filter(box => {
+      let [x1, y1, x2, y2, score, classId] = box;
+      const correctedClassId = Math.floor(classId) - 1;
+      const classIndex = Math.max(0, correctedClassId);
+      const classThreshold = DETECTION_CONFIG.classThresholds[classIndex] || DETECTION_CONFIG.minConfidence;
+      const threshold = Math.max(confidenceThreshold, classThreshold);
+      return score >= threshold;
+    }), hazardTypes);
     
     // Log detection summary
     console.log(`✅ Detected ${detectionCount} hazards:`, hazardTypes);

@@ -12,7 +12,31 @@
   <script src="ort/ort.min.js"></script>
 </head>
 <body>
-  <div class="container mt-5">
+  <!-- Left Corner Navigation Menu -->
+  <nav class="nav-menu-left">
+    <button class="nav-toggle-btn" id="nav-toggle">
+      <i class="fas fa-bars"></i>
+    </button>
+    <div class="nav-menu-content" id="nav-menu">
+      <div class="nav-menu-header">
+        <h5>Menu</h5>
+        <button class="nav-close-btn" id="nav-close">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      <ul class="nav-menu-list">
+        <li><a href="/upload.html"><i class="fas fa-upload"></i> Upload</a></li>
+        <li><a href="/camera.html"><i class="fas fa-camera"></i> Camera</a></li>
+        <li><a href="/dashboard.html"><i class="fas fa-chart-dashboard"></i> Dashboard</a></li>
+        <li><a href="/logout"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+      </ul>
+    </div>
+    <div class="nav-overlay" id="nav-overlay"></div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <div class="container mt-5">
     <div class="card p-4 mx-auto" style="max-width: 600px;">
       <h2 class="text-center mb-4">Upload Image for Detection</h2>
 
@@ -30,6 +54,7 @@
       <canvas id="preview-canvas" class="img-fluid border rounded mb-3"></canvas>
 
       <button id="save-detection" class="btn btn-primary w-100">Save Detection</button>
+      <button id="open-detection-modal" class="btn btn-secondary w-100 mt-2">View Detection Details</button>
       <div id="tooltip" class="alert alert-warning mt-3" style="display:none;">⚠️ No Hazard Detected. Cannot save detection</div>
 
       <div id="toast-notification" class="toast align-items-center text-white bg-primary border-0 mt-3" role="alert" aria-live="assertive" aria-atomic="true">
@@ -39,10 +64,50 @@
         </div>
       </div>
     </div>
+    </div>
+  </main>
+
+  <!-- Bottom Navigation Menu -->
+  <nav class="bottom-nav">
+    <div class="bottom-nav-container">
+      <a href="/upload.html" class="bottom-nav-item active">
+        <i class="fas fa-upload"></i>
+        <span>Upload</span>
+      </a>
+      <a href="/camera.html" class="bottom-nav-item">
+        <i class="fas fa-camera"></i>
+        <span>Camera</span>
+      </a>
+      <a href="/dashboard.html" class="bottom-nav-item">
+        <i class="fas fa-chart-dashboard"></i>
+        <span>Dashboard</span>
+      </a>
+      <a href="/" class="bottom-nav-item">
+        <i class="fas fa-home"></i>
+        <span>Home</span>
+      </a>
+    </div>
+  </nav>
+
+  <!-- Detection Details Modal -->
+  <div id="detection-modal" class="modal fade" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Detection Results</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div id="detection-results">
+            <p>No detections available yet. Upload an image first.</p>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Uploading modal -->
-  <div id="uploading-modal" class="modal" tabindex="-1">
+  <div id="uploading-modal" class="modal" tabindex="-1" style="display: none;">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
         <div class="modal-body text-center">
@@ -56,7 +121,41 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script type="module" src="js/upload.js" defer></script>
+  <script src="js/notifications.js"></script>
+  <script src="js/upload.js" defer></script>
+  
+  <!-- Navigation Script -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Navigation menu functionality
+      const navToggle = document.getElementById('nav-toggle');
+      const navMenu = document.getElementById('nav-menu');
+      const navClose = document.getElementById('nav-close');
+      const navOverlay = document.getElementById('nav-overlay');
+      
+      function openNav() {
+        navMenu.classList.add('open');
+        navOverlay.classList.add('active');
+      }
+      
+      function closeNav() {
+        navMenu.classList.remove('open');
+        navOverlay.classList.remove('active');
+      }
+      
+      navToggle.addEventListener('click', openNav);
+      navClose.addEventListener('click', closeNav);
+      navOverlay.addEventListener('click', closeNav);
+      
+      // Detection modal functionality
+      const openDetectionModalBtn = document.getElementById('open-detection-modal');
+      const detectionModal = new bootstrap.Modal(document.getElementById('detection-modal'));
+      
+      openDetectionModalBtn.addEventListener('click', function() {
+        detectionModal.show();
+      });
+    });
+  </script>
 </body>
 </html>
 

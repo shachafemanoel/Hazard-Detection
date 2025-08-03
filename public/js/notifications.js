@@ -1,4 +1,4 @@
-export function notify(message, type = 'info', persist = false) {
+function notify(message, type = 'info', persist = false) {
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
   toast.textContent = message;
@@ -7,4 +7,9 @@ export function notify(message, type = 'info', persist = false) {
     setTimeout(() => toast.remove(), 3000);
   }
   return toast;
+}
+
+// Make notify available globally for browser use
+if (typeof window !== 'undefined') {
+  window.notify = notify;
 }

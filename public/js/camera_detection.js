@@ -452,8 +452,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     loadingModal.hide();
   }
 
-import { notify } from './notifications.js';
-
   // Show notification
   function showNotification(message, type = 'info') {
     notify(message, type);

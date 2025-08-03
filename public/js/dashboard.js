@@ -1,6 +1,5 @@
 import { initializeMap, plotReports, toggleHeatmap, centerMap } from './map.js';
 import { fetchReports, updateReport, deleteReportById } from './reports-api.js';
-import { notify } from './notifications.js';
 import { initControls } from './ui-controls.js';
 
 // --- STATE MANAGEMENT ---
@@ -122,15 +121,31 @@ function renderAll() {
   renderStats();
   renderTable();
   renderPagination();
-  plotReports(state.reports);
 }
 
 // --- API & DATA HANDLING ---
 
-async function updateDashboard() {
-  state.isLoading = true;
-  showMetricsLoading();
-  const loadingToast = notify('Loading reports...', 'info', true);
+// Load all reports for stats and map (without pagination)
+async function loadAllReportsForStatsAndMap() {
+  try {
+    const params = {
+      ...state.filters,
+      limit: 10000, // Very large number to get all reports
+      sort: state.sort.field,
+      order: state.sort.direction,
+    };
+    const { reports, metrics } = await fetchReports(params);
+    state.metrics = metrics;
+    await plotReports(reports);
+    renderStats();
+  } catch (error) {
+    console.error('Failed to load all reports for stats/map:', error);
+    notify('Failed to load complete data', 'warning');
+  }
+}
+
+// Load paginated reports for table display
+async function loadPaginatedReports() {
   try {
     const params = {
       ...state.filters,
@@ -139,21 +154,39 @@ async function updateDashboard() {
       sort: state.sort.field,
       order: state.sort.direction,
     };
-    const { reports, pagination, metrics } = await fetchReports(params);
+    const { reports, pagination } = await fetchReports(params);
     state.reports = reports;
     state.pagination.total = pagination.total;
-    state.metrics = metrics;
-    await plotReports(reports);
+    renderTable();
+    renderPagination();
+  } catch (error) {
+    console.error('Failed to load paginated reports:', error);
+    notify('Failed to load table data', 'danger');
+    state.reports = [];
+    state.pagination.total = 0;
+  }
+}
+
+async function updateDashboard() {
+  state.isLoading = true;
+  showMetricsLoading();
+  const loadingToast = notify('Loading reports...', 'info', true);
+  
+  try {
+    // Load all reports for stats and map
+    await loadAllReportsForStatsAndMap();
+    // Load paginated reports for table
+    await loadPaginatedReports();
   } catch (error) {
     console.error('Failed to update dashboard:', error);
-    notify('Failed to load metrics', 'danger');
+    notify('Failed to load dashboard', 'danger');
     state.reports = [];
     state.pagination.total = 0;
     state.metrics = { total: null, open: null, resolved: null, users: null };
+    renderAll();
   } finally {
     state.isLoading = false;
     loadingToast.remove();
-    renderAll();
   }
 }
 
@@ -190,13 +223,15 @@ function handlePaginationChange(direction) {
   } else if (direction === 'prev' && state.pagination.currentPage > 1) {
     state.pagination.currentPage--;
   }
-  updateDashboard();
+  // Only reload table data for pagination changes
+  loadPaginatedReports();
 }
 
 function handlePageSizeChange(e) {
   state.pagination.pageSize = parseInt(e.target.value, 10);
   state.pagination.currentPage = 1;
-  updateDashboard();
+  // Only reload table data for page size changes
+  loadPaginatedReports();
 }
 
 function handleTableAction(e) {
