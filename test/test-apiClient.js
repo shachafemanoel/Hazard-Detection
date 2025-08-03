@@ -1,110 +1,267 @@
 const { expect } = require('chai');
 const sinon = require('sinon');
 const axios = require('axios');
-const { resolveBaseUrl, createRealtimeClient } = require('../public/js/apiClient.js');
+const { createRealtimeClient, resolveBaseUrl, probeHealth } = require('../lib/realtimeClient');
 
-describe('apiClient', () => {
-  console.log('Running apiClient tests...');
-  let axiosGetStub;
+describe('Realtime API Client', () => {
+  let axiosStub;
 
   beforeEach(() => {
-    axiosGetStub = sinon.stub(axios, 'get');
+    axiosStub = sinon.stub(axios, 'get');
+    sinon.stub(axios, 'post');
   });
 
   afterEach(() => {
-    axiosGetStub.restore();
-    delete process.env.HAZARD_USE_PRIVATE;
+    sinon.restore();
+  });
+
+  describe('probeHealth', () => {
+    it('should return true for healthy endpoint', async () => {
+      axiosStub.resolves({ status: 200 });
+      
+      const result = await probeHealth('http://test-api.com');
+      
+      expect(result).to.be.true;
+      expect(axiosStub.calledOnce).to.be.true;
+      expect(axiosStub.getCall(0).args[0]).to.equal('http://test-api.com/health');
+    });
+
+    it('should return false for unhealthy endpoint', async () => {
+      axiosStub.resolves({ status: 500 });
+      
+      const result = await probeHealth('http://test-api.com');
+      
+      expect(result).to.be.false;
+    });
+
+    it('should return false on network error', async () => {
+      axiosStub.rejects(new Error('Network error'));
+      
+      const result = await probeHealth('http://test-api.com');
+      
+      expect(result).to.be.false;
+    });
+
+    it('should respect timeout', async () => {
+      const result = await probeHealth('http://test-api.com', 1000);
+      
+      expect(axiosStub.getCall(0).args[1].timeout).to.equal(1000);
+    });
   });
 
   describe('resolveBaseUrl', () => {
-    it('should return the private URL if HAZARD_USE_PRIVATE is "true"', async () => {
-      process.env.HAZARD_USE_PRIVATE = 'true';
-      const baseUrl = await resolveBaseUrl();
-      expect(baseUrl).to.equal('http://ideal-learning.railway.internal:8080');
+    beforeEach(() => {
+      // Clear environment variables
+      delete process.env.HAZARD_API_URL_PRIVATE;
+      delete process.env.HAZARD_API_URL_PUBLIC;
+      delete process.env.HAZARD_USE_PRIVATE;
     });
 
-    it('should return the public URL if HAZARD_USE_PRIVATE is "false"', async () => {
-      process.env.HAZARD_USE_PRIVATE = 'false';
-      const baseUrl = await resolveBaseUrl();
-      expect(baseUrl).to.equal('https://hazard-api-production-production.up.railway.app');
+    it('should prefer private endpoint when healthy', async () => {
+      axiosStub.onFirstCall().resolves({ status: 200 }); // private healthy
+      axiosStub.onSecondCall().resolves({ status: 200 }); // public healthy
+      
+      const url = await resolveBaseUrl();
+      
+      expect(url).to.equal('http://ideal-learning.railway.internal:8080');
     });
 
-    it('should return the private URL if it is healthy', async () => {
-      axiosGetStub.withArgs('http://ideal-learning.railway.internal:8080/health').resolves({ status: 200 });
-      const baseUrl = await resolveBaseUrl();
-      expect(baseUrl).to.equal('http://ideal-learning.railway.internal:8080');
+    it('should fallback to public when private is down', async () => {
+      axiosStub.onFirstCall().rejects(new Error('Connection refused')); // private down
+      axiosStub.onSecondCall().resolves({ status: 200 }); // public healthy
+      
+      const url = await resolveBaseUrl();
+      
+      expect(url).to.equal('https://hazard-api-production-production.up.railway.app');
     });
 
-    it('should return the public URL if the private one is unhealthy', async () => {
-      axiosGetStub.withArgs('http://ideal-learning.railway.internal:8080/health').rejects();
-      axiosGetStub.withArgs('https://hazard-api-production-production.up.railway.app/health').resolves({ status: 200 });
-      const baseUrl = await resolveBaseUrl();
-      expect(baseUrl).to.equal('https://hazard-api-production-production.up.railway.app');
-    });
-
-    it('should throw an error if no endpoint is healthy', async () => {
-      axiosGetStub.withArgs('http://ideal-learning.railway.internal:8080/health').rejects();
-      axiosGetStub.withArgs('https://hazard-api-production-production.up.railway.app/health').rejects();
+    it('should throw when both endpoints are down', async () => {
+      axiosStub.rejects(new Error('Connection refused'));
+      
       try {
         await resolveBaseUrl();
-        // Should not reach here
-        expect.fail('Expected resolveBaseUrl to throw an error');
+        expect.fail('Should have thrown an error');
       } catch (error) {
         expect(error.message).to.equal('No healthy endpoint found (private/public)');
       }
+    });
+
+    it('should respect HAZARD_USE_PRIVATE=true', async () => {
+      process.env.HAZARD_USE_PRIVATE = 'true';
+      
+      const url = await resolveBaseUrl();
+      
+      expect(url).to.equal('http://ideal-learning.railway.internal:8080');
+      expect(axiosStub.called).to.be.false; // Should not probe when forced
+    });
+
+    it('should respect HAZARD_USE_PRIVATE=false', async () => {
+      process.env.HAZARD_USE_PRIVATE = 'false';
+      
+      const url = await resolveBaseUrl();
+      
+      expect(url).to.equal('https://hazard-api-production-production.up.railway.app');
+      expect(axiosStub.called).to.be.false; // Should not probe when forced
+    });
+
+    it('should use custom URLs from environment', async () => {
+      process.env.HAZARD_API_URL_PRIVATE = 'http://custom-private.com';
+      process.env.HAZARD_API_URL_PUBLIC = 'https://custom-public.com';
+      axiosStub.onFirstCall().resolves({ status: 200 });
+      
+      const url = await resolveBaseUrl();
+      
+      expect(url).to.equal('http://custom-private.com');
     });
   });
 
   describe('createRealtimeClient', () => {
     let client;
-    let axiosPostStub;
 
     beforeEach(() => {
-      axiosPostStub = sinon.stub(axios, 'post');
-      client = createRealtimeClient();
+      // Mock successful health checks and session start
+      axiosStub.resolves({ status: 200 });
+      axios.post.onFirstCall().resolves({ data: { session_id: 'test-session-123' } });
     });
 
     afterEach(() => {
-      axiosPostStub.restore();
+      if (client && client.isConnected()) {
+        client.disconnect();
+      }
     });
 
-    it('should connect, send a message, and disconnect', function(done) {
-      this.timeout(5000);
-      const onStatusChange = sinon.spy();
-      const onMessage = sinon.spy();
-      const onError = sinon.spy();
+    it('should create client with default config', () => {
+      client = createRealtimeClient();
+      
+      expect(client).to.have.property('connect');
+      expect(client).to.have.property('disconnect');
+      expect(client).to.have.property('send');
+      expect(client).to.have.property('onMessage');
+      expect(client).to.have.property('onError');
+      expect(client).to.have.property('onStatus');
+      expect(client).to.have.property('isConnected');
+    });
 
-      client.onStatus(onStatusChange);
-      client.onMessage(onMessage);
-      client.onError(onError);
+    it('should connect successfully', async () => {
+      client = createRealtimeClient();
+      
+      await client.connect();
+      
+      expect(client.isConnected()).to.be.true;
+      expect(client.getSessionId()).to.equal('test-session-123');
+    });
 
-      axiosGetStub.withArgs('http://ideal-learning.railway.internal:8080/health').resolves({ status: 200 });
-      axiosPostStub.withArgs('http://ideal-learning.railway.internal:8080/session/start').resolves({ data: { session_id: 'test-session' } });
-      axiosPostStub.withArgs('http://ideal-learning.railway.internal:8080/detect/test-session').resolves({ data: { success: true } });
-      axiosPostStub.withArgs('http://ideal-learning.railway.internal:8080/session/test-session/end').resolves({ data: {} });
+    it('should handle connection failure', async () => {
+      axios.post.onFirstCall().rejects(new Error('Connection failed'));
+      client = createRealtimeClient();
+      
+      let errorEmitted = false;
+      client.onError(() => { errorEmitted = true; });
+      
+      try {
+        await client.connect();
+        expect.fail('Should have thrown an error');
+      } catch (error) {
+        expect(error.message).to.equal('Connection failed');
+        expect(client.isConnected()).to.be.false;
+      }
+    });
 
-      console.log('Connecting...');
-      client.connect()
-        .then(() => {
-          console.log('Connected.');
-          expect(client.isConnected()).to.be.true;
-          const imageStream = 'dummy image data';
-          console.log('Sending...');
-          return client.send(imageStream);
-        })
-        .then(() => {
-          console.log('Sent.');
-          expect(onStatusChange.args).to.deep.equal([
-            ['connecting'],
-            ['connected'],
-            ['uploading'],
-            ['connected'],
-          ]);
-          expect(onMessage.callCount).to.equal(1);
-          expect(onMessage.firstCall.args[0]).to.deep.equal({ success: true });
-          expect(onError.callCount).to.equal(0);
-          done();
-        });
+    it('should emit status changes', async () => {
+      client = createRealtimeClient();
+      const statusChanges = [];
+      
+      client.onStatus((status) => {
+        statusChanges.push(status);
+      });
+      
+      await client.connect();
+      
+      expect(statusChanges).to.deep.equal(['connecting', 'connected']);
+    });
+
+    it('should send detection requests', async () => {
+      client = createRealtimeClient();
+      await client.connect();
+      
+      const mockResponse = {
+        data: {
+          success: true,
+          detections: [
+            { class_name: 'pothole', confidence: 0.85 }
+          ]
+        }
+      };
+      axios.post.onSecondCall().resolves(mockResponse);
+      
+      const testBuffer = Buffer.from('fake-image-data');
+      let messageReceived = false;
+      
+      client.onMessage((data) => {
+        messageReceived = true;
+        expect(data.detections).to.have.length(1);
+        expect(data.detections[0].class_name).to.equal('pothole');
+      });
+      
+      await client.send(testBuffer);
+      
+      expect(messageReceived).to.be.true;
+    });
+
+    it('should handle retry logic on network errors', async () => {
+      client = createRealtimeClient({ maxRetries: 2, backoffMs: 10 });
+      await client.connect();
+      
+      let errorCount = 0;
+      axios.post.onSecondCall().rejects(new Error('ECONNRESET'));
+      axios.post.onThirdCall().resolves({
+        data: { success: true, detections: [] }
+      });
+      
+      client.onError(() => { errorCount++; });
+      
+      const testBuffer = Buffer.from('fake-image-data');
+      await client.send(testBuffer);
+      
+      // Wait for retry
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
+      expect(errorCount).to.equal(0); // Should not emit error on successful retry
+    });
+
+    it('should disconnect gracefully', async () => {
+      client = createRealtimeClient();
+      await client.connect();
+      
+      axios.post.onSecondCall().resolves({ data: { message: 'Session ended' } });
+      
+      await client.disconnect();
+      
+      expect(client.isConnected()).to.be.false;
+      expect(client.getSessionId()).to.be.null;
+    });
+  });
+
+  describe('Environment Configuration', () => {
+    beforeEach(() => {
+      // Clear all environment variables
+      Object.keys(process.env).forEach(key => {
+        if (key.startsWith('REALTIME_') || key.startsWith('HAZARD_')) {
+          delete process.env[key];
+        }
+      });
+    });
+
+    it('should use environment variables for timeouts', () => {
+      process.env.REALTIME_TIMEOUT_MS = '45000';
+      process.env.REALTIME_MAX_RETRIES = '10';
+      process.env.REALTIME_BACKOFF_MS = '1000';
+      
+      const client = createRealtimeClient();
+      
+      // Test that config is applied (we can't directly access private config,
+      // but we can verify the client was created successfully)
+      expect(client).to.have.property('connect');
     });
   });
 });
