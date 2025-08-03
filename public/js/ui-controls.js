@@ -1,6 +1,6 @@
 // Alias getReports to avoid clashing with any global declarations
 import { getReports as fetchAllReports } from './reports-api.js';
-import { renderReports } from './modals.js';
+import { renderReports } from './reports-modal.js';
 
 export function filterReportsByType(reports, term) {
   const lowered = (term || '').toLowerCase();
