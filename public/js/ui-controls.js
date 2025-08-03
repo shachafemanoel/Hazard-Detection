@@ -11,32 +11,43 @@ export function filterReportsByType(reports, term) {
 }
 
 export function initControls({ toggleHeatmap, centerMap, plotReports, heatLayer } = {}) {
-  const searchInput = document.getElementById('report-search-input');
-  if (searchInput) {
-    searchInput.addEventListener('input', (e) => {
-      const filtered = filterReportsByType(fetchAllReports(), e.target.value);
-      renderReports(filtered);
-      if (typeof plotReports === 'function') plotReports(filtered);
-    });
+  // Wait for DOM to be ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => initControls({ toggleHeatmap, centerMap, plotReports, heatLayer }));
+    return;
   }
 
-  const typeFilter = document.getElementById('hazard-type-filter');
-  if (typeFilter) {
-    typeFilter.addEventListener('change', () => {
-      const type = typeFilter.value;
-      const filtered = type ? fetchAllReports().filter(r => r.type === type) : fetchAllReports();
-      renderReports(filtered);
-      if (typeof plotReports === 'function') plotReports(filtered);
-    });
-  }
+  try {
+    const searchInput = document.getElementById('report-search-input');
+    if (searchInput && typeof searchInput.addEventListener === 'function') {
+      searchInput.addEventListener('input', (e) => {
+        const filtered = filterReportsByType(fetchAllReports(), e.target.value);
+        renderReports(filtered);
+        if (typeof plotReports === 'function') plotReports(filtered);
+      });
+    }
 
-  const heatmapBtn = document.getElementById('toggle-heatmap');
-  if (heatmapBtn && typeof toggleHeatmap === 'function') {
-    heatmapBtn.addEventListener('click', () => toggleHeatmap(heatLayer));
-  }
+    const typeFilter = document.getElementById('hazard-type-filter');
+    if (typeFilter && typeof typeFilter.addEventListener === 'function') {
+      typeFilter.addEventListener('change', () => {
+        const type = typeFilter.value;
+        const filtered = type ? fetchAllReports().filter(r => r.type === type) : fetchAllReports();
+        renderReports(filtered);
+        if (typeof plotReports === 'function') plotReports(filtered);
+      });
+    }
 
-  const centerBtn = document.getElementById('center-map');
-  if (centerBtn && typeof centerMap === 'function') {
-    centerBtn.addEventListener('click', centerMap);
+    const heatmapBtn = document.getElementById('toggle-heatmap');
+    if (heatmapBtn && typeof heatmapBtn.addEventListener === 'function' && typeof toggleHeatmap === 'function') {
+      heatmapBtn.addEventListener('click', () => toggleHeatmap(heatLayer));
+    }
+
+    const centerBtn = document.getElementById('center-map');
+    if (centerBtn && typeof centerBtn.addEventListener === 'function' && typeof centerMap === 'function') {
+      centerBtn.addEventListener('click', centerMap);
+    }
+  } catch (error) {
+    console.error('🚨 Error initializing UI controls:', error);
+    console.log('DOM state:', document.readyState);
   }
 }

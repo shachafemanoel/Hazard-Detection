@@ -40,7 +40,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const FIXED_SIZE = 480;
   const API_HEALTH_CHECK_INTERVAL = 10000; // 10 seconds
   const SESSION_UPDATE_INTERVAL = 1000; // 1 second
-  const DETECTION_SAVE_INTERVAL = 120; // frames
+  const DEFAULT_SAVE_INTERVAL = 120; // frames
   const PERFORMANCE_UPDATE_INTERVAL = 1000; // 1 second
 
   // Road Damage Classes
@@ -331,6 +331,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   };
 
   let sessionDetectionsSummary = []; // Store detailed detection information for summary
+  let savedImagesCount = 0; // Track number of saved images
+  let DETECTION_SAVE_INTERVAL = 120; // Default save interval
 
   // Object tracking state
   let trackedObjects = new Map();
@@ -361,7 +363,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       // Fix class ID mapping
       const correctedClassId = Math.floor(classId) - 1;
       const classIndex = Math.max(0, correctedClassId);
-      const labelName = classNames[classIndex] || `Unknown Class ${classIndex}`;
+      const labelName = CLASS_NAMES[classIndex] || `Unknown Class ${classIndex}`;
       
       // Scale coordinates to canvas size
       const scaleX = detectionCanvas.width / FIXED_SIZE;
@@ -403,8 +405,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     return detectionCanvas;
   }
 
-  // Upload detection image to server
-  async function uploadToServer(canvas, detections) {
+  // Upload detection image to Cloudinary
+  async function uploadToCloudinary(canvas, detections) {
     return new Promise((resolve, reject) => {
       canvas.toBlob(async (blob) => {
         if (!blob) return reject("❌ No blob from canvas");
@@ -418,13 +420,15 @@ document.addEventListener("DOMContentLoaded", async () => {
               const correctedClassId = Math.floor(classId) - 1;
               const classIndex = Math.max(0, correctedClassId);
               return {
-                class: classNames[classIndex] || `Unknown Class ${classIndex}`,
+                class: CLASS_NAMES[classIndex] || `Unknown Class ${classIndex}`,
                 confidence: score,
                 bbox: [x1, y1, x2, y2]
               };
             }),
             timestamp: new Date().toISOString(),
-            source: 'live_camera'
+            source: 'live_camera_detection',
+            sessionId: apiSessionId || 'local_session',
+            frameNumber: frameCount
           }));
 
           const response = await fetch('/api/upload-detection', {
@@ -434,18 +438,15 @@ document.addEventListener("DOMContentLoaded", async () => {
 
           if (response.ok) {
             const result = await response.json();
-            console.log("✅ Detection uploaded to server:", result);
-            resolve(result.url || result.path);
+            console.log("✅ Detection uploaded to Cloudinary:", result);
+            resolve(result.url || result.secure_url);
           } else {
-            throw new Error(`Server upload failed: ${response.status}`);
+            const errorText = await response.text();
+            throw new Error(`Cloudinary upload failed: ${response.status} - ${errorText}`);
           }
         } catch (error) {
-          console.warn("Server upload failed, using data URL:", error);
-          // Fallback to data URL
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
+          console.error("Cloudinary upload error:", error);
+          reject(error);
         }
       }, "image/jpeg", 0.9);
     });
@@ -862,7 +863,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       // API returns bbox as [x, y, width, height], we need [x1, y1, x2, y2]
       return result.detections.map(det => {
         const [x, y, width, height] = det.bbox;
-        const classIndex = classNames.indexOf(det.class_name);
+        const classIndex = CLASS_NAMES.indexOf(det.class_name);
         
         return [
           x,                    // x1
@@ -908,7 +909,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // Enhanced detection saving with bounding box images
+  // Enhanced detection saving with Cloudinary integration
   async function saveDetection(videoElement, detections, primaryDetection) {
     try {
       if (!videoElement || detections.length === 0) {
@@ -921,12 +922,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       
       let imageUrl;
       
-      // Try server upload first, fallback to data URL
+      // Upload to Cloudinary via server endpoint
       try {
-        imageUrl = await uploadToServer(detectionCanvas, detections);
-        console.log("☁️ Detection image uploaded to server");
+        imageUrl = await uploadToCloudinary(detectionCanvas, detections);
+        console.log("☁️ Detection image uploaded to Cloudinary:", imageUrl);
       } catch (uploadError) {
-        console.warn("⚠️ Server upload failed, using data URL:", uploadError.message);
+        console.warn("⚠️ Cloudinary upload failed, using data URL:", uploadError.message);
         imageUrl = detectionCanvas.toDataURL("image/jpeg", 0.9);
       }
 
@@ -934,7 +935,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const [x1, y1, x2, y2, score, classId] = primaryDetection;
       const correctedClassId = Math.floor(classId) - 1;
       const classIndex = Math.max(0, correctedClassId);
-      const label = classNames[classIndex] || `Unknown Class ${classIndex}`;
+      const label = CLASS_NAMES[classIndex] || `Unknown Class ${classIndex}`;
 
       const report = {
         type: label,
@@ -953,7 +954,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           const dcorrectedClassId = Math.floor(dclassId) - 1;
           const dclassIndex = Math.max(0, dcorrectedClassId);
           return {
-            type: classNames[dclassIndex] || `Unknown Class ${dclassIndex}`,
+            type: CLASS_NAMES[dclassIndex] || `Unknown Class ${dclassIndex}`,
             confidence: dscore,
             bbox: [dx1, dy1, dx2, dy2]
           };
@@ -972,12 +973,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         allDetections: report.allDetections
       });
 
+      // Update saved images count
+      savedImagesCount++;
+      updateSavedImagesDisplay();
+
       console.log("📝 Detection with image queued:", { 
         type: label, 
         confidence: `${Math.round(score * 100)}%`, 
         timestamp: report.time,
         mode: report.detectionMode,
-        imageType: imageUrl.startsWith('data:') ? 'dataURL' : 'server',
+        imageType: imageUrl.startsWith('data:') ? 'dataURL' : 'cloudinary',
         totalDetections: detections.length
       });
     } catch (err) {
@@ -1370,7 +1375,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
       currentFrameDetections++;
-      const labelName = classNames[classIndex] || `Unknown Class ${classIndex}`;
+      const labelName = CLASS_NAMES[classIndex] || `Unknown Class ${classIndex}`;
       
       console.log(`🔍 Camera Detection: Raw classId=${classId}, Corrected=${classIndex}, Label="${labelName}"`);  // Debug log
       
@@ -1410,7 +1415,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
 
       // Save detection periodically with bounding box image
-      if (frameCount % 120 === 0 && !isInterpolated) { // Save every 2 seconds for real detections only
+      if (frameCount % DETECTION_SAVE_INTERVAL === 0 && !isInterpolated) { // Save based on user setting
         // Get current frame detections for this class
         const currentFrameDetections = [];
         for (const [id, trackedObj] of trackedObjects) {
@@ -1750,19 +1755,42 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // Settings button toggle
+  // Settings button toggle with accessibility
   settingsBtn.addEventListener("click", () => {
+    const isExpanded = settingsPanel.classList.contains('show');
     settingsPanel.classList.toggle('show');
+    settingsBtn.setAttribute('aria-expanded', !isExpanded);
+    settingsPanel.setAttribute('aria-hidden', isExpanded);
   });
 
-  // sensitivity
+  // Sensitivity slider with real-time feedback
   sensitivitySlider.addEventListener("input", (e) => {
     confidenceThreshold = parseFloat(e.target.value);
-    const valueElement = e.target.parentElement.querySelector('.settings-value');
+    const valueElement = document.getElementById('sensitivity-value');
     if (valueElement) {
       valueElement.textContent = `${Math.round(confidenceThreshold * 100)}%`;
     }
+    
+    // Update detection config in real-time
+    DETECTION_CONFIG.minConfidence = confidenceThreshold;
+    console.log(`🎚️ Detection sensitivity updated: ${Math.round(confidenceThreshold * 100)}%`);
   });
+
+  // Save interval slider
+  const saveIntervalSlider = document.getElementById('save-interval-slider');
+  if (saveIntervalSlider) {
+    saveIntervalSlider.addEventListener("input", (e) => {
+      const newInterval = parseInt(e.target.value);
+      const valueElement = document.getElementById('save-interval-value');
+      if (valueElement) {
+        valueElement.textContent = newInterval;
+      }
+      
+      // Update detection save interval
+      DETECTION_SAVE_INTERVAL = newInterval;
+      console.log(`💾 Auto-save interval updated: every ${newInterval} frames`);
+    });
+  }
   // Summary Modal Functions
   function showSummaryModal() {
     updateSummaryData();
@@ -2043,6 +2071,29 @@ exportSummaryBtn.addEventListener('click', exportSummary);
   viewDashboardBtn.addEventListener('click', () => {
     window.location.href = '/dashboard.html';
   });
+
+  // Additional UI elements for new functionality
+  const captureBtn = document.getElementById('capture-btn');
+  const summaryBtn = document.getElementById('summary-btn');
+  const imagePreviewModal = new bootstrap.Modal(document.getElementById('imagePreviewModal'));
+  const previewImage = document.getElementById('preview-image');
+  const detectionMetadata = document.getElementById('detection-metadata');
+  const saveDetectionBtn = document.getElementById('save-detection-btn');
+
+  // Manual capture button
+  if (captureBtn) {
+    captureBtn.addEventListener('click', captureCurrentFrame);
+  }
+
+  // Summary button
+  if (summaryBtn) {
+    summaryBtn.addEventListener('click', showCameraSessionSummary);
+  }
+
+  // Save detection button in preview modal
+  if (saveDetectionBtn) {
+    saveDetectionBtn.addEventListener('click', savePreviewedDetection);
+  }
 
   // Initialize on load
   async function main() {

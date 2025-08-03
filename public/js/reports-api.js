@@ -27,7 +27,14 @@ export async function fetchReports(filters = {}) {
   const params = new URLSearchParams(filters);
   let response;
   try {
-    response = await fetch(`${API_BASE_URL}?${params.toString()}`, { credentials: 'include' });
+    response = await fetch(`${API_BASE_URL}?${params.toString()}`, { 
+      mode: 'cors',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    });
     if (!response.ok) throw new Error(`Failed to load reports: ${response.statusText}`);
   } catch (error) {
     console.error('Fetch reports error:', error);

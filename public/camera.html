@@ -11,430 +11,53 @@
     <meta name="apple-mobile-web-app-title" content="Hazard Detection">
     <meta name="format-detection" content="telephone=no">
     <title>Live Detection - Hazard Detection System</title>
+    
+    <!-- Core Stylesheets -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="css/camera.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        /* iPhone Camera App Style */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        html, body {
-            height: 100vh;
-            height: 100dvh;
-            overflow: hidden;
-            background: #000;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-        
-        .camera-app {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-            height: 100dvh;
-            background: #000;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        
-        .camera-view {
-            position: relative;
-            flex: 1;
-            width: 100%;
-            background: #000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        #camera-stream {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            background: #000;
-        }
-        
-        #overlay-canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 10;
-        }
-        
-        /* iPhone Style UI Overlay */
-        .camera-ui {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            pointer-events: none;
-            z-index: 20;
-        }
-        
-        .camera-ui > * {
-            pointer-events: auto;
-        }
-        
-        /* Top Bar */
-        .top-bar {
-            position: absolute;
-            top: env(safe-area-inset-top, 20px);
-            left: 20px;
-            right: 20px;
-            height: 50px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            z-index: 30;
-        }
-        
-        .status-indicator {
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 8px 12px;
-            color: #fff;
-            font-size: 12px;
-            font-weight: 500;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-        
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #00ff00;
-            animation: pulse 2s infinite;
-        }
-        
-        .model-info {
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(10px);
-            border-radius: 16px;
-            padding: 6px 10px;
-            color: #fff;
-            font-size: 11px;
-            font-weight: 500;
-        }
-        
-        /* Bottom Controls */
-        .bottom-controls {
-            position: absolute;
-            bottom: env(safe-area-inset-bottom, 20px);
-            left: 20px;
-            right: 20px;
-            height: 120px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 15px;
-            z-index: 30;
-        }
-        
-        .main-controls {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 40px;
-            width: 100%;
-        }
-        
-        .camera-button {
-            width: 70px;
-            height: 70px;
-            border-radius: 50%;
-            border: 3px solid #fff;
-            background: transparent;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #fff;
-            font-size: 20px;
-            transition: all 0.2s ease;
-            backdrop-filter: blur(10px);
-            position: relative;
-        }
-        
-        .camera-button.primary {
-            background: #ff3b30;
-            border-color: #ff3b30;
-        }
-        
-        .camera-button.secondary {
-            width: 50px;
-            height: 50px;
-            background: rgba(255, 255, 255, 0.2);
-            border: 2px solid rgba(255, 255, 255, 0.3);
-        }
-        
-        .camera-button:active {
-            transform: scale(0.95);
-        }
-        
-        /* Detection Info Overlay */
-        .detection-overlay {
-            position: absolute;
-            top: 80px;
-            left: 20px;
-            right: 20px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            pointer-events: none;
-            z-index: 25;
-        }
-        
-        .detection-badge {
-            background: rgba(0, 0, 0, 0.7);
-            backdrop-filter: blur(10px);
-            border-radius: 12px;
-            padding: 6px 10px;
-            color: #fff;
-            font-size: 11px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-        
-        .detection-count {
-            color: #00e5ff;
-        }
-        
-        .fps-count {
-            color: #00ff88;
-        }
-        
-        /* Session Stats */
-        .session-stats {
-            position: absolute;
-            bottom: 160px;
-            left: 20px;
-            right: 20px;
-            display: flex;
-            justify-content: center;
-            gap: 15px;
-            z-index: 25;
-        }
-        
-        .session-stat {
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(10px);
-            border-radius: 12px;
-            padding: 8px 12px;
-            text-align: center;
-            min-width: 60px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .session-stat-value {
-            color: #00e5ff;
-            font-size: 14px;
-            font-weight: 700;
-            line-height: 1;
-        }
-        
-        .session-stat-label {
-            color: rgba(255, 255, 255, 0.7);
-            font-size: 9px;
-            font-weight: 500;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-top: 2px;
-        }
-        
-        /* Settings Panel */
-        .settings-panel {
-            position: absolute;
-            top: 120px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.8);
-            backdrop-filter: blur(20px);
-            border-radius: 16px;
-            padding: 15px;
-            min-width: 180px;
-            transform: translateX(100%) translateX(20px);
-            transition: transform 0.3s ease;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .settings-panel.show {
-            transform: translateX(0);
-        }
-        
-        .settings-item {
-            margin-bottom: 15px;
-        }
-        
-        .settings-item:last-child {
-            margin-bottom: 0;
-        }
-        
-        .settings-item label {
-            color: #fff;
-            font-size: 12px;
-            font-weight: 500;
-            display: block;
-            margin-bottom: 8px;
-        }
-        
-        .settings-slider {
-            width: 100%;
-            height: 4px;
-            border-radius: 2px;
-            background: rgba(255, 255, 255, 0.2);
-            outline: none;
-            -webkit-appearance: none;
-        }
-        
-        .settings-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: #00e5ff;
-            cursor: pointer;
-        }
-        
-        .settings-value {
-            color: #00e5ff;
-            font-size: 11px;
-            font-weight: 600;
-            float: right;
-        }
-        
-        /* Loading State */
-        .loading-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.9);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            color: #fff;
-            z-index: 50;
-        }
-        
-        .loading-spinner {
-            width: 40px;
-            height: 40px;
-            border: 3px solid rgba(255, 255, 255, 0.2);
-            border-top: 3px solid #00e5ff;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-bottom: 20px;
-        }
-        
-        .loading-text {
-            font-size: 14px;
-            font-weight: 500;
-            text-align: center;
-            margin-bottom: 10px;
-        }
-        
-        .loading-progress {
-            width: 200px;
-            height: 3px;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 2px;
-            overflow: hidden;
-        }
-        
-        .loading-progress-bar {
-            height: 100%;
-            background: linear-gradient(90deg, #00e5ff, #00ff88);
-            border-radius: 2px;
-            transition: width 0.3s ease;
-        }
-        
-        /* Animations */
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        /* Hide traditional elements */
-        .detection-header,
-        .info-panels,
-        .camera-interface .camera-controls,
-        .camera-interface .camera-info {
-            display: none !important;
-        }
-        
-        .camera-interface {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-        }
-        
-        .camera-preview,
-        .camera-wrapper {
-            width: 100%;
-            height: 100%;
-            position: relative;
-        }
-    </style>
 </head>
 <body>
-    <main class="camera-app">
-        <div class="camera-view">
-            <video id="camera-stream" autoplay playsinline muted></video>
-            <canvas id="overlay-canvas"></canvas>
-        </div>
+    <!-- Main Camera App Container -->
+    <main class="camera-app" role="main">
+        <!-- Camera View Section -->
+        <section class="camera-view" aria-label="Live camera feed">
+            <video id="camera-stream" autoplay playsinline muted aria-label="Live camera stream"></video>
+            <canvas id="overlay-canvas" aria-hidden="true"></canvas>
+        </section>
 
+        <!-- Camera UI Overlay -->
         <div class="camera-ui">
-            <header class="top-bar">
-                <div class="status-indicator" id="connection-status">
-                    <div class="status-dot"></div>
+            <!-- Top Status Bar -->
+            <header class="top-bar" role="banner">
+                <div class="status-indicator" id="connection-status" role="status" aria-live="polite">
+                    <div class="status-dot" aria-hidden="true"></div>
                     <span class="status-text">System Ready</span>
                 </div>
-                <div class="model-info">
+                <div class="model-info" role="status">
                     <span>Road Damage AI</span>
                 </div>
             </header>
 
-            <section class="detection-overlay" aria-live="polite">
+            <!-- Detection Info Overlay -->
+            <section class="detection-overlay" aria-live="polite" aria-label="Detection information">
                 <div class="detection-badge">
-                    <i class="fas fa-search"></i>
+                    <i class="fas fa-search" aria-hidden="true"></i>
                     <span class="detection-count" id="detection-count-badge">0 hazards</span>
                 </div>
                 <div class="detection-badge">
-                    <i class="fas fa-gauge-high"></i>
+                    <i class="fas fa-gauge-high" aria-hidden="true"></i>
                     <span class="fps-count" id="fps-badge">0 FPS</span>
                 </div>
                 <div class="detection-badge" id="hazard-types-display" style="display: none;">
-                    <i class="fas fa-exclamation-triangle"></i>
+                    <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
                     <span id="hazard-types-list">No hazards</span>
                 </div>
             </section>
 
+            <!-- Session Statistics -->
             <section class="session-stats" aria-label="Session Statistics">
                 <div class="session-stat">
                     <div class="session-stat-value" id="camera-session-total">0</div>
@@ -450,43 +73,204 @@
                 </div>
             </section>
 
-            <aside class="settings-panel" id="settings-panel">
+            <!-- Settings Panel -->
+            <aside class="settings-panel" id="settings-panel" role="dialog" aria-labelledby="settings-title" aria-hidden="true">
+                <h3 id="settings-title" class="sr-only">Detection Settings</h3>
                 <div class="settings-item">
                     <label for="sensitivity-slider">Detection Sensitivity</label>
-                    <input type="range" class="settings-slider" id="sensitivity-slider" min="0.3" max="0.9" step="0.1" value="0.5">
-                    <span class="settings-value">50%</span>
+                    <input type="range" class="settings-slider" id="sensitivity-slider" 
+                           min="0.3" max="0.9" step="0.1" value="0.5" 
+                           aria-describedby="sensitivity-value">
+                    <span class="settings-value" id="sensitivity-value">50%</span>
+                </div>
+                <div class="settings-item">
+                    <label for="save-interval-slider">Auto-save Interval (frames)</label>
+                    <input type="range" class="settings-slider" id="save-interval-slider" 
+                           min="60" max="300" step="30" value="120" 
+                           aria-describedby="save-interval-value">
+                    <span class="settings-value" id="save-interval-value">120</span>
                 </div>
             </aside>
 
-            <footer class="bottom-controls">
+            <!-- Bottom Controls -->
+            <footer class="bottom-controls" role="contentinfo">
                 <div class="main-controls">
-                    <button class="camera-button secondary" id="settings-btn" aria-label="Open settings">
-                        <i class="fas fa-cog"></i>
+                    <button class="camera-button secondary" id="settings-btn" 
+                            aria-label="Open settings" aria-expanded="false">
+                        <i class="fas fa-cog" aria-hidden="true"></i>
                     </button>
-                    <button class="camera-button primary" id="start-camera" aria-label="Start detection">
-                        <i class="fas fa-play"></i>
+                    <button class="camera-button primary" id="start-camera" 
+                            aria-label="Start detection">
+                        <i class="fas fa-play" aria-hidden="true"></i>
                     </button>
-                    <button class="camera-button primary" id="stop-camera" style="display: none;" aria-label="Stop detection">
-                        <i class="fas fa-stop"></i>
+                    <button class="camera-button primary" id="stop-camera" 
+                            style="display: none;" aria-label="Stop detection">
+                        <i class="fas fa-stop" aria-hidden="true"></i>
                     </button>
-                    <button class="camera-button secondary" id="switch-camera" aria-label="Switch camera">
-                        <i class="fas fa-sync-alt"></i>
+                    <button class="camera-button secondary" id="switch-camera" 
+                            aria-label="Switch camera" style="display: none;">
+                        <i class="fas fa-sync-alt" aria-hidden="true"></i>
+                    </button>
+                    <button class="camera-button secondary" id="capture-btn" 
+                            aria-label="Capture image" style="display: none;">
+                        <i class="fas fa-camera" aria-hidden="true"></i>
+                    </button>
+                    <button class="camera-button secondary" id="summary-btn" 
+                            aria-label="View session summary" style="display: none;">
+                        <i class="fas fa-chart-bar" aria-hidden="true"></i>
                     </button>
                 </div>
             </footer>
         </div>
 
-        <section class="loading-overlay" id="loading-overlay" style="display: none;" aria-live="assertive">
-            <div class="loading-spinner"></div>
+        <!-- Loading Overlay -->
+        <section class="loading-overlay" id="loading-overlay" style="display: none;" 
+                 aria-live="assertive" aria-label="Loading status">
+            <div class="loading-spinner" aria-hidden="true"></div>
             <div class="loading-text" id="loading-status">Initializing...</div>
             <div class="loading-progress">
-                <div class="loading-progress-bar" id="loading-progress-bar" style="width: 0%;"></div>
+                <div class="loading-progress-bar" id="loading-progress-bar" style="width: 0%;" 
+                     role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
             </div>
         </section>
     </main>
 
-    <!-- Hidden Elements for Compatibility -->
-    <div style="display: none;">
+    <!-- Detection Summary Modal -->
+    <div class="modal fade" id="summaryModal" tabindex="-1" aria-labelledby="summaryModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="summaryModalLabel">Detection Session Summary</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <!-- Session Statistics Cards -->
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-3">
+                            <div class="stat-card">
+                                <div class="stat-icon">
+                                    <i class="fas fa-eye"></i>
+                                </div>
+                                <div class="stat-content">
+                                    <h4 id="total-detections-count">0</h4>
+                                    <p>Total Detections</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card">
+                                <div class="stat-icon">
+                                    <i class="fas fa-clock"></i>
+                                </div>
+                                <div class="stat-content">
+                                    <h4 id="session-duration">0:00</h4>
+                                    <p>Session Duration</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card">
+                                <div class="stat-icon">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                </div>
+                                <div class="stat-content">
+                                    <h4 id="unique-hazards-count">0</h4>
+                                    <p>Unique Hazards</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="stat-card">
+                                <div class="stat-icon">
+                                    <i class="fas fa-camera"></i>
+                                </div>
+                                <div class="stat-content">
+                                    <h4 id="saved-images-count">0</h4>
+                                    <p>Saved Images</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Detection Gallery -->
+                    <div class="detections-section">
+                        <h5>Captured Detections</h5>
+                        <div class="detections-grid" id="detections-grid">
+                            <div class="no-detections">
+                                <i class="fas fa-search"></i>
+                                <p>No hazards detected in this session</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Saved Reports Section -->
+                    <div class="saved-reports-section mt-4">
+                        <h5>Saved Reports</h5>
+                        <div class="reports-list" id="saved-reports-list">
+                            <div class="loading-reports">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <p>Loading saved reports...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="export-summary">
+                        <i class="fas fa-download"></i> Export Summary
+                    </button>
+                    <button type="button" class="btn btn-primary" id="view-dashboard">
+                        <i class="fas fa-chart-pie"></i> View Dashboard
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Image Preview Modal -->
+    <div class="modal fade" id="imagePreviewModal" tabindex="-1" aria-labelledby="imagePreviewLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="imagePreviewLabel">Detection Image</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img id="preview-image" src="" alt="Detection preview" class="img-fluid" style="max-height: 70vh;">
+                    <div class="detection-metadata mt-3" id="detection-metadata">
+                        <!-- Metadata will be populated dynamically -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="save-detection-btn">
+                        <i class="fas fa-save"></i> Save Report
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notifications Container -->
+    <div class="notifications-container" id="notifications-container" aria-live="polite"></div>
+
+    <!-- Hazard Alert Modal -->
+    <div class="hazard-alert-modal" id="hazard-alert-modal" role="alert" aria-live="assertive">
+        <div class="alert-content">
+            <div class="alert-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <div class="alert-text">
+                <h3>Hazard Detected!</h3>
+                <p id="alert-description">Critical road hazard detected in camera view</p>
+            </div>
+            <button class="alert-close" id="alert-close" aria-label="Close alert">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Hidden Elements for Legacy Compatibility -->
+    <div style="display: none;" aria-hidden="true">
         <div id="fps-display">0</div>
         <div id="processing-time">0ms</div>
         <div id="frame-count">0</div>
@@ -494,120 +278,102 @@
         <div id="session-detections">0</div>
     </div>
 
-<!-- Loading Modal -->
-    <div class="modal fade" id="loadingModal" tabindex="-1" aria-labelledby="loadingModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="loadingModalLabel">Initializing Detection System</h5>
-          </div>
-          <div class="modal-body">
-            <p id="loading-status">Loading neural network model...</p>
-            <div class="progress">
-              <div id="loading-progress-bar" class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-        <!-- Notifications Container -->
-        <div class="notifications-container" id="notifications-container"></div>
-
-        <!-- Hazard Alert Modal -->
-        <div class="hazard-alert-modal" id="hazard-alert-modal">
-            <div class="alert-content">
-                <div class="alert-icon">
-                    <i class="fas fa-exclamation-triangle"></i>
-                </div>
-                <div class="alert-text">
-                    <h3>Hazard Detected!</h3>
-                    <p id="alert-description">Critical road hazard detected in camera view</p>
-                </div>
-                <button class="alert-close" id="alert-close">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-        </div>
-
-<!-- Summary Modal -->
-    <div class="modal fade" id="summaryModal" tabindex="-1" aria-labelledby="summaryModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="summaryModalLabel">Detection Session Summary</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body">
-            <!-- Session Stats -->
-            <div class="row g-4">
-              <div class="col-md-4">
-                <div class="stat-card card h-100">
-                  <div class="stat-icon"><i class="fas fa-eye"></i></div>
-                  <div class="stat-content">
-                    <h4 id="total-detections-count">0</h4>
-                    <p>Total Detections</p>
-                  </div>
-                </div>
-              </div>
-              <div class="col-md-4">
-                <div class="stat-card card h-100">
-                  <div class="stat-icon"><i class="fas fa-clock"></i></div>
-                  <div class="stat-content">
-                    <h4 id="session-duration">0:00</h4>
-                    <p>Session Duration</p>
-                  </div>
-                </div>
-              </div>
-              <div class="col-md-4">
-                <div class="stat-card card h-100">
-                  <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
-                  <div class="stat-content">
-                    <h4 id="unique-hazards-count">0</h4>
-                    <p>Unique Hazards</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <!-- Detection List -->
-            <div class="detections-section mt-4">
-              <h5>Detected Hazards</h5>
-              <div class="detections-grid" id="detections-grid">
-                <div class="no-detections">
-                  <p>No hazards detected in this session</p>
-                </div>
-              </div>
-            </div>
-            <!-- Saved Reports Section -->
-            <div class="saved-reports-section mt-4">
-              <h5>Saved Reports</h5>
-              <div class="reports-list" id="saved-reports-list">
-                <div class="loading-reports">
-                  <p>Loading saved reports...</p>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-secondary" id="export-summary">Export Summary</button>
-            <button type="button" class="btn btn-primary" id="view-dashboard">View Dashboard</button>
-          </div>
-        </div>
-      </div>
-    </div>
-    </div>
-
+    <!-- Core Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="ort/ort.min.js"></script>
     <script src="js/notifications.js"></script>
     <script src="js/apiClient.js"></script>
     <script type="module" src="js/firebaseConfig-browser.js"></script>
     <script src="js/camera_detection.js"></script>
+    
+    <!-- Initialize App -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // additional initialization can go here
+            // Initialize notification system
+            if (typeof initializeNotifications === 'function') {
+                initializeNotifications();
+            }
+            
+            // Initialize accessibility features
+            initializeAccessibility();
+            
+            console.log('📷 Professional Hazard Detection Camera App Loaded');
+        });
+
+        // Accessibility initialization
+        function initializeAccessibility() {
+            // Add keyboard navigation support
+            document.addEventListener('keydown', function(e) {
+                // ESC key closes modals and panels
+                if (e.key === 'Escape') {
+                    const settingsPanel = document.getElementById('settings-panel');
+                    if (settingsPanel.classList.contains('show')) {
+                        settingsPanel.classList.remove('show');
+                        document.getElementById('settings-btn').setAttribute('aria-expanded', 'false');
+                    }
+                    
+                    const alertModal = document.getElementById('hazard-alert-modal');
+                    if (alertModal.style.display !== 'none') {
+                        alertModal.style.display = 'none';
+                    }
+                }
+                
+                // Space bar for capture/start/stop
+                if (e.code === 'Space' && !e.target.matches('input, button, textarea')) {
+                    e.preventDefault();
+                    const startBtn = document.getElementById('start-camera');
+                    const stopBtn = document.getElementById('stop-camera');
+                    const captureBtn = document.getElementById('capture-btn');
+                    
+                    if (startBtn.style.display !== 'none') {
+                        startBtn.click();
+                    } else if (captureBtn.style.display !== 'none') {
+                        captureBtn.click();
+                    } else if (stopBtn.style.display !== 'none') {
+                        stopBtn.click();
+                    }
+                }
+            });
+
+            // Announce status changes to screen readers
+            const statusObserver = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.type === 'childList' || mutation.type === 'characterData') {
+                        const target = mutation.target;
+                        if (target.closest('[aria-live]')) {
+                            // Let screen readers announce the change
+                            console.log('Status update:', target.textContent);
+                        }
+                    }
+                });
+            });
+
+            // Observe status elements
+            const statusElements = document.querySelectorAll('[aria-live]');
+            statusElements.forEach(element => {
+                statusObserver.observe(element, {
+                    childList: true,
+                    subtree: true,
+                    characterData: true
+                });
+            });
+        }
+
+        // Global error handler for better user experience
+        window.addEventListener('error', function(e) {
+            console.error('Global error:', e.error);
+            if (typeof notify === 'function') {
+                notify('An unexpected error occurred. Please try refreshing the page.', 'error');
+            }
+        });
+
+        // Unhandled promise rejection handler
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error('Unhandled promise rejection:', e.reason);
+            if (typeof notify === 'function') {
+                notify('A background process failed. The app should continue working normally.', 'warning');
+            }
         });
     </script>
-
 </body>
 </html>

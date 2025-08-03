@@ -119,15 +119,18 @@ app.get('/object_detection_model/*.onnx', (req, res) => {
 });
 
 app.use((req, res, next) => {
-    // Only apply COOP/COEP to specific routes, not to map-related pages
-    if (!req.path.includes('/dashboard') && !req.path.includes('/api/config/maps-key')) {
+    // Only apply COOP/COEP to specific routes, not to API or map-related pages
+    if (!req.path.includes('/dashboard') && 
+        !req.path.includes('/api/config/maps-key') && 
+        !req.path.includes('/api/v1/') && 
+        !req.path.includes('/api/')) {
         res.set({
             'Cross-Origin-Embedder-Policy': 'require-corp',
             'Cross-Origin-Opener-Policy': 'same-origin',
             'Cross-Origin-Resource-Policy': 'cross-origin'
         });
     } else {
-        // For map-related routes, use less restrictive headers
+        // For API and map-related routes, use less restrictive headers
         res.set({
             'Cross-Origin-Resource-Policy': 'cross-origin'
         });
@@ -179,7 +182,7 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // 🔗 External API URL for separate deployment
-const API_URL = process.env.API_URL || process.env.HAZARD_API_URL || 'https://hazard-api-production-production.up.railway.app:8000';
+const API_URL = process.env.API_URL || process.env.HAZARD_API_URL || 'https://hazard-api-production-production.up.railway.app';
 console.log(`🔗 Using external API URL: ${API_URL}`);
 
 // API request helper function
@@ -668,7 +671,7 @@ app.get('/api/test', (req, res) => {
 
 // API configuration endpoint for frontend
 app.get('/api/config', (req, res) => {
-    const apiUrl = process.env.API_URL || process.env.HAZARD_API_URL || 'https://hazard-api-production-production.up.railway.app:8000';
+    const apiUrl = process.env.API_URL || process.env.HAZARD_API_URL || 'https://hazard-api-production-production.up.railway.app';
     // Ensure URL does NOT end with slash for proper endpoint construction in the guide
     const normalizedUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
     
