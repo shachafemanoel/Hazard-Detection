@@ -1,9 +1,9 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile.unified.slim"
+dockerfilePath = "Dockerfile.simple"
 
 [deploy]
-startCommand = "bash /app/start-unified.sh"
+startCommand = "npm start"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
