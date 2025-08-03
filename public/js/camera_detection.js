@@ -8,7 +8,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const settingsBtn = document.getElementById("settings-btn");
   const video = document.getElementById("camera-stream");
   const canvas = document.getElementById("overlay-canvas");
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas ? canvas.getContext("2d") : null;
   const sensitivitySlider = document.getElementById("sensitivity-slider");
   const settingsPanel = document.getElementById("settings-panel");
   const loadingOverlay = document.getElementById("loading-overlay");
@@ -27,7 +27,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   const fpsBadge = document.getElementById("fps-badge");
 
   // Summary modal elements
-  const summaryModal = new bootstrap.Modal(document.getElementById('summaryModal'));
+  const summaryModalElement = document.getElementById('summaryModal');
+  const summaryModal = summaryModalElement ? new bootstrap.Modal(summaryModalElement) : null;
   const exportSummaryBtn = document.getElementById("export-summary");
   const viewDashboardBtn = document.getElementById("view-dashboard");
   const totalDetectionsCount = document.getElementById("total-detections-count");
@@ -35,6 +36,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   const uniqueHazardsCount = document.getElementById("unique-hazards-count");
   const detectionsGrid = document.getElementById("detections-grid");
   const savedReportsList = document.getElementById("saved-reports-list");
+
+  // Check for critical DOM elements
+  if (!video || !canvas || !ctx) {
+    console.error("❌ Critical DOM elements missing: video, canvas, or canvas context");
+    console.error("Make sure you're on the camera page with proper HTML structure");
+    showNotification("Camera detection not available on this page", 'error');
+    return; // Exit early if critical elements are missing
+  }
 
   // Enhanced Road Damage Detection Configuration
   const FIXED_SIZE = 480; // Optimized input size for real-time detection
@@ -118,11 +127,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Function to show camera session summary
   function showCameraSessionSummary() {
     updateSummaryData();
-    summaryModal.show();
+    if (summaryModal) {
+      summaryModal.show();
+    } else {
+      console.log("📊 Summary would be shown here (modal not available)");
+    }
   }
 
   function hideSummaryModal() {
-    summaryModal.hide();
+    if (summaryModal) {
+      summaryModal.hide();
+    }
   }
   
   // Start periodic camera session updates
@@ -140,8 +155,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (isHealthy) {
           console.log("✅ Periodic health check passed");
           // Reset failure count when model becomes ready
-          if (window.apiFailureCount > 0) {
-            window.apiFailureCount = 0;
+          if (window.getApiFailureCount() > 0) {
+            window.resetApiFailureCount();
             console.log("🔄 Model ready - resetting API failure count");
           }
         }
@@ -501,13 +516,18 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Ensure canvas dimensions always match the displayed video
   function syncCanvasSize() {
-    if (!video || !canvas) return;
+    if (!video || !canvas) {
+      console.log('🖼️ Canvas sync skipped - video or canvas not available');
+      return;
+    }
     const width = video.clientWidth || video.videoWidth;
     const height = video.clientHeight || video.videoHeight;
-    canvas.width = width;
-    canvas.height = height;
-    canvas.style.width = width + 'px';
-    canvas.style.height = height + 'px';
+    if (width && height) {
+      canvas.width = width;
+      canvas.height = height;
+      canvas.style.width = width + 'px';
+      canvas.style.height = height + 'px';
+    }
   }
 
   // Keep canvas in sync when the window resizes
@@ -515,23 +535,44 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Update UI status
   function updateConnectionStatus(status, message) {
+    if (!connectionStatus) {
+      console.log(`🔗 Status: ${status} - ${message}`);
+      return;
+    }
+    
     const indicator = connectionStatus.querySelector('.status-indicator');
     const text = connectionStatus.querySelector('.status-text');
     
-    indicator.className = `fas fa-circle status-indicator ${status}`;
-    text.textContent = message;
+    if (indicator) {
+      indicator.className = `fas fa-circle status-indicator ${status}`;
+    }
+    if (text) {
+      text.textContent = message;
+    }
+    
+    console.log(`🔗 Status updated: ${status} - ${message}`);
   }
 
-// Show loading overlay with progress
+  // Show loading overlay with progress
   function showLoading(message, progress = 0) {
-    loadingStatus.textContent = message;
-    loadingProgressBar.style.width = `${progress}%`;
-    loadingOverlay.style.display = 'flex';
+    if (loadingStatus) {
+      loadingStatus.textContent = message;
+    }
+    if (loadingProgressBar) {
+      loadingProgressBar.style.width = `${progress}%`;
+    }
+    if (loadingOverlay) {
+      loadingOverlay.style.display = 'flex';
+    }
+    console.log(`⏳ Loading: ${message} (${progress}%)`);
   }
 
   // Hide loading overlay
   function hideLoading() {
-    loadingOverlay.style.display = 'none';
+    if (loadingOverlay) {
+      loadingOverlay.style.display = 'none';
+    }
+    console.log('✅ Loading complete');
   }
 
   // Show notification
@@ -540,12 +581,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
 
-  // End API detection session using API client
+  // End API detection session using standardized API client
   async function endApiSessionLocal() {
     if (!apiSessionId) return { message: "No active session" };
     
     try {
-      const result = await window.endApiSession(apiSessionId);
+      const result = await window.endSession(apiSessionId);
       apiSessionId = null;
       return result;
     } catch (error) {
@@ -623,12 +664,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       
       // Test API connection
       showLoading("Testing API connection...", 10);
-      apiAvailable = await window.testApiConnection();
+      apiAvailable = await window.isApiAvailable();
       
       if (apiAvailable) {
         try {
           showLoading("Starting API session...", 15);
-          apiSessionId = await window.startApiSession();
+          apiSessionId = await window.startSession();
           showNotification('API connected and session started', 'success');
           updateConnectionStatus('connected', 'Enhanced Mode (API + ONNX)');
         } catch (error) {
@@ -859,8 +900,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         return [];
       }
 
-      // Use API client for detection
-      const result = await window.detectWithApi(apiSessionId, blob);
+      // Use standardized API client for detection
+      const result = await window.detectHazards(apiSessionId, blob);
       
       // Log new detections for debugging
       if (result.detections && result.detections.length > 0) {
@@ -871,8 +912,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
 
       // Reset failure count on successful API call
-      if (window.apiFailureCount > 0) {
-        window.apiFailureCount = 0;
+      if (window.getApiFailureCount() > 0) {
+        window.resetApiFailureCount();
         console.log("✅ API detection recovered");
       }
 
@@ -902,20 +943,20 @@ document.addEventListener("DOMContentLoaded", async () => {
         showNotification('API detection temporarily unavailable', 'warning');
       }
       
-      // Handle failure counting
+      // Handle failure counting using standardized API client
       if (!error.message.includes('model not loaded') && 
           !error.message.includes('Service may still be starting') &&
           !error.message.includes('PyTorch model not loaded') &&
           !error.message.includes('OpenVino model not loaded')) {
-        if (!window.apiFailureCount) window.apiFailureCount = 0;
-        window.apiFailureCount++;
         
-        if (window.apiFailureCount > 5) {
+        const currentFailures = window.getApiFailureCount();
+        
+        if (currentFailures > 5) {
           console.warn("🚫 Too many API failures, temporarily disabling API detection");
           useApi = false;
           // Re-enable after 30 seconds
           setTimeout(() => {
-            window.apiFailureCount = 0;
+            window.resetApiFailureCount();
             useApi = true;
             console.log("🔄 Re-enabling API detection");
           }, 30000);
@@ -1445,18 +1486,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // Update statistics
-    currentDetections.textContent = currentFrameDetections;
+    if (currentDetections) {
+      currentDetections.textContent = currentFrameDetections;
+    }
     detectionStats.totalDetections += currentFrameDetections;
-    sessionDetections.textContent = detectionStats.totalDetections;
-    detectionCountBadge.textContent = `${currentFrameDetections} hazards`;
+    if (sessionDetections) {
+      sessionDetections.textContent = detectionStats.totalDetections;
+    }
+    if (detectionCountBadge) {
+      detectionCountBadge.textContent = `${currentFrameDetections} hazards`;
+    }
 
     // Update hazard types list
-    if (detectedTypes.size > 0) {
-      hazardTypesList.innerHTML = Array.from(detectedTypes)
-        .map(type => `<div class="hazard-type">${type}</div>`)
-        .join('');
-    } else {
-      hazardTypesList.innerHTML = '<div class="no-hazards">No hazards detected</div>';
+    if (hazardTypesList) {
+      if (detectedTypes.size > 0) {
+        hazardTypesList.innerHTML = Array.from(detectedTypes)
+          .map(type => `<div class="hazard-type">${type}</div>`)
+          .join('');
+      } else {
+        hazardTypesList.innerHTML = '<div class="no-hazards">No hazards detected</div>';
+      }
     }
   }
 
@@ -1467,14 +1516,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     
     if (now - lastFpsUpdate >= 1000) {
       const fps = Math.round(fpsCounter * 1000 / (now - lastFpsUpdate));
-      fpsDisplay.textContent = fps;
-      fpsBadge.textContent = `${fps} FPS`;
+      if (fpsDisplay) {
+        fpsDisplay.textContent = fps;
+      }
+      if (fpsBadge) {
+        fpsBadge.textContent = `${fps} FPS`;
+      }
       
       // Average processing time
       const avgProcessingTime = detectionStats.frameProcessingTimes.length > 0 
         ? Math.round(detectionStats.frameProcessingTimes.reduce((a, b) => a + b, 0) / detectionStats.frameProcessingTimes.length)
         : 0;
-      processingTime.textContent = `${avgProcessingTime}ms`;
+      if (processingTime) {
+        processingTime.textContent = `${avgProcessingTime}ms`;
+      }
       
       // Performance monitoring for adaptive quality
       performanceHistory.push({
@@ -1532,31 +1587,38 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Add detecting class to camera wrapper
   function setDetectingState(isDetecting) {
-      const cameraWrapper = document.getElementById('camera-wrapper');
-    if (isDetecting) {
-      cameraWrapper.classList.add('detecting');
+    const cameraWrapper = document.getElementById('camera-wrapper');
+    if (cameraWrapper) {
+      if (isDetecting) {
+        cameraWrapper.classList.add('detecting');
+      } else {
+        cameraWrapper.classList.remove('detecting');
+      }
     } else {
-      cameraWrapper.classList.remove('detecting');
+      console.log(`🎥 Camera state: ${isDetecting ? 'detecting' : 'stopped'} (wrapper not available)`);
     }
   }
   // Set initial state of buttons
   function updateButtonStates() {
-      if (detecting) {
-          startBtn.style.display = "none";
-          stopBtn.style.display = "inline-block";
-          switchCameraBtn.style.display = "inline-block";
-      } else {
-          startBtn.style.display = "inline-block";
-          stopBtn.style.display = "none";
-          switchCameraBtn.style.display = "none";
-      }
+    if (detecting) {
+      if (startBtn) startBtn.style.display = "none";
+      if (stopBtn) stopBtn.style.display = "inline-block";
+      if (switchCameraBtn) switchCameraBtn.style.display = "inline-block";
+    } else {
+      if (startBtn) startBtn.style.display = "inline-block";
+      if (stopBtn) stopBtn.style.display = "none";
+      if (switchCameraBtn) switchCameraBtn.style.display = "none";
+    }
+    console.log(`🎮 Button states updated: detecting=${detecting}`);
   }
   // Main detection loop with improved frame handling
   async function detectionLoop() {
     if (!detecting || !session) return;
 
     frameCount++;
-    frameCountDisplay.textContent = frameCount;
+    if (frameCountDisplay) {
+      frameCountDisplay.textContent = frameCount;
+    }
 
     if (!letterboxParams) computeLetterboxParams();
 
@@ -1612,15 +1674,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     requestAnimationFrame(detectionLoop);
   }
 
-  // Event Listeners
-  startBtn.addEventListener("click", async () => {
+  // Event Listeners - only add if elements exist
+  if (startBtn) {
+    startBtn.addEventListener("click", async () => {
     if (!session) {
       showNotification("Model not loaded. Please wait for model initialization.", 'warning');
       return;
     }
 
     try {
-      startBtn.disabled = true;
+      if (startBtn) {
+        startBtn.disabled = true;
+      }
       updateConnectionStatus('processing', 'Starting Camera...');
 
       // API session was already started during initialization
@@ -1665,12 +1730,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       console.error("Camera error:", err);
       detecting = false;
       updateButtonStates();
-      startBtn.disabled = false;
+      if (startBtn) {
+        startBtn.disabled = false;
+      }
       updateConnectionStatus('ready', 'System Ready');
     }
-  });
+    });
+  }
 
-  stopBtn.addEventListener("click", async () => {
+  if (stopBtn) {
+    stopBtn.addEventListener("click", async () => {
     detecting = false;
 
     setDetectingState(false);
@@ -1681,9 +1750,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     video.srcObject = null;
 
     updateButtonStates();
-    startBtn.disabled = false;
+    if (startBtn) {
+      startBtn.disabled = false;
+    }
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (ctx && canvas) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
     console.log("Camera stopped");
     
     // End camera session tracking
@@ -1732,10 +1805,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     // They will be reset when starting a new session
 
     updateConnectionStatus('ready', 'System Ready');
-  });
+    });
+  }
 
   // switch camera
-  switchCameraBtn.addEventListener("click", async () => {
+  if (switchCameraBtn) {
+    switchCameraBtn.addEventListener("click", async () => {
     if (!detecting) return;
     
     currentCamera = currentCamera === 'user' ? 'environment' : 'user';
@@ -1766,43 +1841,62 @@ document.addEventListener("DOMContentLoaded", async () => {
       showNotification("Failed to switch camera", 'error');
       console.error("Camera switch error:", err);
     }
-  });
+    });
+  }
 
   // Settings button toggle
-  settingsBtn.addEventListener("click", () => {
-    settingsPanel.classList.toggle('show');
-  });
+  if (settingsBtn) {
+    settingsBtn.addEventListener("click", () => {
+      if (settingsPanel) {
+        settingsPanel.classList.toggle('show');
+      }
+    });
+  }
 
   // sensitivity
-  sensitivitySlider.addEventListener("input", (e) => {
-    confidenceThreshold = parseFloat(e.target.value);
-    const valueElement = e.target.parentElement.querySelector('.settings-value');
-    if (valueElement) {
-      valueElement.textContent = `${Math.round(confidenceThreshold * 100)}%`;
-    }
-  });
+  if (sensitivitySlider) {
+    sensitivitySlider.addEventListener("input", (e) => {
+      confidenceThreshold = parseFloat(e.target.value);
+      const valueElement = e.target.parentElement.querySelector('.settings-value');
+      if (valueElement) {
+        valueElement.textContent = `${Math.round(confidenceThreshold * 100)}%`;
+      }
+    });
+  }
   // Summary Modal Functions
   function showSummaryModal() {
     updateSummaryData();
-    summaryModal.show();
+    if (summaryModal) {
+      summaryModal.show();
+    } else {
+      console.log("📊 Session Summary would be shown here (modal not available)");
+    }
   }
 
   function hideSummaryModal() {
-    summaryModal.hide();
+    if (summaryModal) {
+      summaryModal.hide();
+    }
   }
 
   function updateSummaryData() {
     // Update session stats
-    totalDetectionsCount.textContent = detectionStats.totalDetections;
+    if (totalDetectionsCount) {
+      totalDetectionsCount.textContent = detectionStats.totalDetections;
+    }
     
     // Calculate and display session duration
     const sessionDuration = Date.now() - detectionStats.sessionStart;
     const minutes = Math.floor(sessionDuration / 60000);
     const seconds = Math.floor((sessionDuration % 60000) / 1000);
-    sessionDurationDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    if (sessionDurationDisplay) {
+      sessionDurationDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
     
     // Update unique hazards count
-    uniqueHazardsCount.textContent = detectionStats.detectedHazards.size;
+    if (uniqueHazardsCount) {
+      uniqueHazardsCount.textContent = detectionStats.detectedHazards.size;
+    }
     
     // Update detections grid
     updateDetectionsGrid();
@@ -1812,6 +1906,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function updateDetectionsGrid() {
+    if (!detectionsGrid) {
+      console.log("📊 Detections grid not available");
+      return;
+    }
+    
     if (sessionDetectionsSummary.length === 0) {
       detectionsGrid.innerHTML = `
         <div class="no-detections">
@@ -1929,6 +2028,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function loadSavedReports() {
+    if (!savedReportsList) {
+      console.log("📊 Saved reports list not available");
+      return;
+    }
+    
     try {
       savedReportsList.innerHTML = `
         <div class="loading-reports">
@@ -2056,23 +2160,29 @@ document.addEventListener("DOMContentLoaded", async () => {
     showNotification('Summary exported successfully', 'success');
   }
 
-exportSummaryBtn.addEventListener('click', exportSummary);
+  if (exportSummaryBtn) {
+    exportSummaryBtn.addEventListener('click', exportSummary);
+  }
   
-  viewDashboardBtn.addEventListener('click', () => {
-    window.location.href = '/dashboard.html';
-  });
+  if (viewDashboardBtn) {
+    viewDashboardBtn.addEventListener('click', () => {
+      window.location.href = '/dashboard.html';
+    });
+  }
 
   // Initialize on load
   async function main() {
     updateButtonStates();
-    startBtn.disabled = true;
+    if (startBtn) {
+      startBtn.disabled = true;
+    }
     
     const success = await initializeDetection();
     
-    if (success) {
+    if (success && startBtn) {
       startBtn.disabled = false;
       // Status is set by initializeDetection
-    } else {
+    } else if (startBtn) {
       startBtn.disabled = true;
       // Status is set by initializeDetection on failure
     }
