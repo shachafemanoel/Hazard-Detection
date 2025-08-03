@@ -202,6 +202,7 @@ try {
     API_URL = privateUrl;
     console.log(`🔒 Using private network API URL: ${API_URL}`);
   } else {
+    // For non-Railway deployments, use configured URL or fallback to public
     API_URL = process.env.API_URL || process.env.HAZARD_API_URL || publicUrl;
     console.log(`🌐 Using external API URL: ${API_URL}`);
   }
