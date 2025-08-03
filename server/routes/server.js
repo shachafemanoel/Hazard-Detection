@@ -33,6 +33,7 @@ import os from 'os'; // מייבאים את המודול os
 import { v2 as cloudinary } from 'cloudinary';
 import multer from 'multer';
 import streamifier from 'streamifier';
+const { keys } = Object;
 
 // 🌍 ES Modules __dirname polyfill
 const __filename = fileURLToPath(import.meta.url);
@@ -95,9 +96,9 @@ app.use(express.static(path.join(__dirname, '../../public'), {
 }));
 
 // Specific route for ONNX model files
-app.get('/object_detecion_model/*.onnx', (req, res) => {
+app.get('/object_detection_model/*.onnx', (req, res) => {
     const modelName = req.params[0];
-    const modelPath = path.join(__dirname, '../../public/object_detecion_model', `${modelName}.onnx`);
+    const modelPath = path.join(__dirname, '../../public/object_detection_model', `${modelName}.onnx`);
     
     console.log(`📂 Requesting ONNX model: ${modelName}.onnx`);
     console.log(`📁 Full path: ${modelPath}`);
@@ -634,6 +635,16 @@ app.get('/logout', (req, res) => {
     });
 });
 
+// Authentication status endpoint used by the frontend to determine if a
+// user session is active. This mirrors the non-API auth routes (login,
+// logout) by living at the top level rather than under /api.
+app.get('/auth/status', (req, res) => {
+    res.json({
+        authenticated: req.isAuthenticated(),
+        user: req.user || null
+    });
+});
+
 // Health check endpoint (enhanced with simple mode support)
 app.get('/health', (req, res) => {
     res.json({
@@ -758,8 +769,15 @@ async function getReports() {
             
             const batchPromises = batchKeys.map(async (key) => {
                 try {
-                    const report = await client.json.get(key);
-                    return report;
+                    // Try to get as JSON first
+                    let report = await client.json.get(key);
+                    if (report) return report;
+
+                    // Fallback to getting as a string and parsing
+                    const str = await client.get(key);
+                    if (str) return JSON.parse(str);
+
+                    return null;
                 } catch (err) {
                     console.warn(`Skipping corrupted report ${key}:`, err.message);
                     return null;
@@ -904,6 +922,13 @@ app.get('/api/reports', async (req, res) => {
                     if (!reporter.includes(search)) match = false;
                 }
 
+                // Filter by the current user's reports
+                if (match && filters.my_reports === 'true' && req.isAuthenticated()) {
+                    if (report.reportedBy !== req.user.username) {
+                        match = false;
+                    }
+                }
+
                 if (match) {
                     totalMatchingCount++;
                     // Only include in result if within pagination range
@@ -934,7 +959,8 @@ app.get('/api/reports', async (req, res) => {
             },
             filters: filters,
             performance: {
-                totalKeys: keys.length,
+                // Use the number of retrieved reports instead of undefined Redis keys
+                totalKeys: allReports.length,
                 processedInMs: Date.now() - startTime
             }
         };
@@ -1126,13 +1152,12 @@ app.patch('/api/reports/:id', async (req, res) => {
     const reportKey = `report:${reportId}`;
 
     try {
-        // Get existing report
-        const existingReport = await client.get(reportKey);
-        if (!existingReport) {
+        const existingReportStr = await client.get(reportKey);
+        if (!existingReportStr) {
             return res.status(404).json({ error: 'Report not found' });
         }
 
-        const report = JSON.parse(existingReport);
+        const report = JSON.parse(existingReportStr);
         
         // Update only the fields that are provided
         const updates = req.body;
@@ -1149,6 +1174,7 @@ app.patch('/api/reports/:id', async (req, res) => {
         // Save back to Redis
         await client.set(reportKey, JSON.stringify(report));
 
+        broadcastSSEEvent({ type: 'report_updated', report });
         res.json({ message: 'Report updated successfully', report });
     } catch (err) {
         console.error('Error updating report:', err);
@@ -1210,7 +1236,7 @@ async function emailExists(email) {
         if (userData.email === email) {  
             return true; // מייל קיים  
         }  
-    }  
+    }
     return false; // מייל לא קיים  
 }  
 

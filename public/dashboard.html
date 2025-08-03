@@ -1,10 +1,3 @@
-<!--
-  Redesigned dashboard.html for a world-class, modern, TrafficDot2-inspired dark-mode interface.
-  - Modular card-style panels for all widgets and reports
-  - Responsive, accessible layout
-  - Real-time data, management actions, deduplication UI
-  - All logic hooks (JS) for management, search, sort, deduplication
--->
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
 <head>
@@ -12,479 +5,185 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="icon.png" type="image/png">
   <title>Hazard Detection Dashboard</title>
-  <link rel="stylesheet" href="css/modern-ui-theme.css">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  
-  <!-- OpenLayers assets 
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol/ol.css">
-  <script type="importmap">
-    {
-      "imports": {
-        "ol/": "https://cdn.jsdelivr.net/npm/ol/",
-        "rbush": "https://cdn.jsdelivr.net/npm/rbush@3.0.1/rbush.min.js"
-      }
-    }
-  </script>
-  
-  <link rel="stylesheet" href="css/dashboard.css">
-  <style>
-    /* Popup styling for OpenLayers */
-    .ol-popup {
-      background: rgba(31, 34, 53, 0.95);
-      color: #cbd2d9;
-      padding: 8px 12px;
-      border-radius: 8px;
-      border: 1px solid #2c2c2c;
-      min-width: 120px;
-      box-shadow: 0 3px 14px rgba(0,0,0,0.4);
-    }
-    .ol-popup:after, .ol-popup:before {
-      top: 100%;
-      border: solid transparent;
-      content: '';
-      height: 0;
-      width: 0;
-      position: absolute;
-      pointer-events: none;
-    }
-    .ol-popup:after {
-      border-top-color: rgba(31, 34, 53, 0.95);
-      border-width: 10px;
-      left: 50%;
-      margin-left: -10px;
-    }
-    .ol-popup:before {
-      border-top-color: #2c2c2c;
-      border-width: 11px;
-      left: 50%;
-      margin-left: -11px;
-    }
-    
-    @keyframes pulse {
-      0% {
-        transform: scale(1);
-        opacity: 1;
-      }
-      50% {
-        transform: scale(1.2);
-        opacity: 0.7;
-      }
-      100% {
-        transform: scale(1);
-        opacity: 1;
-      }
-    }
-    /* New comprehensive layout for an urban command-center look */
-    body {
-      background: var(--tech-bg);
-      font-family: 'Poppins', sans-serif;
-      color: var(--tech-text);
-      margin: 0;
-      padding: 0;
-    }
-    header {
-      background: var(--tech-panel);
-      border-bottom: 2px solid var(--tech-accent);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.7);
-      padding: 1rem 1.5rem;
-      position: sticky;
-      top: 0;
-      z-index: 1100;
-      text-align: center;
-    }
-    header h1 {
-      margin: 0;
-      font-size: 1.8rem; /* smaller title */
-      font-weight: 700;
-      color: var(--tech-accent);
-    }
-    .container-flex {
-      display: flex;
-      flex-direction: column;
-      gap: 2rem;
-      padding: 2rem;
-    }
-    /* New modular panel styling */
-    .dashboard-panel {
-      background: rgba(31,34,53,0.92);
-      border: 1px solid #2c2c2c;
-      border-radius: 12px;
-      padding: 1rem;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-    }
-      /* Reports log: smaller table container placed below map */
-      #reports-table-container {
-      max-height: 30vh;
-      overflow-y: auto;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-      border-radius: 8px;
-      background: rgba(31,34,53,0.9);
-      padding: 1rem;
-    }
-    #reports-table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    #reports-table th, #reports-table td {
-      padding: 0.5rem 0.75rem;
-      border: 1px solid #2c2c2c;
-      text-align: left;
-    }
-    #reports-table th {
-      background: #1e1e1e;
-      color: #f7c873;
-      font-weight: 600;
-    }
-    #reports-table tbody tr:hover {
-      background: rgba(247,200,115,0.1);
-    }
-    footer {
-      background: #232946;
-      color: #fff;
-      text-align: center;
-      padding: 1.5rem;
-      border-top: 2px solid #f7c873;
-    }
-    @media (max-width: 768px) {
-      .container-flex {
-        padding: 1rem;
-        gap: 1rem;
-      }
-      #map {
-        height: 50vh;
-      }
-      #reports-table-container {
-        max-height: 40vh;
-      }
-    }
-    /* Updated: Styles for the legend toggle button repositioned to the right between header and map */
-    #legend-toggle-btn {
-      position: absolute;
-      top: 80px; /* adjusted to be below the header */
-      right: 20px; /* aligned to the right */
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      background: #f7c873;
-      color: #12141d;
-      border: none;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.4);
-      cursor: pointer;
-      z-index: 1500;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.25rem;
-      transition: background 0.3s;
-    }
-    #legend-toggle-btn:hover {
-      background: #e6b55f;
-    }
-    
-    /* Report blocks styling */
-    .reports-blocks-list {
-      max-height: 60vh;
-      overflow-y: auto;
-      padding: 0.5rem;
-    }
-    
-    .report-block {
-      background: rgba(31,34,53,0.9);
-      border: 1px solid #2c2c2c;
-      border-radius: 8px;
-      padding: 1rem;
-      margin-bottom: 1rem;
-      display: flex;
-      gap: 1rem;
-      transition: all 0.3s ease;
-    }
-    
-    .report-block:hover {
-      background: rgba(247,200,115,0.1);
-      border-color: #f7c873;
-    }
-    
-    .report-block-image {
-      width: 80px;
-      height: 80px;
-      object-fit: cover;
-      border-radius: 8px;
-      flex-shrink: 0;
-    }
-    
-    .report-block-details {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-    }
-    
-    .report-block-title {
-      font-weight: 600;
-      color: #f7c873;
-      font-size: 1.1rem;
-    }
-    
-    .report-block-meta {
-      display: flex;
-      flex-direction: column;
-      gap: 0.25rem;
-      font-size: 0.9rem;
-      color: #cbd2d9;
-    }
-    
-    .report-block-meta span {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-    
-    .report-block-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      margin-top: 0.5rem;
-    }
-    
-    .report-block-actions .btn {
-      font-size: 0.8rem;
-      padding: 0.25rem 0.5rem;
-    }
-  </style>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" defer></script>
+  <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js" defer></script>
+  <link rel="stylesheet" href="css/main.css">
 </head>
 <body>
 
-  <!-- Existing Header -->
-  <header class="my-3" style="background:rgba(31,34,53,0.97);box-shadow:0 4px 12px rgba(0,0,0,0.7);">
-  <div class="d-flex flex-column align-items-center">
-    <h1 style="font-size:1.1rem;letter-spacing:0.7px;font-weight:600;color:#2d3a4a;margin-bottom:0;"> <i class="fas fa-road me-2"></i>RoadGuardian: Live Hazard Tracker</h1>
-    <button id="refresh-info-btn" class="btn btn-accent mt-2" title="Refresh Info" aria-label="Refresh Info">
-      <i class="fas fa-rotate-right"></i>
-    </button>
-  </div>
-</header>
+  <header class="my-4 text-center">
+    <h1 class="h2"><i class="fas fa-road me-2"></i>RoadGuardian</h1>
+    <p class="text-secondary">Live Hazard Tracker</p>
+  </header>
 
-  <div class="dashboard-main-layout">
-    <!-- Metrics overview -->
-    <div id="overview-section" class="dashboard-metrics-row">
-      <div class="stat-card bg-primary">
-        <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
-        <div class="stat-content">
-          <h4 id="total-reports-count">0</h4>
-          <p>Total Reports</p>
+  <div class="container-fluid">
+    <div id="overview-section" class="row g-4 mb-4">
+      <div class="col-lg-3 col-md-6">
+        <div class="stat-card card h-100">
+          <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
+          <div class="stat-content">
+            <h4 id="total-reports-count">—</h4>
+            <p>Total Reports</p>
+          </div>
         </div>
       </div>
-      <div class="stat-card bg-danger">
-        <div class="stat-icon"><i class="fas fa-clock"></i></div>
-        <div class="stat-content">
-          <h4 id="open-hazards-count">0</h4>
-          <p>Open Hazards</p>
+      <div class="col-lg-3 col-md-6">
+        <div class="stat-card card h-100">
+          <div class="stat-icon"><i class="fas fa-clock"></i></div>
+          <div class="stat-content">
+            <h4 id="open-hazards-count">—</h4>
+            <p>Open Hazards</p>
+          </div>
         </div>
       </div>
-      <div class="stat-card bg-success">
-        <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
-        <div class="stat-content">
-          <h4 id="resolved-this-month">0</h4>
-          <p>Resolved This Month</p>
+      <div class="col-lg-3 col-md-6">
+        <div class="stat-card card h-100">
+          <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+          <div class="stat-content">
+            <h4 id="resolved-this-month-count">—</h4>
+            <p>Resolved This Month</p>
+          </div>
         </div>
       </div>
-      <div class="stat-card bg-info">
-        <div class="stat-icon"><i class="fas fa-users"></i></div>
-        <div class="stat-content">
-          <h4 id="active-users">0</h4>
-          <p>Active Users</p>
+      <div class="col-lg-3 col-md-6">
+        <div class="stat-card card h-100">
+          <div class="stat-icon"><i class="fas fa-users"></i></div>
+          <div class="stat-content">
+            <h4 id="active-users-count">—</h4>
+            <p>Active Users</p>
+          </div>
         </div>
       </div>
     </div>
-    <div class="dashboard-center-row">
-      <!-- מפה במרכז -->
-      <section class="dashboard-center dashboard-panel">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <h4><i class="fas fa-map me-2"></i>Hazard Map</h4>
-          <div class="map-controls">
-            <button id="toggle-heatmap" class="btn btn-sm btn-outline-primary me-2" aria-label="Toggle Heatmap">
-              <i class="fas fa-fire"></i> Toggle Heatmap
-            </button>
-            <button id="center-map" class="btn btn-sm btn-outline-secondary" aria-label="Center Map">
-              <i class="fas fa-crosshairs"></i> Center Map
-            </button>
+    <div class="row g-4">
+      <section class="col-lg-8">
+        <div class="dashboard-panel card h-100 d-flex flex-column">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="fas fa-map me-2"></i>Hazard Map</h5>
+            <div class="map-controls">
+              <button id="toggle-heatmap" class="btn btn-sm me-2" aria-label="Toggle Heatmap">
+                <i class="fas fa-fire"></i> Heatmap
+              </button>
+              <button id="center-map" class="btn btn-sm" aria-label="Center Map">
+                <i class="fas fa-crosshairs"></i> Center
+              </button>
+            </div>
           </div>
+          <div id="map" class="card-body flex-grow-1" style="min-height: 500px;"></div>
         </div>
-        <div id="map"></div>
       </section>
-      <!-- טבלת אירועים מימין למפה -->
-      <aside class="dashboard-right dashboard-panel">
-        <div id="reports-filters" class="d-flex flex-wrap gap-3 mb-3">
-          <input id="report-search-input" class="form-control" type="search" placeholder="Search reports..." aria-label="Search reports">
-          <div class="hazard-type-filter-bar mb-3">
-            <button id="hazard-type-dropdown-btn" class="hazard-type-dropdown-btn btn" aria-label="Hazard Type Filter">
-              <span id="current-hazard-type-label">All Types</span>
-              <i class="fas fa-chevron-down"></i>
-            </button>
-            <div id="hazard-type-dropdown-menu" class="hazard-type-dropdown-menu">
-              <button class="hazard-type-option btn" data-value="">All Types</button>
-              <button class="hazard-type-option btn" data-value="crack">Crack</button>
-              <button class="hazard-type-option btn" data-value="knocked">Knocked</button>
-              <button class="hazard-type-option btn" data-value="pothole">Pothole</button>
-              <button class="hazard-type-option btn" data-value="surface_damage">Surface Damage</button>
+      <aside class="col-lg-4">
+        <div class="dashboard-panel card h-100 d-flex flex-column">
+          <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-table me-2"></i>Reports Management</h5>
+          </div>
+          <div class="card-body">
+            <div class="table-controls d-flex flex-wrap gap-2 mb-3">
+              <input type="text" id="report-search-input" class="form-control" placeholder="Search...">
+              <select id="table-status-filter" class="form-select">
+                <option value="">All Status</option>
+                <option value="Open">Open</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Resolved">Resolved</option>
+              </select>
+              <select id="hazard-type-filter" class="form-select">
+                <option value="">All Types</option>
+                <option value="crack">Crack</option>
+                <option value="knocked">Knocked</option>
+                <option value="pothole">Pothole</option>
+                <option value="surface_damage">Surface Damage</option>
+              </select>
+              <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" value="" id="my-reports-filter">
+                <label class="form-check-label" for="my-reports-filter">
+                  My Reports
+                </label>
+              </div>
+            </div>
+            <div id="reports-blocks-container" class="d-none"></div>
+            <div class="table-responsive flex-grow-1">
+              <table id="reports-management-table" class="table table-hover">
+                <thead>
+                  <tr>
+                    <th><input type="checkbox" id="select-all-reports"></th>
+                    <th class="sortable" data-sort="id">ID <i class="fas fa-sort"></i></th>
+                    <th class="sortable" data-sort="type">Type <i class="fas fa-sort"></i></th>
+                    <th class="sortable" data-sort="status">Status <i class="fas fa-sort"></i></th>
+                    <th class="sortable" data-sort="location">Location <i class="fas fa-sort"></i></th>
+                    <th class="sortable" data-sort="time">Time <i class="fas fa-sort"></i></th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="reports-table-body"></tbody>
+              </table>
             </div>
           </div>
-          <div id="hazard-types-container" class="d-flex flex-wrap gap-2"></div>
-        </div>
-        <!-- Reports pagination controls -->
-        <div id="reports-pagination-info" class="pagination-info mb-3" style="display: none;">
-          <small class="text-muted">
-            <span id="pagination-text">Showing 0-0 of 0 reports</span>
-            <span id="performance-text" class="ms-3"></span>
-          </small>
-        </div>
-        <!-- במקום טבלת הדיווחים, אציג בלוקים מודרניים -->
-        <div id="reports-blocks-container" class="reports-blocks-list"></div>
-        <!-- Reports pagination controls -->
-        <div id="reports-pagination" class="pagination-controls mt-3" style="display: none;">
-          <div class="d-flex justify-content-between align-items-center">
-            <div class="pagination-nav">
-              <button id="prev-page-btn" class="btn btn-sm btn-outline-secondary me-2" disabled aria-label="Previous Page">
-                <i class="fas fa-chevron-left"></i> Previous
-              </button>
-              <span id="page-info" class="me-2">Page 1 of 1</span>
-              <button id="next-page-btn" class="btn btn-sm btn-outline-secondary" disabled aria-label="Next Page">
-                Next <i class="fas fa-chevron-right"></i>
-              </button>
-            </div>
-            <div class="pagination-settings">
-              <label for="reports-per-page" class="form-label mb-0 me-2">Per page:</label>
-              <select id="reports-per-page" class="form-select form-select-sm" style="width: auto;">
+          <div class="card-footer d-flex justify-content-between align-items-center">
+            <span id="table-showing-info"></span>
+            <div class="pagination-controls d-flex align-items-center gap-2">
+              <button id="table-prev-btn" class="btn btn-sm"><i class="fas fa-chevron-left"></i></button>
+              <span id="table-page-info"></span>
+              <button id="table-next-btn" class="btn btn-sm"><i class="fas fa-chevron-right"></i></button>
+              <select id="table-page-size" class="form-select form-select-sm" style="width: auto;">
                 <option value="10">10</option>
-                <option value="25" selected>25</option>
+                <option value="25">25</option>
                 <option value="50">50</option>
-                <option value="100">100</option>
               </select>
             </div>
           </div>
         </div>
       </aside>
     </div>
-    
-    <!-- Reports Management Table -->
-    <div class="reports-table-section dashboard-panel">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h4><i class="fas fa-table me-2"></i>Reports Management</h4>
-        <div class="table-controls d-flex gap-2">
-          <input type="text" id="table-search-input" class="form-control" placeholder="Search reports..." style="width: 200px;">
-          <select id="table-status-filter" class="form-select" style="width: 150px;">
-            <option value="">All Status</option>
-            <option value="Open">Open</option>
-            <option value="In Progress">In Progress</option>
-            <option value="Resolved">Resolved</option>
-          </select>
-          <select id="table-type-filter" class="form-select" style="width: 150px;">
-            <option value="">All Types</option>
-            <option value="crack">Crack</option>
-            <option value="knocked">Knocked</option>
-            <option value="pothole">Pothole</option>
-            <option value="surface_damage">Surface Damage</option>
-          </select>
-        </div>
-      </div>
-      <div class="table-responsive">
-        <table id="reports-management-table" class="table table-dark table-striped">
-          <thead>
-            <tr>
-              <th><input type="checkbox" id="select-all-reports"></th>
-              <th class="sortable" data-sort="id">ID <i class="fas fa-sort"></i></th>
-              <th class="sortable" data-sort="type">Type <i class="fas fa-sort"></i></th>
-              <th class="sortable" data-sort="status">Status <i class="fas fa-sort"></i></th>
-              <th class="sortable" data-sort="location">Location <i class="fas fa-sort"></i></th>
-              <th class="sortable" data-sort="time">Time <i class="fas fa-sort"></i></th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="reports-table-body">
-            <!-- Reports will be populated here -->
-          </tbody>
-        </table>
-      </div>
-      <div class="table-pagination d-flex justify-content-between align-items-center mt-3">
-        <div>
-          <span id="table-showing-info">Showing 0-0 of 0 reports</span>
-        </div>
-        <div class="pagination-controls d-flex align-items-center gap-2">
-          <button id="table-prev-btn" class="btn btn-outline-secondary btn-sm" disabled>
-            <i class="fas fa-chevron-left"></i> Previous
-          </button>
-          <span id="table-page-info">Page 1 of 1</span>
-          <button id="table-next-btn" class="btn btn-outline-secondary btn-sm" disabled>
-            Next <i class="fas fa-chevron-right"></i>
-          </button>
-          <select id="table-page-size" class="form-select form-select-sm" style="width: auto;">
-            <option value="10">10 per page</option>
-            <option value="25" selected>25 per page</option>
-            <option value="50">50 per page</option>
-            <option value="100">100 per page</option>
-          </select>
-        </div>
-      </div>
-    </div>
   </div>
-  
+  <div id="report-details-panel" class="d-none"></div>
+
   <!-- Modals -->
-  <!-- Image Modal -->
-  <div id="image-modal" class="image-modal-overlay" tabindex="-1" role="dialog">
-    <img id="modal-image" alt="Enlarged Hazard Image">
-    <button onclick="document.getElementById('image-modal').style.display='none'" aria-label="Close" class="image-modal-close-btn">
-      <i class="fas fa-times"></i>
-    </button>
-  </div>
-  <!-- Report Details Modal (Bootstrap) -->
-  <div class="modal fade" id="reportDetailsModal" tabindex="-1" aria-labelledby="reportDetailsModalLabel" aria-hidden="true">
+  <div class="modal fade" id="reportDetailsModal" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-      <div class="modal-content">
+      <div class="modal-content card">
         <div class="modal-header">
-          <h5 class="modal-title" id="reportDetailsModalLabel">Report Details</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          <h5 class="modal-title">Report Details</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <!-- ...existing modal content... -->
-          <div class="row">
-            <div class="col-md-5">
-              <img id="modal-report-image" src="" alt="Hazard" class="img-fluid rounded shadow">
-            </div>
+          <div class="row g-4">
+            <div class="col-md-5"><img id="modal-report-image" src="" class="img-fluid rounded shadow-sm"></div>
             <div class="col-md-7">
               <ul class="list-group list-group-flush">
-                <li class="list-group-item bg-transparent"><strong>ID:</strong> <span id="modal-hazard-id"></span></li>
-                <li class="list-group-item bg-transparent"><strong>Type:</strong> <span id="modal-type"></span></li>
-                <li class="list-group-item bg-transparent"><strong>Location:</strong> <span id="modal-location"></span></li>
-                <li class="list-group-item bg-transparent"><strong>Time:</strong> <span id="modal-time"></span></li>
-                <li class="list-group-item bg-transparent"><strong>Status:</strong> <span id="modal-status"></span></li>
-                <li class="list-group-item bg-transparent"><strong>Reported By:</strong> <span id="modal-user"></span></li>
+                <li class="list-group-item"><strong>ID:</strong> <span id="modal-hazard-id"></span></li>
+                <li class="list-group-item"><strong>Type:</strong> <span id="modal-type"></span></li>
+                <li class="list-group-item"><strong>Location:</strong> <span id="modal-location"></span></li>
+                <li class="list-group-item"><strong>Time:</strong> <span id="modal-time"></span></li>
+                <li class="list-group-item"><strong>Status:</strong> <span id="modal-status"></span></li>
+                <li class="list-group-item"><strong>Reported By:</strong> <span id="modal-user"></span></li>
               </ul>
             </div>
           </div>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-        </div>
       </div>
     </div>
   </div>
-  <!-- Edit Report Modal (Bootstrap) -->
-  <div class="modal fade" id="editReportModal" tabindex="-1" aria-labelledby="editReportModalLabel" aria-hidden="true">
+
+  <div class="modal fade" id="editReportModal" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-centered">
-      <div class="modal-content">
+      <div class="modal-content card">
         <form id="edit-report-form">
           <div class="modal-header">
-            <h5 class="modal-title" id="editReportModalLabel">Edit Report</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <h5 class="modal-title">Edit Report</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
             <input type="hidden" id="edit-report-id">
             <div class="row g-3">
               <div class="col-md-6">
                 <label for="edit-report-type" class="form-label">Type</label>
-                <select id="edit-report-type" class="form-select" required>
+                <select id="edit-report-type" class="form-select">
                   <option value="crack">Crack</option>
                   <option value="knocked">Knocked</option>
                   <option value="pothole">Pothole</option>
@@ -493,68 +192,41 @@
               </div>
               <div class="col-md-6">
                 <label for="edit-report-status" class="form-label">Status</label>
-                <select id="edit-report-status" class="form-select" required>
+                <select id="edit-report-status" class="form-select">
                   <option value="Open">Open</option>
                   <option value="Resolved">Resolved</option>
                   <option value="In Progress">In Progress</option>
                 </select>
               </div>
-              <div class="col-md-12">
+              <div class="col-12">
                 <label for="edit-report-location" class="form-label">Location</label>
-                <input type="text" id="edit-report-location" class="form-control" required>
+                <input type="text" id="edit-report-location" class="form-control">
               </div>
-              <div class="col-md-12">
+              <div class="col-12">
                 <label for="edit-report-image" class="form-label">Image URL</label>
                 <input type="text" id="edit-report-image" class="form-control">
-                <img id="edit-report-image-preview" src="" alt="Preview" style="max-width:100%;max-height:180px;margin-top:8px;display:none;border-radius:8px;" />
               </div>
-              <div class="col-md-12">
+               <div class="col-12">
                 <label for="edit-report-reportedBy" class="form-label">Reported By</label>
                 <input type="text" id="edit-report-reportedBy" class="form-control" disabled>
               </div>
             </div>
           </div>
-          <div class="modal-footer d-flex justify-content-between">
-            <button type="button" class="btn btn-danger" id="delete-report-btn">Delete</button>
-            <div>
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-              <button type="submit" class="btn btn-primary">Save Changes</button>
-            </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Changes</button>
           </div>
         </form>
       </div>
     </div>
   </div>
-  <!-- Updated: Legend Toggle Button label remains "info" -->
-  <button id="legend-toggle-btn" class="btn">info</button>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script type="module" src="js/map.js"></script>
+  <script type="module" src="js/reports-api.js"></script>
+  <script type="module" src="js/ui-controls.js"></script>
+  <script type="module" src="js/modals.js"></script>
+  <script type="module" src="js/notifications.js"></script>
   <script type="module" src="js/dashboard.js"></script>
-  <script src="js/dashboard-personalizer.js"></script>
-  <!-- Using OpenLayers for mapping instead of Google Maps -->
-  <script>
-    // ...existing bootstrap modal initialization...
-    document.addEventListener('DOMContentLoaded', function() {
-      const modalEl = document.getElementById('reportDetailsModal');
-      if (modalEl && window.bootstrap) {
-        window.reportDetailsBootstrapModal = new bootstrap.Modal(modalEl, {});
-      }
-    });
-    // NEW: Bind the legend toggle button to toggleLegend() defined in dashboard.js
-    document.addEventListener('DOMContentLoaded', () => {
-      const legendBtn = document.getElementById('legend-toggle-btn');
-      if (legendBtn && window.toggleLegend) {
-        legendBtn.addEventListener('click', window.toggleLegend);
-      }
-    });
-  </script>
-  <!-- Tech-Urban Floating Menu -->
-  <button id="fab-btn" class="fab"><i class="fas fa-bars"></i></button>
-    <nav id="fab-menu" class="fab-menu">
-      <a href="/dashboard.html">Dashboard</a>
-      <a href="/camera.html">Live</a>
-      <a href="/logout">Logout</a>
-    </nav>
-    <!-- Ensure the document ends correctly with the closing </body> and </html> tags -->
 </body>
 </html>

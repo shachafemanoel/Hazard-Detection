@@ -47,7 +47,9 @@ class HazardDetectionApp {
   // Check user authentication status
   async checkAuth() {
     try {
-      const response = await fetch('/api/auth/status');
+      // Auth routes on the express server are not namespaced under /api
+      // so we query the plain /auth/status endpoint
+      const response = await fetch('/auth/status');
       if (response.ok) {
         const data = await response.json();
         if (!data.authenticated && !window.location.pathname.includes('login.html')) {
@@ -114,8 +116,8 @@ class HazardDetectionApp {
 
     // Try multiple model paths
     const modelPaths = [
-      './object_detecion_model/model 18_7.onnx',
-      '/object_detecion_model/model 18_7.onnx'
+      './object_detection_model/model 18_7.onnx',
+      '/object_detection_model/model 18_7.onnx'
     ];
 
     for (const path of modelPaths) {

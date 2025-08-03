@@ -1,10 +1,4 @@
 document.addEventListener("DOMContentLoaded", async function () {
-  // אלמנטים של מסך הבית וממשק ההעלאה
-  const homeScreenContent = document.getElementById('home-screen-content');
-  const detectionSection = document.getElementById('detection-section');
-  const showUploadSectionBtn = document.getElementById('show-upload-section-btn');
-  const closeUploadSectionBtn = document.getElementById('close-upload-section-btn');
-
   const imageUpload = document.getElementById("image-upload");
   const confidenceSlider = document.getElementById("confidence-slider");
   const confValueSpan = document.getElementById("conf-value");
@@ -12,27 +6,22 @@ document.addEventListener("DOMContentLoaded", async function () {
   const ctx = canvas ? canvas.getContext("2d") : null; // Check if canvas exists
   const logoutBtn = document.getElementById("logout-btn");
   const saveBtn = document.getElementById("save-detection");
+  const uploadingModal = document.getElementById("uploading-modal");
 
-  // Toast Notification Elements
-  const toastElement = document.getElementById('toast-notification');
-  const toastBody = document.getElementById('toast-body');
+import { notify } from './notifications.js';
+
+  const uploadingModal = new bootstrap.Modal(document.getElementById('uploading-modal'));
+
+  function showUploadingModal() {
+    uploadingModal.show();
+  }
+
+  function hideUploadingModal() {
+    uploadingModal.hide();
+  }
 
   function showToast(message, type = 'success') {
-    if (!toastElement || !toastBody) return;
-
-    toastBody.textContent = message;
-    toastElement.classList.remove('bg-success', 'bg-danger', 'bg-warning'); // Remove previous classes
-
-    if (type === 'success') {
-      toastElement.classList.add('bg-success');
-    } else if (type === 'error') {
-      toastElement.classList.add('bg-danger');
-    } // Add more types like 'warning' if needed
-
-    toastElement.style.display = 'block';
-    setTimeout(() => {
-      toastElement.style.display = 'none';
-    }, 5000); // Hide after 5 seconds
+    notify(message, type);
   }
 
   let geoData = null;
@@ -75,71 +64,47 @@ document.addEventListener("DOMContentLoaded", async function () {
     });
   }
 
-  // ניהול תצוגת מסך הבית וממשק ההעלאה
-  if (showUploadSectionBtn && homeScreenContent && detectionSection) {
-    showUploadSectionBtn.addEventListener('click', () => {
-      homeScreenContent.style.display = 'none';
-      detectionSection.style.display = 'block';
-    });
-  }
-
-  if (closeUploadSectionBtn && homeScreenContent && detectionSection) {
-    closeUploadSectionBtn.addEventListener('click', () => {
-      detectionSection.style.display = 'none';
-      homeScreenContent.style.display = 'block';
-      // איפוס אופציונלי של שדות וקנבס בעת סגירה
-      if (imageUpload) {
-        imageUpload.value = ''; // מנקה את שדה העלאת התמונה
-      }
-      if (ctx && canvas) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height); // נמחק את התמונה המוצגת ב-canvas
-      }
-      if (confValueSpan && confidenceSlider) {
-        confValueSpan.textContent = confidenceSlider.value; // מאפס את תצוגת הסף
-      }
-      currentImage = null; // מאפס את התמונה הנוכחית
-      geoData = null; // מאפס נתוני מיקום
-      if (saveBtn) saveBtn.disabled = true; // מנטרל כפתור שמירה
-      const tooltip = document.getElementById("tooltip");
-      if (tooltip) tooltip.style.display = "none";
-    });
-  }
 
 
 // שמירת התמונה והנתונים
-saveBtn.addEventListener("click", () => {
-  if (!canvas) {
-    showToast("❌ Canvas element not found.", "error");
-    return;
-  }
+  saveBtn.addEventListener("click", () => {
+    if (!canvas) {
+      showToast("❌ Canvas element not found.", "error");
+      return;
+    }
 
-  // Make geoData optional but prefer it when available
-  if (!geoData) {
-    console.warn("No geolocation data available, using default location");
-    // Use default Israel coordinates as fallback
-    geoData = JSON.stringify({ lat: 31.7683, lng: 35.2137 });
-    showToast("⚠️ Using default location (no GPS data)", "warning");
-  }
+    // Make geoData optional but prefer it when available
+    if (!geoData) {
+      console.warn("No geolocation data available, using default location");
+      // Use default Israel coordinates as fallback
+      geoData = JSON.stringify({ lat: 31.7683, lng: 35.2137 });
+      showToast("⚠️ Using default location (no GPS data)", "warning");
+    }
 
-  // Create composite canvas that includes the original image and the overlay
-  const compositeCanvas = document.createElement("canvas");
-  compositeCanvas.width = canvas.width;
-  compositeCanvas.height = canvas.height;
-  const compositeCtx = compositeCanvas.getContext("2d");
+    // Create composite canvas that includes the original image and the overlay
+    const compositeCanvas = document.createElement("canvas");
+    compositeCanvas.width = canvas.width;
+    compositeCanvas.height = canvas.height;
+    const compositeCtx = compositeCanvas.getContext("2d");
 
-  // Draw the original uploaded image using the same letterbox parameters
-  if (currentImage) {
-      const { offsetX, offsetY, newW, newH } = letterboxParams;
-      compositeCtx.fillStyle = "black";
-      compositeCtx.fillRect(0, 0, compositeCanvas.width, compositeCanvas.height);
-      compositeCtx.drawImage(currentImage, offsetX, offsetY, newW, newH);
-  }
+    // Draw the original uploaded image using the same letterbox parameters
+    if (currentImage) {
+        const { offsetX, offsetY, newW, newH } = letterboxParams;
+        compositeCtx.fillStyle = "black";
+        compositeCtx.fillRect(0, 0, compositeCanvas.width, compositeCanvas.height);
+        compositeCtx.drawImage(currentImage, offsetX, offsetY, newW, newH);
+    }
 
-  // Draw the detection overlays
-  compositeCtx.drawImage(canvas, 0, 0);
+    // Draw the detection overlays
+    compositeCtx.drawImage(canvas, 0, 0);
 
-  compositeCanvas.toBlob(async (blob) => {
-      if (!blob) return alert("❌ Failed to get image blob");
+    showUploadingModal();
+
+    compositeCanvas.toBlob(async (blob) => {
+        if (!blob) {
+          hideUploadingModal();
+          return alert("❌ Failed to get image blob");
+        }
   
       // Create FormData for file upload
       const formData = new FormData();
@@ -149,12 +114,12 @@ saveBtn.addEventListener("click", () => {
       formData.append('time', new Date().toISOString());
       formData.append('locationNote', 'GPS');
 
-      try {
-          const res = await fetch("/upload-detection", {
-              method: "POST",
-              body: formData,
-              credentials: "include",
-          });
+        try {
+            const res = await fetch("/upload-detection", {
+                method: "POST",
+                body: formData,
+                credentials: "include",
+            });
 
           if (!res.ok) {
               const contentType = res.headers.get("content-type");
@@ -170,19 +135,17 @@ saveBtn.addEventListener("click", () => {
               throw new Error(errorMessage);
           }
 
-          const result = await res.json();
-          detectionSession.savedReports++;
-          updateDetectionSessionSummary();
-          showToast("✅ Saved to server: " + result.message, "success");
-          
-          // Show session summary after successful save
-          setTimeout(() => {
-            showDetectionSessionSummary();
-          }, 1000);
-      } catch (err) {
-          showToast("❌ Failed to save image to server.", "error");
-          console.error(err);
-      }
+            const result = await res.json();
+            detectionSession.savedReports++;
+            updateDetectionSessionSummary();
+            showToast("✅ Saved to server: " + result.message, "success");
+
+        } catch (err) {
+            showToast("❌ Failed to save image to server.", "error");
+            console.error(err);
+        } finally {
+            hideUploadingModal();
+        }
 
       // נמחק את התמונה אחרי 5 שניות
       setTimeout(() => {
@@ -198,8 +161,8 @@ saveBtn.addEventListener("click", () => {
               ctx.clearRect(0, 0, imagePreview.width, imagePreview.height);           // נמחק את התמונה המוצגת ב-canvas
           }
       }, 2500);
-  }, "image/jpeg", 0.95);
-});
+    }, "image/jpeg", 0.95);
+  });
   
   // Enhanced Road Damage Detection Model Configuration
   const FIXED_SIZE = 512; // Optimized for road_damage_detection_last_version.onnx
@@ -235,10 +198,9 @@ saveBtn.addEventListener("click", () => {
   try {
     // Prioritized model paths - using the latest road damage detection model
     const modelPaths = [
-      './object_detecion_model/road_damage_detection_last_version.onnx', // Primary model
-      './object_detecion_model/last_model_train12052025.onnx',          // Backup
-      './object_detecion_model/road_damage_detection_simplified.onnx',   // Fallback 1
-      './object_detecion_model/model 18_7.onnx'                         // Fallback 2
+      './object_detection_model/road_damage_detection_last_version.onnx', // Primary model
+      './object_detection_model/road_damage_detection_simplified.onnx',   // Fallback 1
+      './object_detection_model/model 18_7.onnx'                         // Fallback 2
     ];
     
     let modelPath = null;
@@ -440,194 +402,8 @@ saveBtn.addEventListener("click", () => {
     if (savedReportsEl) savedReportsEl.textContent = detectionSession.savedReports;
   }
   
-  // Function to show Detection Session Summary Modal
-  function showDetectionSessionSummary() {
-    const sessionDuration = Date.now() - detectionSession.startTime;
-    const durationMinutes = Math.floor(sessionDuration / 60000);
-    const durationSeconds = Math.floor((sessionDuration % 60000) / 1000);
-    
-    // Group detections by type
-    const detectionsByType = {};
-    detectionSession.detections.forEach(detection => {
-      if (!detectionsByType[detection.type]) {
-        detectionsByType[detection.type] = {
-          count: 0,
-          maxConfidence: 0,
-          minConfidence: 1,
-          avgConfidence: 0,
-          total: 0
-        };
-      }
-      detectionsByType[detection.type].count++;
-      detectionsByType[detection.type].maxConfidence = Math.max(detectionsByType[detection.type].maxConfidence, detection.confidence);
-      detectionsByType[detection.type].minConfidence = Math.min(detectionsByType[detection.type].minConfidence, detection.confidence);
-      detectionsByType[detection.type].total += detection.confidence;
-    });
-    
-    // Calculate averages
-    Object.keys(detectionsByType).forEach(type => {
-      detectionsByType[type].avgConfidence = detectionsByType[type].total / detectionsByType[type].count;
-    });
-    
-    // Create detailed detection grid HTML
-    const detectionGridHTML = Object.entries(detectionsByType).map(([type, stats]) => `
-      <div class="detection-summary-card bg-light p-3 rounded mb-3">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          <h6 class="mb-0 text-primary">
-            <i class="fas fa-exclamation-triangle me-2"></i>${type}
-          </h6>
-          <span class="badge bg-primary">${stats.count} detections</span>
-        </div>
-        <div class="row text-center">
-          <div class="col-4">
-            <small class="text-muted">Min Confidence</small>
-            <div class="fw-bold">${(stats.minConfidence * 100).toFixed(1)}%</div>
-          </div>
-          <div class="col-4">
-            <small class="text-muted">Avg Confidence</small>
-            <div class="fw-bold">${(stats.avgConfidence * 100).toFixed(1)}%</div>
-          </div>
-          <div class="col-4">
-            <small class="text-muted">Max Confidence</small>
-            <div class="fw-bold">${(stats.maxConfidence * 100).toFixed(1)}%</div>
-          </div>
-        </div>
-      </div>
-    `).join('');
-    
-    // Create modal HTML
-    const modalHTML = `
-      <div class="modal fade" id="detectionSessionModal" tabindex="-1" data-bs-backdrop="static">
-        <div class="modal-dialog modal-lg">
-          <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
-              <h5 class="modal-title">
-                <i class="fas fa-chart-bar me-2"></i>Detection Session Summary
-              </h5>
-              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-              <!-- Session Stats -->
-              <div class="row mb-4">
-                <div class="col-md-3">
-                  <div class="text-center p-3 bg-success bg-opacity-10 rounded">
-                    <div class="display-6 text-success fw-bold">${detectionSession.totalReports}</div>
-                    <small class="text-muted">Total Detections</small>
-                  </div>
-                </div>
-                <div class="col-md-3">
-                  <div class="text-center p-3 bg-info bg-opacity-10 rounded">
-                    <div class="display-6 text-info fw-bold">${durationMinutes}:${durationSeconds.toString().padStart(2, '0')}</div>
-                    <small class="text-muted">Session Duration</small>
-                  </div>
-                </div>
-                <div class="col-md-3">
-                  <div class="text-center p-3 bg-warning bg-opacity-10 rounded">
-                    <div class="display-6 text-warning fw-bold">${detectionSession.uniqueHazards.size}</div>
-                    <small class="text-muted">Unique Hazards</small>
-                  </div>
-                </div>
-                <div class="col-md-3">
-                  <div class="text-center p-3 bg-primary bg-opacity-10 rounded">
-                    <div class="display-6 text-primary fw-bold">${detectionSession.savedReports}</div>
-                    <small class="text-muted">Saved Reports</small>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- Detection Details -->
-              <h6 class="mb-3"><i class="fas fa-list me-2"></i>Detection Breakdown</h6>
-              ${detectionGridHTML || '<p class="text-muted text-center py-4">No detections in this session</p>'}
-              
-              <!-- Recent Detections Timeline -->
-              <h6 class="mb-3 mt-4"><i class="fas fa-clock me-2"></i>Recent Activity</h6>
-              <div class="detection-timeline" style="max-height: 200px; overflow-y: auto;">
-                ${detectionSession.detections.slice(-10).reverse().map(detection => `
-                  <div class="d-flex align-items-center mb-2 p-2 bg-light rounded">
-                    <div class="flex-grow-1">
-                      <div class="fw-bold">${detection.type}</div>
-                      <small class="text-muted">${new Date(detection.timestamp).toLocaleTimeString()}</small>
-                    </div>
-                    <span class="badge bg-secondary">${(detection.confidence * 100).toFixed(1)}%</span>
-                  </div>
-                `).join('') || '<p class="text-muted text-center py-2">No recent activity</p>'}
-              </div>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-success" onclick="exportSessionData()">
-                <i class="fas fa-download me-2"></i>Export Data
-              </button>
-              <button type="button" class="btn btn-warning" onclick="resetSession()">
-                <i class="fas fa-refresh me-2"></i>Reset Session
-              </button>
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-    
-    // Remove existing modal and add new one
-    const existingModal = document.getElementById('detectionSessionModal');
-    if (existingModal) existingModal.remove();
-    
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
-    
-    // Show modal
-    const modal = new bootstrap.Modal(document.getElementById('detectionSessionModal'));
-    modal.show();
-  }
   
-  // Function to export session data
-  function exportSessionData() {
-    const sessionData = {
-      sessionStart: new Date(detectionSession.startTime).toISOString(),
-      sessionEnd: new Date().toISOString(),
-      duration: Date.now() - detectionSession.startTime,
-      totalDetections: detectionSession.totalReports,
-      uniqueHazardTypes: Array.from(detectionSession.uniqueHazards),
-      savedReports: detectionSession.savedReports,
-      detections: detectionSession.detections
-    };
-    
-    const blob = new Blob([JSON.stringify(sessionData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `detection-session-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    showToast('Session data exported successfully', 'success');
-  }
   
-  // Function to reset session
-  function resetSession() {
-    detectionSession = {
-      startTime: Date.now(),
-      detections: [],
-      totalReports: 0,
-      uniqueHazards: new Set(),
-      savedReports: 0
-    };
-    updateDetectionSessionSummary();
-    
-    // Close modal
-    const modal = bootstrap.Modal.getInstance(document.getElementById('detectionSessionModal'));
-    if (modal) modal.hide();
-    
-    showToast('Detection session reset', 'info');
-  }
-  
-  // Make functions globally available
-  window.showDetectionSessionSummary = showDetectionSessionSummary;
-  window.exportSessionData = exportSessionData;
-  window.resetSession = resetSession;
-  
-  // Start periodic session summary updates
-  setInterval(updateDetectionSessionSummary, 1000); // Update every second
   
   // Initialize session summary on page load
   updateDetectionSessionSummary();

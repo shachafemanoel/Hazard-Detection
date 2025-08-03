@@ -52,7 +52,7 @@ COPY package*.json ./
 
 # Copy models to unified location (only from public directory)
 RUN mkdir -p /app/models/pytorch
-COPY public/object_detecion_model/ ./models/pytorch/
+COPY public/object_detection_model/ ./models/pytorch/
 
 # Create CPU detection script
 COPY <<EOF /app/scripts/detect-cpu.py

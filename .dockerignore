@@ -24,8 +24,6 @@ public/object_detecion_model/best.pt
 public/object_detecion_model/best_yolo12m.pt
 public/object_detecion_model/last_model_train12052025.pt
 public/object_detecion_model/road_damage_detection_last_version.pt
-public/object_detecion_model/last_model_train12052025.onnx
-public/object_detecion_model/road_damage_detection_last_version.onnx
 
 # Scripts not needed for production
 scripts/

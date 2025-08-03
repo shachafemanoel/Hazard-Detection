@@ -63,12 +63,12 @@ if [[ -f "api/best.pt" ]]; then
     ((model_count++))
 fi
 
-if [[ -f "public/object_detecion_model/best.pt" ]]; then
+if [[ -f "public/object_detection_model/best.pt" ]]; then
     echo -e "${GREEN}✅ PyTorch model (public/best.pt) found${NC}"
     ((model_count++))
 fi
 
-onnx_count=$(find public/object_detecion_model -name "*.onnx" 2>/dev/null | wc -l || echo 0)
+onnx_count=$(find public/object_detection_model -name "*.onnx" 2>/dev/null | wc -l || echo 0)
 if [[ $onnx_count -gt 0 ]]; then
     echo -e "${GREEN}✅ ONNX models found: $onnx_count files${NC}"
 fi

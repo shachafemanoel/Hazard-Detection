@@ -14,7 +14,7 @@ hazard-detection/
 │   ├── *.html                 # HTML pages
 │   ├── js/                    # JavaScript files
 │   ├── css/                   # Stylesheets
-│   ├── object_detecion_model/ # AI models for browser
+│   ├── object_detection_model/ # AI models for browser
 │   └── ort/                   # ONNX Runtime files
 ├── 📁 server/                 # Node.js Express server
 │   └── routes/                # Server routes
