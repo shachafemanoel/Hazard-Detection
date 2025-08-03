@@ -187,9 +187,28 @@ app.use(
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// 🔗 External API URL for separate deployment
-const API_URL = process.env.API_URL || process.env.HAZARD_API_URL || 'https://hazard-api-production-production.up.railway.app';
-console.log(`🔗 Using external API URL: ${API_URL}`);
+// 🔗 API URL using private-first networking
+const { resolveBaseUrl } = require('../../lib/realtimeClient');
+
+// Determine API URL with private network preference
+let API_URL;
+try {
+  // In production, prefer private network, fallback to public
+  const privateUrl = process.env.HAZARD_API_URL_PRIVATE || 'http://ideal-learning.railway.internal:8080';
+  const publicUrl = process.env.HAZARD_API_URL_PUBLIC || 'https://hazard-api-production-production.up.railway.app';
+  
+  // For Railway deployment, use private network
+  if (process.env.RAILWAY_ENVIRONMENT) {
+    API_URL = privateUrl;
+    console.log(`🔒 Using private network API URL: ${API_URL}`);
+  } else {
+    API_URL = process.env.API_URL || process.env.HAZARD_API_URL || publicUrl;
+    console.log(`🌐 Using external API URL: ${API_URL}`);
+  }
+} catch (error) {
+  API_URL = 'https://hazard-api-production-production.up.railway.app';
+  console.log(`⚠️ Fallback to public API URL: ${API_URL}`);
+}
 
 // API request helper function
 async function makeApiRequest(endpoint, options = {}) {
