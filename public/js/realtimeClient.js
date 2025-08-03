@@ -22,18 +22,6 @@ class RealtimeClient {
       status: [],
     };
 
-    // Private/public endpoints
-    this.endpoints = {
-      private: 'http://ideal-learning.railway.internal:8080',
-      public: 'https://hazard-api-production-production.up.railway.app'
-    };
-
-    // Override from environment if available (for server-side usage)
-    if (typeof process !== 'undefined' && process.env) {
-      this.endpoints.private = process.env.HAZARD_API_URL_PRIVATE || this.endpoints.private;
-      this.endpoints.public = process.env.HAZARD_API_URL_PUBLIC || this.endpoints.public;
-    }
-
     this._requestInterceptor = this._createRequestInterceptor();
   }
 
@@ -64,56 +52,13 @@ class RealtimeClient {
     });
   }
 
-  async probeHealth(baseUrl, timeout = 2000) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-      const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/health`, {
-        method: 'GET',
-        signal: controller.signal,
-        headers: {
-          'User-Agent': 'Hazard-Detection-Realtime/1.0'
-        }
-      });
-
-      clearTimeout(timeoutId);
-      return response.ok;
-    } catch (error) {
-      return false;
-    }
-  }
-
-  async resolveBaseUrl() {
-    // Check for configuration override
-    const preference = this.config.networkPreference || 'auto';
-    
-    if (preference === 'private') {
-      console.log('🔧 Private network forced via config');
-      return this.endpoints.private;
-    }
-    if (preference === 'public') {
-      console.log('🔧 Public network forced via config');
-      return this.endpoints.public;
-    }
-
-    // Auto-selection: probe private first, then public
-    if (await this.probeHealth(this.endpoints.private)) {
-      console.log('🔒 Private network selected');
-      return this.endpoints.private;
-    }
-    if (await this.probeHealth(this.endpoints.public)) {
-      console.log('🌐 Public network selected');
-      return this.endpoints.public;
-    }
-    
-    throw new Error('No healthy endpoint found (private/public)');
-  }
-
   async connect() {
     this.setStatus('connecting');
     try {
-      this.baseUrl = await this.resolveBaseUrl();
+      if (typeof HazardNetUtils === 'undefined') {
+        throw new Error('HazardNetUtils is not loaded. Please include network.js');
+      }
+      this.baseUrl = await HazardNetUtils.resolveBaseUrl(this.config.networkPreference);
       
       const headers = {
         'User-Agent': 'Hazard-Detection-Realtime/1.0',

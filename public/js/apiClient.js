@@ -1,8 +1,30 @@
 // apiClient.js - Hazard Detection API Client
 // Based on Node.js Integration Guide patterns
 const DEFAULT_TIMEOUT = 30000; // 30 seconds for image processing
-// Use local server proxy to avoid CORS issues
-let API_URL = '/api/v1';
+
+// Use a lazy-initialized promise to resolve the API URL
+let apiUrlPromise = null;
+function getApiUrlInternal() {
+  if (!apiUrlPromise) {
+    if (typeof HazardNetUtils === 'undefined') {
+      console.error('HazardNetUtils not loaded. Defaulting to proxy /api/v1.');
+      // Use a resolved promise with the fallback value
+      apiUrlPromise = Promise.resolve('/api/v1');
+    } else {
+      console.log('Resolving API base URL...');
+      apiUrlPromise = HazardNetUtils.resolveBaseUrl('auto')
+        .then(url => {
+          console.log(`API base URL resolved to: ${url}`);
+          return url;
+        })
+        .catch(err => {
+          console.error('Failed to resolve API URL, falling back to proxy /api/v1.', err);
+          return '/api/v1'; // Fallback URL
+        });
+    }
+  }
+  return apiUrlPromise;
+}
 
 // Initialize API failure tracking
 let apiFailureCount = 0;
@@ -10,19 +32,21 @@ const maxRetries = 3;
 const retryDelay = 1000; // 1 second
 
 async function loadApiConfig() {
+  const API_URL = await getApiUrlInternal();
   // API configuration for Hazard Detection service
   // Following integration guide patterns - always use proxy endpoint
   try {
-    console.log('🔧 API configuration loaded via proxy:', API_URL);
+    console.log('🔧 API configuration loaded for:', API_URL);
     return { baseURL: API_URL, timeout: DEFAULT_TIMEOUT };
   } catch (error) {
-    console.warn('⚠️ Failed to load API config, using proxy defaults:', error);
+    console.warn('⚠️ Failed to load API config, using defaults for:', API_URL, error);
     return { baseURL: API_URL, timeout: DEFAULT_TIMEOUT };
   }
 }
 
 // Health check - following integration guide patterns
 async function checkHealth() {
+  const API_URL = await getApiUrlInternal();
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
   try {
@@ -77,6 +101,7 @@ async function testApiConnection() {
 
 // Start session - following integration guide patterns
 async function startSession() {
+  const API_URL = await getApiUrlInternal();
   try {
     const res = await fetch(`${API_URL}/session/start`, { 
       method: "POST",
@@ -108,6 +133,7 @@ async function startApiSession() {
 
 // Detect hazards with session - following integration guide patterns
 async function detectHazards(sessionId, imageBlob) {
+  const API_URL = await getApiUrlInternal();
   try {
     if (!sessionId) {
       throw new Error('Session ID is required for detection');
@@ -160,6 +186,7 @@ async function detectWithApi(sessionId, blob) {
 
 // Legacy single detection (without session) - following integration guide patterns
 async function detectSingle(imageBlob) {
+  const API_URL = await getApiUrlInternal();
   try {
     if (!imageBlob || imageBlob.size === 0) {
       throw new Error('Valid image blob is required');
@@ -192,6 +219,7 @@ async function detectSingle(imageBlob) {
 
 // Batch detection - following integration guide patterns
 async function detectBatch(imageBlobs) {
+  const API_URL = await getApiUrlInternal();
   try {
     if (!Array.isArray(imageBlobs) || imageBlobs.length === 0) {
       throw new Error('Array of image blobs is required for batch detection');
@@ -229,6 +257,7 @@ async function detectBatch(imageBlobs) {
 
 // Get session summary - following integration guide patterns
 async function getSessionSummary(sessionId) {
+  const API_URL = await getApiUrlInternal();
   try {
     if (!sessionId) {
       throw new Error('Session ID is required');
@@ -257,6 +286,7 @@ async function getSessionSummary(sessionId) {
 
 // End session - following integration guide patterns
 async function endSession(sessionId) {
+  const API_URL = await getApiUrlInternal();
   try {
     if (!sessionId) {
       return { message: "No active session" };
@@ -292,6 +322,7 @@ async function endApiSession(sessionId) {
 
 // Confirm report - following integration guide patterns
 async function confirmReport(sessionId, reportId) {
+  const API_URL = await getApiUrlInternal();
   try {
     if (!sessionId || !reportId) {
       throw new Error('Session ID and Report ID are required');
@@ -321,6 +352,7 @@ async function confirmReport(sessionId, reportId) {
 
 // Dismiss report - following integration guide patterns
 async function dismissReport(sessionId, reportId) {
+  const API_URL = await getApiUrlInternal();
   try {
     if (!sessionId || !reportId) {
       throw new Error('Session ID and Report ID are required');
@@ -433,9 +465,9 @@ async function isApiAvailable() {
   }
 }
 
-// Export API_URL for debugging purposes
+// Export API_URL promise for debugging purposes
 function getApiUrl() {
-  return API_URL;
+  return getApiUrlInternal();
 }
 
 // Make functions globally available - following integration guide patterns
