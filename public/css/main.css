@@ -183,13 +183,25 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 8px 24px var(--glow-primary);
 }
 
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
 .stat-card {
   display: flex;
   align-items: center;
   gap: 1.5rem;
+  padding: 1rem;
 }
 
 .stat-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 3rem;
   color: var(--accent);
   text-shadow: 0 0 10px var(--glow-primary);
@@ -203,7 +215,7 @@ input:focus, select:focus, textarea:focus {
 
 .stat-content p {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: 1rem;
   color: var(--text-secondary);
 }
 
@@ -222,11 +234,63 @@ input:focus, select:focus, textarea:focus {
   border-radius: var(--radius);
 }
 
+.table-controls {
+  display: flex;
+  flex-wrap: wrap;
+  margin: -0.5rem;
+}
+
+.table-controls > * {
+  margin: 0.5rem;
+}
+
+.table-controls .form-switch .form-check-input {
+  width: 3rem;
+  height: 2rem;
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+}
+
+.table-controls .form-switch .form-check-input:checked {
+  background-color: var(--accent);
+}
+
+.table-controls .form-switch .form-check-input:focus {
+  box-shadow: none;
+}
+
+#reports-management-table .type-badge {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+}
+
 table {
   width: 100%;
   background: transparent;
   color: var(--text);
   border-collapse: collapse;
+}
+
+#reports-management-table thead th {
+  padding: 0.75rem;
+}
+
+#reports-management-table thead th[data-sort="id"],
+#reports-management-table thead th[data-sort="type"] {
+  text-align: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+#reports-management-table tbody tr {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#reports-management-table tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
 th {
@@ -306,6 +370,10 @@ tr:hover {
 .nav-toggle-btn:hover {
   transform: scale(1.1) rotate(15deg);
   box-shadow: 0 0 15px var(--glow-primary);
+}
+
+.hamburger {
+  z-index: 10;
 }
 
 .nav-menu-content {
@@ -474,6 +542,52 @@ tr:hover {
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.upload-card {
+  margin-bottom: 1.5rem;
+}
+
+.upload-card .form-label {
+  color: #ddd;
+}
+
+#confidence-slider {
+  height: 8px;
+}
+
+#confidence-slider::-webkit-slider-runnable-track {
+  height: 8px;
+}
+
+#confidence-slider::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--accent);
+  margin-top: -4px;
+}
+
+#confidence-slider::-moz-range-track {
+  height: 8px;
+}
+
+#confidence-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--accent);
+}
+
+.detection-input {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.upload-action-btn {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
 }
 
 /* Main Content Adjustments */
