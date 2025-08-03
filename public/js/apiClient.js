@@ -1,8 +1,7 @@
 // apiClient.js - Hazard Detection API Client
 // Based on Node.js Integration Guide patterns
 const DEFAULT_TIMEOUT = 30000; // 30 seconds for image processing
-// Always talk to the backend through the same origin proxy
-// exposed by server.js under the /api/v1 prefix
+// Use local server proxy to avoid CORS issues
 let API_URL = '/api/v1';
 
 // Initialize API failure tracking
@@ -29,9 +28,10 @@ async function checkHealth() {
   try {
     const res = await fetch(`${API_URL}/health`, { 
       signal: controller.signal,
+      method: 'GET',
       headers: {
         'Accept': 'application/json',
-        'User-Agent': 'Hazard-Detection-Web/1.0'
+        'Content-Type': 'application/json'
       }
     });
     clearTimeout(id);

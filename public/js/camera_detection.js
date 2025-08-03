@@ -8,7 +8,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const settingsBtn = document.getElementById("settings-btn");
   const video = document.getElementById("camera-stream");
   const canvas = document.getElementById("overlay-canvas");
-  const ctx = canvas ? canvas.getContext("2d") : null;
+  const ctx = canvas.getContext("2d");
   const sensitivitySlider = document.getElementById("sensitivity-slider");
   const settingsPanel = document.getElementById("settings-panel");
   const loadingOverlay = document.getElementById("loading-overlay");
@@ -27,8 +27,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const fpsBadge = document.getElementById("fps-badge");
 
   // Summary modal elements
-  const summaryModalElement = document.getElementById('summaryModal');
-  const summaryModal = summaryModalElement ? new bootstrap.Modal(summaryModalElement) : null;
+  const summaryModal = new bootstrap.Modal(document.getElementById('summaryModal'));
   const exportSummaryBtn = document.getElementById("export-summary");
   const viewDashboardBtn = document.getElementById("view-dashboard");
   const totalDetectionsCount = document.getElementById("total-detections-count");
@@ -37,29 +36,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   const detectionsGrid = document.getElementById("detections-grid");
   const savedReportsList = document.getElementById("saved-reports-list");
 
-  // Check for critical DOM elements
-  if (!video || !canvas || !ctx) {
-    console.error("❌ Critical DOM elements missing: video, canvas, or canvas context");
-    console.error("Make sure you're on the camera page with proper HTML structure");
-    showNotification("Camera detection not available on this page", 'error');
-    return; // Exit early if critical elements are missing
-  }
+  // Constants
+  const FIXED_SIZE = 480;
+  const API_HEALTH_CHECK_INTERVAL = 10000; // 10 seconds
+  const SESSION_UPDATE_INTERVAL = 1000; // 1 second
+  const DEFAULT_SAVE_INTERVAL = 120; // frames
+  const PERFORMANCE_UPDATE_INTERVAL = 1000; // 1 second
 
-  // Enhanced Road Damage Detection Configuration
-  const FIXED_SIZE = 480; // Optimized input size for real-time detection
-  
-  // Road Damage Classes (mapping to model's 10 classes)
-  const classNames = [
-    'Alligator Crack',    // 0: Interconnected cracking resembling alligator skin
-    'Block Crack',        // 1: Rectangular crack patterns in pavement
-    'Crosswalk Blur',     // 2: Faded or unclear crosswalk markings
-    'Lane Blur',          // 3: Faded or unclear lane markings
-    'Longitudinal Crack', // 4: Cracks parallel to traffic direction
-    'Manhole',            // 5: Manhole covers and surrounding issues
-    'Patch Repair',       // 6: Previous repair work areas
-    'Pothole',            // 7: Circular/oval holes in road surface
-    'Transverse Crack',   // 8: Cracks perpendicular to traffic direction
-    'Wheel Mark Crack'    // 9: Cracks caused by wheel loading
+  // Road Damage Classes
+  const CLASS_NAMES = [
+    'Alligator Crack', 'Block Crack', 'Crosswalk Blur', 'Lane Blur',
+    'Longitudinal Crack', 'Manhole', 'Patch Repair', 'Pothole',
+    'Transverse Crack', 'Wheel Mark Crack'
   ];
 
   // Camera Detection Session Tracking
@@ -127,17 +115,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Function to show camera session summary
   function showCameraSessionSummary() {
     updateSummaryData();
-    if (summaryModal) {
-      summaryModal.show();
-    } else {
-      console.log("📊 Summary would be shown here (modal not available)");
-    }
+    summaryModal.show();
   }
 
   function hideSummaryModal() {
-    if (summaryModal) {
-      summaryModal.hide();
-    }
+    summaryModal.hide();
   }
   
   // Start periodic camera session updates
@@ -155,8 +137,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (isHealthy) {
           console.log("✅ Periodic health check passed");
           // Reset failure count when model becomes ready
-          if (window.getApiFailureCount() > 0) {
-            window.resetApiFailureCount();
+          if (window.apiFailureCount > 0) {
+            window.apiFailureCount = 0;
             console.log("🔄 Model ready - resetting API failure count");
           }
         }
@@ -251,54 +233,39 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Function to handle different API error types and implement fallbacks
   function handleApiError(error) {
     const errorMessage = error.message || '';
-    
-    // Handle model loading/startup errors (PyTorch, OpenVino, etc.)
-    if (errorMessage.includes('model not loaded') || 
-        errorMessage.includes('Service may still be starting') ||
-        errorMessage.includes('Model is loading') ||
-        errorMessage.includes('Backend not ready') ||
-        errorMessage.includes('PyTorch model not loaded') ||
-        errorMessage.includes('OpenVino model not loaded') ||
-        errorMessage.includes('Model initialization')) {
+    const modelLoadingErrors = ['model not loaded', 'Service may still be starting', 'Model is loading', 'Backend not ready', 'PyTorch model not loaded', 'OpenVino model not loaded', 'Model initialization'];
+    const backendDependencyErrors = ['ExportOptions', 'torch.onnx._internal.exporter'];
+    const imageFormatErrors = ['cvtColor', 'OpenCV'];
+    const sessionErrors = ['Session', '404'];
+
+    if (modelLoadingErrors.some(e => errorMessage.includes(e))) {
       console.warn('🚀 Backend model still loading - this is temporary during startup');
-      console.log('💡 Model backend (OpenVino/PyTorch) is initializing, will retry automatically');
-      
-      // Don't disable API completely, just skip this detection cycle
       showNotification('Backend model loading - will use when ready', 'info');
       updateConnectionStatus('connected', 'API Connected (Model Loading...)');
-      
-      return true; // Error handled, but keep API available
+      return true;
     }
-    
-    // Handle specific PyTorch ONNX export error
-    if (errorMessage.includes('ExportOptions') || errorMessage.includes('torch.onnx._internal.exporter')) {
+
+    if (backendDependencyErrors.some(e => errorMessage.includes(e))) {
       console.warn('🔧 PyTorch ONNX export error detected - this is a backend dependency issue');
-      console.log('💡 Suggestion: Backend needs PyTorch update or ONNX export fix');
-      
-      // Temporarily disable API detection for this session
       apiAvailable = false;
       useApi = false;
-      
       showNotification('Backend model error detected - using local detection only', 'warning');
       updateConnectionStatus('warning', 'Local ONNX Detection (Backend Issue)');
-      
-      return true; // Error handled
+      return true;
     }
-    
-    // Handle OpenCV image format errors
-    if (errorMessage.includes('cvtColor') || errorMessage.includes('OpenCV')) {
+
+    if (imageFormatErrors.some(e => errorMessage.includes(e))) {
       console.warn('🖼️ Image format error - adjusting image preprocessing');
-      return false; // Continue with other error handling
+      return false;
     }
-    
-    // Handle session/authentication errors
-    if (errorMessage.includes('Session') || errorMessage.includes('404')) {
+
+    if (sessionErrors.some(e => errorMessage.includes(e))) {
       console.log('🔄 Session expired - will create new session');
       apiSessionId = null;
-      return false; // Continue with session recreation
+      return false;
     }
-    
-    return false; // Unknown error, continue with default handling
+
+    return false;
   }
   
   // Make camera session functions globally available
@@ -364,6 +331,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   };
 
   let sessionDetectionsSummary = []; // Store detailed detection information for summary
+  let savedImagesCount = 0; // Track number of saved images
+  let DETECTION_SAVE_INTERVAL = 120; // Default save interval
 
   // Object tracking state
   let trackedObjects = new Map();
@@ -394,7 +363,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       // Fix class ID mapping
       const correctedClassId = Math.floor(classId) - 1;
       const classIndex = Math.max(0, correctedClassId);
-      const labelName = classNames[classIndex] || `Unknown Class ${classIndex}`;
+      const labelName = CLASS_NAMES[classIndex] || `Unknown Class ${classIndex}`;
       
       // Scale coordinates to canvas size
       const scaleX = detectionCanvas.width / FIXED_SIZE;
@@ -436,8 +405,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     return detectionCanvas;
   }
 
-  // Upload detection image to server
-  async function uploadToServer(canvas, detections) {
+  // Upload detection image to Cloudinary
+  async function uploadToCloudinary(canvas, detections) {
     return new Promise((resolve, reject) => {
       canvas.toBlob(async (blob) => {
         if (!blob) return reject("❌ No blob from canvas");
@@ -451,13 +420,15 @@ document.addEventListener("DOMContentLoaded", async () => {
               const correctedClassId = Math.floor(classId) - 1;
               const classIndex = Math.max(0, correctedClassId);
               return {
-                class: classNames[classIndex] || `Unknown Class ${classIndex}`,
+                class: CLASS_NAMES[classIndex] || `Unknown Class ${classIndex}`,
                 confidence: score,
                 bbox: [x1, y1, x2, y2]
               };
             }),
             timestamp: new Date().toISOString(),
-            source: 'live_camera'
+            source: 'live_camera_detection',
+            sessionId: apiSessionId || 'local_session',
+            frameNumber: frameCount
           }));
 
           const response = await fetch('/api/upload-detection', {
@@ -467,18 +438,15 @@ document.addEventListener("DOMContentLoaded", async () => {
 
           if (response.ok) {
             const result = await response.json();
-            console.log("✅ Detection uploaded to server:", result);
-            resolve(result.url || result.path);
+            console.log("✅ Detection uploaded to Cloudinary:", result);
+            resolve(result.url || result.secure_url);
           } else {
-            throw new Error(`Server upload failed: ${response.status}`);
+            const errorText = await response.text();
+            throw new Error(`Cloudinary upload failed: ${response.status} - ${errorText}`);
           }
         } catch (error) {
-          console.warn("Server upload failed, using data URL:", error);
-          // Fallback to data URL
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
+          console.error("Cloudinary upload error:", error);
+          reject(error);
         }
       }, "image/jpeg", 0.9);
     });
@@ -516,18 +484,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Ensure canvas dimensions always match the displayed video
   function syncCanvasSize() {
-    if (!video || !canvas) {
-      console.log('🖼️ Canvas sync skipped - video or canvas not available');
-      return;
-    }
+    if (!video || !canvas) return;
     const width = video.clientWidth || video.videoWidth;
     const height = video.clientHeight || video.videoHeight;
-    if (width && height) {
-      canvas.width = width;
-      canvas.height = height;
-      canvas.style.width = width + 'px';
-      canvas.style.height = height + 'px';
-    }
+    canvas.width = width;
+    canvas.height = height;
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
   }
 
   // Keep canvas in sync when the window resizes
@@ -535,44 +498,23 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Update UI status
   function updateConnectionStatus(status, message) {
-    if (!connectionStatus) {
-      console.log(`🔗 Status: ${status} - ${message}`);
-      return;
-    }
-    
     const indicator = connectionStatus.querySelector('.status-indicator');
     const text = connectionStatus.querySelector('.status-text');
     
-    if (indicator) {
-      indicator.className = `fas fa-circle status-indicator ${status}`;
-    }
-    if (text) {
-      text.textContent = message;
-    }
-    
-    console.log(`🔗 Status updated: ${status} - ${message}`);
+    indicator.className = `fas fa-circle status-indicator ${status}`;
+    text.textContent = message;
   }
 
-  // Show loading overlay with progress
+// Show loading overlay with progress
   function showLoading(message, progress = 0) {
-    if (loadingStatus) {
-      loadingStatus.textContent = message;
-    }
-    if (loadingProgressBar) {
-      loadingProgressBar.style.width = `${progress}%`;
-    }
-    if (loadingOverlay) {
-      loadingOverlay.style.display = 'flex';
-    }
-    console.log(`⏳ Loading: ${message} (${progress}%)`);
+    loadingStatus.textContent = message;
+    loadingProgressBar.style.width = `${progress}%`;
+    loadingOverlay.style.display = 'flex';
   }
 
   // Hide loading overlay
   function hideLoading() {
-    if (loadingOverlay) {
-      loadingOverlay.style.display = 'none';
-    }
-    console.log('✅ Loading complete');
+    loadingOverlay.style.display = 'none';
   }
 
   // Show notification
@@ -581,12 +523,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
 
-  // End API detection session using standardized API client
+  // End API detection session using API client
   async function endApiSessionLocal() {
     if (!apiSessionId) return { message: "No active session" };
     
     try {
-      const result = await window.endSession(apiSessionId);
+      const result = await window.endApiSession(apiSessionId);
       apiSessionId = null;
       return result;
     } catch (error) {
@@ -664,12 +606,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       
       // Test API connection
       showLoading("Testing API connection...", 10);
-      apiAvailable = await window.isApiAvailable();
+      apiAvailable = await window.testApiConnection();
       
       if (apiAvailable) {
         try {
           showLoading("Starting API session...", 15);
-          apiSessionId = await window.startSession();
+          apiSessionId = await window.startApiSession();
           showNotification('API connected and session started', 'success');
           updateConnectionStatus('connected', 'Enhanced Mode (API + ONNX)');
         } catch (error) {
@@ -900,8 +842,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         return [];
       }
 
-      // Use standardized API client for detection
-      const result = await window.detectHazards(apiSessionId, blob);
+      // Use API client for detection
+      const result = await window.detectWithApi(apiSessionId, blob);
       
       // Log new detections for debugging
       if (result.detections && result.detections.length > 0) {
@@ -912,8 +854,8 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
 
       // Reset failure count on successful API call
-      if (window.getApiFailureCount() > 0) {
-        window.resetApiFailureCount();
+      if (window.apiFailureCount > 0) {
+        window.apiFailureCount = 0;
         console.log("✅ API detection recovered");
       }
 
@@ -921,7 +863,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       // API returns bbox as [x, y, width, height], we need [x1, y1, x2, y2]
       return result.detections.map(det => {
         const [x, y, width, height] = det.bbox;
-        const classIndex = classNames.indexOf(det.class_name);
+        const classIndex = CLASS_NAMES.indexOf(det.class_name);
         
         return [
           x,                    // x1
@@ -943,20 +885,20 @@ document.addEventListener("DOMContentLoaded", async () => {
         showNotification('API detection temporarily unavailable', 'warning');
       }
       
-      // Handle failure counting using standardized API client
+      // Handle failure counting
       if (!error.message.includes('model not loaded') && 
           !error.message.includes('Service may still be starting') &&
           !error.message.includes('PyTorch model not loaded') &&
           !error.message.includes('OpenVino model not loaded')) {
+        if (!window.apiFailureCount) window.apiFailureCount = 0;
+        window.apiFailureCount++;
         
-        const currentFailures = window.getApiFailureCount();
-        
-        if (currentFailures > 5) {
+        if (window.apiFailureCount > 5) {
           console.warn("🚫 Too many API failures, temporarily disabling API detection");
           useApi = false;
           // Re-enable after 30 seconds
           setTimeout(() => {
-            window.resetApiFailureCount();
+            window.apiFailureCount = 0;
             useApi = true;
             console.log("🔄 Re-enabling API detection");
           }, 30000);
@@ -967,7 +909,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // Enhanced detection saving with bounding box images
+  // Enhanced detection saving with Cloudinary integration
   async function saveDetection(videoElement, detections, primaryDetection) {
     try {
       if (!videoElement || detections.length === 0) {
@@ -980,12 +922,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       
       let imageUrl;
       
-      // Try server upload first, fallback to data URL
+      // Upload to Cloudinary via server endpoint
       try {
-        imageUrl = await uploadToServer(detectionCanvas, detections);
-        console.log("☁️ Detection image uploaded to server");
+        imageUrl = await uploadToCloudinary(detectionCanvas, detections);
+        console.log("☁️ Detection image uploaded to Cloudinary:", imageUrl);
       } catch (uploadError) {
-        console.warn("⚠️ Server upload failed, using data URL:", uploadError.message);
+        console.warn("⚠️ Cloudinary upload failed, using data URL:", uploadError.message);
         imageUrl = detectionCanvas.toDataURL("image/jpeg", 0.9);
       }
 
@@ -993,7 +935,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const [x1, y1, x2, y2, score, classId] = primaryDetection;
       const correctedClassId = Math.floor(classId) - 1;
       const classIndex = Math.max(0, correctedClassId);
-      const label = classNames[classIndex] || `Unknown Class ${classIndex}`;
+      const label = CLASS_NAMES[classIndex] || `Unknown Class ${classIndex}`;
 
       const report = {
         type: label,
@@ -1012,7 +954,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           const dcorrectedClassId = Math.floor(dclassId) - 1;
           const dclassIndex = Math.max(0, dcorrectedClassId);
           return {
-            type: classNames[dclassIndex] || `Unknown Class ${dclassIndex}`,
+            type: CLASS_NAMES[dclassIndex] || `Unknown Class ${dclassIndex}`,
             confidence: dscore,
             bbox: [dx1, dy1, dx2, dy2]
           };
@@ -1031,12 +973,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         allDetections: report.allDetections
       });
 
+      // Update saved images count
+      savedImagesCount++;
+      updateSavedImagesDisplay();
+
       console.log("📝 Detection with image queued:", { 
         type: label, 
         confidence: `${Math.round(score * 100)}%`, 
         timestamp: report.time,
         mode: report.detectionMode,
-        imageType: imageUrl.startsWith('data:') ? 'dataURL' : 'server',
+        imageType: imageUrl.startsWith('data:') ? 'dataURL' : 'cloudinary',
         totalDetections: detections.length
       });
     } catch (err) {
@@ -1429,7 +1375,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
       currentFrameDetections++;
-      const labelName = classNames[classIndex] || `Unknown Class ${classIndex}`;
+      const labelName = CLASS_NAMES[classIndex] || `Unknown Class ${classIndex}`;
       
       console.log(`🔍 Camera Detection: Raw classId=${classId}, Corrected=${classIndex}, Label="${labelName}"`);  // Debug log
       
@@ -1469,7 +1415,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
 
       // Save detection periodically with bounding box image
-      if (frameCount % 120 === 0 && !isInterpolated) { // Save every 2 seconds for real detections only
+      if (frameCount % DETECTION_SAVE_INTERVAL === 0 && !isInterpolated) { // Save based on user setting
         // Get current frame detections for this class
         const currentFrameDetections = [];
         for (const [id, trackedObj] of trackedObjects) {
@@ -1486,26 +1432,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // Update statistics
-    if (currentDetections) {
-      currentDetections.textContent = currentFrameDetections;
-    }
+    currentDetections.textContent = currentFrameDetections;
     detectionStats.totalDetections += currentFrameDetections;
-    if (sessionDetections) {
-      sessionDetections.textContent = detectionStats.totalDetections;
-    }
-    if (detectionCountBadge) {
-      detectionCountBadge.textContent = `${currentFrameDetections} hazards`;
-    }
+    sessionDetections.textContent = detectionStats.totalDetections;
+    detectionCountBadge.textContent = `${currentFrameDetections} hazards`;
 
     // Update hazard types list
-    if (hazardTypesList) {
-      if (detectedTypes.size > 0) {
-        hazardTypesList.innerHTML = Array.from(detectedTypes)
-          .map(type => `<div class="hazard-type">${type}</div>`)
-          .join('');
-      } else {
-        hazardTypesList.innerHTML = '<div class="no-hazards">No hazards detected</div>';
-      }
+    if (detectedTypes.size > 0) {
+      hazardTypesList.innerHTML = Array.from(detectedTypes)
+        .map(type => `<div class="hazard-type">${type}</div>`)
+        .join('');
+    } else {
+      hazardTypesList.innerHTML = '<div class="no-hazards">No hazards detected</div>';
     }
   }
 
@@ -1516,20 +1454,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     
     if (now - lastFpsUpdate >= 1000) {
       const fps = Math.round(fpsCounter * 1000 / (now - lastFpsUpdate));
-      if (fpsDisplay) {
-        fpsDisplay.textContent = fps;
-      }
-      if (fpsBadge) {
-        fpsBadge.textContent = `${fps} FPS`;
-      }
+      fpsDisplay.textContent = fps;
+      fpsBadge.textContent = `${fps} FPS`;
       
       // Average processing time
       const avgProcessingTime = detectionStats.frameProcessingTimes.length > 0 
         ? Math.round(detectionStats.frameProcessingTimes.reduce((a, b) => a + b, 0) / detectionStats.frameProcessingTimes.length)
         : 0;
-      if (processingTime) {
-        processingTime.textContent = `${avgProcessingTime}ms`;
-      }
+      processingTime.textContent = `${avgProcessingTime}ms`;
       
       // Performance monitoring for adaptive quality
       performanceHistory.push({
@@ -1587,38 +1519,31 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Add detecting class to camera wrapper
   function setDetectingState(isDetecting) {
-    const cameraWrapper = document.getElementById('camera-wrapper');
-    if (cameraWrapper) {
-      if (isDetecting) {
-        cameraWrapper.classList.add('detecting');
-      } else {
-        cameraWrapper.classList.remove('detecting');
-      }
+      const cameraWrapper = document.getElementById('camera-wrapper');
+    if (isDetecting) {
+      cameraWrapper.classList.add('detecting');
     } else {
-      console.log(`🎥 Camera state: ${isDetecting ? 'detecting' : 'stopped'} (wrapper not available)`);
+      cameraWrapper.classList.remove('detecting');
     }
   }
   // Set initial state of buttons
   function updateButtonStates() {
-    if (detecting) {
-      if (startBtn) startBtn.style.display = "none";
-      if (stopBtn) stopBtn.style.display = "inline-block";
-      if (switchCameraBtn) switchCameraBtn.style.display = "inline-block";
-    } else {
-      if (startBtn) startBtn.style.display = "inline-block";
-      if (stopBtn) stopBtn.style.display = "none";
-      if (switchCameraBtn) switchCameraBtn.style.display = "none";
-    }
-    console.log(`🎮 Button states updated: detecting=${detecting}`);
+      if (detecting) {
+          startBtn.style.display = "none";
+          stopBtn.style.display = "inline-block";
+          switchCameraBtn.style.display = "inline-block";
+      } else {
+          startBtn.style.display = "inline-block";
+          stopBtn.style.display = "none";
+          switchCameraBtn.style.display = "none";
+      }
   }
   // Main detection loop with improved frame handling
   async function detectionLoop() {
     if (!detecting || !session) return;
 
     frameCount++;
-    if (frameCountDisplay) {
-      frameCountDisplay.textContent = frameCount;
-    }
+    frameCountDisplay.textContent = frameCount;
 
     if (!letterboxParams) computeLetterboxParams();
 
@@ -1674,18 +1599,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     requestAnimationFrame(detectionLoop);
   }
 
-  // Event Listeners - only add if elements exist
-  if (startBtn) {
-    startBtn.addEventListener("click", async () => {
+  // Event Listeners
+  startBtn.addEventListener("click", async () => {
     if (!session) {
       showNotification("Model not loaded. Please wait for model initialization.", 'warning');
       return;
     }
 
     try {
-      if (startBtn) {
-        startBtn.disabled = true;
-      }
+      startBtn.disabled = true;
       updateConnectionStatus('processing', 'Starting Camera...');
 
       // API session was already started during initialization
@@ -1730,16 +1652,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       console.error("Camera error:", err);
       detecting = false;
       updateButtonStates();
-      if (startBtn) {
-        startBtn.disabled = false;
-      }
+      startBtn.disabled = false;
       updateConnectionStatus('ready', 'System Ready');
     }
-    });
-  }
+  });
 
-  if (stopBtn) {
-    stopBtn.addEventListener("click", async () => {
+  stopBtn.addEventListener("click", async () => {
     detecting = false;
 
     setDetectingState(false);
@@ -1750,13 +1668,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     video.srcObject = null;
 
     updateButtonStates();
-    if (startBtn) {
-      startBtn.disabled = false;
-    }
+    startBtn.disabled = false;
 
-    if (ctx && canvas) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     console.log("Camera stopped");
     
     // End camera session tracking
@@ -1805,12 +1719,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     // They will be reset when starting a new session
 
     updateConnectionStatus('ready', 'System Ready');
-    });
-  }
+  });
 
   // switch camera
-  if (switchCameraBtn) {
-    switchCameraBtn.addEventListener("click", async () => {
+  switchCameraBtn.addEventListener("click", async () => {
     if (!detecting) return;
     
     currentCamera = currentCamera === 'user' ? 'environment' : 'user';
@@ -1841,62 +1753,66 @@ document.addEventListener("DOMContentLoaded", async () => {
       showNotification("Failed to switch camera", 'error');
       console.error("Camera switch error:", err);
     }
-    });
-  }
+  });
 
-  // Settings button toggle
-  if (settingsBtn) {
-    settingsBtn.addEventListener("click", () => {
-      if (settingsPanel) {
-        settingsPanel.classList.toggle('show');
-      }
-    });
-  }
+  // Settings button toggle with accessibility
+  settingsBtn.addEventListener("click", () => {
+    const isExpanded = settingsPanel.classList.contains('show');
+    settingsPanel.classList.toggle('show');
+    settingsBtn.setAttribute('aria-expanded', !isExpanded);
+    settingsPanel.setAttribute('aria-hidden', isExpanded);
+  });
 
-  // sensitivity
-  if (sensitivitySlider) {
-    sensitivitySlider.addEventListener("input", (e) => {
-      confidenceThreshold = parseFloat(e.target.value);
-      const valueElement = e.target.parentElement.querySelector('.settings-value');
+  // Sensitivity slider with real-time feedback
+  sensitivitySlider.addEventListener("input", (e) => {
+    confidenceThreshold = parseFloat(e.target.value);
+    const valueElement = document.getElementById('sensitivity-value');
+    if (valueElement) {
+      valueElement.textContent = `${Math.round(confidenceThreshold * 100)}%`;
+    }
+    
+    // Update detection config in real-time
+    DETECTION_CONFIG.minConfidence = confidenceThreshold;
+    console.log(`🎚️ Detection sensitivity updated: ${Math.round(confidenceThreshold * 100)}%`);
+  });
+
+  // Save interval slider
+  const saveIntervalSlider = document.getElementById('save-interval-slider');
+  if (saveIntervalSlider) {
+    saveIntervalSlider.addEventListener("input", (e) => {
+      const newInterval = parseInt(e.target.value);
+      const valueElement = document.getElementById('save-interval-value');
       if (valueElement) {
-        valueElement.textContent = `${Math.round(confidenceThreshold * 100)}%`;
+        valueElement.textContent = newInterval;
       }
+      
+      // Update detection save interval
+      DETECTION_SAVE_INTERVAL = newInterval;
+      console.log(`💾 Auto-save interval updated: every ${newInterval} frames`);
     });
   }
   // Summary Modal Functions
   function showSummaryModal() {
     updateSummaryData();
-    if (summaryModal) {
-      summaryModal.show();
-    } else {
-      console.log("📊 Session Summary would be shown here (modal not available)");
-    }
+    summaryModal.show();
   }
 
   function hideSummaryModal() {
-    if (summaryModal) {
-      summaryModal.hide();
-    }
+    summaryModal.hide();
   }
 
   function updateSummaryData() {
     // Update session stats
-    if (totalDetectionsCount) {
-      totalDetectionsCount.textContent = detectionStats.totalDetections;
-    }
+    totalDetectionsCount.textContent = detectionStats.totalDetections;
     
     // Calculate and display session duration
     const sessionDuration = Date.now() - detectionStats.sessionStart;
     const minutes = Math.floor(sessionDuration / 60000);
     const seconds = Math.floor((sessionDuration % 60000) / 1000);
-    if (sessionDurationDisplay) {
-      sessionDurationDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-    }
+    sessionDurationDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
     
     // Update unique hazards count
-    if (uniqueHazardsCount) {
-      uniqueHazardsCount.textContent = detectionStats.detectedHazards.size;
-    }
+    uniqueHazardsCount.textContent = detectionStats.detectedHazards.size;
     
     // Update detections grid
     updateDetectionsGrid();
@@ -1906,11 +1822,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function updateDetectionsGrid() {
-    if (!detectionsGrid) {
-      console.log("📊 Detections grid not available");
-      return;
-    }
-    
     if (sessionDetectionsSummary.length === 0) {
       detectionsGrid.innerHTML = `
         <div class="no-detections">
@@ -2028,11 +1939,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function loadSavedReports() {
-    if (!savedReportsList) {
-      console.log("📊 Saved reports list not available");
-      return;
-    }
-    
     try {
       savedReportsList.innerHTML = `
         <div class="loading-reports">
@@ -2160,29 +2066,46 @@ document.addEventListener("DOMContentLoaded", async () => {
     showNotification('Summary exported successfully', 'success');
   }
 
-  if (exportSummaryBtn) {
-    exportSummaryBtn.addEventListener('click', exportSummary);
-  }
+exportSummaryBtn.addEventListener('click', exportSummary);
   
-  if (viewDashboardBtn) {
-    viewDashboardBtn.addEventListener('click', () => {
-      window.location.href = '/dashboard.html';
-    });
+  viewDashboardBtn.addEventListener('click', () => {
+    window.location.href = '/dashboard.html';
+  });
+
+  // Additional UI elements for new functionality
+  const captureBtn = document.getElementById('capture-btn');
+  const summaryBtn = document.getElementById('summary-btn');
+  const imagePreviewModal = new bootstrap.Modal(document.getElementById('imagePreviewModal'));
+  const previewImage = document.getElementById('preview-image');
+  const detectionMetadata = document.getElementById('detection-metadata');
+  const saveDetectionBtn = document.getElementById('save-detection-btn');
+
+  // Manual capture button
+  if (captureBtn) {
+    captureBtn.addEventListener('click', captureCurrentFrame);
+  }
+
+  // Summary button
+  if (summaryBtn) {
+    summaryBtn.addEventListener('click', showCameraSessionSummary);
+  }
+
+  // Save detection button in preview modal
+  if (saveDetectionBtn) {
+    saveDetectionBtn.addEventListener('click', savePreviewedDetection);
   }
 
   // Initialize on load
   async function main() {
     updateButtonStates();
-    if (startBtn) {
-      startBtn.disabled = true;
-    }
+    startBtn.disabled = true;
     
     const success = await initializeDetection();
     
-    if (success && startBtn) {
+    if (success) {
       startBtn.disabled = false;
       // Status is set by initializeDetection
-    } else if (startBtn) {
+    } else {
       startBtn.disabled = true;
       // Status is set by initializeDetection on failure
     }
