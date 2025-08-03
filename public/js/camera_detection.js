@@ -2094,6 +2094,118 @@ exportSummaryBtn.addEventListener('click', exportSummary);
   const detectionMetadata = document.getElementById('detection-metadata');
   const saveDetectionBtn = document.getElementById('save-detection-btn');
 
+  // Global variable to store current captured frame data for saving
+  let currentCapturedData = null;
+
+  // Manual capture function
+  function captureCurrentFrame() {
+    if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
+      showNotification('No video available for capture', 'error');
+      return;
+    }
+
+    try {
+      // Create canvas to capture the current frame
+      const captureCanvas = document.createElement('canvas');
+      captureCanvas.width = video.videoWidth;
+      captureCanvas.height = video.videoHeight;
+      const captureCtx = captureCanvas.getContext('2d');
+      
+      // Draw the current video frame
+      captureCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+      
+      // Get current detections if available
+      const currentDetections = lastDetections || [];
+      
+      // Create image with detections drawn on it for preview
+      let previewCanvas = captureCanvas;
+      if (currentDetections.length > 0) {
+        previewCanvas = createDetectionImage(video, currentDetections);
+      }
+      
+      // Store capture data for potential saving
+      currentCapturedData = {
+        canvas: captureCanvas,
+        detections: currentDetections,
+        timestamp: new Date().toISOString()
+      };
+      
+      // Show preview in modal
+      const imageDataUrl = previewCanvas.toDataURL('image/jpeg', 0.9);
+      previewImage.src = imageDataUrl;
+      
+      // Update metadata
+      const metadata = `
+        <p><strong>Capture Time:</strong> ${new Date().toLocaleString()}</p>
+        <p><strong>Detections Found:</strong> ${currentDetections.length}</p>
+        ${currentDetections.length > 0 ? `
+          <div class="detection-list">
+            ${currentDetections.map((det) => {
+              const [, , , , score, classId] = det;
+              const correctedClassId = Math.floor(classId) - 1;
+              const classIndex = Math.max(0, correctedClassId);
+              const label = CLASS_NAMES[classIndex] || `Unknown Class ${classIndex}`;
+              return `<p>• ${label} (${(score * 100).toFixed(1)}% confidence)</p>`;
+            }).join('')}
+          </div>
+        ` : ''}
+      `;
+      detectionMetadata.innerHTML = metadata;
+      
+      // Show the modal
+      imagePreviewModal.show();
+      
+      showNotification('Frame captured successfully', 'success');
+      
+    } catch (error) {
+      console.error('Error capturing frame:', error);
+      showNotification('Failed to capture frame', 'error');
+    }
+  }
+
+  // Save the previewed detection
+  async function savePreviewedDetection() {
+    if (!currentCapturedData) {
+      showNotification('No captured data to save', 'error');
+      return;
+    }
+
+    try {
+      const { canvas, detections, timestamp } = currentCapturedData;
+      
+      if (detections.length === 0) {
+        // Save as manual capture without detections
+        const imageUrl = await uploadDetection(canvas, []);
+        
+        const report = {
+          type: 'Manual Capture',
+          confidence: 100,
+          timestamp: timestamp,
+          imageUrl: imageUrl,
+          location: { x: 0, y: 0, width: canvas.width, height: canvas.height },
+          manual: true
+        };
+        
+        // Note: Manual captures are handled separately from automatic detections
+        // They could be stored in localStorage or sent to the server directly
+        showNotification('Manual capture saved successfully', 'success');
+      } else {
+        // Save with detections using existing saveDetection function
+        const primaryDetection = detections[0]; // Use first detection as primary
+        await saveDetection(video, detections, primaryDetection);
+        showNotification('Detection report saved successfully', 'success');
+      }
+      
+      // Hide modal and clear captured data
+      imagePreviewModal.hide();
+      currentCapturedData = null;
+      
+    } catch (error) {
+      console.error('Error saving previewed detection:', error);
+      showNotification('Failed to save detection report', 'error');
+    }
+  }
+
   // Manual capture button
   if (captureBtn) {
     captureBtn.addEventListener('click', captureCurrentFrame);
