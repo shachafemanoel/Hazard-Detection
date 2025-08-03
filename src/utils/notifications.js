@@ -6,82 +6,92 @@ const NOTIFICATION_DURATION = 4000; // 4 seconds
 
 // Initialize notification system
 function initializeNotifications() {
-    // Ensure container exists
-    let container = document.getElementById('notifications-container');
-    if (!container) {
-        container = document.createElement('div');
-        container.id = 'notifications-container';
-        container.className = 'notifications-container';
-        container.setAttribute('aria-live', 'polite');
-        document.body.appendChild(container);
-    }
-    
-    // Inject CSS if not present
-    injectNotificationStyles();
-    console.log('📱 Professional notification system initialized');
+  // Ensure container exists
+  let container = document.getElementById('notifications-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'notifications-container';
+    container.className = 'notifications-container';
+    container.setAttribute('aria-live', 'polite');
+    document.body.appendChild(container);
+  }
+
+  // Inject CSS if not present
+  injectNotificationStyles();
+  console.log('📱 Professional notification system initialized');
 }
 
 // Main notification function (enhanced version)
-function notify(message, type = 'info', duration = NOTIFICATION_DURATION, persistent = false) {
-    const container = document.getElementById('notifications-container');
-    if (!container) {
-        // Fallback to simple version
-        return simpleNotify(message, type, persistent);
-    }
+function notify(
+  message,
+  type = 'info',
+  duration = NOTIFICATION_DURATION,
+  persistent = false
+) {
+  const container = document.getElementById('notifications-container');
+  if (!container) {
+    // Fallback to simple version
+    return simpleNotify(message, type, persistent);
+  }
 
-    // Limit number of notifications
-    const existingNotifications = container.querySelectorAll('.notification');
-    if (existingNotifications.length >= MAX_NOTIFICATIONS) {
-        // Remove oldest notification
-        existingNotifications[0].remove();
-    }
+  // Limit number of notifications
+  const existingNotifications = container.querySelectorAll('.notification');
+  if (existingNotifications.length >= MAX_NOTIFICATIONS) {
+    // Remove oldest notification
+    existingNotifications[0].remove();
+  }
 
-    const notificationElement = createNotificationElement(message, type, duration, persistent);
-    container.appendChild(notificationElement);
+  const notificationElement = createNotificationElement(
+    message,
+    type,
+    duration,
+    persistent
+  );
+  container.appendChild(notificationElement);
 
-    // Auto-remove after duration (unless persistent)
-    if (!persistent && duration > 0) {
-        setTimeout(() => {
-            removeNotification(notificationElement);
-        }, duration);
-    }
+  // Auto-remove after duration (unless persistent)
+  if (!persistent && duration > 0) {
+    setTimeout(() => {
+      removeNotification(notificationElement);
+    }, duration);
+  }
 
-    return notificationElement;
+  return notificationElement;
 }
 
 // Simple fallback notification (original version)
 function simpleNotify(message, type = 'info', persist = false) {
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    toast.textContent = message;
-    document.body.append(toast);
-    if (!persist) {
-        setTimeout(() => toast.remove(), 3000);
-    }
-    return toast;
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  document.body.append(toast);
+  if (!persist) {
+    setTimeout(() => toast.remove(), 3000);
+  }
+  return toast;
 }
 
 // Create professional notification element
 function createNotificationElement(message, type, duration, persistent) {
-    const id = `notification-${++notificationId}`;
-    const notification = document.createElement('div');
-    notification.id = id;
-    notification.className = `notification notification-${type}`;
-    notification.setAttribute('role', 'alert');
-    notification.setAttribute('aria-live', 'assertive');
+  const id = `notification-${++notificationId}`;
+  const notification = document.createElement('div');
+  notification.id = id;
+  notification.className = `notification notification-${type}`;
+  notification.setAttribute('role', 'alert');
+  notification.setAttribute('aria-live', 'assertive');
 
-    // Icon based on type
-    const iconMap = {
-        success: 'fas fa-check-circle',
-        error: 'fas fa-exclamation-triangle',
-        warning: 'fas fa-exclamation-circle',
-        info: 'fas fa-info-circle',
-        detection: 'fas fa-eye'
-    };
+  // Icon based on type
+  const iconMap = {
+    success: 'fas fa-check-circle',
+    error: 'fas fa-exclamation-triangle',
+    warning: 'fas fa-exclamation-circle',
+    info: 'fas fa-info-circle',
+    detection: 'fas fa-eye',
+  };
 
-    const icon = iconMap[type] || iconMap.info;
+  const icon = iconMap[type] || iconMap.info;
 
-    notification.innerHTML = `
+  notification.innerHTML = `
         <div class="notification-content">
             <div class="notification-icon">
                 <i class="${icon}"></i>
@@ -94,75 +104,80 @@ function createNotificationElement(message, type, duration, persistent) {
         ${!persistent && duration > 0 ? `<div class="notification-progress"><div class="notification-progress-bar" style="animation-duration: ${duration}ms;"></div></div>` : ''}
     `;
 
-    // Add entry animation
-    notification.style.opacity = '0';
-    notification.style.transform = 'translateX(100%)';
-    
-    // Trigger animation after adding to DOM
-    requestAnimationFrame(() => {
-        notification.style.opacity = '1';
-        notification.style.transform = 'translateX(0)';
-    });
+  // Add entry animation
+  notification.style.opacity = '0';
+  notification.style.transform = 'translateX(100%)';
 
-    return notification;
+  // Trigger animation after adding to DOM
+  requestAnimationFrame(() => {
+    notification.style.opacity = '1';
+    notification.style.transform = 'translateX(0)';
+  });
+
+  return notification;
 }
 
 // Remove notification with animation
 function removeNotification(element) {
-    if (!element || !element.parentElement) return;
-    
-    // Exit animation
-    element.style.opacity = '0';
-    element.style.transform = 'translateX(100%)';
-    
-    // Remove from DOM after animation
-    setTimeout(() => {
-        if (element.parentElement) {
-            element.parentElement.removeChild(element);
-        }
-    }, 300);
+  if (!element || !element.parentElement) return;
+
+  // Exit animation
+  element.style.opacity = '0';
+  element.style.transform = 'translateX(100%)';
+
+  // Remove from DOM after animation
+  setTimeout(() => {
+    if (element.parentElement) {
+      element.parentElement.removeChild(element);
+    }
+  }, 300);
 }
 
 // Specific notification types
 function showSuccess(message, duration = NOTIFICATION_DURATION) {
-    return notify(message, 'success', duration);
+  return notify(message, 'success', duration);
 }
 
 function showError(message, persistent = false) {
-    return notify(message, 'error', persistent ? 0 : NOTIFICATION_DURATION, persistent);
+  return notify(
+    message,
+    'error',
+    persistent ? 0 : NOTIFICATION_DURATION,
+    persistent
+  );
 }
 
 function showWarning(message, duration = NOTIFICATION_DURATION) {
-    return notify(message, 'warning', duration);
+  return notify(message, 'warning', duration);
 }
 
 function showInfo(message, duration = NOTIFICATION_DURATION) {
-    return notify(message, 'info', duration);
+  return notify(message, 'info', duration);
 }
 
 function showDetection(message, duration = 3000) {
-    return notify(message, 'detection', duration);
+  return notify(message, 'detection', duration);
 }
 
 // Clear all notifications
 function clearAllNotifications() {
-    const container = document.getElementById('notifications-container');
-    if (container) {
-        const notifications = container.querySelectorAll('.notification');
-        notifications.forEach(notification => {
-            removeNotification(notification);
-        });
-    }
+  const container = document.getElementById('notifications-container');
+  if (container) {
+    const notifications = container.querySelectorAll('.notification');
+    notifications.forEach((notification) => {
+      removeNotification(notification);
+    });
+  }
 }
 
 // Inject CSS styles
 function injectNotificationStyles() {
-    const styleId = 'notification-styles';
-    if (document.getElementById(styleId)) return;
+  const styleId = 'notification-styles';
+  if (document.getElementById(styleId)) return;
 
-    const style = document.createElement('style');
-    style.id = styleId;
-    style.textContent = `
+  const style = document.createElement('style');
+  style.id = styleId;
+  style.textContent = `
         .notifications-container {
             position: fixed;
             top: calc(var(--safe-area-top, 20px) + 20px);
@@ -308,29 +323,29 @@ function injectNotificationStyles() {
         }
     `;
 
-    document.head.appendChild(style);
+  document.head.appendChild(style);
 }
 
 // Make functions globally available
 if (typeof window !== 'undefined') {
-    window.initializeNotifications = initializeNotifications;
-    window.notify = notify;
-    window.showSuccess = showSuccess;
-    window.showError = showError;
-    window.showWarning = showWarning;
-    window.showInfo = showInfo;
-    window.showDetection = showDetection;
-    window.removeNotification = removeNotification;
-    window.clearAllNotifications = clearAllNotifications;
+  window.initializeNotifications = initializeNotifications;
+  window.notify = notify;
+  window.showSuccess = showSuccess;
+  window.showError = showError;
+  window.showWarning = showWarning;
+  window.showInfo = showInfo;
+  window.showDetection = showDetection;
+  window.removeNotification = removeNotification;
+  window.clearAllNotifications = clearAllNotifications;
 }
 
 // Auto-inject styles when script loads
 if (typeof document !== 'undefined') {
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', injectNotificationStyles);
-    } else {
-        injectNotificationStyles();
-    }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', injectNotificationStyles);
+  } else {
+    injectNotificationStyles();
+  }
 }
 
 console.log('📱 Enhanced notification system loaded');

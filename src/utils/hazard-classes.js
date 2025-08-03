@@ -6,39 +6,42 @@
  * Standardized across all modules for consistency
  */
 export const HAZARD_CLASS_NAMES = [
-  'Alligator Crack',    // 0: Interconnected cracking resembling alligator skin
-  'Block Crack',        // 1: Rectangular crack patterns in pavement
-  'Crosswalk Blur',     // 2: Faded or unclear crosswalk markings
-  'Lane Blur',          // 3: Faded or unclear lane markings
+  'Alligator Crack', // 0: Interconnected cracking resembling alligator skin
+  'Block Crack', // 1: Rectangular crack patterns in pavement
+  'Crosswalk Blur', // 2: Faded or unclear crosswalk markings
+  'Lane Blur', // 3: Faded or unclear lane markings
   'Longitudinal Crack', // 4: Cracks parallel to traffic direction
-  'Manhole',            // 5: Manhole covers and surrounding issues
-  'Patch Repair',       // 6: Previous repair work areas
-  'Pothole',            // 7: Circular/oval holes in road surface
-  'Transverse Crack',   // 8: Cracks perpendicular to traffic direction
-  'Wheel Mark Crack'    // 9: Cracks caused by wheel loading
+  'Manhole', // 5: Manhole covers and surrounding issues
+  'Patch Repair', // 6: Previous repair work areas
+  'Pothole', // 7: Circular/oval holes in road surface
+  'Transverse Crack', // 8: Cracks perpendicular to traffic direction
+  'Wheel Mark Crack', // 9: Cracks caused by wheel loading
 ];
 
 /**
  * Legacy class names for backward compatibility
  */
 export const LEGACY_CLASS_NAMES = [
-  'crack', 'knocked', 'pothole', 'surface_damage'
+  'crack',
+  'knocked',
+  'pothole',
+  'surface_damage',
 ];
 
 /**
  * Hazard-specific colors for visualization
  */
 export const HAZARD_COLORS = {
-  'Alligator Crack': '#FF4444',    // Red - Critical structural damage
-  'Block Crack': '#FF6600',        // Red-Orange - Significant cracking
-  'Crosswalk Blur': '#4444FF',     // Blue - Safety marking issues
-  'Lane Blur': '#6644FF',          // Purple - Traffic marking issues  
+  'Alligator Crack': '#FF4444', // Red - Critical structural damage
+  'Block Crack': '#FF6600', // Red-Orange - Significant cracking
+  'Crosswalk Blur': '#4444FF', // Blue - Safety marking issues
+  'Lane Blur': '#6644FF', // Purple - Traffic marking issues
   'Longitudinal Crack': '#FF8844', // Orange - Directional cracking
-  'Manhole': '#888888',            // Gray - Infrastructure elements
-  'Patch Repair': '#44FF88',       // Green - Previous repairs
-  'Pothole': '#FF0088',            // Pink - Critical surface damage
-  'Transverse Crack': '#FFAA44',   // Light Orange - Cross cracking
-  'Wheel Mark Crack': '#AA4444'    // Dark Red - Load-induced damage
+  Manhole: '#888888', // Gray - Infrastructure elements
+  'Patch Repair': '#44FF88', // Green - Previous repairs
+  Pothole: '#FF0088', // Pink - Critical surface damage
+  'Transverse Crack': '#FFAA44', // Light Orange - Cross cracking
+  'Wheel Mark Crack': '#AA4444', // Dark Red - Load-induced damage
 };
 
 /**
@@ -46,15 +49,15 @@ export const HAZARD_COLORS = {
  */
 export const CLASS_THRESHOLDS = {
   0: 0.35, // Alligator Crack - real-time adjusted
-  1: 0.40, // Block Crack - standard
+  1: 0.4, // Block Crack - standard
   2: 0.45, // Crosswalk Blur - higher (avoid false marking detections)
   3: 0.45, // Lane Blur - higher (avoid false marking detections)
   4: 0.35, // Longitudinal Crack - real-time adjusted
-  5: 0.50, // Manhole - higher (avoid false infrastructure detections)
-  6: 0.40, // Patch Repair - standard
+  5: 0.5, // Manhole - higher (avoid false infrastructure detections)
+  6: 0.4, // Patch Repair - standard
   7: 0.35, // Pothole - clear damage, allow lower threshold
   8: 0.35, // Transverse Crack - real-time adjusted
-  9: 0.40  // Wheel Mark Crack - standard
+  9: 0.4, // Wheel Mark Crack - standard
 };
 
 /**
@@ -103,12 +106,12 @@ export function getClassThreshold(classIndex) {
  */
 export function mapLegacyClassName(legacyName) {
   const legacyMap = {
-    'crack': 'Alligator Crack',
-    'knocked': 'Block Crack', 
-    'pothole': 'Pothole',
-    'surface_damage': 'Patch Repair'
+    crack: 'Alligator Crack',
+    knocked: 'Block Crack',
+    pothole: 'Pothole',
+    surface_damage: 'Patch Repair',
   };
-  
+
   return legacyMap[legacyName] || legacyName;
 }
 

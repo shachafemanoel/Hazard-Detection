@@ -10,7 +10,7 @@ class RealtimeClient {
       maxRetries: config.maxRetries || 5,
       backoffMs: config.backoffMs || 500,
       authToken: config.authToken,
-      ...config
+      ...config,
     };
 
     this.baseUrl = null;
@@ -18,7 +18,7 @@ class RealtimeClient {
     this.status = 'disconnected';
     this.retryCount = 0;
     this.hasHadFirstError = false; // Track if we've had first connection error
-    
+
     this.listeners = {
       message: [],
       error: [],
@@ -32,7 +32,7 @@ class RealtimeClient {
     return (method, url, options = {}) => {
       console.log(`🔄 ${method.toUpperCase()} ${url}`, {
         'User-Agent': options.headers?.['User-Agent'],
-        'Content-Type': options.headers?.['Content-Type']?.split(';')[0]
+        'Content-Type': options.headers?.['Content-Type']?.split(';')[0],
       });
     };
   }
@@ -46,7 +46,7 @@ class RealtimeClient {
   }
 
   emit(event, data) {
-    this.listeners[event]?.forEach(cb => {
+    this.listeners[event]?.forEach((cb) => {
       try {
         cb(data);
       } catch (error) {
@@ -60,57 +60,66 @@ class RealtimeClient {
    */
   async connect() {
     this.setStatus('connecting');
-    
+
     let attemptedAlternate = false;
-    
+
     const tryConnect = async (usePrivate) => {
       try {
-        this.baseUrl = await resolveBaseUrl({ 
-          usePrivate: usePrivate ? 'true' : 'false' 
+        this.baseUrl = await resolveBaseUrl({
+          usePrivate: usePrivate ? 'true' : 'false',
         });
-        
+
         const headers = {
           'User-Agent': 'Hazard-Detection-Realtime/1.0',
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         };
 
         if (this.config.authToken) {
           headers['Authorization'] = `Bearer ${this.config.authToken}`;
         }
 
-        this._requestInterceptor('POST', `${this.baseUrl}/session/start`, { headers });
+        this._requestInterceptor('POST', `${this.baseUrl}/session/start`, {
+          headers,
+        });
 
         const response = await fetch(`${this.baseUrl}/session/start`, {
           method: 'POST',
           headers,
-          signal: AbortSignal.timeout(this.config.timeout)
+          signal: AbortSignal.timeout(this.config.timeout),
         });
-        
+
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
-          throw new Error(`Failed to start session: ${errorData.detail || response.statusText}`);
+          const errorData = await response
+            .json()
+            .catch(() => ({ detail: `HTTP ${response.status}` }));
+          throw new Error(
+            `Failed to start session: ${errorData.detail || response.statusText}`
+          );
         }
-        
+
         const data = await response.json();
         this.sessionId = data.session_id;
         this.retryCount = 0;
         this.hasHadFirstError = false;
         this.setStatus('connected');
-        
-        const networkType = this.baseUrl.includes('railway.internal') ? 'private' : 'public';
+
+        const networkType = this.baseUrl.includes('railway.internal')
+          ? 'private'
+          : 'public';
         console.log(`🎉 CONNECTED via ${networkType}`);
         console.log(`✅ Session started: ${this.sessionId}`);
         return true;
-        
       } catch (error) {
         // If this is the first error and we haven't tried the alternate yet
         if (!this.hasHadFirstError && !attemptedAlternate) {
           this.hasHadFirstError = true;
           attemptedAlternate = true;
-          console.log(`⚠️ First connection failed, trying alternate endpoint...`);
+          console.log(
+            `⚠️ First connection failed, trying alternate endpoint...`
+          );
           return await tryConnect(!usePrivate); // Switch to alternate
         }
-        
+
         throw error;
       }
     };
@@ -118,7 +127,6 @@ class RealtimeClient {
     try {
       // Start with private-first (auto resolution), then try alternate on first failure
       return await tryConnect(true);
-      
     } catch (error) {
       this.setStatus('disconnected');
       this.emit('error', error);
@@ -130,27 +138,31 @@ class RealtimeClient {
     if (this.sessionId && this.baseUrl) {
       try {
         const headers = {
-          'User-Agent': 'Hazard-Detection-Realtime/1.0'
+          'User-Agent': 'Hazard-Detection-Realtime/1.0',
         };
 
         if (this.config.authToken) {
           headers['Authorization'] = `Bearer ${this.config.authToken}`;
         }
 
-        this._requestInterceptor('POST', `${this.baseUrl}/session/${this.sessionId}/end`, { headers });
+        this._requestInterceptor(
+          'POST',
+          `${this.baseUrl}/session/${this.sessionId}/end`,
+          { headers }
+        );
 
         await fetch(`${this.baseUrl}/session/${this.sessionId}/end`, {
           method: 'POST',
           headers,
-          signal: AbortSignal.timeout(5000)
+          signal: AbortSignal.timeout(5000),
         });
-        
+
         console.log(`✅ Session ended: ${this.sessionId}`);
       } catch (error) {
         console.warn(`⚠️ Session end warning: ${error.message}`);
       }
     }
-    
+
     this.sessionId = null;
     this.baseUrl = null;
     this.setStatus('disconnected');
@@ -165,25 +177,31 @@ class RealtimeClient {
 
     this.setStatus('uploading');
     const startTime = Date.now();
-    
+
     try {
       const formData = new FormData();
-      
+
       // Handle different payload types
       if (payload instanceof Blob) {
         formData.append('file', payload, 'frame.jpg');
       } else if (payload instanceof File) {
         formData.append('file', payload);
       } else if (payload.buffer && payload.filename) {
-        const blob = new Blob([payload.buffer], { type: payload.contentType || 'image/jpeg' });
+        const blob = new Blob([payload.buffer], {
+          type: payload.contentType || 'image/jpeg',
+        });
         formData.append('file', blob, payload.filename);
       } else if (payload instanceof HTMLCanvasElement) {
         // Convert canvas to blob
         const blob = await new Promise((resolve, reject) => {
-          payload.toBlob((blob) => {
-            if (blob) resolve(blob);
-            else reject(new Error('Failed to convert canvas to blob'));
-          }, 'image/jpeg', 0.9);
+          payload.toBlob(
+            (blob) => {
+              if (blob) resolve(blob);
+              else reject(new Error('Failed to convert canvas to blob'));
+            },
+            'image/jpeg',
+            0.9
+          );
         });
         formData.append('file', blob, 'frame.jpg');
       } else {
@@ -191,54 +209,70 @@ class RealtimeClient {
       }
 
       const headers = {
-        'User-Agent': 'Hazard-Detection-Realtime/1.0'
+        'User-Agent': 'Hazard-Detection-Realtime/1.0',
       };
 
       if (this.config.authToken) {
         headers['Authorization'] = `Bearer ${this.config.authToken}`;
       }
 
-      this._requestInterceptor('POST', `${this.baseUrl}/detect/${this.sessionId}`, { headers });
+      this._requestInterceptor(
+        'POST',
+        `${this.baseUrl}/detect/${this.sessionId}`,
+        { headers }
+      );
 
       const response = await fetch(`${this.baseUrl}/detect/${this.sessionId}`, {
         method: 'POST',
         body: formData,
         headers,
-        signal: AbortSignal.timeout(this.config.timeout)
+        signal: AbortSignal.timeout(this.config.timeout),
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
-        throw new Error(`API detection failed: ${errorData.detail || response.statusText}`);
+        const errorData = await response
+          .json()
+          .catch(() => ({ detail: `HTTP ${response.status}` }));
+        throw new Error(
+          `API detection failed: ${errorData.detail || response.statusText}`
+        );
       }
 
       const result = await response.json();
       const processingTime = Date.now() - startTime;
-      
+
       console.log(`⚡ Detection completed in ${processingTime}ms`);
-      
+
       this.emit('message', {
         ...result,
         _metadata: {
           processingTime,
           sessionId: this.sessionId,
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       });
-      
+
       this.setStatus('connected');
       this.retryCount = 0;
-      
     } catch (error) {
       const processingTime = Date.now() - startTime;
-      console.error(`❌ Detection failed after ${processingTime}ms:`, error.message);
-      
+      console.error(
+        `❌ Detection failed after ${processingTime}ms:`,
+        error.message
+      );
+
       // Handle retry logic for recoverable errors
-      if (this.retryCount < this.config.maxRetries && this.isRetryableError(error)) {
+      if (
+        this.retryCount < this.config.maxRetries &&
+        this.isRetryableError(error)
+      ) {
         this.retryCount++;
-        const backoffTime = this.config.backoffMs * Math.pow(2, this.retryCount - 1);
-        console.log(`🔄 Retry ${this.retryCount}/${this.config.maxRetries} in ${backoffTime}ms`);
-        
+        const backoffTime =
+          this.config.backoffMs * Math.pow(2, this.retryCount - 1);
+        console.log(
+          `🔄 Retry ${this.retryCount}/${this.config.maxRetries} in ${backoffTime}ms`
+        );
+
         setTimeout(async () => {
           try {
             await this.send(payload);
@@ -246,7 +280,6 @@ class RealtimeClient {
             this.emit('error', retryError);
           }
         }, backoffTime);
-        
       } else {
         this.setStatus('connected');
         this.emit('error', error);
@@ -260,10 +293,10 @@ class RealtimeClient {
       'network',
       'timeout',
       'ECONNRESET',
-      'ETIMEDOUT'
+      'ETIMEDOUT',
     ];
-    
-    return retryableErrors.some(keyword => 
+
+    return retryableErrors.some((keyword) =>
       error.message.toLowerCase().includes(keyword.toLowerCase())
     );
   }

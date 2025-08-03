@@ -18,7 +18,7 @@ async function main() {
     console.log('2️⃣ Creating realtime client...');
     const client = createRealtimeClient({
       timeout: 15000,
-      maxRetries: 3
+      maxRetries: 3,
     });
 
     // Step 3: Set up listeners
@@ -28,11 +28,15 @@ async function main() {
     client.onMessage((data) => {
       messageCount++;
       results.push(data);
-      console.log(`   📨 Message ${messageCount}: ${data.detections?.length || 0} detections`);
-      
+      console.log(
+        `   📨 Message ${messageCount}: ${data.detections?.length || 0} detections`
+      );
+
       if (data.detections && data.detections.length > 0) {
         data.detections.forEach((det, i) => {
-          console.log(`      🎯 Detection ${i + 1}: ${det.class_name} (${(det.confidence * 100).toFixed(1)}%)`);
+          console.log(
+            `      🎯 Detection ${i + 1}: ${det.class_name} (${(det.confidence * 100).toFixed(1)}%)`
+          );
         });
       }
     });
@@ -48,43 +52,43 @@ async function main() {
     // Step 4: Connect
     console.log('3️⃣ Connecting to service...');
     await client.connect();
-    
+
     const network = baseUrl.includes('railway.internal') ? 'private' : 'public';
     console.log(`   🎉 CONNECTED via ${network} network\n`);
 
     // Step 5: Send sample frames
     console.log('4️⃣ Sending sample frames...');
     const sampleImagePath = path.join(__dirname, 'sample-image.png');
-    
+
     // Create a simple test image if it doesn't exist
     if (!fs.existsSync(sampleImagePath)) {
       console.log('   📸 Creating sample test image...');
       // Create a minimal PNG (1x1 pixel)
       const minimalPng = Buffer.from([
-        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+        0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d,
         0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-        0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE, 0x00, 0x00, 0x00,
-        0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0xD7, 0x63, 0xF8, 0x0F, 0x00, 0x00,
-        0x01, 0x00, 0x01, 0x5C, 0xC2, 0x8A, 0xDB, 0x00, 0x00, 0x00, 0x00, 0x49,
-        0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82
+        0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xde, 0x00, 0x00, 0x00,
+        0x0c, 0x49, 0x44, 0x41, 0x54, 0x08, 0xd7, 0x63, 0xf8, 0x0f, 0x00, 0x00,
+        0x01, 0x00, 0x01, 0x5c, 0xc2, 0x8a, 0xdb, 0x00, 0x00, 0x00, 0x00, 0x49,
+        0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82,
       ]);
       fs.writeFileSync(sampleImagePath, minimalPng);
     }
 
     const sampleImage = fs.readFileSync(sampleImagePath);
-    
+
     // Send 3 test frames
     for (let i = 1; i <= 3; i++) {
       console.log(`   📤 Sending frame ${i}/3...`);
       await client.send({
         buffer: sampleImage,
         filename: `test-frame-${i}.png`,
-        contentType: 'image/png'
+        contentType: 'image/png',
       });
-      
+
       // Wait a bit between sends
       if (i < 3) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
     }
 
@@ -92,9 +96,9 @@ async function main() {
     console.log('\n5️⃣ Waiting for responses...');
     let waitTime = 0;
     const maxWait = 10000; // 10 seconds
-    
+
     while (messageCount < 3 && waitTime < maxWait) {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       waitTime += 500;
     }
 
@@ -107,9 +111,13 @@ async function main() {
     console.log(`   📋 Session ID: ${client.getSessionId()}`);
 
     if (messageCount === 3) {
-      console.log('\n✅ All tests passed! Realtime client is working correctly.');
+      console.log(
+        '\n✅ All tests passed! Realtime client is working correctly.'
+      );
     } else {
-      console.log(`\n⚠️  Only received ${messageCount}/3 responses. Check API status.`);
+      console.log(
+        `\n⚠️  Only received ${messageCount}/3 responses. Check API status.`
+      );
     }
 
     // Step 8: Cleanup
@@ -118,7 +126,6 @@ async function main() {
     console.log('   ✅ Disconnected successfully');
 
     process.exit(messageCount === 3 ? 0 : 1);
-
   } catch (error) {
     console.error('\n❌ Test failed:', error.message);
     console.error('Stack:', error.stack);

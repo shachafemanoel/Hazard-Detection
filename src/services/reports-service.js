@@ -10,10 +10,16 @@ export function getReports() {
 async function geocode(address) {
   if (!address || typeof address !== 'string') return null;
   try {
-    const response = await fetch(`/api/geocode?address=${encodeURIComponent(address)}`);
+    const response = await fetch(
+      `/api/geocode?address=${encodeURIComponent(address)}`
+    );
     const data = await response.json();
     if (data.success && data.location) {
-      return { lat: data.location[0], lon: data.location[1], display_name: data.display_name };
+      return {
+        lat: data.location[0],
+        lon: data.location[1],
+        display_name: data.display_name,
+      };
     }
     return null;
   } catch (error) {
@@ -23,19 +29,20 @@ async function geocode(address) {
 }
 
 // Fetch reports with filters and pagination
-window.fetchReports = async function(filters = {}) {
+window.fetchReports = async function (filters = {}) {
   const params = new URLSearchParams(filters);
   let response;
   try {
-    response = await fetch(`${API_BASE_URL}?${params.toString()}`, { 
+    response = await fetch(`${API_BASE_URL}?${params.toString()}`, {
       mode: 'cors',
       credentials: 'include',
       headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      }
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
     });
-    if (!response.ok) throw new Error(`Failed to load reports: ${response.statusText}`);
+    if (!response.ok)
+      throw new Error(`Failed to load reports: ${response.statusText}`);
   } catch (error) {
     console.error('Fetch reports error:', error);
     throw error;
@@ -43,7 +50,12 @@ window.fetchReports = async function(filters = {}) {
 
   const data = await response.json();
   const reports = Array.isArray(data.reports) ? data.reports : [];
-  const pagination = data.pagination || { total: reports.length, page: 1, limit: reports.length, totalPages: 1 };
+  const pagination = data.pagination || {
+    total: reports.length,
+    page: 1,
+    limit: reports.length,
+    totalPages: 1,
+  };
   const metrics = {
     total: data.totalReports ?? pagination.total,
     open: data.openHazards ?? 0,
@@ -51,17 +63,19 @@ window.fetchReports = async function(filters = {}) {
     users: data.activeUsers ?? 0,
   };
 
-  const geocodedReports = await Promise.all(reports.map(async (report) => {
-    if (typeof report.location === 'string' && !report.lat && !report.lon) {
-      const coords = await geocode(report.location);
-      if (coords) return { ...report, lat: coords.lat, lon: coords.lon };
-    }
-    return report;
-  }));
+  const geocodedReports = await Promise.all(
+    reports.map(async (report) => {
+      if (typeof report.location === 'string' && !report.lat && !report.lon) {
+        const coords = await geocode(report.location);
+        if (coords) return { ...report, lat: coords.lat, lon: coords.lon };
+      }
+      return report;
+    })
+  );
 
   allReports = geocodedReports;
   return { reports: allReports, pagination, metrics };
-}
+};
 
 // Update a report by ID
 export async function updateReport(reportId, updatedData) {
