@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { createRealtimeClient, resolveBaseUrl } = require('../lib/realtimeClient');
+const { createRealtimeClient, resolveBaseUrl } = require('hazard-detection/realtime');
 
 async function main() {
   console.log('🔍 Hazard Detection Realtime Client Verification\n');
