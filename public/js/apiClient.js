@@ -4,7 +4,7 @@ const DEFAULT_TIMEOUT = 5000;
 // exposed by server.js under the /api/v1 prefix
 let API_URL = '/api/v1';
 
-export async function loadApiConfig() {
+async function loadApiConfig() {
   // Previously this function fetched remote configuration and adjusted
   // the API base URL to an external service. The server now proxies all
   // requests, so we simply ensure the base URL points to the proxy.
@@ -16,7 +16,7 @@ export async function loadApiConfig() {
   }
 }
 
-export async function testApiConnection() {
+async function testApiConnection() {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
   try {
@@ -53,7 +53,7 @@ export async function testApiConnection() {
   }
 }
 
-export async function startApiSession() {
+async function startApiSession() {
   try {
     const res = await fetch(`${API_URL}/session/start`, { 
       method: "POST",
@@ -76,7 +76,7 @@ export async function startApiSession() {
   }
 }
 
-export async function detectWithApi(sessionId, blob) {
+async function detectWithApi(sessionId, blob) {
   try {
     const form = new FormData();
     form.append("file", blob, 'frame.jpg');
@@ -106,7 +106,7 @@ export async function detectWithApi(sessionId, blob) {
   }
 }
 
-export async function endApiSession(sessionId) {
+async function endApiSession(sessionId) {
   try {
     const res = await fetch(`${API_URL}/session/${sessionId}/end`, { 
       method: "POST" 
@@ -128,6 +128,16 @@ export async function endApiSession(sessionId) {
 }
 
 // Export API_URL for debugging purposes
-export function getApiUrl() {
+function getApiUrl() {
   return API_URL;
+}
+
+// Make functions globally available
+if (typeof window !== 'undefined') {
+  window.loadApiConfig = loadApiConfig;
+  window.testApiConnection = testApiConnection;
+  window.startApiSession = startApiSession;
+  window.detectWithApi = detectWithApi;
+  window.endApiSession = endApiSession;
+  window.getApiUrl = getApiUrl;
 }

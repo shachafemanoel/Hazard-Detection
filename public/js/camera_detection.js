@@ -1,27 +1,20 @@
 // Enhanced Camera Detection System with Hybrid ONNX + API Detection
-import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js";
-import { storage } from "./firebaseConfig.js";
-import {
-  loadApiConfig,
-  testApiConnection,
-  startApiSession,
-  detectWithApi,
-  endApiSession
-} from "./apiClient.js";
 
 document.addEventListener("DOMContentLoaded", async () => {
   // DOM Elements
   const startBtn = document.getElementById("start-camera");
   const stopBtn = document.getElementById("stop-camera");
   const switchCameraBtn = document.getElementById("switch-camera");
+  const settingsBtn = document.getElementById("settings-btn");
   const video = document.getElementById("camera-stream");
   const canvas = document.getElementById("overlay-canvas");
   const ctx = canvas.getContext("2d");
   const sensitivitySlider = document.getElementById("sensitivity-slider");
+  const settingsPanel = document.getElementById("settings-panel");
+  const loadingOverlay = document.getElementById("loading-overlay");
   
   // Status and stats elements
   const connectionStatus = document.getElementById("connection-status");
-  const loadingOverlay = document.getElementById("loading-overlay");
   const loadingStatus = document.getElementById("loading-status");
   const loadingProgressBar = document.getElementById("loading-progress-bar");
   const fpsDisplay = document.getElementById("fps-display");
@@ -143,7 +136,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   setInterval(async () => {
     if (apiAvailable && useApi && detecting) {
       try {
-        const isHealthy = await testApiConnection();
+        const isHealthy = await window.testApiConnection();
         if (isHealthy) {
           console.log("✅ Periodic health check passed");
           // Reset failure count when model becomes ready
@@ -367,20 +360,111 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Queue for detections awaiting upload
   const pendingDetections = [];
 
-  // Firebase upload function from upload_tf.js
-  async function uploadDetectionImage(canvas) {
+  // Create detection image with bounding boxes
+  function createDetectionImage(videoElement, detections) {
+    const detectionCanvas = document.createElement('canvas');
+    const detectionCtx = detectionCanvas.getContext('2d');
+    
+    // Set canvas size to match video
+    detectionCanvas.width = videoElement.videoWidth || videoElement.clientWidth;
+    detectionCanvas.height = videoElement.videoHeight || videoElement.clientHeight;
+    
+    // Draw video frame
+    detectionCtx.drawImage(videoElement, 0, 0, detectionCanvas.width, detectionCanvas.height);
+    
+    // Draw detections on the image
+    detections.forEach((detection, index) => {
+      let [x1, y1, x2, y2, score, classId] = detection;
+      
+      // Fix class ID mapping
+      const correctedClassId = Math.floor(classId) - 1;
+      const classIndex = Math.max(0, correctedClassId);
+      const labelName = classNames[classIndex] || `Unknown Class ${classIndex}`;
+      
+      // Scale coordinates to canvas size
+      const scaleX = detectionCanvas.width / FIXED_SIZE;
+      const scaleY = detectionCanvas.height / FIXED_SIZE;
+      
+      if (!letterboxParams) return;
+      
+      const { offsetX, offsetY, newW, newH } = letterboxParams;
+      x1 = (x1 - offsetX) * scaleX * (detectionCanvas.width / newW);
+      y1 = (y1 - offsetY) * scaleY * (detectionCanvas.height / newH);
+      x2 = (x2 - offsetX) * scaleX * (detectionCanvas.width / newW);
+      y2 = (y2 - offsetY) * scaleY * (detectionCanvas.height / newH);
+      
+      const boxW = x2 - x1;
+      const boxH = y2 - y1;
+      
+      if (boxW < 1 || boxH < 1) return;
+      
+      // Draw bounding box
+      const color = hazardColors[labelName] || '#00FF00';
+      detectionCtx.strokeStyle = color;
+      detectionCtx.lineWidth = 3;
+      detectionCtx.strokeRect(x1, y1, boxW, boxH);
+      
+      // Draw label background
+      const text = `${labelName} ${(score * 100).toFixed(1)}%`;
+      detectionCtx.font = 'bold 14px Arial';
+      const textWidth = detectionCtx.measureText(text).width;
+      const labelHeight = 20;
+      
+      detectionCtx.fillStyle = color;
+      detectionCtx.fillRect(x1, y1 - labelHeight, textWidth + 10, labelHeight);
+      
+      // Draw label text
+      detectionCtx.fillStyle = '#000000';
+      detectionCtx.fillText(text, x1 + 5, y1 - 5);
+    });
+    
+    return detectionCanvas;
+  }
+
+  // Upload detection image to server
+  async function uploadToServer(canvas, detections) {
     return new Promise((resolve, reject) => {
       canvas.toBlob(async (blob) => {
         if (!blob) return reject("❌ No blob from canvas");
 
-        const timestamp = Date.now();
-        const imageRef = ref(storage, `detections/${timestamp}.jpg`);
+        try {
+          const formData = new FormData();
+          formData.append('image', blob, `detection_${Date.now()}.jpg`);
+          formData.append('metadata', JSON.stringify({
+            detections: detections.map(det => {
+              const [x1, y1, x2, y2, score, classId] = det;
+              const correctedClassId = Math.floor(classId) - 1;
+              const classIndex = Math.max(0, correctedClassId);
+              return {
+                class: classNames[classIndex] || `Unknown Class ${classIndex}`,
+                confidence: score,
+                bbox: [x1, y1, x2, y2]
+              };
+            }),
+            timestamp: new Date().toISOString(),
+            source: 'live_camera'
+          }));
 
-        await uploadBytes(imageRef, blob);
-        const url = await getDownloadURL(imageRef);
+          const response = await fetch('/api/upload-detection', {
+            method: 'POST',
+            body: formData
+          });
 
-        console.log("☁️ Uploaded image to Firebase Storage:", url);
-        resolve(url);
+          if (response.ok) {
+            const result = await response.json();
+            console.log("✅ Detection uploaded to server:", result);
+            resolve(result.url || result.path);
+          } else {
+            throw new Error(`Server upload failed: ${response.status}`);
+          }
+        } catch (error) {
+          console.warn("Server upload failed, using data URL:", error);
+          // Fallback to data URL
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        }
       }, "image/jpeg", 0.9);
     });
   }
@@ -438,18 +522,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     text.textContent = message;
   }
 
-// Show loading modal with progress
-  const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+// Show loading overlay with progress
   function showLoading(message, progress = 0) {
     loadingStatus.textContent = message;
     loadingProgressBar.style.width = `${progress}%`;
-    loadingProgressBar.setAttribute('aria-valuenow', progress);
-    loadingModal.show();
+    loadingOverlay.style.display = 'flex';
   }
 
-  // Hide loading modal
+  // Hide loading overlay
   function hideLoading() {
-    loadingModal.hide();
+    loadingOverlay.style.display = 'none';
   }
 
   // Show notification
@@ -463,7 +545,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!apiSessionId) return { message: "No active session" };
     
     try {
-      const result = await endApiSession(apiSessionId);
+      const result = await window.endApiSession(apiSessionId);
       apiSessionId = null;
       return result;
     } catch (error) {
@@ -537,16 +619,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
       // Load API configuration first
       showLoading("Loading API configuration...", 5);
-      await loadApiConfig();
+      await window.loadApiConfig();
       
       // Test API connection
       showLoading("Testing API connection...", 10);
-      apiAvailable = await testApiConnection();
+      apiAvailable = await window.testApiConnection();
       
       if (apiAvailable) {
         try {
           showLoading("Starting API session...", 15);
-          apiSessionId = await startApiSession();
+          apiSessionId = await window.startApiSession();
           showNotification('API connected and session started', 'success');
           updateConnectionStatus('connected', 'Enhanced Mode (API + ONNX)');
         } catch (error) {
@@ -778,7 +860,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
 
       // Use API client for detection
-      const result = await detectWithApi(apiSessionId, blob);
+      const result = await window.detectWithApi(apiSessionId, blob);
       
       // Log new detections for debugging
       if (result.detections && result.detections.length > 0) {
@@ -844,34 +926,37 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // Enhanced detection saving following upload.js patterns with Firebase integration
-  async function saveDetection(compositeCanvas, label, score) {
+  // Enhanced detection saving with bounding box images
+  async function saveDetection(videoElement, detections, primaryDetection) {
     try {
-      // Ensure we have a valid canvas with image data
-      if (!compositeCanvas || compositeCanvas.width === 0 || compositeCanvas.height === 0) {
-        console.warn("❌ Invalid canvas for detection saving");
+      if (!videoElement || detections.length === 0) {
+        console.warn("❌ Invalid video or no detections for saving");
         return;
       }
 
+      // Create detection image with bounding boxes
+      const detectionCanvas = createDetectionImage(videoElement, detections);
+      
       let imageUrl;
       
-      // Try Firebase upload first, fallback to data URL
+      // Try server upload first, fallback to data URL
       try {
-        if (typeof storage !== 'undefined' && storage) {
-          imageUrl = await uploadDetectionImage(compositeCanvas);
-          console.log("☁️ Using Firebase Storage for detection image");
-        } else {
-          throw new Error("Firebase storage not available");
-        }
-      } catch (firebaseError) {
-        console.warn("⚠️ Firebase upload failed, using data URL:", firebaseError.message);
-        imageUrl = compositeCanvas.toDataURL("image/jpeg", 0.9);
+        imageUrl = await uploadToServer(detectionCanvas, detections);
+        console.log("☁️ Detection image uploaded to server");
+      } catch (uploadError) {
+        console.warn("⚠️ Server upload failed, using data URL:", uploadError.message);
+        imageUrl = detectionCanvas.toDataURL("image/jpeg", 0.9);
       }
 
-      // Create a detection report following upload.js structure with enhanced metadata
+      // Create a detection report with primary detection info
+      const [x1, y1, x2, y2, score, classId] = primaryDetection;
+      const correctedClassId = Math.floor(classId) - 1;
+      const classIndex = Math.max(0, correctedClassId);
+      const label = classNames[classIndex] || `Unknown Class ${classIndex}`;
+
       const report = {
         type: label,
-        location: geoData ? JSON.parse(geoData) : { lat: 31.7683, lng: 35.2137 }, // Default Israel coordinates
+        location: geoData ? JSON.parse(geoData) : { lat: 31.7683, lng: 35.2137 },
         time: new Date().toISOString(),
         image: imageUrl,
         status: "unreviewed",
@@ -879,20 +964,42 @@ document.addEventListener("DOMContentLoaded", async () => {
         confidence: Math.round(score * 100),
         sessionId: apiSessionId || 'local_session',
         frameNumber: frameCount,
-        detectionMode: apiAvailable ? 'hybrid' : 'onnx_only'
+        detectionMode: apiAvailable ? 'hybrid' : 'onnx_only',
+        // Additional metadata for summary
+        allDetections: detections.map(det => {
+          const [dx1, dy1, dx2, dy2, dscore, dclassId] = det;
+          const dcorrectedClassId = Math.floor(dclassId) - 1;
+          const dclassIndex = Math.max(0, dcorrectedClassId);
+          return {
+            type: classNames[dclassIndex] || `Unknown Class ${dclassIndex}`,
+            confidence: dscore,
+            bbox: [dx1, dy1, dx2, dy2]
+          };
+        })
       };
 
       pendingDetections.push(report);
-      console.log("📝 Detection queued:", { 
+      
+      // Add to session summary with image
+      sessionDetectionsSummary.push({
+        type: label,
+        confidence: score,
+        timestamp: Date.now(),
+        frame: frameCount,
+        image: imageUrl,
+        allDetections: report.allDetections
+      });
+
+      console.log("📝 Detection with image queued:", { 
         type: label, 
         confidence: `${Math.round(score * 100)}%`, 
         timestamp: report.time,
         mode: report.detectionMode,
-        imageType: imageUrl.startsWith('data:') ? 'dataURL' : 'firebase'
+        imageType: imageUrl.startsWith('data:') ? 'dataURL' : 'server',
+        totalDetections: detections.length
       });
     } catch (err) {
-      console.error("❌ Error during image preparation:", err);
-      // Show user notification for saving errors
+      console.error("❌ Error during detection saving:", err);
       showNotification('Failed to save detection image', 'error');
     }
   }
@@ -1320,15 +1427,19 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
       }
 
-      // Save detection periodically and add to summary
-      if (frameCount % 60 === 0) {
-        saveDetection(video, canvas, labelName, score).catch((e) => console.error(e));
-        sessionDetectionsSummary.push({
-          type: labelName,
-          confidence: score,
-          timestamp: Date.now(),
-          frame: frameCount
-        });
+      // Save detection periodically with bounding box image
+      if (frameCount % 120 === 0 && !isInterpolated) { // Save every 2 seconds for real detections only
+        // Get current frame detections for this class
+        const currentFrameDetections = [];
+        for (const [id, trackedObj] of trackedObjects) {
+          if (Math.floor(trackedObj.box[5]) - 1 === classIndex) {
+            currentFrameDetections.push(trackedObj.box);
+          }
+        }
+        
+        if (currentFrameDetections.length > 0) {
+          saveDetection(video, currentFrameDetections, trackedObj.box).catch((e) => console.error(e));
+        }
       }
 
     }
@@ -1657,21 +1768,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
+  // Settings button toggle
+  settingsBtn.addEventListener("click", () => {
+    settingsPanel.classList.toggle('show');
+  });
+
   // sensitivity
   sensitivitySlider.addEventListener("input", (e) => {
     confidenceThreshold = parseFloat(e.target.value);
-    e.target.parentElement.querySelector('.value').textContent = `${Math.round(confidenceThreshold * 100)}%`;
+    const valueElement = e.target.parentElement.querySelector('.settings-value');
+    if (valueElement) {
+      valueElement.textContent = `${Math.round(confidenceThreshold * 100)}%`;
+    }
   });
   // Summary Modal Functions
   function showSummaryModal() {
     updateSummaryData();
-    summaryModalOverlay.classList.add('show');
-    document.body.style.overflow = 'hidden'; // Prevent background scrolling
+    summaryModal.show();
   }
 
   function hideSummaryModal() {
-    summaryModalOverlay.classList.remove('show');
-    document.body.style.overflow = ''; // Restore scrolling
+    summaryModal.hide();
   }
 
   function updateSummaryData() {
@@ -1705,19 +1822,110 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
 
-    detectionsGrid.innerHTML = sessionDetectionsSummary.map(detection => `
+    detectionsGrid.innerHTML = sessionDetectionsSummary.map((detection, index) => `
       <div class="detection-item">
-        <div class="detection-item-header">
-          <span class="detection-type">${detection.type}</span>
-          <span class="detection-confidence">${Math.round(detection.confidence * 100)}%</span>
-        </div>
-        <div class="detection-timestamp">${new Date(detection.timestamp).toLocaleTimeString()}</div>
-        <div class="detection-location">
-          <i class="fas fa-map-marker-alt"></i>
-          Live Camera Feed
+        ${detection.image ? `
+          <div class="detection-image">
+            <img src="${detection.image}" alt="${detection.type}" onclick="showImageModal('${detection.image}', '${detection.type}')" />
+          </div>
+        ` : ''}
+        <div class="detection-content">
+          <div class="detection-item-header">
+            <span class="detection-type">${detection.type}</span>
+            <span class="detection-confidence">${Math.round(detection.confidence * 100)}%</span>
+          </div>
+          <div class="detection-timestamp">${new Date(detection.timestamp).toLocaleTimeString()}</div>
+          <div class="detection-location">
+            <i class="fas fa-map-marker-alt"></i>
+            Live Camera Feed
+          </div>
+          ${detection.allDetections && detection.allDetections.length > 1 ? `
+            <div class="detection-extras">
+              +${detection.allDetections.length - 1} more detections
+            </div>
+          ` : ''}
         </div>
       </div>
     `).join('');
+  }
+
+  // Show image in modal
+  function showImageModal(imageSrc, title) {
+    const modal = document.createElement('div');
+    modal.className = 'image-modal';
+    modal.innerHTML = `
+      <div class="image-modal-overlay" onclick="this.parentElement.remove()">
+        <div class="image-modal-content" onclick="event.stopPropagation()">
+          <div class="image-modal-header">
+            <h3>${title}</h3>
+            <button onclick="this.closest('.image-modal').remove()" class="image-modal-close">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          <div class="image-modal-body">
+            <img src="${imageSrc}" alt="${title}" style="max-width: 100%; max-height: 80vh;" />
+          </div>
+        </div>
+      </div>
+    `;
+    
+    // Add modal styles
+    const style = document.createElement('style');
+    style.textContent = `
+      .image-modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 9999;
+      }
+      .image-modal-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+      }
+      .image-modal-content {
+        background: #fff;
+        border-radius: 8px;
+        max-width: 90vw;
+        max-height: 90vh;
+        overflow: auto;
+        cursor: default;
+      }
+      .image-modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 15px 20px;
+        border-bottom: 1px solid #eee;
+      }
+      .image-modal-header h3 {
+        margin: 0;
+        color: #333;
+      }
+      .image-modal-close {
+        background: none;
+        border: none;
+        font-size: 18px;
+        cursor: pointer;
+        color: #666;
+      }
+      .image-modal-body {
+        padding: 20px;
+        text-align: center;
+      }
+    `;
+    
+    document.head.appendChild(style);
+    document.body.appendChild(modal);
   }
 
   async function loadSavedReports() {

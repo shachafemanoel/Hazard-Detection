@@ -1479,6 +1479,73 @@ app.post('/reset-password', async (req, res) => {
 });
 
 
+// New endpoint for camera detection images with bounding boxes
+app.post('/api/upload-detection', upload.single('image'), async (req, res) => {
+    try {
+        console.log("📸 Camera detection upload request");
+        
+        // Check if file was uploaded
+        if (!req.file) {
+            return res.status(400).json({ error: 'No image uploaded' });
+        }
+
+        // Authentication check (skip in simple mode)
+        if (!isSimpleMode && !req.isAuthenticated()) {
+            console.log("Authentication failed for detection upload");
+            return res.status(401).json({ error: 'Authentication required' });
+        }
+
+        // Parse metadata if provided
+        let metadata = {};
+        if (req.body.metadata) {
+            try {
+                metadata = JSON.parse(req.body.metadata);
+            } catch (e) {
+                console.warn("Failed to parse metadata:", e.message);
+            }
+        }
+
+        // Upload to Cloudinary with detection folder
+        const uploadResult = await new Promise((resolve, reject) => {
+            const uploadStream = cloudinary.uploader.upload_stream(
+                {
+                    folder: 'detections',
+                    public_id: `detection_${Date.now()}`,
+                    resource_type: 'image',
+                    transformation: [
+                        { quality: 'auto:good' },
+                        { fetch_format: 'auto' }
+                    ]
+                },
+                (error, result) => {
+                    if (error) reject(error);
+                    else resolve(result);
+                }
+            );
+            
+            streamifier.createReadStream(req.file.buffer).pipe(uploadStream);
+        });
+
+        console.log("✅ Detection image uploaded to Cloudinary:", uploadResult.secure_url);
+
+        // Return the URL and metadata
+        res.json({
+            success: true,
+            url: uploadResult.secure_url,
+            public_id: uploadResult.public_id,
+            metadata: metadata,
+            message: 'Detection image uploaded successfully'
+        });
+
+    } catch (error) {
+        console.error("❌ Detection upload error:", error);
+        res.status(500).json({ 
+            error: 'Failed to upload detection image',
+            details: error.message
+        });
+    }
+});
+
 app.post('/upload-detection', upload.single('file'), async (req, res) => {
     console.error(req);
     console.log("Session:", req.session); // Debug session
