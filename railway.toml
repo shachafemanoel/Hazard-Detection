@@ -1,9 +1,9 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile.frontend"
+dockerfilePath = "Dockerfile.unified.slim"
 
 [deploy]
-startCommand = "bash /app/start-frontend.sh"
+startCommand = "bash /app/start-unified.sh"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
