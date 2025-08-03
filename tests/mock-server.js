@@ -30,7 +30,7 @@ app.post('/api/v1/detect/:sessionId', (req, res) => {
 
 app.get('/api/config', (req, res) => {
   res.status(200).json({
-    HAZARD_API_URL_PRIVATE: 'http://localhost:8081/api/v1', // Mock server itself
+    HAZARD_API_URL_PRIVATE: 'http://localhost:8081/api/v1',
     HAZARD_API_URL_PUBLIC: 'http://localhost:8081/api/v1',
     HAZARD_USE_PRIVATE: 'auto',
     REALTIME_MAX_RETRIES: 3,
@@ -88,7 +88,6 @@ export function stopMockServer() {
   });
 }
 
-// Allow running this file directly to start the server
 if (process.argv[1].endsWith('mock-server.js')) {
     startMockServer();
 }

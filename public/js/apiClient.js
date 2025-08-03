@@ -180,7 +180,8 @@ async function probeHealth(base, timeout = 2000) {
  * @returns {Promise<string>} - The resolved base URL.
  */
 async function resolveBaseUrl() {
-  // Fetch configuration from the server
+  // In a browser context, we can't directly access process.env.
+  // These will be populated by the server's /api/config endpoint.
   const configRes = await fetch('/api/config');
   if (!configRes.ok) {
     throw new Error('Could not fetch API configuration from server.');
@@ -200,7 +201,6 @@ async function resolveBaseUrl() {
     return pub;
   }
 
-  // 'auto' mode
   console.log('Probing private network...');
   if (await probeHealth(priv)) {
     console.log('✅ Private network is healthy. Using private URL.');
@@ -221,7 +221,7 @@ async function resolveBaseUrl() {
  * @param {object} config - The configuration for the client.
  * @returns {object} - The real-time client instance.
  */
-export function createRealtimeClient(initialConfig = {}) {
+export function createRealtimeClient(config = {}) {
   let status = 'disconnected';
   let baseUrl = '';
   let eventSource = null;
@@ -235,13 +235,13 @@ export function createRealtimeClient(initialConfig = {}) {
   function setStatus(newStatus) {
     if (status === newStatus) return;
     status = newStatus;
-    console.log(`Realtime client status changed to: ${newStatus}`);
     statusListeners.forEach(cb => cb(status));
   }
 
   async function connect() {
     setStatus('connecting');
 
+    // 1. Fetch configuration
     const configRes = await fetch('/api/config');
     clientConfig = await configRes.json();
 
@@ -251,12 +251,11 @@ export function createRealtimeClient(initialConfig = {}) {
 
     while (attempts < maxRetries) {
       try {
+        // 2. Resolve base URL and start session
         baseUrl = await resolveBaseUrl();
         sessionId = await startApiSession(clientConfig.REALTIME_AUTH_TOKEN);
 
-        // In a real browser environment, a relative URL is fine.
-        // In the Node.js test environment, we need a full URL.
-        // We'll construct it from the resolved base URL.
+        // 3. Establish SSE connection
         const eventSourceUrl = `${baseUrl.replace(/\/api\/v1$/, '')}/api/events/stream`;
         eventSource = new EventSource(eventSourceUrl);
 
