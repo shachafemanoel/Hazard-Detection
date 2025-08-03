@@ -1,11 +1,7 @@
-// apiClient.js - Resilient Hazard Detection API Client (private-first)
-// Based on Node.js Integration Guide patterns
+// apiClient.js - Resilient Hazard Detection API Client (browser version)
+// Uses consolidated network utilities for endpoint resolution
+
 const DEFAULT_TIMEOUT = 30000; // 30 seconds for image processing
-
-// --- Begin new resilient API client implementation ---
-
-const API_URL_PRIVATE = 'http://localhost:8080/api/v1';
-const API_URL_PUBLIC = 'https://hazard-api-production-production.up.railway.app/api/v1';
 let baseUrl = ''; // This will be resolved dynamically
 
 /**
@@ -19,48 +15,93 @@ function withTimeout(ms) {
 
 /**
  * Probes a health endpoint to see if it's responsive.
- * @param {string} base The base URL to probe.
- * @param {number} timeout Milliseconds to wait for a response.
- * @returns {Promise<boolean>} True if the endpoint is healthy, false otherwise.
+ * Calls exactly GET ${base}/health (no /api/v1 prefix)
+ * @param {string} base The base URL to probe (will be cleaned of trailing slashes)
+ * @param {number} timeoutMs Milliseconds to wait for a response (default: 2000)
+ * @returns {Promise<boolean>} True if the endpoint is healthy (200-299), false otherwise
  */
-async function probeHealth(base, timeout = 5000) {
+async function probeHealth(base, timeoutMs = 2000) {
   try {
-    const response = await fetch(`${base}/health`, {
+    // Clean base URL of trailing slashes and ensure /health endpoint
+    const cleanBase = base.replace(/\/+$/, '');
+    const healthUrl = `${cleanBase}/health`;
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    const response = await fetch(healthUrl, {
       method: 'GET',
-      headers: { 'Accept': 'application/json' },
-      signal: withTimeout(timeout)
+      signal: controller.signal,
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'Hazard-Detection-Client/1.0'
+      }
     });
-    return response.ok;
+
+    clearTimeout(timeoutId);
+    
+    // Return true for 200-299 status codes
+    return response.status >= 200 && response.status < 300;
   } catch (error) {
+    // Log probe failures for debugging
     console.warn(`⚠️ Health probe failed for ${base}:`, error.message);
     return false;
   }
 }
 
 /**
- * Resolves the active base URL by probing private and public endpoints.
- * This function should only be called once during initialization.
- * @returns {Promise<string>} The healthy base URL.
- * @throws {Error} If no healthy endpoint is found.
+ * Resolves the active base URL by probing endpoints according to configuration.
+ * Priority: Local-Dev → Private-First → Public → Error
+ * @param {Object} options Configuration options
+ * @param {string} options.usePrivate Override for private endpoint preference ('auto', 'true', 'false')
+ * @returns {Promise<string>} The healthy base URL
+ * @throws {Error} If no healthy endpoint is found
  */
-async function resolveBaseUrl() {
+async function resolveBaseUrl(options = {}) {
   console.log('🔎 Resolving API endpoint...');
   
-  // 1. Try the private URL first
-  if (await probeHealth(API_URL_PRIVATE)) {
-    console.log('✅ Private API endpoint is healthy:', API_URL_PRIVATE);
-    return API_URL_PRIVATE;
+  // Environment variables with defaults (browser doesn't have process.env, so use hardcoded defaults)
+  const privateUrl = 'http://ideal-learning.railway.internal:8080';
+  const publicUrl = 'https://hazard-api-production-production.up.railway.app';
+  const localUrl = 'http://localhost:8080';
+  
+  // In browser, we can't detect NODE_ENV=development reliably, so skip local override
+  // Local development should use a local server on :8080 anyway
+  
+  // Get preference from options (browser can't access process.env easily)
+  const usePrivate = options.usePrivate || 'auto';
+  
+  // Direct private override
+  if (usePrivate === 'true') {
+    console.log(`🔒 Private network selected: ${privateUrl}`);
+    return privateUrl;
   }
-
-  // 2. Fallback to the public URL
-  console.log('⚠️ Private endpoint failed, trying public...');
-  if (await probeHealth(API_URL_PUBLIC)) {
-    console.log('✅ Public API endpoint is healthy:', API_URL_PUBLIC);
-    return API_URL_PUBLIC;
+  
+  // Direct public override
+  if (usePrivate === 'false') {
+    console.log(`🌐 Public network selected: ${publicUrl}`);
+    return publicUrl;
   }
-
-  // 3. If both fail, throw an error
-  throw new Error('No healthy API endpoint found.');
+  
+  // Auto-selection: Private-First → Public → Error
+  if (usePrivate === 'auto') {
+    // Try private first with 2s timeout
+    if (await probeHealth(privateUrl, 2000)) {
+      console.log(`🔒 Private network selected: ${privateUrl}`);
+      return privateUrl;
+    }
+    
+    // Fallback to public
+    if (await probeHealth(publicUrl, 2000)) {
+      console.log(`🌐 Public network selected: ${publicUrl}`);
+      return publicUrl;
+    }
+    
+    // Both failed
+    throw new Error('No healthy endpoint found');
+  }
+  
+  throw new Error(`Invalid usePrivate value: ${usePrivate}. Must be 'auto', 'true', or 'false'`);
 }
 
 

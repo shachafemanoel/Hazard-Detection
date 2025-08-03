@@ -12,10 +12,10 @@ class HazardDetectionApp {
     this.init();
   }
 
-  // Get backend URL based on environment - use proxy endpoints
+  // Get backend URL based on environment - use direct endpoints
   getBackendUrl() {
-    // Always use the same origin to go through the frontend server proxy
-    return window.location.origin + '/api/v1';
+    // Use the same origin for development/proxy setup
+    return window.location.origin;
   }
 
   // Initialize the application
