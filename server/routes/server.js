@@ -1424,6 +1424,7 @@ app.post('/reset-password', async (req, res) => {
 
 
 app.post('/upload-detection', upload.single('file'), async (req, res) => {
+    console.error(req);
     console.log("Session:", req.session); // Debug session
     console.log("Is Authenticated:", req.isAuthenticated()); // Debug authentication
     console.log("User:", req.user); // Debug user object

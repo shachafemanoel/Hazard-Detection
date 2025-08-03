@@ -3,10 +3,17 @@ FROM node:20-bullseye
 
 WORKDIR /app
 
-# Install bash, curl, Python and pip
+# Install bash, curl, Python and pip, plus canvas dependencies
 RUN apt-get update && apt-get install -y \
     bash curl python3 python3-pip \
-    && rm -rf /var/lib/apt/lists/*
+    build-essential \
+    libcairo2-dev \
+    libpango1.0-dev \
+    libjpeg-dev \
+    libgif-dev \
+    librsvg2-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && npm config set python /usr/bin/python3
 
 # Copy Node.js dependencies and install
 COPY package*.json ./
