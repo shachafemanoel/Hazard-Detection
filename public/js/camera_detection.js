@@ -619,6 +619,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   async function initializeDetection() {
     showLoading("Initializing Detection System...", 0);
     initialized = false;
+    useApi = false; // Default to ONNX-only
+    apiAvailable = false;
 
     try {
       // Always load ONNX model first
@@ -651,18 +653,65 @@ document.addEventListener("DOMContentLoaded", async () => {
         ? '🚀 Enhanced detection ready with API + ONNX support'
         : '🎯 Local detection ready with ONNX model';
 
+      // 1. Always load the local ONNX model first
+      showLoading("Loading local AI model...", 10);
+      await loadModel();
+      console.log('✅ ONNX model loaded.');
+      updateConnectionStatus('ready', 'Local Model Ready');
+
+      // 2. Try to connect to the API, but don't fail if it's unavailable
+      try {
+        showLoading("Checking for remote API...", 70);
+        // The loadApiConfig is necessary to resolve the API base URL.
+        // It can throw "No healthy endpoint found" if the API is down.
+        await window.loadApiConfig();
+        const apiOk = await window.testApiConnection();
+        if (apiOk) {
+          showLoading("Starting API session...", 85);
+          apiSessionId = await window.startApiSession();
+          useApi = true;
+          apiAvailable = true;
+          console.log('✅ API session started, using remote detection');
+          showNotification('Remote API connected. Using enhanced detection.', 'success');
+          updateConnectionStatus('connected', 'Enhanced Mode (API + ONNX)');
+        } else {
+          // This case handles when testApiConnection returns false but doesn't throw an error.
+          console.warn('⚠️ API unavailable, using ONNX-only detection');
+          showNotification('Remote API unavailable, running local model', 'warning');
+          updateConnectionStatus('warning', 'ONNX-Only Mode');
+        }
+      } catch (err) {
+        // This case handles when resolveBaseUrl or testApiConnection throws an error
+        // (e.g., "No healthy endpoint found")
+        console.warn('⚠️ API initialization failed:', err.message);
+        console.warn('→ Falling back to ONNX-only detection');
+        showNotification('Remote API unavailable, running local model', 'warning');
+        updateConnectionStatus('warning', 'ONNX-Only Mode');
+        // `useApi` is already false, so we just continue without re-throwing the error.
+      }
+
+      // 3. Finalize initialization
+      const modeMessage = useApi
+        ? "🚀 Enhanced detection ready (API + ONNX)"
+        : "🎯 Local detection ready (ONNX only)";
+      
+
       showNotification(modeMessage, 'success');
       initialized = true;
       startProcessingLoop();
       return true;
+
     } catch (error) {
+      // This catch block now only handles critical errors, like the ONNX model failing to load.
+      console.error("❌ Critical initialization failed:", error);
       showNotification(`Initialization failed: ${error.message}`, 'error');
+      updateConnectionStatus('error', 'Initialization Failed');
       return false;
     } finally {
       // A short delay to ensure the final loading message is visible before hiding.
       setTimeout(() => {
         hideLoading();
-      }, 500); // 500ms delay
+      }, 500);
     }
   }
 
