@@ -405,51 +405,69 @@ document.addEventListener("DOMContentLoaded", async () => {
     return detectionCanvas;
   }
 
-  // Upload detection image to Cloudinary
-  async function uploadToCloudinary(canvas, detections) {
-    return new Promise((resolve, reject) => {
-      canvas.toBlob(async (blob) => {
-        if (!blob) return reject("❌ No blob from canvas");
+  // Upload detection image and report
+  async function uploadDetection(canvas, detections) {
+      return new Promise((resolve, reject) => {
+          canvas.toBlob(async (blob) => {
+              if (!blob) return reject("❌ No blob from canvas");
 
-        try {
-          const formData = new FormData();
-          formData.append('image', blob, `detection_${Date.now()}.jpg`);
-          formData.append('metadata', JSON.stringify({
-            detections: detections.map(det => {
-              const [x1, y1, x2, y2, score, classId] = det;
-              const correctedClassId = Math.floor(classId) - 1;
-              const classIndex = Math.max(0, correctedClassId);
-              return {
-                class: CLASS_NAMES[classIndex] || `Unknown Class ${classIndex}`,
-                confidence: score,
-                bbox: [x1, y1, x2, y2]
-              };
-            }),
-            timestamp: new Date().toISOString(),
-            source: 'live_camera_detection',
-            sessionId: apiSessionId || 'local_session',
-            frameNumber: frameCount
-          }));
+              try {
+                  const formData = new FormData();
+                  formData.append('file', blob, `detection_${Date.now()}.jpg`);
 
-          const response = await fetch('/api/upload-detection', {
-            method: 'POST',
-            body: formData
-          });
+                  // Append metadata fields
+                  const metadata = {
+                      detections: detections.map(det => {
+                          const [x1, y1, x2, y2, score, classId] = det;
+                          const correctedClassId = Math.floor(classId) - 1;
+                          const classIndex = Math.max(0, correctedClassId);
+                          return {
+                              class: CLASS_NAMES[classIndex] || `Unknown Class ${classIndex}`,
+                              confidence: score,
+                              bbox: [x1, y1, x2, y2]
+                          };
+                      }),
+                      timestamp: new Date().toISOString(),
+                      source: 'live_camera_detection',
+                      sessionId: apiSessionId || 'local_session',
+                      frameNumber: frameCount,
+                      geoData: geoData // Add geolocation data
+                  };
 
-          if (response.ok) {
-            const result = await response.json();
-            console.log("✅ Detection uploaded to Cloudinary:", result);
-            resolve(result.url || result.secure_url);
-          } else {
-            const errorText = await response.text();
-            throw new Error(`Cloudinary upload failed: ${response.status} - ${errorText}`);
-          }
-        } catch (error) {
-          console.error("Cloudinary upload error:", error);
-          reject(error);
-        }
-      }, "image/jpeg", 0.9);
-    });
+                  // Append all metadata key-value pairs to FormData
+                  for (const key in metadata) {
+                    if (Object.hasOwnProperty.call(metadata, key)) {
+                      const value = metadata[key];
+                      // Stringify objects/arrays before appending
+                      if (typeof value === 'object' && value !== null) {
+                        formData.append(key, JSON.stringify(value));
+                      } else {
+                        formData.append(key, value);
+                      }
+                    }
+                  }
+
+                  const response = await fetch('/api/upload', {
+                      method: 'POST',
+                      body: formData,
+                      credentials: 'include'
+                  });
+
+                  if (response.ok) {
+                      const result = await response.json();
+                      console.log("✅ Detection report uploaded:", result);
+                      // The service now returns the full report, which includes the image URL
+                      resolve(result.report.image.url);
+                  } else {
+                      const errorText = await response.text();
+                      throw new Error(`Upload failed: ${response.status} - ${errorText}`);
+                  }
+              } catch (error) {
+                  console.error("Upload error:", error);
+                  reject(error);
+              }
+          }, "image/jpeg", 0.9);
+      });
   }
 
   // Geolocation data for saved detections
@@ -922,12 +940,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       
       let imageUrl;
       
-      // Upload to Cloudinary via server endpoint
+      // Upload to the unified endpoint
       try {
-        imageUrl = await uploadToCloudinary(detectionCanvas, detections);
-        console.log("☁️ Detection image uploaded to Cloudinary:", imageUrl);
+        imageUrl = await uploadDetection(detectionCanvas, detections);
+        console.log("☁️ Detection report uploaded, image URL:", imageUrl);
       } catch (uploadError) {
-        console.warn("⚠️ Cloudinary upload failed, using data URL:", uploadError.message);
+        console.warn("⚠️ Upload failed, using data URL as fallback:", uploadError.message);
         imageUrl = detectionCanvas.toDataURL("image/jpeg", 0.9);
       }
 
