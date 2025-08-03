@@ -20,83 +20,77 @@
 </head>
 <body class="d-flex align-items-center justify-content-center min-vh-100 px-4">
 
-  <div class="login-container card p-5 text-center">
+  <main class="login-container card p-5 text-center">
     <img src="icon.png" alt="Hazard Detection Logo" class="img-fluid rounded-circle shadow-sm mb-4 mx-auto" style="max-width: 120px;">
     <h1 class="h3 mb-3">Sign in to Hazard Reporter</h1>
 
-    <!-- Main Buttons -->
-    <div id="buttons" class="d-grid gap-3">
-      <button class="btn btn-lg" onclick="toggleForm()">
+    <section id="buttons" class="d-grid gap-3">
+      <button class="btn btn-lg" onclick="toggleForm()" aria-label="Continue with Email">
         <i class="far fa-envelope me-2"></i> Continue with Email
       </button>
-      <button class="btn btn-lg" onclick="location.href='/auth/google'">
+      <button class="btn btn-lg" onclick="location.href='/auth/google'" aria-label="Continue with Google">
         <i class="fab fa-google me-2"></i> Continue with Google
       </button>
-    </div>
+    </section>
 
-    <!-- Email Options -->
-    <div id="email-options" class="d-none mt-4 d-grid gap-2">
+    <section id="email-options" class="d-none mt-4 d-grid gap-2">
       <button class="btn btn-sm" onclick="showSignupForm()">Sign Up</button>
       <button class="btn btn-sm" onclick="showLoginForm()">Log In</button>
       <button class="btn btn-sm" onclick="toggleForgotPassword()">Forgot Password</button>
       <button id="back-options" class="btn btn-sm btn-secondary" onclick="backToMainScreen()">Back</button>
-    </div>
+    </section>
 
-    <!-- Email Forms -->
-    <div id="email-form" class="d-none mt-4">
+    <section id="email-form" class="d-none mt-4">
 
-      <!-- Sign Up Form -->
       <div id="signup-form" class="d-none">
         <h2 class="h5 mb-3">Sign Up</h2>
-        <form id="register-form">
+        <form id="register-form" aria-labelledby="signup-heading">
           <div class="form-floating mb-3">
-            <input type="email" id="email" placeholder="Email" name="email" required class="form-control">
+            <input type="email" id="email" placeholder="Email" name="email" required class="form-control" aria-label="Email">
             <label for="email">Email</label>
           </div>
           <div class="form-floating mb-3">
-            <input type="text" id="username" placeholder="Username" name="username" required minlength="3" class="form-control">
+            <input type="text" id="username" placeholder="Username" name="username" required minlength="3" class="form-control" aria-label="Username">
             <label for="username">Username</label>
           </div>
           <div class="form-floating mb-3">
-            <input type="password" id="password" placeholder="Password" name="password" required minlength="8" class="form-control">
+            <input type="password" id="password" placeholder="Password" name="password" required minlength="8" class="form-control" aria-label="Password">
             <label for="password">Password</label>
           </div>
           <button type="submit" class="btn btn-primary w-100">Register</button>
         </form>
-        <div id="email-error" class="d-none mt-3 alert alert-danger"></div>
+        <div id="email-error" class="d-none mt-3 alert alert-danger" role="alert"></div>
       </div>
 
-      <!-- Log In Form -->
       <div id="login-form" class="d-none">
         <h2 class="h5 mb-3">Log In</h2>
-        <form id="login-form-inner">
+        <form id="login-form-inner" aria-labelledby="login-heading">
           <div class="form-floating mb-3">
-            <input type="email" id="login-email" placeholder="Email" name="email" required class="form-control">
+            <input type="email" id="login-email" placeholder="Email" name="email" required class="form-control" aria-label="Email">
             <label for="login-email">Email</label>
           </div>
           <div class="form-floating mb-3">
-            <input type="password" id="login-password" placeholder="Password" name="password" required minlength="8" class="form-control">
+            <input type="password" id="login-password" placeholder="Password" name="password" required minlength="8" class="form-control" aria-label="Password">
             <label for="login-password">Password</label>
           </div>
           <button type="submit" class="btn btn-primary w-100">Log In</button>
         </form>
-        <div id="login-error" class="d-none mt-3 alert alert-danger"></div>
+        <div id="login-error" class="d-none mt-3 alert alert-danger" role="alert"></div>
       </div>
 
-      <!-- Reset Password Form -->
       <div id="forgot-password-form" class="d-none">
         <h2 class="h5 mb-3">Reset Password</h2>
-        <form id="reset-password-form">
+        <form id="reset-password-form" aria-labelledby="reset-heading">
           <div class="form-floating mb-3">
-            <input type="email" id="reset-email" placeholder="Enter your email" name="email" required class="form-control">
+            <input type="email" id="reset-email" placeholder="Enter your email" name="email" required class="form-control" aria-label="Email">
             <label for="reset-email">Email</label>
           </div>
           <button type="submit" class="btn btn-primary w-100">Reset Password</button>
         </form>
-        <div id="reset-password-error" class="d-none mt-3 alert alert-danger"></div>
+        <div id="reset-password-error" class="d-none mt-3 alert alert-danger" role="alert"></div>
       </div>
-    </div>
-  </div>
+    </section>
+  </main>
 
   <script src="js/login.js" defer></script>
 </body>

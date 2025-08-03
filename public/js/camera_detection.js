@@ -36,21 +36,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   const detectionsGrid = document.getElementById("detections-grid");
   const savedReportsList = document.getElementById("saved-reports-list");
 
-  // Enhanced Road Damage Detection Configuration
-  const FIXED_SIZE = 480; // Optimized input size for real-time detection
-  
-  // Road Damage Classes (mapping to model's 10 classes)
-  const classNames = [
-    'Alligator Crack',    // 0: Interconnected cracking resembling alligator skin
-    'Block Crack',        // 1: Rectangular crack patterns in pavement
-    'Crosswalk Blur',     // 2: Faded or unclear crosswalk markings
-    'Lane Blur',          // 3: Faded or unclear lane markings
-    'Longitudinal Crack', // 4: Cracks parallel to traffic direction
-    'Manhole',            // 5: Manhole covers and surrounding issues
-    'Patch Repair',       // 6: Previous repair work areas
-    'Pothole',            // 7: Circular/oval holes in road surface
-    'Transverse Crack',   // 8: Cracks perpendicular to traffic direction
-    'Wheel Mark Crack'    // 9: Cracks caused by wheel loading
+  // Constants
+  const FIXED_SIZE = 480;
+  const API_HEALTH_CHECK_INTERVAL = 10000; // 10 seconds
+  const SESSION_UPDATE_INTERVAL = 1000; // 1 second
+  const DETECTION_SAVE_INTERVAL = 120; // frames
+  const PERFORMANCE_UPDATE_INTERVAL = 1000; // 1 second
+
+  // Road Damage Classes
+  const CLASS_NAMES = [
+    'Alligator Crack', 'Block Crack', 'Crosswalk Blur', 'Lane Blur',
+    'Longitudinal Crack', 'Manhole', 'Patch Repair', 'Pothole',
+    'Transverse Crack', 'Wheel Mark Crack'
   ];
 
   // Camera Detection Session Tracking
@@ -236,54 +233,39 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Function to handle different API error types and implement fallbacks
   function handleApiError(error) {
     const errorMessage = error.message || '';
-    
-    // Handle model loading/startup errors (PyTorch, OpenVino, etc.)
-    if (errorMessage.includes('model not loaded') || 
-        errorMessage.includes('Service may still be starting') ||
-        errorMessage.includes('Model is loading') ||
-        errorMessage.includes('Backend not ready') ||
-        errorMessage.includes('PyTorch model not loaded') ||
-        errorMessage.includes('OpenVino model not loaded') ||
-        errorMessage.includes('Model initialization')) {
+    const modelLoadingErrors = ['model not loaded', 'Service may still be starting', 'Model is loading', 'Backend not ready', 'PyTorch model not loaded', 'OpenVino model not loaded', 'Model initialization'];
+    const backendDependencyErrors = ['ExportOptions', 'torch.onnx._internal.exporter'];
+    const imageFormatErrors = ['cvtColor', 'OpenCV'];
+    const sessionErrors = ['Session', '404'];
+
+    if (modelLoadingErrors.some(e => errorMessage.includes(e))) {
       console.warn('🚀 Backend model still loading - this is temporary during startup');
-      console.log('💡 Model backend (OpenVino/PyTorch) is initializing, will retry automatically');
-      
-      // Don't disable API completely, just skip this detection cycle
       showNotification('Backend model loading - will use when ready', 'info');
       updateConnectionStatus('connected', 'API Connected (Model Loading...)');
-      
-      return true; // Error handled, but keep API available
+      return true;
     }
-    
-    // Handle specific PyTorch ONNX export error
-    if (errorMessage.includes('ExportOptions') || errorMessage.includes('torch.onnx._internal.exporter')) {
+
+    if (backendDependencyErrors.some(e => errorMessage.includes(e))) {
       console.warn('🔧 PyTorch ONNX export error detected - this is a backend dependency issue');
-      console.log('💡 Suggestion: Backend needs PyTorch update or ONNX export fix');
-      
-      // Temporarily disable API detection for this session
       apiAvailable = false;
       useApi = false;
-      
       showNotification('Backend model error detected - using local detection only', 'warning');
       updateConnectionStatus('warning', 'Local ONNX Detection (Backend Issue)');
-      
-      return true; // Error handled
+      return true;
     }
-    
-    // Handle OpenCV image format errors
-    if (errorMessage.includes('cvtColor') || errorMessage.includes('OpenCV')) {
+
+    if (imageFormatErrors.some(e => errorMessage.includes(e))) {
       console.warn('🖼️ Image format error - adjusting image preprocessing');
-      return false; // Continue with other error handling
+      return false;
     }
-    
-    // Handle session/authentication errors
-    if (errorMessage.includes('Session') || errorMessage.includes('404')) {
+
+    if (sessionErrors.some(e => errorMessage.includes(e))) {
       console.log('🔄 Session expired - will create new session');
       apiSessionId = null;
-      return false; // Continue with session recreation
+      return false;
     }
-    
-    return false; // Unknown error, continue with default handling
+
+    return false;
   }
   
   // Make camera session functions globally available

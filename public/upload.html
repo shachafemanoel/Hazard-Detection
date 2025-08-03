@@ -37,33 +37,34 @@
   <!-- Main Content -->
   <main class="main-content">
     <div class="container mt-5">
-    <div class="card p-4 mx-auto" style="max-width: 600px;">
-      <h2 class="text-center mb-4">Upload Image for Detection</h2>
+      <section class="card p-4 mx-auto" style="max-width: 600px;">
+        <h2 class="text-center mb-4">Upload Image for Detection</h2>
 
-      <div class="mb-3">
-        <input type="file" id="image-upload" class="form-control" accept="image/*" />
-      </div>
-
-      <div class="mb-3">
-        <label for="confidence-slider" class="form-label">
-          Detection Sensitivity: <span id="conf-value">0.5</span>
-        </label>
-        <input type="range" id="confidence-slider" class="form-range" min="0.25" max="0.8" step="0.05" value="0.5" />
-      </div>
-
-      <canvas id="preview-canvas" class="img-fluid border rounded mb-3"></canvas>
-
-      <button id="save-detection" class="btn btn-primary w-100">Save Detection</button>
-      <button id="open-detection-modal" class="btn btn-secondary w-100 mt-2">View Detection Details</button>
-      <div id="tooltip" class="alert alert-warning mt-3" style="display:none;">⚠️ No Hazard Detected. Cannot save detection</div>
-
-      <div id="toast-notification" class="toast align-items-center text-white bg-primary border-0 mt-3" role="alert" aria-live="assertive" aria-atomic="true">
-        <div class="d-flex">
-          <div id="toast-body" class="toast-body"></div>
-          <button type="button" id="toast-close" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        <div class="mb-3">
+          <label for="image-upload" class="form-label">Select an image</label>
+          <input type="file" id="image-upload" class="form-control" accept="image/*" aria-label="Image upload" />
         </div>
-      </div>
-    </div>
+
+        <div class="mb-3">
+          <label for="confidence-slider" class="form-label">
+            Detection Sensitivity: <span id="conf-value">0.5</span>
+          </label>
+          <input type="range" id="confidence-slider" class="form-range" min="0.25" max="0.8" step="0.05" value="0.5" aria-label="Detection sensitivity" />
+        </div>
+
+        <canvas id="preview-canvas" class="img-fluid border rounded mb-3"></canvas>
+
+        <button id="save-detection" class="btn btn-primary w-100" aria-label="Save detection">Save Detection</button>
+        <button id="open-detection-modal" class="btn btn-secondary w-100 mt-2" aria-label="View detection details">View Detection Details</button>
+        <div id="tooltip" class="alert alert-warning mt-3" style="display:none;" role="tooltip">⚠️ No Hazard Detected. Cannot save detection</div>
+
+        <div id="toast-notification" class="toast align-items-center text-white bg-primary border-0 mt-3" role="alert" aria-live="assertive" aria-atomic="true">
+          <div class="d-flex">
+            <div id="toast-body" class="toast-body"></div>
+            <button type="button" id="toast-close" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+          </div>
+        </div>
+      </section>
     </div>
   </main>
 
