@@ -3,19 +3,12 @@
   "version": "1.0.0",
   "description": "Hazard Detection Project",
   "main": "server/routes/server.js",
-  "exports": {
-    ".": "./server/routes/server.js",
-    "./realtime": {
-      "node": "./src/clients/realtime.node.js",
-      "browser": "./src/clients/realtime.browser.js"
-    }
-  },
   "scripts": {
     "start": "node server/routes/server.js",
     "dev": "nodemon server/routes/server.js",
     "build": "echo 'No build step needed'",
     "stream:check": "node scripts/stream-check.js",
-    "test": "mocha test/test-apiClient.js"
+    "test": "jest"
   },
   "keywords": [],
   "author": "",
@@ -37,6 +30,7 @@
     "mocha": "^11.7.1",
     "multer": "^1.4.5-lts.2",
     "ol": "^10.6.1",
+    "onnxruntime-node": "^1.22.0-rev",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "redis": "^4.7.1",
@@ -47,8 +41,11 @@
   },
   "devDependencies": {
     "autoprefixer": "^10.4.21",
+    "jest": "^29.7.0",
     "nodemon": "^3.1.10",
     "postcss": "^8.5.3",
+    "puppeteer": "^21.7.0",
+    "supertest": "^7.1.1",
     "tailwindcss": "^4.1.7"
   }
 }

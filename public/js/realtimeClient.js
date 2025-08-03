@@ -1,7 +1,5 @@
-// realtime.browser.js - Browser-compatible realtime client for Hazard Detection API
-// Uses consolidated network utilities for endpoint resolution
-
-import { resolveBaseUrl, toWsUrl } from '../utils/network.js';
+// Browser-compatible realtime client for Hazard Detection API
+// Provides private-first connectivity with automatic fallback
 
 class RealtimeClient {
   constructor(config = {}) {
@@ -17,13 +15,24 @@ class RealtimeClient {
     this.sessionId = null;
     this.status = 'disconnected';
     this.retryCount = 0;
-    this.hasHadFirstError = false; // Track if we've had first connection error
     
     this.listeners = {
       message: [],
       error: [],
       status: [],
     };
+
+    // Private/public endpoints
+    this.endpoints = {
+      private: 'http://ideal-learning.railway.internal:8080',
+      public: 'https://hazard-api-production-production.up.railway.app'
+    };
+
+    // Override from environment if available (for server-side usage)
+    if (typeof process !== 'undefined' && process.env) {
+      this.endpoints.private = process.env.HAZARD_API_URL_PRIVATE || this.endpoints.private;
+      this.endpoints.public = process.env.HAZARD_API_URL_PUBLIC || this.endpoints.public;
+    }
 
     this._requestInterceptor = this._createRequestInterceptor();
   }
@@ -55,69 +64,86 @@ class RealtimeClient {
     });
   }
 
-  /**
-   * Connect to the realtime service with retry-once-on-first-failure logic
-   */
+  async probeHealth(baseUrl, timeout = 2000) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+      const response = await fetch(`${baseUrl.replace(/\/+$/, '')}/health`, {
+        method: 'GET',
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Hazard-Detection-Realtime/1.0'
+        }
+      });
+
+      clearTimeout(timeoutId);
+      return response.ok;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async resolveBaseUrl() {
+    // Check for configuration override
+    const preference = this.config.networkPreference || 'auto';
+    
+    if (preference === 'private') {
+      console.log('🔧 Private network forced via config');
+      return this.endpoints.private;
+    }
+    if (preference === 'public') {
+      console.log('🔧 Public network forced via config');
+      return this.endpoints.public;
+    }
+
+    // Auto-selection: probe private first, then public
+    if (await this.probeHealth(this.endpoints.private)) {
+      console.log('🔒 Private network selected');
+      return this.endpoints.private;
+    }
+    if (await this.probeHealth(this.endpoints.public)) {
+      console.log('🌐 Public network selected');
+      return this.endpoints.public;
+    }
+    
+    throw new Error('No healthy endpoint found (private/public)');
+  }
+
   async connect() {
     this.setStatus('connecting');
-    
-    let attemptedAlternate = false;
-    
-    const tryConnect = async (usePrivate) => {
-      try {
-        this.baseUrl = await resolveBaseUrl({ 
-          usePrivate: usePrivate ? 'true' : 'false' 
-        });
-        
-        const headers = {
-          'User-Agent': 'Hazard-Detection-Realtime/1.0',
-          'Content-Type': 'application/json'
-        };
-
-        if (this.config.authToken) {
-          headers['Authorization'] = `Bearer ${this.config.authToken}`;
-        }
-
-        this._requestInterceptor('POST', `${this.baseUrl}/session/start`, { headers });
-
-        const response = await fetch(`${this.baseUrl}/session/start`, {
-          method: 'POST',
-          headers,
-          signal: AbortSignal.timeout(this.config.timeout)
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
-          throw new Error(`Failed to start session: ${errorData.detail || response.statusText}`);
-        }
-        
-        const data = await response.json();
-        this.sessionId = data.session_id;
-        this.retryCount = 0;
-        this.hasHadFirstError = false;
-        this.setStatus('connected');
-        
-        const networkType = this.baseUrl.includes('railway.internal') ? 'private' : 'public';
-        console.log(`🎉 CONNECTED via ${networkType}`);
-        console.log(`✅ Session started: ${this.sessionId}`);
-        return true;
-        
-      } catch (error) {
-        // If this is the first error and we haven't tried the alternate yet
-        if (!this.hasHadFirstError && !attemptedAlternate) {
-          this.hasHadFirstError = true;
-          attemptedAlternate = true;
-          console.log(`⚠️ First connection failed, trying alternate endpoint...`);
-          return await tryConnect(!usePrivate); // Switch to alternate
-        }
-        
-        throw error;
-      }
-    };
-
     try {
-      // Start with private-first (auto resolution), then try alternate on first failure
-      return await tryConnect(true);
+      this.baseUrl = await this.resolveBaseUrl();
+      
+      const headers = {
+        'User-Agent': 'Hazard-Detection-Realtime/1.0',
+        'Content-Type': 'application/json'
+      };
+
+      if (this.config.authToken) {
+        headers['Authorization'] = `Bearer ${this.config.authToken}`;
+      }
+
+      this._requestInterceptor('POST', `${this.baseUrl}/session/start`, { headers });
+
+      const response = await fetch(`${this.baseUrl}/session/start`, {
+        method: 'POST',
+        headers,
+        signal: AbortSignal.timeout(this.config.timeout)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
+        throw new Error(`Failed to start session: ${errorData.detail || response.statusText}`);
+      }
+      
+      const data = await response.json();
+      this.sessionId = data.session_id;
+      this.retryCount = 0;
+      this.setStatus('connected');
+      
+      console.log(`✅ Session started: ${this.sessionId}`);
+      return true;
       
     } catch (error) {
       this.setStatus('disconnected');
@@ -297,23 +323,17 @@ class RealtimeClient {
   }
 }
 
-/**
- * Factory function for easy usage
- */
+// Factory function for easy usage
 function createRealtimeClient(config) {
   return new RealtimeClient(config);
 }
 
-// CommonJS exports for Node.js compatibility
+// Browser compatibility - expose as global or ES6 module
 if (typeof module !== 'undefined' && module.exports) {
+  // Node.js/CommonJS
   module.exports = { createRealtimeClient, RealtimeClient };
-}
-
-// Browser compatibility - expose as global
-if (typeof window !== 'undefined') {
+} else if (typeof window !== 'undefined') {
+  // Browser global
   window.createRealtimeClient = createRealtimeClient;
   window.RealtimeClient = RealtimeClient;
 }
-
-// ES6 module exports
-export { createRealtimeClient, RealtimeClient };
