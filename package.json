@@ -3,6 +3,13 @@
   "version": "1.0.0",
   "description": "Hazard Detection Project",
   "main": "server/routes/server.js",
+  "exports": {
+    ".": "./server/routes/server.js",
+    "./realtime": {
+      "node": "./src/clients/realtime.node.js",
+      "browser": "./src/clients/realtime.browser.js"
+    }
+  },
   "scripts": {
     "start": "node server/routes/server.js",
     "dev": "nodemon server/routes/server.js",
