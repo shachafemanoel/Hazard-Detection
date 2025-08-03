@@ -110,5 +110,7 @@ app.post('/login', (req, res) => {
 // Start server
 app.listen(port, '0.0.0.0', () => {
     console.log(`✅ Simple server running on port ${port}`);
-    console.log(`✅ Environment: ${process.env.NODE_ENV || 'development'}`);
+    if (process.env.DEBUG_ENV === 'true') {
+        console.log(`✅ Environment: ${process.env.NODE_ENV || 'development'}`);
+    }
 });
