@@ -1,8 +1,68 @@
-// apiClient.js - Hazard Detection API Client
+// apiClient.js - Resilient Hazard Detection API Client (private-first)
 // Based on Node.js Integration Guide patterns
 const DEFAULT_TIMEOUT = 30000; // 30 seconds for image processing
-// Use local server proxy to avoid CORS issues
-let API_URL = '/api/v1';
+
+// --- Begin new resilient API client implementation ---
+
+const API_URL_PRIVATE = 'http://localhost:8080/api/v1';
+const API_URL_PUBLIC = 'https://hazard-api-production-production.up.railway.app/api/v1';
+let baseUrl = ''; // This will be resolved dynamically
+
+/**
+ * Returns an AbortSignal that aborts after a given time.
+ * @param {number} ms Milliseconds to wait before aborting.
+ * @returns {AbortSignal} An AbortSignal instance.
+ */
+function withTimeout(ms) {
+    return AbortSignal.timeout(ms);
+}
+
+/**
+ * Probes a health endpoint to see if it's responsive.
+ * @param {string} base The base URL to probe.
+ * @param {number} timeout Milliseconds to wait for a response.
+ * @returns {Promise<boolean>} True if the endpoint is healthy, false otherwise.
+ */
+async function probeHealth(base, timeout = 5000) {
+  try {
+    const response = await fetch(`${base}/health`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      signal: withTimeout(timeout)
+    });
+    return response.ok;
+  } catch (error) {
+    console.warn(`⚠️ Health probe failed for ${base}:`, error.message);
+    return false;
+  }
+}
+
+/**
+ * Resolves the active base URL by probing private and public endpoints.
+ * This function should only be called once during initialization.
+ * @returns {Promise<string>} The healthy base URL.
+ * @throws {Error} If no healthy endpoint is found.
+ */
+async function resolveBaseUrl() {
+  console.log('🔎 Resolving API endpoint...');
+  
+  // 1. Try the private URL first
+  if (await probeHealth(API_URL_PRIVATE)) {
+    console.log('✅ Private API endpoint is healthy:', API_URL_PRIVATE);
+    return API_URL_PRIVATE;
+  }
+
+  // 2. Fallback to the public URL
+  console.log('⚠️ Private endpoint failed, trying public...');
+  if (await probeHealth(API_URL_PUBLIC)) {
+    console.log('✅ Public API endpoint is healthy:', API_URL_PUBLIC);
+    return API_URL_PUBLIC;
+  }
+
+  // 3. If both fail, throw an error
+  throw new Error('No healthy API endpoint found.');
+}
+
 
 // Initialize API failure tracking
 let apiFailureCount = 0;
@@ -13,28 +73,27 @@ async function loadApiConfig() {
   // API configuration for Hazard Detection service
   // Following integration guide patterns - always use proxy endpoint
   try {
-    console.log('🔧 API configuration loaded via proxy:', API_URL);
-    return { baseURL: API_URL, timeout: DEFAULT_TIMEOUT };
+    baseUrl = await resolveBaseUrl();
+    console.log('🔧 API configuration loaded with base URL:', baseUrl);
+    return { baseURL: baseUrl, timeout: DEFAULT_TIMEOUT };
   } catch (error) {
-    console.warn('⚠️ Failed to load API config, using proxy defaults:', error);
-    return { baseURL: API_URL, timeout: DEFAULT_TIMEOUT };
+    console.error('❌ Failed to load API config:', error.message);
+    // Re-throw to prevent the application from starting with a broken API client
+    throw error;
   }
 }
 
 // Health check - following integration guide patterns
 async function checkHealth() {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
   try {
-    const res = await fetch(`${API_URL}/health`, { 
-      signal: controller.signal,
+    const res = await fetch(`${baseUrl}/health`, { 
+      signal: withTimeout(DEFAULT_TIMEOUT),
       method: 'GET',
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json'
       }
     });
-    clearTimeout(id);
     
     if (!res.ok) {
       throw new Error(`Health check failed: ${res.status}`);
@@ -44,7 +103,6 @@ async function checkHealth() {
     console.log("✅ API service health:", data);
     return data;
   } catch (error) {
-    clearTimeout(id);
     console.error("❌ Health check failed:", error.message);
     throw new Error(`Health check failed: ${error.message}`);
   }
@@ -78,7 +136,7 @@ async function testApiConnection() {
 // Start session - following integration guide patterns
 async function startSession() {
   try {
-    const res = await fetch(`${API_URL}/session/start`, { 
+    const res = await fetch(`${baseUrl}/session/start`, { 
       method: "POST",
       headers: {
         'Content-Type': 'application/json',
@@ -120,7 +178,7 @@ async function detectHazards(sessionId, imageBlob) {
     const formData = new FormData();
     formData.append('file', imageBlob, 'frame.jpg');
     
-    const res = await fetch(`${API_URL}/detect/${sessionId}`, {
+    const res = await fetch(`${baseUrl}/detect/${sessionId}`, {
       method: "POST",
       body: formData,
       headers: {
@@ -168,7 +226,7 @@ async function detectSingle(imageBlob) {
     const formData = new FormData();
     formData.append('file', imageBlob, 'frame.jpg');
 
-    const res = await fetch(`${API_URL}/detect`, {
+    const res = await fetch(`${baseUrl}/detect`, {
       method: "POST",
       body: formData,
       headers: {
@@ -205,7 +263,7 @@ async function detectBatch(imageBlobs) {
       }
     });
 
-    const res = await fetch(`${API_URL}/detect-batch`, {
+    const res = await fetch(`${baseUrl}/detect-batch`, {
       method: "POST",
       body: formData,
       headers: {
@@ -234,7 +292,7 @@ async function getSessionSummary(sessionId) {
       throw new Error('Session ID is required');
     }
     
-    const res = await fetch(`${API_URL}/session/${sessionId}/summary`, {
+    const res = await fetch(`${baseUrl}/session/${sessionId}/summary`, {
       headers: {
         'Accept': 'application/json',
         'User-Agent': 'Hazard-Detection-Web/1.0'
@@ -262,7 +320,7 @@ async function endSession(sessionId) {
       return { message: "No active session" };
     }
     
-    const res = await fetch(`${API_URL}/session/${sessionId}/end`, { 
+    const res = await fetch(`${baseUrl}/session/${sessionId}/end`, { 
       method: "POST",
       headers: {
         'Accept': 'application/json',
@@ -297,7 +355,7 @@ async function confirmReport(sessionId, reportId) {
       throw new Error('Session ID and Report ID are required');
     }
     
-    const res = await fetch(`${API_URL}/session/${sessionId}/report/${reportId}/confirm`, {
+    const res = await fetch(`${baseUrl}/session/${sessionId}/report/${reportId}/confirm`, {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
@@ -326,7 +384,7 @@ async function dismissReport(sessionId, reportId) {
       throw new Error('Session ID and Report ID are required');
     }
     
-    const res = await fetch(`${API_URL}/session/${sessionId}/report/${reportId}/dismiss`, {
+    const res = await fetch(`${baseUrl}/session/${sessionId}/report/${reportId}/dismiss`, {
       method: 'POST',
       headers: {
         'Accept': 'application/json',
@@ -435,7 +493,7 @@ async function isApiAvailable() {
 
 // Export API_URL for debugging purposes
 function getApiUrl() {
-  return API_URL;
+  return baseUrl;
 }
 
 // Make functions globally available - following integration guide patterns

@@ -22,7 +22,7 @@ else
     echo "✅ frontend up"
 fi
 
-container_api_url=$(railway run --service hazard-detection -- bash -c "node -e 'console.log(process.env.API_URL)'" 2>/dev/null)
+  container_api_url=$(railway run --service hazard-detection -- bash -c 'node -e "if (process.env.DEBUG_ENV === \"true\") { console.log(process.env.API_URL); }"' 2>/dev/null)
 if [ $? -ne 0 ]; then
     echo "❌ Failed to read API_URL from container"
     exit 1
