@@ -1,7 +1,22 @@
-// realtime.browser.js - Browser-compatible realtime client for Hazard Detection API
-// Uses consolidated network utilities for endpoint resolution
+// realtime-client.js - Universal realtime client for Hazard Detection API
+// Supports both Node.js and browser environments with network utilities
 
-import { resolveBaseUrl, toWsUrl } from '../utils/network.js';
+// Internal imports
+import { resolveBaseUrl, toWsUrl, withTimeout } from '../utils/network.js';
+
+// Dynamic imports for Node.js-specific modules
+let axios, FormData;
+if (typeof window === 'undefined') {
+  // Node.js environment - external packages
+  try {
+    const axiosModule = await import('axios');
+    const formDataModule = await import('form-data');
+    axios = axiosModule.default;
+    FormData = formDataModule.default;
+  } catch (error) {
+    console.warn('Node.js modules not available:', error.message);
+  }
+}
 
 class RealtimeClient {
   constructor(config = {}) {
@@ -17,7 +32,7 @@ class RealtimeClient {
     this.sessionId = null;
     this.status = 'disconnected';
     this.retryCount = 0;
-    this.hasHadFirstError = false; // Track if we've had first connection error
+    this.hasHadFirstError = false;
 
     this.listeners = {
       message: [],
@@ -30,17 +45,21 @@ class RealtimeClient {
 
   _createRequestInterceptor() {
     return (method, url, options = {}) => {
-      console.log(`🔄 ${method.toUpperCase()} ${url}`, {
-        'User-Agent': options.headers?.['User-Agent'],
-        'Content-Type': options.headers?.['Content-Type']?.split(';')[0],
-      });
+      if (process.env.DEBUG_ENV === 'true') {
+        console.log(`🔄 ${method.toUpperCase()} ${url}`, {
+          'User-Agent': options.headers?.['User-Agent'],
+          'Content-Type': options.headers?.['Content-Type']?.split(';')[0],
+        });
+      }
     };
   }
 
   setStatus(newStatus) {
     if (this.status !== newStatus) {
       this.status = newStatus;
-      console.log(`📊 Status changed: ${newStatus}`);
+      if (process.env.DEBUG_ENV === 'true') {
+        console.log(`📊 Status changed: ${newStatus}`);
+      }
       this.emit('status', newStatus);
     }
   }
@@ -82,23 +101,40 @@ class RealtimeClient {
           headers,
         });
 
-        const response = await fetch(`${this.baseUrl}/session/start`, {
-          method: 'POST',
-          headers,
-          signal: AbortSignal.timeout(this.config.timeout),
-        });
-
-        if (!response.ok) {
-          const errorData = await response
-            .json()
-            .catch(() => ({ detail: `HTTP ${response.status}` }));
-          throw new Error(
-            `Failed to start session: ${errorData.detail || response.statusText}`
+        let response;
+        if (typeof window === 'undefined' && axios) {
+          // Node.js environment
+          response = await axios.post(
+            `${this.baseUrl}/session/start`,
+            {},
+            {
+              timeout: this.config.timeout,
+              headers,
+            }
           );
+
+          this.sessionId = response.data.session_id;
+        } else {
+          // Browser environment
+          response = await fetch(`${this.baseUrl}/session/start`, {
+            method: 'POST',
+            headers,
+            signal: withTimeout(this.config.timeout),
+          });
+
+          if (!response.ok) {
+            const errorData = await response
+              .json()
+              .catch(() => ({ detail: `HTTP ${response.status}` }));
+            throw new Error(
+              `Failed to start session: ${errorData.detail || response.statusText}`
+            );
+          }
+
+          const data = await response.json();
+          this.sessionId = data.session_id;
         }
 
-        const data = await response.json();
-        this.sessionId = data.session_id;
         this.retryCount = 0;
         this.hasHadFirstError = false;
         this.setStatus('connected');
@@ -151,11 +187,24 @@ class RealtimeClient {
           { headers }
         );
 
-        await fetch(`${this.baseUrl}/session/${this.sessionId}/end`, {
-          method: 'POST',
-          headers,
-          signal: AbortSignal.timeout(5000),
-        });
+        if (typeof window === 'undefined' && axios) {
+          // Node.js environment
+          await axios.post(
+            `${this.baseUrl}/session/${this.sessionId}/end`,
+            {},
+            {
+              timeout: 5000,
+              headers,
+            }
+          );
+        } else {
+          // Browser environment
+          await fetch(`${this.baseUrl}/session/${this.sessionId}/end`, {
+            method: 'POST',
+            headers,
+            signal: withTimeout(5000),
+          });
+        }
 
         console.log(`✅ Session ended: ${this.sessionId}`);
       } catch (error) {
@@ -179,66 +228,103 @@ class RealtimeClient {
     const startTime = Date.now();
 
     try {
-      const formData = new FormData();
+      let response;
 
-      // Handle different payload types
-      if (payload instanceof Blob) {
-        formData.append('file', payload, 'frame.jpg');
-      } else if (payload instanceof File) {
-        formData.append('file', payload);
-      } else if (payload.buffer && payload.filename) {
-        const blob = new Blob([payload.buffer], {
-          type: payload.contentType || 'image/jpeg',
-        });
-        formData.append('file', blob, payload.filename);
-      } else if (payload instanceof HTMLCanvasElement) {
-        // Convert canvas to blob
-        const blob = await new Promise((resolve, reject) => {
-          payload.toBlob(
-            (blob) => {
-              if (blob) resolve(blob);
-              else reject(new Error('Failed to convert canvas to blob'));
+      if (typeof window === 'undefined' && axios && FormData) {
+        // Node.js environment
+        const formData = new FormData();
+
+        if (payload instanceof Buffer) {
+          formData.append('file', payload, {
+            filename: 'frame.jpg',
+            contentType: 'image/jpeg',
+          });
+        } else if (payload.buffer && payload.filename) {
+          formData.append('file', payload.buffer, {
+            filename: payload.filename,
+            contentType: payload.contentType || 'image/jpeg',
+          });
+        } else {
+          formData.append('file', payload, 'frame.jpg');
+        }
+
+        response = await axios.post(
+          `${this.baseUrl}/detect/${this.sessionId}`,
+          formData,
+          {
+            timeout: this.config.timeout,
+            headers: {
+              ...formData.getHeaders(),
+              'User-Agent': 'Hazard-Detection-Realtime/1.0',
+              ...(this.config.authToken && {
+                Authorization: `Bearer ${this.config.authToken}`,
+              }),
             },
-            'image/jpeg',
-            0.9
-          );
-        });
-        formData.append('file', blob, 'frame.jpg');
-      } else {
-        formData.append('file', payload, 'frame.jpg');
-      }
-
-      const headers = {
-        'User-Agent': 'Hazard-Detection-Realtime/1.0',
-      };
-
-      if (this.config.authToken) {
-        headers['Authorization'] = `Bearer ${this.config.authToken}`;
-      }
-
-      this._requestInterceptor(
-        'POST',
-        `${this.baseUrl}/detect/${this.sessionId}`,
-        { headers }
-      );
-
-      const response = await fetch(`${this.baseUrl}/detect/${this.sessionId}`, {
-        method: 'POST',
-        body: formData,
-        headers,
-        signal: AbortSignal.timeout(this.config.timeout),
-      });
-
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ detail: `HTTP ${response.status}` }));
-        throw new Error(
-          `API detection failed: ${errorData.detail || response.statusText}`
+          }
         );
+      } else {
+        // Browser environment
+        const formData = new window.FormData();
+
+        if (payload instanceof Blob) {
+          formData.append('file', payload, 'frame.jpg');
+        } else if (payload instanceof File) {
+          formData.append('file', payload);
+        } else if (payload.buffer && payload.filename) {
+          const blob = new Blob([payload.buffer], {
+            type: payload.contentType || 'image/jpeg',
+          });
+          formData.append('file', blob, payload.filename);
+        } else if (payload instanceof HTMLCanvasElement) {
+          const blob = await new Promise((resolve, reject) => {
+            payload.toBlob(
+              (blob) => {
+                if (blob) resolve(blob);
+                else reject(new Error('Failed to convert canvas to blob'));
+              },
+              'image/jpeg',
+              0.9
+            );
+          });
+          formData.append('file', blob, 'frame.jpg');
+        } else {
+          formData.append('file', payload, 'frame.jpg');
+        }
+
+        const headers = {
+          'User-Agent': 'Hazard-Detection-Realtime/1.0',
+        };
+
+        if (this.config.authToken) {
+          headers['Authorization'] = `Bearer ${this.config.authToken}`;
+        }
+
+        this._requestInterceptor(
+          'POST',
+          `${this.baseUrl}/detect/${this.sessionId}`,
+          { headers }
+        );
+
+        response = await fetch(`${this.baseUrl}/detect/${this.sessionId}`, {
+          method: 'POST',
+          body: formData,
+          headers,
+          signal: withTimeout(this.config.timeout),
+        });
+
+        if (!response.ok) {
+          const errorData = await response
+            .json()
+            .catch(() => ({ detail: `HTTP ${response.status}` }));
+          throw new Error(
+            `API detection failed: ${errorData.detail || response.statusText}`
+          );
+        }
+
+        response = await response.json();
       }
 
-      const result = await response.json();
+      const result = typeof window === 'undefined' ? response.data : response;
       const processingTime = Date.now() - startTime;
 
       console.log(`⚡ Detection completed in ${processingTime}ms`);

@@ -1,39 +1,41 @@
-// 📦 External dependencies
+// Node core modules
+import crypto from 'crypto';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
+
+// External packages
+import axios from 'axios';
+import { v2 as cloudinary } from 'cloudinary';
+import cors from 'cors';
+import dotenv from 'dotenv';
 import express from 'express';
 import session from 'express-session';
-import { createRequire } from 'module';
+import FormData from 'form-data';
+import multer from 'multer';
+import passport from 'passport';
+import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import { createClient } from 'redis';
+import sgMail from '@sendgrid/mail';
+import streamifier from 'streamifier';
 
-// Some environments bundle different versions of connect-redis. Use createRequire
-// so we can support both CommonJS and ESM variants gracefully.
+// Internal imports
+import { uploadReport } from '../services/report-upload-service.js';
+import { asyncHandler } from '../utils/async-handler.js';
+
+// Connect-redis compatibility layer
 const require = createRequire(import.meta.url);
 let RedisStore;
 try {
   const pkg = require('connect-redis');
-  // Support both CommonJS and ESM exports
   RedisStore = pkg.RedisStore || pkg.default || pkg;
 } catch (err) {
   console.warn('⚠️ connect-redis module not found or incompatible:', err.message);
   RedisStore = null;
 }
-import passport from 'passport';
-import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
-import dotenv from 'dotenv';
-import { createClient } from 'redis';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import sgMail from '@sendgrid/mail';
-import fs from 'fs'; // 👈 הוספת ייבוא של מודול fs
-import crypto from 'crypto';
-import axios from 'axios';
-import FormData from 'form-data';
-import cors from 'cors';
-import os from 'os'; // מייבאים את המודול os
 
-// 📦 Firebase & Cloudinary
-import { v2 as cloudinary } from 'cloudinary';
-import multer from 'multer';
-import streamifier from 'streamifier';
-import { uploadReport } from '../services/reportUploadService.js';
 const { keys } = Object;
 
 // 🌍 ES Modules __dirname polyfill
@@ -105,9 +107,9 @@ app.use(express.static(path.join(__dirname, '../../public'), {
 app.get('/object_detection_model/*.onnx', (req, res) => {
     const modelName = decodeURIComponent(req.params[0]);
     const modelPath = path.join(
-      __dirname,
-      '../../public/object_detection_model',
-      `${modelName}.onnx`
+        __dirname,
+        '../../public/object_detection_model',
+        `${modelName}.onnx`
     );
     
     console.log(`📂 Requesting ONNX model: ${modelName}.onnx`);

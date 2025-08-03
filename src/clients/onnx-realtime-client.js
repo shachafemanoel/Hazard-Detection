@@ -1,27 +1,39 @@
 // Client-side realtime detection using local ONNX models
 // Eliminates dependency on external API services
 
-import { loadModel, preprocessImageToTensor, runInference, parseBoxes } from './yolo_tfjs.js';
+// Internal imports
+import {
+  loadModel,
+  preprocessImageToTensor,
+  runInference,
+  parseBoxes,
+} from '../utils/yolo-tfjs.js';
 
 class ClientSideRealtimeClient {
   constructor(config = {}) {
     this.config = {
-      modelPath: config.modelPath || '/object_detection_model/road_damage_detection_simplified.onnx',
+      modelPath:
+        config.modelPath ||
+        '/object_detection_model/road_damage_detection_simplified.onnx',
       confidenceThreshold: config.confidenceThreshold || 0.5,
       inputSize: config.inputSize || 640,
       classNames: config.classNames || [
-        'Crack', 'Pothole', 'Construction', 'Obstacle', 'Debris'
+        'Crack',
+        'Pothole',
+        'Construction',
+        'Obstacle',
+        'Debris',
       ],
       maxRetries: config.maxRetries || 3,
       retryDelay: config.retryDelay || 1000,
-      ...config
+      ...config,
     };
 
     this.model = null;
     this.status = 'disconnected';
     this.sessionId = null;
     this.retryCount = 0;
-    
+
     this.listeners = {
       message: [],
       error: [],
@@ -41,7 +53,7 @@ class ClientSideRealtimeClient {
   }
 
   emit(event, data) {
-    this.listeners[event]?.forEach(cb => {
+    this.listeners[event]?.forEach((cb) => {
       try {
         cb(data);
       } catch (error) {
@@ -54,25 +66,32 @@ class ClientSideRealtimeClient {
     this.setStatus('connecting');
     try {
       console.log(`🧠 Loading ONNX model: ${this.config.modelPath}`);
-      
+
       // Check if ONNX Runtime is available
       if (typeof ort === 'undefined') {
-        throw new Error('ONNX Runtime not loaded. Please include ort.js before this script.');
+        throw new Error(
+          'ONNX Runtime not loaded. Please include ort.js before this script.'
+        );
       }
 
       // Load the ONNX model
       this.model = await loadModel(this.config.modelPath);
-      
+
       this.retryCount = 0;
       this.setStatus('connected');
-      
-      console.log(`✅ Client-side detection ready (Session: ${this.sessionId})`);
+
+      console.log(
+        `✅ Client-side detection ready (Session: ${this.sessionId})`
+      );
       console.log(`🎯 Model: ${this.config.modelPath}`);
-      console.log(`📏 Input size: ${this.config.inputSize}x${this.config.inputSize}`);
-      console.log(`🎚️ Confidence threshold: ${this.config.confidenceThreshold}`);
-      
+      console.log(
+        `📏 Input size: ${this.config.inputSize}x${this.config.inputSize}`
+      );
+      console.log(
+        `🎚️ Confidence threshold: ${this.config.confidenceThreshold}`
+      );
+
       return true;
-      
     } catch (error) {
       this.setStatus('disconnected');
       console.error('❌ Failed to load ONNX model:', error);
@@ -92,7 +111,7 @@ class ClientSideRealtimeClient {
     } catch (error) {
       console.warn(`⚠️ Model disposal warning: ${error.message}`);
     }
-    
+
     this.setStatus('disconnected');
     console.log(`✅ Client-side detection disconnected`);
   }
@@ -106,7 +125,7 @@ class ClientSideRealtimeClient {
 
     this.setStatus('uploading');
     const startTime = Date.now();
-    
+
     try {
       let imageElement;
 
@@ -124,24 +143,31 @@ class ClientSideRealtimeClient {
         // Assume it's a data URL or image URL
         imageElement = await this.urlToImage(payload);
       } else {
-        throw new Error('Unsupported payload type. Expected Image, Video, Canvas, Blob, File, or URL string.');
+        throw new Error(
+          'Unsupported payload type. Expected Image, Video, Canvas, Blob, File, or URL string.'
+        );
       }
 
       // Preprocess image to tensor
-      const { tensor, letterboxParams } = preprocessImageToTensor(imageElement, this.config.inputSize);
-      
+      const { tensor, letterboxParams } = preprocessImageToTensor(
+        imageElement,
+        this.config.inputSize
+      );
+
       // Run inference
       const rawBoxes = await runInference(this.model, tensor);
-      
+
       // Parse and filter boxes
       const detections = parseBoxes(rawBoxes, this.config.confidenceThreshold);
-      
+
       // Convert to API-compatible format
       const result = this.formatDetectionResult(detections, letterboxParams);
-      
+
       const processingTime = Date.now() - startTime;
-      console.log(`⚡ Client-side detection completed in ${processingTime}ms (${detections.length} detections)`);
-      
+      console.log(
+        `⚡ Client-side detection completed in ${processingTime}ms (${detections.length} detections)`
+      );
+
       this.emit('message', {
         ...result,
         _metadata: {
@@ -149,23 +175,30 @@ class ClientSideRealtimeClient {
           sessionId: this.sessionId,
           timestamp: new Date().toISOString(),
           modelPath: this.config.modelPath,
-          detectionCount: detections.length
-        }
+          detectionCount: detections.length,
+        },
       });
-      
+
       this.setStatus('connected');
       this.retryCount = 0;
-      
     } catch (error) {
       const processingTime = Date.now() - startTime;
-      console.error(`❌ Client-side detection failed after ${processingTime}ms:`, error.message);
-      
+      console.error(
+        `❌ Client-side detection failed after ${processingTime}ms:`,
+        error.message
+      );
+
       // Handle retry logic for certain errors
-      if (this.retryCount < this.config.maxRetries && this.isRetryableError(error)) {
+      if (
+        this.retryCount < this.config.maxRetries &&
+        this.isRetryableError(error)
+      ) {
         this.retryCount++;
         const backoffTime = this.config.retryDelay * this.retryCount;
-        console.log(`🔄 Retry ${this.retryCount}/${this.config.maxRetries} in ${backoffTime}ms`);
-        
+        console.log(
+          `🔄 Retry ${this.retryCount}/${this.config.maxRetries} in ${backoffTime}ms`
+        );
+
         setTimeout(async () => {
           try {
             await this.send(payload);
@@ -173,7 +206,6 @@ class ClientSideRealtimeClient {
             this.emit('error', retryError);
           }
         }, backoffTime);
-        
       } else {
         this.setStatus('connected');
         this.emit('error', error);
@@ -182,11 +214,13 @@ class ClientSideRealtimeClient {
   }
 
   formatDetectionResult(detections, letterboxParams) {
-    const objects = detections.map(detection => ({
+    const objects = detections.map((detection) => ({
       bbox: [detection.x1, detection.y1, detection.x2, detection.y2],
       confidence: detection.score,
-      class: this.config.classNames[detection.classId] || `Class ${detection.classId}`,
-      class_id: detection.classId
+      class:
+        this.config.classNames[detection.classId] ||
+        `Class ${detection.classId}`,
+      class_id: detection.classId,
     }));
 
     return {
@@ -197,8 +231,8 @@ class ClientSideRealtimeClient {
       processing_info: {
         model: this.config.modelPath.split('/').pop(),
         confidence_threshold: this.config.confidenceThreshold,
-        letterbox_params: letterboxParams
-      }
+        letterbox_params: letterboxParams,
+      },
     };
   }
 
@@ -229,10 +263,10 @@ class ClientSideRealtimeClient {
       'out of memory',
       'resource exhausted',
       'temporary',
-      'timeout'
+      'timeout',
     ];
-    
-    return retryableErrors.some(keyword => 
+
+    return retryableErrors.some((keyword) =>
       error.message.toLowerCase().includes(keyword.toLowerCase())
     );
   }
@@ -272,7 +306,7 @@ class ClientSideRealtimeClient {
       inputSize: this.config.inputSize,
       classNames: this.config.classNames,
       confidenceThreshold: this.config.confidenceThreshold,
-      isLoaded: this.model !== null
+      isLoaded: this.model !== null,
     };
   }
 }

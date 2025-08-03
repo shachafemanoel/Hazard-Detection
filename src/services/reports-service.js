@@ -29,7 +29,7 @@ async function geocode(address) {
 }
 
 // Fetch reports with filters and pagination
-export async function fetchReports(filters = {}) {
+window.fetchReports = async function (filters = {}) {
   const params = new URLSearchParams(filters);
   let response;
   try {
@@ -113,12 +113,4 @@ export async function deleteReportById(reportId) {
     console.error('Delete report error:', error);
     throw error;
   }
-}
-
-// Browser compatibility - expose functions to the global scope
-if (typeof window !== 'undefined') {
-  window.fetchReports = fetchReports;
-  window.getReports = getReports;
-  window.updateReport = updateReport;
-  window.deleteReportById = deleteReportById;
 }

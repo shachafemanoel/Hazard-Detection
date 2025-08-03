@@ -1,6 +1,10 @@
 // network.js - Consolidated networking utilities for Hazard Detection API
 // Provides private-first connectivity with local-dev override
 
+// In the browser, `process` may be undefined. Create a safe alias
+// so references to environment variables don't throw errors.
+const env = (typeof process !== 'undefined' && process.env) ? process.env : {};
+
 /**
  * Cross-browser compatible timeout utility for fetch requests
  * Replaces AbortSignal.timeout which isn't supported in all browsers
@@ -45,7 +49,7 @@ async function probeHealth(base, timeoutMs = 2000) {
     return response.status >= 200 && response.status < 300;
   } catch (error) {
     // Log probe failures for debugging
-    if (process.env.DEBUG_ENV === 'true') {
+    if (env.DEBUG_ENV === 'true') {
       console.warn(`⚠️ Health probe failed for ${base}:`, error.message);
     }
     return false;
@@ -61,22 +65,22 @@ async function probeHealth(base, timeoutMs = 2000) {
  * @throws {Error} If no healthy endpoint is found
  */
 async function resolveBaseUrl(options = {}) {
-  if (process.env.DEBUG_ENV === 'true') {
+  if (env.DEBUG_ENV === 'true') {
     console.log('🔎 Resolving API endpoint...');
   }
 
   // Environment variables with defaults
   const privateUrl =
-    process.env.HAZARD_API_URL_PRIVATE ||
+    env.HAZARD_API_URL_PRIVATE ||
     'http://ideal-learning.railway.internal:8080';
   const publicUrl =
-    process.env.HAZARD_API_URL_PUBLIC ||
+    env.HAZARD_API_URL_PUBLIC ||
     'https://hazard-api-production-production.up.railway.app';
-  const localUrl = process.env.HAZARD_API_URL_LOCAL || 'http://localhost:8080';
+  const localUrl = env.HAZARD_API_URL_LOCAL || 'http://localhost:8080';
 
   // Local-Dev Override - highest priority
-  if (process.env.NODE_ENV === 'development') {
-    if (process.env.DEBUG_ENV === 'true') {
+  if (env.NODE_ENV === 'development') {
+    if (env.DEBUG_ENV === 'true') {
       console.log('🔧 NODE_ENV=development → using LOCAL endpoint');
       console.log(`🔒 Private network selected: ${localUrl}`);
     }
@@ -85,11 +89,11 @@ async function resolveBaseUrl(options = {}) {
 
   // Get preference from options or environment
   const usePrivate =
-    options.usePrivate || process.env.HAZARD_USE_PRIVATE || 'auto';
+    options.usePrivate || env.HAZARD_USE_PRIVATE || 'auto';
 
   // Direct private override
   if (usePrivate === 'true') {
-    if (process.env.DEBUG_ENV === 'true') {
+    if (env.DEBUG_ENV === 'true') {
       console.log(`🔒 Private network selected: ${privateUrl}`);
     }
     return privateUrl;
@@ -97,7 +101,7 @@ async function resolveBaseUrl(options = {}) {
 
   // Direct public override
   if (usePrivate === 'false') {
-    if (process.env.DEBUG_ENV === 'true') {
+    if (env.DEBUG_ENV === 'true') {
       console.log(`🌐 Public network selected: ${publicUrl}`);
     }
     return publicUrl;
@@ -107,7 +111,7 @@ async function resolveBaseUrl(options = {}) {
   if (usePrivate === 'auto') {
     // Try private first with 2s timeout
     if (await probeHealth(privateUrl, 2000)) {
-      if (process.env.DEBUG_ENV === 'true') {
+      if (env.DEBUG_ENV === 'true') {
         console.log(`🔒 Private network selected: ${privateUrl}`);
       }
       return privateUrl;
@@ -115,7 +119,7 @@ async function resolveBaseUrl(options = {}) {
 
     // Fallback to public
     if (await probeHealth(publicUrl, 2000)) {
-      if (process.env.DEBUG_ENV === 'true') {
+      if (env.DEBUG_ENV === 'true') {
         console.log(`🌐 Public network selected: ${publicUrl}`);
       }
       return publicUrl;

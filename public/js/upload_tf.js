@@ -28,12 +28,33 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function loadModel() {
     try {
-      try {
-        session = await ort.InferenceSession.create("/object_detection_model/road_damage_detection_last_version.onnx", { executionProviders: ['webgl'] });
-      } catch (err) {
-        console.warn("WebGL backend failed, falling back:", err);
-        session = await ort.InferenceSession.create("/object_detection_model/road_damage_detection_last_version.onnx");
+      const modelPaths = [
+        '/object_detection_model/last_model_train12052025.onnx',
+        '/object_detection_model/road_damage_detection_last_version.onnx'
+      ];
+
+      let loaded = false;
+      for (const path of modelPaths) {
+        try {
+          session = await ort.InferenceSession.create(path, { executionProviders: ['webgl'] });
+          loaded = true;
+          break;
+        } catch (err) {
+          console.warn(`WebGL backend failed for ${path}, falling back:`, err);
+          try {
+            session = await ort.InferenceSession.create(path);
+            loaded = true;
+            break;
+          } catch (err2) {
+            console.warn(`❌ Failed to load ONNX model at ${path}:`, err2);
+          }
+        }
       }
+
+      if (!loaded) {
+        throw new Error('No ONNX model loaded');
+      }
+
       console.log("✅ YOLO model loaded (live camera)!");
     } catch (err) {
       console.error("❌ Failed to load ONNX model:", err);

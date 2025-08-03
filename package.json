@@ -2,13 +2,16 @@
   "name": "hazard-detection",
   "version": "1.0.0",
   "description": "Hazard Detection Project",
+  "type": "module",
   "main": "server/routes/server.js",
   "scripts": {
     "start": "node server/routes/server.js",
     "dev": "nodemon server/routes/server.js",
     "build": "echo 'No build step needed'",
     "stream:check": "node scripts/stream-check.js",
-    "test": "jest"
+    "test": "jest",
+    "test:qa": "node run-qa-tests.js",
+    "test:refactor": "node run-qa-tests.js"
   },
   "keywords": [],
   "author": "",
