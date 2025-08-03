@@ -152,7 +152,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       formData.append('locationNote', 'GPS');
 
         try {
-            const res = await fetch("/upload-detection", {
+            const res = await fetch("/api/upload", {
                 method: "POST",
                 body: formData,
                 credentials: "include",

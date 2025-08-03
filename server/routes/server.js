@@ -33,6 +33,7 @@ import os from 'os'; // מייבאים את המודול os
 import { v2 as cloudinary } from 'cloudinary';
 import multer from 'multer';
 import streamifier from 'streamifier';
+import { uploadReport } from '../services/reportUploadService.js';
 const { keys } = Object;
 
 // 🌍 ES Modules __dirname polyfill
@@ -1482,195 +1483,49 @@ app.post('/reset-password', async (req, res) => {
 });
 
 
-// New endpoint for camera detection images with bounding boxes
-app.post('/api/upload-detection', upload.single('image'), async (req, res) => {
+// Unified endpoint for all report uploads
+app.post('/api/upload', upload.single('file'), async (req, res) => {
     try {
-        console.log("📸 Camera detection upload request");
-        
-        // Check if file was uploaded
-        if (!req.file) {
-            return res.status(400).json({ error: 'No image uploaded' });
-        }
+        console.log("📤 Unified upload request received");
 
         // Authentication check (skip in simple mode)
         if (!isSimpleMode && !req.isAuthenticated()) {
-            console.log("Authentication failed for detection upload");
             return res.status(401).json({ error: 'Authentication required' });
         }
 
-        // Parse metadata if provided
-        let metadata = {};
-        if (req.body.metadata) {
-            try {
-                metadata = JSON.parse(req.body.metadata);
-            } catch (e) {
-                console.warn("Failed to parse metadata:", e.message);
-            }
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded' });
         }
 
-        // Upload to Cloudinary with detection folder
-        const uploadResult = await new Promise((resolve, reject) => {
-            const uploadStream = cloudinary.uploader.upload_stream(
-                {
-                    folder: 'detections',
-                    public_id: `detection_${Date.now()}`,
-                    resource_type: 'image',
-                    transformation: [
-                        { quality: 'auto:good' },
-                        { fetch_format: 'auto' }
-                    ]
-                },
-                (error, result) => {
-                    if (error) reject(error);
-                    else resolve(result);
-                }
-            );
-            
-            streamifier.createReadStream(req.file.buffer).pipe(uploadStream);
+        // Extract metadata from the request body
+        const metadata = { ...req.body };
+
+        // The service expects a filename, let's create one
+        const filename = `detection_${Date.now()}`;
+
+        // Call the report upload service
+        const report = await uploadReport({
+            file: req.file,
+            filename,
+            metadata,
         });
 
-        console.log("✅ Detection image uploaded to Cloudinary:", uploadResult.secure_url);
-
-        // Return the URL and metadata
-        res.json({
+        res.status(201).json({
             success: true,
-            url: uploadResult.secure_url,
-            public_id: uploadResult.public_id,
-            metadata: metadata,
-            message: 'Detection image uploaded successfully'
+            message: 'Report uploaded successfully.',
+            report,
         });
 
     } catch (error) {
-        console.error("❌ Detection upload error:", error);
-        res.status(500).json({ 
-            error: 'Failed to upload detection image',
-            details: error.message
+        console.error("❌ Unified upload error:", error);
+        res.status(500).json({
+            error: 'Failed to process upload.',
+            details: error.message,
         });
     }
 });
 
-app.post('/upload-detection', upload.single('file'), async (req, res) => {
-    console.error(req);
-    console.log("Session:", req.session); // Debug session
-    console.log("Is Authenticated:", req.isAuthenticated()); // Debug authentication
-    console.log("User:", req.user); // Debug user object
 
-    // בדוק אם הקובץ הועלה
-    if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded' });
-    }
-
-    // אימות משתמש - בדיקה משופרת (skip in simple mode)
-    if (!isSimpleMode && !req.isAuthenticated()) {
-        console.log("Authentication failed"); // Debug log
-        return res.status(401).json({ error: 'Please log in again' });
-    }
-
-    const hazardTypes = req.body.hazardTypes;
-    
-    // שלב המרת קואורדינטות לכתובת
-    const jsonString = req.body.geoData;
-    if (!jsonString) {
-        return res.status(400).json({ error: 'Missing geolocation data in image metadata' });
-    }
-
-    try {
-        // עיבוד המידע
-        const geoData = JSON.parse(jsonString);
-        if (!geoData || typeof geoData.lat !== 'number' || typeof geoData.lng !== 'number' || 
-            isNaN(geoData.lat) || isNaN(geoData.lng) || 
-            geoData.lat < -90 || geoData.lat > 90 || 
-            geoData.lng < -180 || geoData.lng > 180) {
-            return res.status(400).json({ error: 'Invalid geolocation data' });
-        }
-
-        const apiKey = process.env.GOOGLE_GEOCODING_API_KEY;
-        const geoCodingUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${geoData.lat},${geoData.lng}&language=he&key=${apiKey}`;
-
-        let address = `Coordinates: ${geoData.lat}, ${geoData.lng}`;
-        
-        try {
-            const geoResponse = await axios.get(geoCodingUrl, { timeout: 5000 });
-            if (geoResponse.data && geoResponse.data.results && geoResponse.data.results.length > 0) {
-                address = geoResponse.data.results[0]?.formatted_address || address;
-            } else {
-                console.warn('No geocoding results found for coordinates:', geoData.lat, geoData.lng);
-            }
-        } catch (geocodeError) {
-            console.warn('Geocoding API failed:', geocodeError.message);
-            // Continue with coordinate fallback address
-        }
-        
-        // העלאה ל-Cloudinary
-        const streamUpload = (buffer) => {
-            return new Promise((resolve, reject) => {
-                const stream = cloudinary.uploader.upload_stream(
-                    { folder: 'detections' },
-                    (error, result) => {
-                        if (result) {
-                            resolve(result);
-                        } else {
-                            reject(error);
-                        }
-                    }
-                );
-                streamifier.createReadStream(buffer).pipe(stream);
-            });
-        };
-
-        const result = await streamUpload(req.file.buffer);
-
-        // אם העלאה לא הצליחה
-        if (!result || !result.secure_url) {
-            return res.status(500).json({ error: 'Failed to upload image to Cloudinary' });
-        }
-        let locationNote = req.body.locationNote || "GPS";
-
-        // קבלת שם המדווח
-        let reportedBy;  
-
-        if (req.session?.user?.username) {  
-          reportedBy = req.session.user.username;  
-        } else if (req.user?.username) {  
-          reportedBy = req.user.username;  
-        } else {  
-          reportedBy = 'אנונימי';  
-        }
-        
-        // שמירה ב-Redis
-        const reportId = Date.now();
-        const reportKey = `report:${reportId}`;
-        const createdAt = new Date().toISOString();
-        
-        const report = {
-            id: reportId,
-            type: hazardTypes,
-            location: address,
-            time: req.body.time || createdAt,
-            image: result.secure_url,
-            status:'New',
-            locationNote,
-            reportedBy,
-            createdAt
-        };
-
-        // Save to Redis only if available (not in simple mode)
-        if (client && redisConnected && !isSimpleMode) {
-            await client.json.set(reportKey, '$', report);
-            console.log("💾 Report saved to Redis: ", reportKey);
-        } else {
-            console.log("⚠️ Simple mode: Report not saved to Redis (no persistent storage)");
-        }
-
-        res.status(200).json({
-            message: 'Report uploaded and saved successfully',
-            report
-        });
-    } catch (e) {
-        console.error('🔥 Upload error:', e);
-        res.status(500).json({ error: 'Failed to upload report' });
-    }
-});
 
 // --- SSE clients storage and broadcast ---
 const sseClients = new Set();
