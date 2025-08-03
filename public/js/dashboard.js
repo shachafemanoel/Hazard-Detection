@@ -56,10 +56,11 @@ const elements = {
 
 function renderStats() {
   const { total, open, resolved, users } = state.metrics;
-  elements.totalReportsCount.textContent = total ?? '—';
-  elements.openHazardsCount.textContent = open ?? '—';
-  elements.resolvedThisMonthCount.textContent = resolved ?? '—';
-  elements.activeUsersCount.textContent = users ?? '—';
+  const formatMetric = (value) => (value && value !== 0 ? value : '—');
+  elements.totalReportsCount.textContent = formatMetric(total);
+  elements.openHazardsCount.textContent = formatMetric(open);
+  elements.resolvedThisMonthCount.textContent = formatMetric(resolved);
+  elements.activeUsersCount.textContent = formatMetric(users);
 }
 
 function renderTable() {
@@ -86,10 +87,13 @@ function renderTable() {
       return `<span class="badge ${statusMap[status] || 'bg-secondary'}">${status || 'Unknown'}</span>`;
     };
 
+    const formatType = (type) =>
+      type ? type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Unknown';
+
     row.innerHTML = `
       <td><input type="checkbox" class="report-checkbox" data-report-id="${report.id}" ${state.selectedReportIds.has(report.id) ? 'checked' : ''}></td>
       <td>${report.id || 'N/A'}</td>
-      <td><span class="badge bg-primary">${report.type || 'Unknown'}</span></td>
+      <td><span class="badge bg-primary hazard-type-badge">${formatType(report.type)}</span></td>
       <td>${getStatusBadge(report.status)}</td>
       <td title="${report.location || ''}">${truncate(report.location)}</td>
       <td>${formatTime(report.time)}</td>

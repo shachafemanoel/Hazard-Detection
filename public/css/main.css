@@ -185,12 +185,20 @@ input:focus, select:focus, textarea:focus {
 
 .stat-card {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 1.5rem;
+  text-align: center;
+  gap: 0.5rem;
+  padding: 1rem;
 }
 
 .stat-icon {
-  font-size: 3rem;
+  width: 48px;
+  height: 48px;
+  font-size: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--accent);
   text-shadow: 0 0 10px var(--glow-primary);
 }
@@ -203,8 +211,14 @@ input:focus, select:focus, textarea:focus {
 
 .stat-content p {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: 1rem;
   color: var(--text-secondary);
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
 }
 
 #map {
@@ -220,6 +234,51 @@ input:focus, select:focus, textarea:focus {
   overflow-y: auto;
   border: 1px solid var(--border-color);
   border-radius: var(--radius);
+}
+
+.table-controls {
+  flex-wrap: wrap;
+}
+
+.table-controls > * {
+  margin: 0.5rem;
+}
+
+.table-controls .form-switch .form-check-input {
+  width: 3.5rem;
+  height: 2rem;
+  background-color: rgba(255, 255, 255, 0.1);
+  border: none;
+}
+
+.table-controls .form-switch .form-check-input:checked {
+  background-color: var(--accent);
+}
+
+.hazard-type-badge {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+}
+
+.reports-table th {
+  padding: 0.75rem;
+}
+
+.reports-table td,
+.reports-table th {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.reports-table th.text-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  text-align: center;
+}
+
+.reports-table tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
 table {
@@ -295,7 +354,7 @@ tr:hover {
   color: var(--bg-dark);
   font-size: 1.2rem;
   cursor: pointer;
-  z-index: 1001;
+  z-index: 10;
   box-shadow: var(--shadow);
   transition: var(--transition);
   display: flex;
@@ -449,6 +508,53 @@ tr:hover {
 
 .bottom-nav-item.active {
   color: var(--accent);
+}
+
+.upload-card label {
+  color: #ddd;
+}
+
+.upload-card {
+  margin-bottom: 1.5rem;
+}
+
+.upload-card .btn {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+}
+
+.detection-input {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+#confidence-slider {
+  height: 8px;
+}
+
+#confidence-slider::-webkit-slider-runnable-track {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+#confidence-slider::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-top: -4px;
+}
+
+#confidence-slider::-moz-range-track {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+#confidence-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: none;
 }
 
 .bottom-nav-item.active::after {
