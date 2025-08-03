@@ -54,9 +54,14 @@ if (process.env.NODE_ENV !== 'production' && fs.existsSync(envPath)) {
 
 // הדפסה לבדיקת טעינת משתני סביבה
 console.log("Attempting to load environment variables...");
-console.log("CLOUDINARY_CLOUD_NAME from env:", process.env.CLOUDINARY_CLOUD_NAME);
-console.log("GOOGLE_CALLBACK_URL from env:", process.env.GOOGLE_CALLBACK_URL);
-console.log("SESSION_SECRET from env:", process.env.SESSION_SECRET ? "Loaded" : "NOT LOADED");
+if (process.env.DEBUG_ENV === 'true') {
+  console.log("CLOUDINARY_CLOUD_NAME from env:", process.env.CLOUDINARY_CLOUD_NAME);
+  console.log("GOOGLE_CALLBACK_URL from env:", process.env.GOOGLE_CALLBACK_URL);
+  console.log(
+    "SESSION_SECRET from env:",
+    process.env.SESSION_SECRET ? "Loaded" : "NOT LOADED"
+  );
+}
 
 // ☁️ Cloudinary config
 cloudinary.config({
