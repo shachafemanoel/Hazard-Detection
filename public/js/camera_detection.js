@@ -40,6 +40,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   const FIXED_SIZE = 480; // Optimized input size for real-time detection
   let API_URL = "https://hazard-api-production-production.up.railway.app";
   
+  // NEW: Import the enhanced API client modules
+  import { createSmartApiClient, testApiConnection, loadApiConfig } from './apiClient.js';
+  
   // Road Damage Classes (mapping to model's 10 classes)
   const classNames = [
     'Alligator Crack',    // 0: Interconnected cracking resembling alligator skin
@@ -367,6 +370,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   let sessionDetectionsSummary = []; // Store detailed detection information for summary
 
+  // NEW: Smart API client instance
+  let smartApiClient = null;
+  let realtimeClientActive = false;
+
   // Object tracking state
   let trackedObjects = new Map();
   let nextObjectId = 0;
@@ -465,8 +472,56 @@ document.addEventListener("DOMContentLoaded", async () => {
     }, 5000);
   }
 
-  // Test API availability following the fetch guide
-  async function testApiConnection() {
+  // NEW: Enhanced API connection testing with smart client
+  async function initializeApiConnection() {
+    try {
+      // Try to initialize smart API client first
+      smartApiClient = createSmartApiClient({
+        timeout: 30000,
+        maxRetries: 3,
+        networkPreference: 'auto' // Use private-first connectivity
+      });
+      
+      const connectionType = await smartApiClient.initialize();
+      realtimeClientActive = (connectionType === 'realtime');
+      
+      // Set up event listeners for smart client
+      smartApiClient.onMessage((result) => {
+        console.log('🔥 Smart API detection result:', result);
+        // Handle detection results in the existing pipeline
+        handleApiDetectionResult(result);
+      });
+      
+      smartApiClient.onError((error) => {
+        console.warn('⚠️ Smart API error:', error.message);
+        // Fallback handled automatically by SmartApiClient
+      });
+      
+      smartApiClient.onStatus((status) => {
+        console.log('📊 Smart API status:', status);
+        updateSmartApiStatus(status, connectionType);
+      });
+      
+      apiAvailable = true;
+      useApi = true;
+      
+      const statusMessage = realtimeClientActive 
+        ? 'Enhanced Realtime Mode (Private-First)' 
+        : 'API Connected (Legacy Mode)';
+      updateConnectionStatus('connected', statusMessage);
+      showNotification(`Smart API initialized: ${connectionType} mode`, 'success');
+      
+      return true;
+    } catch (error) {
+      console.warn('🔄 Smart API failed, trying legacy connection:', error.message);
+      
+      // Fallback to legacy API testing
+      return await testApiConnectionLegacy();
+    }
+  }
+  
+  // Legacy API connection test (preserved for fallback)
+  async function testApiConnectionLegacy() {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
     
@@ -479,11 +534,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (response.ok) {
         clearTimeout(timeoutId);
         const data = await response.json();
-        console.log("✅ API service is available:", data);
+        console.log("✅ Legacy API service is available:", data);
         
-        // Check if it has the expected structure from the guide
         if (data.status === 'healthy') {
-          // Additional check for model compatibility
           if (data.model_status && data.model_status.includes('error')) {
             console.warn("⚠️ Backend model has issues:", data.model_status);
             showNotification('Backend model issues detected - using local detection', 'warning');
@@ -493,29 +546,15 @@ document.addEventListener("DOMContentLoaded", async () => {
             return false;
           }
           
-          // API is healthy, check backend inference capability
           apiAvailable = true;
           useApi = true;
-          
-          // Show different status based on model readiness and backend inference
-          if (data.model_status === 'loading' || !data.backend_inference) {
-            updateConnectionStatus('connected', `API Connected (${data.model_status || 'Model Loading'}...)`);
-            showNotification(`API connected - ${data.model_status || 'model loading'}, will use when ready`, 'success');
-          } else if (data.backend_inference) {
-            updateConnectionStatus('connected', `Enhanced Mode (${data.backend_type || 'AI'} Backend)`);
-            showNotification(`API connected - ${data.model_status || 'model ready'}`, 'success');
-          }
+          updateConnectionStatus('connected', 'Legacy API Mode');
+          showNotification('Legacy API connected', 'success');
           return true;
         }
-      } else {
-        console.log(`⚠️ API returned ${response.status}: ${response.statusText}`);
       }
     } catch (error) {
-      if (error.name === 'AbortError') {
-        console.log("🔄 API health check timed out - using local detection");
-      } else {
-        console.log("🏠 API service not accessible - using local ONNX detection");
-      }
+      console.log("🏠 Legacy API also not accessible");
     } finally {
       clearTimeout(timeoutId);
     }
@@ -524,6 +563,48 @@ document.addEventListener("DOMContentLoaded", async () => {
     updateConnectionStatus('ready', 'Local ONNX Detection Mode');
     console.log("🤖 Running in local detection mode - ONNX model will handle all detection");
     return false;
+  }
+  
+  // NEW: Handle API detection results from smart client
+  function handleApiDetectionResult(result) {
+    if (!result.detections || !Array.isArray(result.detections)) {
+      console.warn("⚠️ Unexpected API response format:", result);
+      return [];
+    }
+    
+    // Convert API format to internal format
+    const convertedDetections = result.detections.map(det => {
+      const [x, y, width, height] = det.bbox || [0, 0, 0, 0];
+      const classIndex = classNames.indexOf(det.class_name);
+      
+      return [
+        x,                    // x1
+        y,                    // y1  
+        x + width,            // x2
+        y + height,           // y2
+        det.confidence,       // confidence
+        classIndex !== -1 ? classIndex : 0  // class_id
+      ];
+    });
+    
+    // Process through existing detection pipeline
+    drawResults(convertedDetections, true);
+    
+    console.log(`🎯 Smart API processed ${convertedDetections.length} detections`);
+    return convertedDetections;
+  }
+  
+  // NEW: Update status based on smart API client state
+  function updateSmartApiStatus(status, connectionType) {
+    const statusMessages = {
+      'connecting': 'Connecting to Smart API...',
+      'connected': realtimeClientActive ? 'Realtime Mode Active' : 'API Connected',
+      'uploading': 'Processing Detection...',
+      'disconnected': 'Disconnected'
+    };
+    
+    const message = statusMessages[status] || status;
+    updateConnectionStatus(status === 'disconnected' ? 'warning' : 'connected', message);
   }
 
   // Start API detection session following the fetch guide
@@ -652,9 +733,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // Initialize detection system
+  // NEW: Enhanced detection system initialization
   async function initializeDetection() {
-    showLoading("Initializing Detection System...", 0);
+    showLoading("Initializing Enhanced Detection System...", 0);
     initialized = false;
 
     try {
@@ -662,20 +743,27 @@ document.addEventListener("DOMContentLoaded", async () => {
       showLoading("Loading API configuration...", 5);
       await loadApiConfig();
       
-      // Test API connection
-      showLoading("Testing API connection...", 10);
-      await testApiConnection();
+      // Initialize smart API connection with private-first connectivity
+      showLoading("Initializing Smart API Connection...", 15);
+      const apiConnected = await initializeApiConnection();
       
-      // Load ONNX model
+      // Load ONNX model for hybrid/fallback detection
+      showLoading("Loading ONNX model...", 50);
       const onnxLoaded = await loadModel();
       
       if (!onnxLoaded && !apiAvailable) {
         throw new Error("No detection models available. Please check your connection.");
       }
 
-      const modeMessage = apiAvailable 
-        ? "🚀 Enhanced detection ready with API + ONNX support" 
-        : "🎯 Local detection ready with ONNX model";
+      // Determine operation mode
+      let modeMessage;
+      if (apiAvailable && realtimeClientActive) {
+        modeMessage = "🚀 Enhanced realtime detection ready (Private-First API + ONNX hybrid)";
+      } else if (apiAvailable) {
+        modeMessage = "🚀 Enhanced detection ready (Legacy API + ONNX hybrid)";
+      } else {
+        modeMessage = "🎯 Local detection ready with ONNX model";
+      }
       
       showNotification(modeMessage, 'success');
       initialized = true;
@@ -1590,8 +1678,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       const imageData = offCtx.getImageData(0, 0, FIXED_SIZE, FIXED_SIZE);
 
-      // Try API detection first (if available), then fallback to ONNX
-      if (apiAvailable && useApi && frameCount % 4 === 0) { // Use API every 4th frame for better responsiveness
+      // NEW: Try Smart API detection first (if available), then fallback to ONNX
+      if (smartApiClient && smartApiClient.isConnected() && frameCount % 4 === 0) {
         try {
           // Create a proper canvas with video frame for API detection
           const apiCanvas = document.createElement('canvas');
@@ -1599,21 +1687,53 @@ document.addEventListener("DOMContentLoaded", async () => {
           apiCanvas.height = FIXED_SIZE;
           const apiCtx = apiCanvas.getContext('2d');
           
-          // Draw video frame properly formatted for OpenCV
+          // Draw video frame properly formatted for API
           apiCtx.fillStyle = "black";
           apiCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
           apiCtx.drawImage(video, letterboxParams.offsetX, letterboxParams.offsetY, letterboxParams.newW, letterboxParams.newH);
           
-          console.log("🌐 Attempting API detection...");
+          console.log("🌐 Attempting Smart API detection...");
+          
+          if (realtimeClientActive) {
+            // For realtime client, send async and results will come via event handlers
+            smartApiClient.detect(apiCanvas).catch(error => {
+              console.warn("Realtime API detection failed, using ONNX fallback:", error);
+            });
+            // Don't wait for results, use ONNX concurrently for hybrid detection
+          } else {
+            // For legacy API client, wait for results
+            const result = await smartApiClient.detect(apiCanvas);
+            detections = handleApiDetectionResult(result);
+            if (detections.length > 0) {
+              useApiResults = true;
+              console.log("🔥 Using Smart API detection results:", detections.length, "detections");
+            } else {
+              console.log("🔍 Smart API returned no detections");
+            }
+          }
+        } catch (error) {
+          console.warn("Smart API detection failed, using ONNX fallback:", error);
+        }
+      } else if (apiAvailable && useApi && frameCount % 4 === 0) {
+        // Legacy API fallback (preserved for compatibility)
+        try {
+          const apiCanvas = document.createElement('canvas');
+          apiCanvas.width = FIXED_SIZE;
+          apiCanvas.height = FIXED_SIZE;
+          const apiCtx = apiCanvas.getContext('2d');
+          
+          apiCtx.fillStyle = "black";
+          apiCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
+          apiCtx.drawImage(video, letterboxParams.offsetX, letterboxParams.offsetY, letterboxParams.newW, letterboxParams.newH);
+          
+          console.log("🌐 Attempting legacy API detection...");
           detections = await detectWithApi(apiCanvas);
           if (detections.length > 0) {
             useApiResults = true;
-            console.log("🔥 Using API detection results:", detections.length, "detections");
-          } else {
-            console.log("🔍 API returned no detections");
+            console.log("🔥 Using legacy API detection results:", detections.length, "detections");
           }
         } catch (error) {
-          console.warn("API detection failed, using ONNX fallback:", error);
+          console.warn("Legacy API detection failed, using ONNX fallback:", error);
         }
       }
 
@@ -1710,8 +1830,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     // End camera session tracking
     endCameraSession();
 
-    // API cleanup (no sessions to end)
-    if (apiAvailable) {
+    // NEW: Smart API client cleanup
+    if (smartApiClient && smartApiClient.isConnected()) {
+      try {
+        await smartApiClient.disconnect();
+        console.log("📊 Smart API client disconnected successfully");
+      } catch (error) {
+        console.warn("⚠️ Smart API client disconnect warning:", error.message);
+      }
+    } else if (apiAvailable) {
       console.log("📊 API detection session completed");
     }
 
