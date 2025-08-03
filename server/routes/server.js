@@ -1270,14 +1270,23 @@ app.post('/register', async (req, res) => {
         return res.status(500).json({ error: 'Internal server error' });
     }
 
-    req.session.user = {  
-        email,  
-        username  
-    };  
+    // Use Passport login to properly authenticate the new user
+    req.login(newUser, function(err) {
+        if (err) {
+            console.error('Passport login error after registration:', err);
+            return res.status(500).json({ error: 'Registration successful but login failed' });
+        }
+        
+        // Also save to session for compatibility
+        req.session.user = {  
+            email,  
+            username  
+        };  
 
-    res.status(201).json({   
-        message: 'User registered successfully',   
-        user: { email, username }   
+        res.status(201).json({   
+            message: 'User registered successfully',   
+            user: { email, username }   
+        });
     });  
 });
 
@@ -1293,20 +1302,33 @@ app.post('/login', async (req, res) => {
     // Simple mode: accept any credentials for testing
     if (isSimpleMode) {
         // For testing purposes, accept any email/password combination
-        req.session = req.session || {};
-        req.session.user = {
+        const simpleUser = {
             email: email,
-            username: email.split('@')[0] // Use email prefix as username
+            username: email.split('@')[0], // Use email prefix as username
+            type: 'user'
         };
         
-        return res.json({
-            success: true,
-            message: 'Login successful (simple mode)',
-            user: {
+        req.login(simpleUser, function(err) {
+            if (err) {
+                console.error('Passport login error in simple mode:', err);
+                return res.status(500).json({ error: 'Login failed' });
+            }
+            
+            req.session.user = {
                 email: email,
                 username: email.split('@')[0]
-            }
+            };
+            
+            return res.json({
+                success: true,
+                message: 'Login successful (simple mode)',
+                user: {
+                    email: email,
+                    username: email.split('@')[0]
+                }
+            });
         });
+        return; // Exit early to prevent further execution
     }
 
     // Full mode: check Redis
@@ -1322,13 +1344,22 @@ app.post('/login', async (req, res) => {
 
             if (user.email === email) {
                 if (user.password === password) {
-                    // ✅ שמירה בסשן – כמו שעשית בהתחברות עם גוגל
-                    req.session.user = {
-                        email: user.email,
-                        username: user.username
-                    };
+                    // ✅ Use Passport login to properly authenticate the user
+                    req.login(user, function(err) {
+                        if (err) {
+                            console.error('Passport login error:', err);
+                            return res.status(500).json({ error: 'Login failed' });
+                        }
+                        
+                        // Also save to session for compatibility
+                        req.session.user = {
+                            email: user.email,
+                            username: user.username
+                        };
 
-                    return res.status(200).json({ message: 'Login successful', user: { email, username: user.username } });
+                        return res.status(200).json({ message: 'Login successful', user: { email, username: user.username } });
+                    });
+                    return; // Exit early to prevent further execution
                 } else {
                     return res.status(401).json({ error: 'Incorrect password' });
                 }

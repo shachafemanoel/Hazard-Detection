@@ -206,11 +206,39 @@ document.addEventListener("DOMContentLoaded", async function () {
   
   // Road Damage Classes (mapping to model's 10 classes)
   const classNames = [
-    'crack',
-    'knocked', 
-    'pothole',
-    'surface_damage'
+    'Alligator Crack',
+    'Block Crack', 
+    'Crosswalk Blur',
+    'Lane Blur',
+    'Longitudinal Crack',
+    'Manhole',
+    'Patch Repair',
+    'Pothole',
+    'Transverse Crack',
+    'Wheel Mark Crack'
   ];
+
+  // Detection configuration for upload processing
+  const DETECTION_CONFIG = {
+    minConfidence: 0.35,          // Lower for batch processing
+    nmsThreshold: 0.4,            // Lower for better precision
+    maxDetections: 50,            // Higher limit for batch processing
+    minBoxSize: 4,                // Smaller for crack detection
+    aspectRatioFilter: 30.0,      // Allow longer shapes for cracks/markings
+    // Class-specific minimum confidences for upload processing
+    classThresholds: {
+      0: 0.30, // Alligator Crack
+      1: 0.35, // Block Crack
+      2: 0.40, // Crosswalk Blur
+      3: 0.40, // Lane Blur
+      4: 0.30, // Longitudinal Crack
+      5: 0.45, // Manhole
+      6: 0.35, // Patch Repair
+      7: 0.30, // Pothole
+      8: 0.30, // Transverse Crack
+      9: 0.35  // Wheel Mark Crack
+    }
+  };
   let session = null;
   
   // Configure ONNX Runtime environment for CPU execution
