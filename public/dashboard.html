@@ -22,43 +22,35 @@
   </header>
 
   <main class="container-fluid">
-    <section id="overview-section" class="row g-4 mb-4">
-      <div class="col-lg-3 col-md-6">
-        <article class="stat-card card h-100">
-          <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
-          <div class="stat-content">
-            <h4 id="total-reports-count">—</h4>
-            <p>Total Reports</p>
-          </div>
-        </article>
-      </div>
-      <div class="col-lg-3 col-md-6">
-        <article class="stat-card card h-100">
-          <div class="stat-icon"><i class="fas fa-clock"></i></div>
-          <div class="stat-content">
-            <h4 id="open-hazards-count">—</h4>
-            <p>Open Hazards</p>
-          </div>
-        </article>
-      </div>
-      <div class="col-lg-3 col-md-6">
-        <article class="stat-card card h-100">
-          <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
-          <div class="stat-content">
-            <h4 id="resolved-this-month-count">—</h4>
-            <p>Resolved This Month</p>
-          </div>
-        </article>
-      </div>
-      <div class="col-lg-3 col-md-6">
-        <article class="stat-card card h-100">
-          <div class="stat-icon"><i class="fas fa-users"></i></div>
-          <div class="stat-content">
-            <h4 id="active-users-count">—</h4>
-            <p>Active Users</p>
-          </div>
-        </article>
-      </div>
+    <section id="overview-section" class="summary-grid mb-4">
+      <article class="stat-card card h-100">
+        <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
+        <div class="stat-content">
+          <h4 id="total-reports-count">—</h4>
+          <p>Total Reports</p>
+        </div>
+      </article>
+      <article class="stat-card card h-100">
+        <div class="stat-icon"><i class="fas fa-clock"></i></div>
+        <div class="stat-content">
+          <h4 id="open-hazards-count">—</h4>
+          <p>Open Hazards</p>
+        </div>
+      </article>
+      <article class="stat-card card h-100">
+        <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+        <div class="stat-content">
+          <h4 id="resolved-this-month-count">—</h4>
+          <p>Resolved This Month</p>
+        </div>
+      </article>
+      <article class="stat-card card h-100">
+        <div class="stat-icon"><i class="fas fa-users"></i></div>
+        <div class="stat-content">
+          <h4 id="active-users-count">—</h4>
+          <p>Active Users</p>
+        </div>
+      </article>
     </section>
     <div class="row g-4">
       <section class="col-lg-8">
@@ -83,7 +75,7 @@
             <h5 class="mb-0"><i class="fas fa-table me-2"></i>Reports Management</h5>
           </div>
           <div class="card-body">
-            <div class="table-controls d-flex flex-wrap gap-2 mb-3">
+            <div class="table-controls mb-3">
               <input type="text" id="report-search-input" class="form-control" placeholder="Search reports..." aria-label="Search reports">
               <select id="table-status-filter" class="form-select" aria-label="Filter by status">
                 <option value="">All Status</option>

@@ -14,7 +14,7 @@
 <body>
   <!-- Left Corner Navigation Menu -->
   <nav class="nav-menu-left">
-    <button class="nav-toggle-btn" id="nav-toggle">
+    <button class="nav-toggle-btn hamburger" id="nav-toggle">
       <i class="fas fa-bars"></i>
     </button>
     <div class="nav-menu-content" id="nav-menu">
@@ -37,7 +37,7 @@
   <!-- Main Content -->
   <main class="main-content">
     <div class="container mt-5">
-      <section class="card p-4 mx-auto" style="max-width: 600px;">
+      <section class="card p-4 mx-auto upload-card" style="max-width: 600px;">
         <h2 class="text-center mb-4">Upload Image for Detection</h2>
 
         <div class="mb-3">
@@ -54,8 +54,8 @@
 
         <canvas id="preview-canvas" class="img-fluid border rounded mb-3"></canvas>
 
-        <button id="save-detection" class="btn btn-primary w-100" aria-label="Save detection">Save Detection</button>
-        <button id="open-detection-modal" class="btn btn-secondary w-100 mt-2" aria-label="View detection details">View Detection Details</button>
+        <button id="save-detection" class="btn btn-primary w-100 upload-action-btn" aria-label="Save detection">Save Detection</button>
+        <button id="open-detection-modal" class="btn btn-secondary w-100 mt-2 upload-action-btn" aria-label="View detection details">View Detection Details</button>
         <div id="tooltip" class="alert alert-warning mt-3" style="display:none;" role="tooltip">⚠️ No Hazard Detected. Cannot save detection</div>
 
         <div id="toast-notification" class="toast align-items-center text-white bg-primary border-0 mt-3" role="alert" aria-live="assertive" aria-atomic="true">

@@ -56,10 +56,11 @@ const elements = {
 
 function renderStats() {
   const { total, open, resolved, users } = state.metrics;
-  elements.totalReportsCount.textContent = total ?? '—';
-  elements.openHazardsCount.textContent = open ?? '—';
-  elements.resolvedThisMonthCount.textContent = resolved ?? '—';
-  elements.activeUsersCount.textContent = users ?? '—';
+  const display = (v) => (v ? v : '—');
+  elements.totalReportsCount.textContent = display(total);
+  elements.openHazardsCount.textContent = display(open);
+  elements.resolvedThisMonthCount.textContent = display(resolved);
+  elements.activeUsersCount.textContent = display(users);
 }
 
 function renderTable() {
@@ -85,11 +86,13 @@ function renderTable() {
       const statusMap = { 'Open': 'bg-danger', 'New': 'bg-danger', 'In Progress': 'bg-warning', 'Resolved': 'bg-success' };
       return `<span class="badge ${statusMap[status] || 'bg-secondary'}">${status || 'Unknown'}</span>`;
     };
+    const formatType = (type) =>
+      type ? type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) : 'Unknown';
 
     row.innerHTML = `
       <td><input type="checkbox" class="report-checkbox" data-report-id="${report.id}" ${state.selectedReportIds.has(report.id) ? 'checked' : ''}></td>
       <td>${report.id || 'N/A'}</td>
-      <td><span class="badge bg-primary">${report.type || 'Unknown'}</span></td>
+      <td><span class="badge bg-primary type-badge">${formatType(report.type)}</span></td>
       <td>${getStatusBadge(report.status)}</td>
       <td title="${report.location || ''}">${truncate(report.location)}</td>
       <td>${formatTime(report.time)}</td>
