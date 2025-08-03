@@ -23,7 +23,7 @@ async function geocode(address) {
 }
 
 // Fetch reports with filters and pagination
-export async function fetchReports(filters = {}) {
+window.fetchReports = async function(filters = {}) {
   const params = new URLSearchParams(filters);
   let response;
   try {

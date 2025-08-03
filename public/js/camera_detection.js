@@ -962,16 +962,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       };
 
       pendingDetections.push(report);
-      
-      // Add to session summary with image
-      sessionDetectionsSummary.push({
-        type: label,
-        confidence: score,
-        timestamp: Date.now(),
-        frame: frameCount,
-        image: imageUrl,
-        allDetections: report.allDetections
-      });
 
       // Update saved images count
       savedImagesCount++;
@@ -1707,9 +1697,19 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Show summary modal if there were detections
     if (detectionStats.totalDetections > 0 || sessionDetectionsSummary.length > 0) {
-      setTimeout(() => {
-        showSummaryModal();
-      }, 500); // Small delay to let the UI settle
+        // Fetch reports for this trip and then show summary
+        if (apiSessionId) {
+            fetchReports({ tripId: apiSessionId }).then(data => {
+                showSummaryModal(data.reports);
+            }).catch(error => {
+                console.error("Failed to fetch reports for summary:", error);
+                // Fallback to showing modal without server data if fetch fails
+                showSummaryModal([]);
+            });
+        } else {
+            // If there's no session ID, show summary with whatever is local (likely nothing)
+            showSummaryModal([]);
+        }
     }
 
     // Reset stats and clear tracking data
@@ -1792,8 +1792,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
   // Summary Modal Functions
-  function showSummaryModal() {
-    updateSummaryData();
+  function showSummaryModal(reports = []) {
+    updateSummaryData(reports);
     summaryModal.show();
   }
 
@@ -1801,9 +1801,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     summaryModal.hide();
   }
 
-  function updateSummaryData() {
-    // Update session stats
-    totalDetectionsCount.textContent = detectionStats.totalDetections;
+  function updateSummaryData(reports = []) {
+    // Update session stats from server data
+    totalDetectionsCount.textContent = reports.length;
     
     // Calculate and display session duration
     const sessionDuration = Date.now() - detectionStats.sessionStart;
@@ -1811,49 +1811,45 @@ document.addEventListener("DOMContentLoaded", async () => {
     const seconds = Math.floor((sessionDuration % 60000) / 1000);
     sessionDurationDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
     
-    // Update unique hazards count
-    uniqueHazardsCount.textContent = detectionStats.detectedHazards.size;
+    // Update unique hazards count from server data
+    const uniqueHazards = new Set(reports.map(r => r.type));
+    uniqueHazardsCount.textContent = uniqueHazards.size;
     
     // Update detections grid
-    updateDetectionsGrid();
+    updateDetectionsGrid(reports);
     
-    // Load saved reports
+    // Load saved reports (this is for a separate list in the modal, can remain)
     loadSavedReports();
   }
 
-  function updateDetectionsGrid() {
-    if (sessionDetectionsSummary.length === 0) {
+  function updateDetectionsGrid(reports = []) {
+    if (reports.length === 0) {
       detectionsGrid.innerHTML = `
         <div class="no-detections">
           <i class="fas fa-search"></i>
-          <p>No hazards detected in this session</p>
+          <p>No hazards were saved to the server for this session</p>
         </div>
       `;
       return;
     }
 
-    detectionsGrid.innerHTML = sessionDetectionsSummary.map((detection, index) => `
+    detectionsGrid.innerHTML = reports.map((report, index) => `
       <div class="detection-item">
-        ${detection.image ? `
+        ${report.image ? `
           <div class="detection-image">
-            <img src="${detection.image}" alt="${detection.type}" onclick="showImageModal('${detection.image}', '${detection.type}')" />
+            <img src="${report.image}" alt="${report.type}" onclick="showImageModal('${report.image}', '${report.type}')" />
           </div>
         ` : ''}
         <div class="detection-content">
           <div class="detection-item-header">
-            <span class="detection-type">${detection.type}</span>
-            <span class="detection-confidence">${Math.round(detection.confidence * 100)}%</span>
+            <span class="detection-type">${report.type}</span>
+            <span class="detection-confidence">${report.confidence}%</span>
           </div>
-          <div class="detection-timestamp">${new Date(detection.timestamp).toLocaleTimeString()}</div>
+          <div class="detection-timestamp">${new Date(report.time).toLocaleTimeString()}</div>
           <div class="detection-location">
             <i class="fas fa-map-marker-alt"></i>
-            Live Camera Feed
+            ${report.location ? `${report.location.lat.toFixed(4)}, ${report.location.lng.toFixed(4)}` : 'Live Camera Feed'}
           </div>
-          ${detection.allDetections && detection.allDetections.length > 1 ? `
-            <div class="detection-extras">
-              +${detection.allDetections.length - 1} more detections
-            </div>
-          ` : ''}
         </div>
       </div>
     `).join('');
