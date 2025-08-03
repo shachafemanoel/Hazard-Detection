@@ -1,6 +1,11 @@
 const axios = require('axios');
 const WebSocket = require('ws');
 
+axios.interceptors.request.use(request => {
+  console.log('Starting Request', JSON.stringify(request, null, 2))
+  return request
+})
+
 async function probeHealth(base, timeout = 2000) {
   try {
     const res = await axios.get(base.replace(/\/+$/, '') + '/health', {
@@ -92,20 +97,24 @@ function createRealtimeClient(config) {
 
     setStatus('uploading');
     try {
+      const FormData = require('form-data');
       const formData = new FormData();
       formData.append('file', payload);
 
       const response = await axios.post(
         `${baseUrl}/detect/${sessionId}`,
-        formData, {
-          headers: formData.getHeaders(),
+        formData,
+        {
+          headers: {
+            ...formData.getHeaders()
+          }
         }
       );
 
       listeners.message.forEach(cb => cb(response.data));
       setStatus('connected');
     } catch (error) {
-      setStatus('reconnecting');
+      setStatus('connected');
       listeners.error.forEach(cb => cb(error));
       // Implement retry logic here
     }

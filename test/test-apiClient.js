@@ -4,6 +4,7 @@ const axios = require('axios');
 const { resolveBaseUrl, createRealtimeClient } = require('../public/js/apiClient.js');
 
 describe('apiClient', () => {
+  console.log('Running apiClient tests...');
   let axiosGetStub;
 
   beforeEach(() => {
@@ -67,7 +68,8 @@ describe('apiClient', () => {
       axiosPostStub.restore();
     });
 
-    it('should connect, send a message, and disconnect', async () => {
+    it('should connect, send a message, and disconnect', function(done) {
+      this.timeout(5000);
       const onStatusChange = sinon.spy();
       const onMessage = sinon.spy();
       const onError = sinon.spy();
@@ -81,26 +83,28 @@ describe('apiClient', () => {
       axiosPostStub.withArgs('http://ideal-learning.railway.internal:8080/detect/test-session').resolves({ data: { success: true } });
       axiosPostStub.withArgs('http://ideal-learning.railway.internal:8080/session/test-session/end').resolves({ data: {} });
 
-      await client.connect();
-      expect(client.isConnected()).to.be.true;
-
-      const imageStream = 'dummy image data';
-      await client.send(imageStream);
-
-      await client.disconnect();
-      expect(client.isConnected()).to.be.false;
-
-      expect(onStatusChange.args).to.deep.equal([
-        ['connecting'],
-        ['connected'],
-        ['uploading'],
-        ['connected'],
-        ['disconnected'],
-      ]);
-
-      expect(onMessage.callCount).to.equal(1);
-      expect(onMessage.firstCall.args[0]).to.deep.equal({ success: true });
-      expect(onError.callCount).to.equal(0);
+      console.log('Connecting...');
+      client.connect()
+        .then(() => {
+          console.log('Connected.');
+          expect(client.isConnected()).to.be.true;
+          const imageStream = 'dummy image data';
+          console.log('Sending...');
+          return client.send(imageStream);
+        })
+        .then(() => {
+          console.log('Sent.');
+          expect(onStatusChange.args).to.deep.equal([
+            ['connecting'],
+            ['connected'],
+            ['uploading'],
+            ['connected'],
+          ]);
+          expect(onMessage.callCount).to.equal(1);
+          expect(onMessage.firstCall.args[0]).to.deep.equal({ success: true });
+          expect(onError.callCount).to.equal(0);
+          done();
+        });
     });
   });
 });

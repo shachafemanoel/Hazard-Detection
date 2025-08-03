@@ -7,7 +7,16 @@ const imagePath = path.join(__dirname, 'sample-image.png');
 async function main() {
   // Create a dummy image file
   if (!fs.existsSync(imagePath)) {
-    fs.writeFileSync(imagePath, 'dummy image data');
+    const { createCanvas } = require('canvas');
+    const canvas = createCanvas(200, 200);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, 200, 200);
+    ctx.fillStyle = 'black';
+    ctx.font = '30px Arial';
+    ctx.fillText('Test', 50, 100);
+    const buffer = canvas.toBuffer('image/png');
+    fs.writeFileSync(imagePath, buffer);
   }
 
   const client = createRealtimeClient();
