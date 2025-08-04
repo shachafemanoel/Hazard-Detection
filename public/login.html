@@ -18,7 +18,8 @@
     <!-- Main Stylesheet -->
     <link rel="stylesheet" href="css/main.css">
 </head>
-<body class="d-flex align-items-center justify-content-center min-vh-100 px-4">
+<body>
+  <main class="d-flex align-items-center justify-content-center min-vh-100 px-4 main-content">
 
   <div class="login-container card p-4">
     <div class="text-center mb-4">
@@ -93,19 +94,9 @@
       </div>
     </div>
   </div>
-
-  <script src="js/login.js" defer></script>
-  <!-- Tech-Urban Floating Menu -->
-  <button id="fab-btn" class="fab"><i class="fas fa-bars"></i></button>
-  <nav id="fab-menu" class="fab-menu">
-    <a href="/dashboard.html">Dashboard</a>
-    <a href="/camera.html">Live</a>
-    <a href="/logout">Logout</a>
-  </nav>
-  <script>
-    document.getElementById('fab-btn').onclick = () => {
-      document.getElementById('fab-menu').classList.toggle('open');
-    };
-  </script>
+  </main>
+<script src="js/layout.js" defer></script>
+<script src="js/login.js" defer></script>
+  
 </body>
 </html>
