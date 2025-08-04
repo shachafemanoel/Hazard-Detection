@@ -37,7 +37,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const savedReportsList = document.getElementById("saved-reports-list");
 
   // Constants
-  const FIXED_SIZE = 480;
+  const FIXED_SIZE = 256; // Further reduced for maximum performance
   const API_HEALTH_CHECK_INTERVAL = 10000; // 10 seconds
   const SESSION_UPDATE_INTERVAL = 1000; // 1 second
   const DEFAULT_SAVE_INTERVAL = 120; // frames
@@ -58,6 +58,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     uniqueHazards: new Set(),
     isActive: false
   };
+
+  // Frame synchronization tracking
+  let lastFrameDetections = [];
+  let lastDetectionFrame = 0;
+  let lastQualityAdjustment = 0;
+
+  // YOLO streaming optimizations - persistent tensors and buffers
+  let persistentTensorData = null;
+  let persistentTensor = null;
+  let persistentFeeds = null;
+  let currentTensorSize = null;
   
   // Function to start camera session
   function startCameraSession() {
@@ -274,29 +285,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.showCameraSessionSummary = showCameraSessionSummary;
   window.getOptimalVideoConstraints = getOptimalVideoConstraints;
 
-  // Enhanced detection configuration for real-time processing (10 classes) - following upload.js patterns
+  // Streaming-optimized detection configuration
   const DETECTION_CONFIG = {
-    minConfidence: 0.4,           // Higher for real-time to reduce noise
-    nmsThreshold: 0.5,            // Higher NMS for more classes
-    maxDetections: 30,            // Lower limit for real-time performance
-    minBoxSize: 6,                // Smaller for crack detection
-    aspectRatioFilter: 25.0,      // Allow longer shapes for cracks/markings
     trackingEnabled: true,        // Enable object tracking
-    confidenceDecayRate: 0.92,    // Slightly faster decay for more classes
-    detectionInterval: 4,         // Process every 4th frame for performance
-    // Class-specific minimum confidences for real-time
-    classThresholds: {
-      0: 0.35, // Alligator Crack - real-time adjusted
-      1: 0.40, // Block Crack - standard
-      2: 0.45, // Crosswalk Blur - higher (avoid false marking detections)
-      3: 0.45, // Lane Blur - higher (avoid false marking detections)
-      4: 0.35, // Longitudinal Crack - real-time adjusted
-      5: 0.50, // Manhole - higher (avoid false infrastructure detections)
-      6: 0.40, // Patch Repair - standard
-      7: 0.35, // Pothole - clear damage, allow lower threshold
-      8: 0.35, // Transverse Crack - real-time adjusted
-      9: 0.40  // Wheel Mark Crack - standard
-    }
+    confidenceDecayRate: 0.95,    // Slower decay for smoother tracking (better performance allows this)
+    detectionInterval: 4,         // Start with higher interval for better performance
+    maxInterval: 12,              // Maximum throttling interval
+    minInterval: 2,               // Minimum interval for good performance
   };
 
   // Enhanced color scheme for different road damage types
@@ -491,6 +486,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   let performanceHistory = [];
   let adaptiveQualityEnabled = true;
   
+  // Canvas rendering optimization
+  let lastCanvasRender = 0;
+  const CANVAS_RENDER_INTERVAL = 33; // ~30 FPS max for canvas rendering
+  
   // Offscreen canvas for processing
   const offscreen = document.createElement("canvas");
   offscreen.width = FIXED_SIZE;
@@ -518,11 +517,20 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Update UI status
   function updateConnectionStatus(status, message) {
+    if (!connectionStatus) {
+      console.log(`Connection status: ${status} - ${message}`);
+      return;
+    }
+    
     const indicator = connectionStatus.querySelector('.status-indicator');
     const text = connectionStatus.querySelector('.status-text');
     
-    indicator.className = `fas fa-circle status-indicator ${status}`;
-    text.textContent = message;
+    if (indicator) {
+      indicator.className = `fas fa-circle status-indicator ${status}`;
+    }
+    if (text) {
+      text.textContent = message;
+    }
   }
 
 // Show loading overlay with progress
@@ -562,6 +570,19 @@ document.addEventListener("DOMContentLoaded", async () => {
   async function loadModel() {
     showLoading("Loading detection model...", 25);
     
+    // Detect available runtime (following upload.js logic)
+    let runtime = 'onnx';
+    if (typeof ov !== 'undefined' && ov.InferenceSession) {
+      runtime = 'openvino';
+      console.log('✅ OpenVINO runtime detected');
+    } else {
+      console.log('✅ ONNX Runtime loaded, configuring for CPU execution...');
+      if (typeof ort === 'undefined') {
+        console.error('ONNX Runtime not loaded. Please ensure ort.wasm.min.js is included in the HTML.');
+        return false;
+      }
+    }
+    
     // Prioritized model paths - using the latest road damage detection model
     const modelPaths = [
       './object_detection_model/last_model_train12052025.onnx',          // Primary model
@@ -591,28 +612,39 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     showLoading("Initializing inference runtime...", 50);
 
+    // Initialize session based on selected runtime (following exact upload.js logic)
     try {
-      if (typeof ov !== 'undefined' && ov.InferenceSession) {
+      if (runtime === 'openvino') {
         session = await ov.InferenceSession.create(modelPath);
-        console.log("✅ Model loaded with OpenVINO runtime");
+        console.log('✅ YOLO model loaded with OpenVINO runtime!');
       } else {
-        try {
-          session = await ort.InferenceSession.create(modelPath, { executionProviders: ['webgl'] });
-          console.log("✅ ONNX model loaded with WebGL backend");
-        } catch (err) {
-          console.log("💻 WebGL not available, using CPU backend (this is normal):");
-          session = await ort.InferenceSession.create(modelPath, {
-            executionProviders: ['cpu'],
-            graphOptimizationLevel: 'disabled',
+        const executionProviders = ['cpu'];
+        console.log('✅ Using CPU execution provider');
+
+        session = await ort.InferenceSession.create(
+          modelPath,
+          {
+            executionProviders: executionProviders,
+            graphOptimizationLevel: 'disabled', // Disable optimizations for stability
             enableCpuMemArena: false,
-            logSeverityLevel: 2
-          });
-          console.log("✅ ONNX model loaded with CPU backend");
-        }
+            logSeverityLevel: 2 // Reduce logging
+          }
+        );
+
+        console.log("✅ YOLO model loaded with ONNX runtime!");
+        console.log(`📊 Model inputs: ${session.inputNames.join(', ')}`);
+        console.log(`📊 Model outputs: ${session.outputNames.join(', ')}`);
       }
     } catch (err) {
-      console.error("❌ Failed to create inference session:", err);
-      throw new Error(`Failed to initialize AI model: ${err.message}`);
+      console.error("❌ Failed to load model:", err);
+      console.warn("⚠️ No working ONNX model found. The current model appears to be corrupted.");
+      console.warn("💡 Recommendation: Convert PyTorch models to ONNX or download a working model.");
+      
+      // Show user-friendly error message
+      showLoading("Model loading failed - using fallback mode", 100);
+      
+      // For now, return false to indicate model loading failed but don't crash
+      return false;
     }
 
     showLoading("Model loaded successfully!", 100);
@@ -628,41 +660,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     apiAvailable = false;
 
     try {
-      // Always load ONNX model first
-      await loadModel();
-      console.log('✅ ONNX model loaded');
-
-      try {
-        // Attempt to load remote API configuration and start session
-        await window.loadApiConfig();
-        const apiOk = await window.testApiConnection();
-        if (apiOk) {
-          apiSessionId = await window.startApiSession();
-          apiAvailable = true;
-          useApi = true;
-          console.log('✅ API session started, using remote detection');
-          updateConnectionStatus('connected', 'Enhanced Mode (API + ONNX)');
-        } else {
-          showNotification('Remote API unavailable, running local model', 'warning');
-          console.warn('⚠️ API unavailable, using ONNX-only detection');
-          updateConnectionStatus('ready', 'Local ONNX Detection Mode');
-        }
-      } catch (err) {
-        console.warn('⚠️ Initialization error:', err.message);
-        console.warn('→ Falling back to ONNX-only detection');
-        showNotification('Remote API unavailable, running local model', 'warning');
-        updateConnectionStatus('ready', 'Local ONNX Detection Mode');
-      }
-
-      const modeMessage = apiAvailable && useApi
-        ? '🚀 Enhanced detection ready with API + ONNX support'
-        : '🎯 Local detection ready with ONNX model';
-
-      // 1. Always load the local ONNX model first
+      // 1. Try to load the local ONNX model first
       showLoading("Loading local AI model...", 10);
-      await loadModel();
-      console.log('✅ ONNX model loaded.');
-      updateConnectionStatus('ready', 'Local Model Ready');
+      const modelLoaded = await loadModel();
+      
+      if (modelLoaded) {
+        console.log('✅ ONNX model loaded.');
+        updateConnectionStatus('ready', 'Local Model Ready');
+      } else {
+        console.warn('⚠️ ONNX model failed to load, continuing without local detection');
+        updateConnectionStatus('warning', 'Local Model Failed - API Only Mode');
+      }
 
       // 2. Try to connect to the API, but don't fail if it's unavailable
       try {
@@ -695,19 +703,28 @@ document.addEventListener("DOMContentLoaded", async () => {
         // `useApi` is already false, so we just continue without re-throwing the error.
       }
 
-      // 3. Finalize initialization
-      const modeMessage = useApi
-        ? "🚀 Enhanced detection ready (API + ONNX)"
-        : "🎯 Local detection ready (ONNX only)";
-      
+      // 3. Finalize initialization - determine operational mode
+      let modeMessage;
+      if (useApi && modelLoaded) {
+        modeMessage = "🚀 Enhanced detection ready (API + ONNX)";
+      } else if (useApi && !modelLoaded) {
+        modeMessage = "🌐 API-only detection ready";
+      } else if (!useApi && modelLoaded) {
+        modeMessage = "🎯 Local detection ready (ONNX only)";
+      } else {
+        // Neither API nor model available - camera preview only
+        modeMessage = "📷 Camera preview mode (no detection available)";
+        console.warn("⚠️ Running in camera-only mode - no detection available");
+        updateConnectionStatus('warning', 'Camera Only - No Detection');
+      }
 
-      showNotification(modeMessage, 'success');
+      showNotification(modeMessage, (useApi || modelLoaded) ? 'success' : 'warning');
       initialized = true;
       startProcessingLoop();
       return true;
 
     } catch (error) {
-      // This catch block now only handles critical errors, like the ONNX model failing to load.
+      // This catch block handles critical errors
       console.error("❌ Critical initialization failed:", error);
       showNotification(`Initialization failed: ${error.message}`, 'error');
       updateConnectionStatus('error', 'Initialization Failed');
@@ -731,59 +748,85 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // Process frame with ONNX
+  // Streaming-optimized YOLO detection with persistent tensors
   async function detectWithOnnx(imageData) {
     if (!session) return [];
 
     const startTime = performance.now();
     
     try {
-      // Prepare tensor data (matching upload.js logic)
       const { data, width, height } = imageData;
-      const tensorData = new Float32Array(width * height * 3);
+      const tensorSize = width * height;
+      const totalSize = 3 * tensorSize;
       
-      for (let i = 0, j = 0; i < data.length; i += 4, j += 3) {
-        tensorData[j] = data[i] / 255;       // R
-        tensorData[j + 1] = data[i + 1] / 255; // G
-        tensorData[j + 2] = data[i + 2] / 255; // B
+      // Initialize or reuse persistent tensors (streaming optimization)
+      if (!persistentTensorData || currentTensorSize !== totalSize) {
+        persistentTensorData = new Float32Array(totalSize);
+        currentTensorSize = totalSize;
+        persistentTensor = null; // Will be recreated with new dimensions
       }
 
-      // Convert to CHW format
-      const chwData = new Float32Array(3 * width * height);
-      for (let c = 0; c < 3; c++) {
-        for (let h = 0; h < height; h++) {
-          for (let w = 0; w < width; w++) {
-            chwData[c * width * height + h * width + w] = 
-              tensorData[h * width * 3 + w * 3 + c];
-          }
-        }
+      // Optimized in-place CHW conversion (reuse buffer)
+      for (let i = 0; i < data.length; i += 4) {
+        const pixelIndex = i / 4;
+        const h = Math.floor(pixelIndex / width);
+        const w = pixelIndex % width;
+        const baseIndex = h * width + w;
+        
+        persistentTensorData[baseIndex] = data[i] * 0.00392156862745098;                    // R: /255 optimized
+        persistentTensorData[tensorSize + baseIndex] = data[i + 1] * 0.00392156862745098;  // G: /255 optimized  
+        persistentTensorData[2 * tensorSize + baseIndex] = data[i + 2] * 0.00392156862745098; // B: /255 optimized
       }
 
-      const dims = [1, 3, height, width];
-      const tensor = new ort.Tensor("float32", chwData, dims);
-      const feeds = { images: tensor };
+      // Reuse tensor object when possible (streaming pattern)
+      if (!persistentTensor || persistentTensor.dims[2] !== height || persistentTensor.dims[3] !== width) {
+        const dims = [1, 3, height, width];
+        persistentTensor = new ort.Tensor("float32", persistentTensorData, dims);
+        persistentFeeds = { images: persistentTensor };
+      }
 
-      const results = await session.run(feeds);
+      // YOLO streaming inference
+      const results = await session.run(persistentFeeds);
       const outputKey = Object.keys(results)[0];
       const output = results[outputKey];
       const outputData = output.data;
 
-      // Enhanced detection parsing with filtering
-      const rawBoxes = [];
-      for (let i = 0; i < outputData.length; i += 6) {
-        rawBoxes.push(outputData.slice(i, i + 6));
+      // Stream-optimized detection parsing (minimal overhead)
+      const detections = [];
+      const maxDetections = 20; // Reduced for better performance
+      
+      // Direct array processing - avoid slice() for better performance
+      for (let i = 0; i < outputData.length - 5; i += 6) {
+        const score = outputData[i + 4];
+        
+        // Quick confidence check (model already filtered, so trust it more)
+        if (score > 0.15) { // Slightly higher threshold for performance
+          detections.push([
+            outputData[i],     // x1
+            outputData[i + 1], // y1  
+            outputData[i + 2], // x2
+            outputData[i + 3], // y2
+            score,             // confidence
+            outputData[i + 5]  // class_id
+          ]);
+          
+          // Streaming-style early exit for performance
+          if (detections.length >= maxDetections) break;
+        }
       }
-
-      // Apply intelligent filtering for road damage detection
-      const filteredBoxes = applyDetectionFilters(rawBoxes);
 
       const processingTime = performance.now() - startTime;
-      detectionStats.frameProcessingTimes.push(processingTime);
       
-      if (filteredBoxes.length > 0) {
-        console.log(`🔍 Frame ${frameCount}: ${rawBoxes.length} raw → ${filteredBoxes.length} filtered detections`);
+      // Reduce performance monitoring overhead - only track every 5th detection
+      if (frameCount % 5 === 0) {
+        detectionStats.frameProcessingTimes.push(processingTime);
       }
       
-      return filteredBoxes;
+      if (detections.length > 0) {
+        console.log(`🔍 Frame ${frameCount}: ${detections.length} detections (model processed)`);
+      }
+      
+      return detections;
     } catch (error) {
       console.error("ONNX detection error:", error);
       return [];
@@ -791,99 +834,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // Enhanced detection filtering for road damage (real-time optimized)
-  function applyDetectionFilters(boxes) {
-    let validBoxes = [];
-    
-    // Filter by confidence, size and aspect ratio
-    for (const box of boxes) {
-      let [x1, y1, x2, y2, score, classId] = box;
-      
-      // Fix class ID mapping - model outputs class_id + 1, so subtract 1
-      const correctedClassId = Math.floor(classId) - 1;
-      const classIndex = Math.max(0, correctedClassId); // Ensure non-negative
-      
-      // Use class-specific confidence thresholds if available
-      const minThreshold = DETECTION_CONFIG.classThresholds[classIndex] || DETECTION_CONFIG.minConfidence;
-      
-      // Skip low confidence detections
-      if (score < minThreshold) continue;
-      
-      // Validate coordinates
-      if (x1 >= x2 || y1 >= y2) continue;
-      
-      const width = x2 - x1;
-      const height = y2 - y1;
-      
-      // Filter tiny boxes
-      if (width < DETECTION_CONFIG.minBoxSize || height < DETECTION_CONFIG.minBoxSize) continue;
-      
-      // Filter extreme aspect ratios (likely false positives)
-      const aspectRatio = Math.max(width/height, height/width);
-      if (aspectRatio > DETECTION_CONFIG.aspectRatioFilter) continue;
-      
-      // Ensure box is within image bounds
-      if (x1 < 0 || y1 < 0 || x2 > FIXED_SIZE || y2 > FIXED_SIZE) continue;
-      
-      validBoxes.push(box);
-    }
-    
-    // Sort by confidence (highest first)
-    validBoxes.sort((a, b) => b[4] - a[4]);
-    
-    // Limit number of detections for real-time performance
-    if (validBoxes.length > DETECTION_CONFIG.maxDetections) {
-      validBoxes = validBoxes.slice(0, DETECTION_CONFIG.maxDetections);
-    }
-    
-    // Apply Non-Maximum Suppression (simplified for real-time)
-    return applyNMSRealtime(validBoxes, DETECTION_CONFIG.nmsThreshold);
+  // Clean up persistent tensors (streaming optimization)
+  function resetStreamingBuffers() {
+    persistentTensorData = null;
+    persistentTensor = null;
+    persistentFeeds = null;
+    currentTensorSize = null;
+    console.log("🔄 Streaming buffers reset");
   }
 
-  // Optimized Non-Maximum Suppression for real-time processing
-  function applyNMSRealtime(boxes, threshold) {
-    if (boxes.length === 0) return [];
-    
-    const result = [];
-    const suppressed = new Array(boxes.length).fill(false);
-    
-    for (let i = 0; i < boxes.length; i++) {
-      if (suppressed[i]) continue;
-      
-      result.push(boxes[i]);
-      
-      // Mark overlapping boxes as suppressed
-      for (let j = i + 1; j < boxes.length; j++) {
-        if (suppressed[j]) continue;
-        
-        const iou = calculateIoUFast(boxes[i], boxes[j]);
-        if (iou > threshold) {
-          suppressed[j] = true;
-        }
-      }
-    }
-    
-    return result;
-  }
-
-  // Fast IoU calculation optimized for real-time
-  function calculateIoUFast(box1, box2) {
-    const [x1a, y1a, x2a, y2a] = [box1[0], box1[1], box1[2], box1[3]];
-    const [x1b, y1b, x2b, y2b] = [box2[0], box2[1], box2[2], box2[3]];
-    
-    const xLeft = Math.max(x1a, x1b);
-    const yTop = Math.max(y1a, y1b);
-    const xRight = Math.min(x2a, x2b);
-    const yBottom = Math.min(y2a, y2b);
-    
-    if (xRight <= xLeft || yBottom <= yTop) return 0;
-    
-    const intersectionArea = (xRight - xLeft) * (yBottom - yTop);
-    const box1Area = (x2a - x1a) * (y2a - y1a);
-    const box2Area = (x2b - x1b) * (y2b - y1b);
-    const unionArea = box1Area + box2Area - intersectionArea;
-    
-    return intersectionArea / unionArea;
-  }
+  // applyDetectionFilters removed - YOLO ONNX model handles all filtering
+  // NMS functions removed - model has built-in NMS
 
   // Process frame with API using API client
   async function detectWithApiClient(canvas) {
@@ -1391,11 +1352,68 @@ document.addEventListener("DOMContentLoaded", async () => {
     return (usePound ? '#' : '') + (r << 16 | g << 8 | b).toString(16).padStart(6, '0');
   }
 
+  // Simplified bounding box drawing for better performance
+  function drawSimpleBoundingBox(ctx, options) {
+    const { x1, y1, x2, y2, label, confidence, color, isInterpolated } = options;
+    
+    const boxW = x2 - x1;
+    const boxH = y2 - y1;
+    const scorePerc = (confidence * 100).toFixed(0);
+    
+    // Save context
+    ctx.save();
+    
+    // Simple box with adaptive line width
+    const lineWidth = isInterpolated ? 2 : 3;
+    const alpha = isInterpolated ? 0.6 : 0.8;
+    
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.strokeRect(x1, y1, boxW, boxH);
+    
+    // Simple label background
+    const labelText = `${label} (${scorePerc}%)`;
+    ctx.font = '12px Arial';
+    const textWidth = ctx.measureText(labelText).width;
+    const labelHeight = 16;
+    
+    // Position label
+    let labelX = x1;
+    let labelY = y1 - labelHeight - 2;
+    if (labelY < 0) labelY = y2 + labelHeight + 2;
+    
+    // Background
+    ctx.globalAlpha = 0.8;
+    ctx.fillStyle = color;
+    ctx.fillRect(labelX, labelY, textWidth + 8, labelHeight);
+    
+    // Text
+    ctx.globalAlpha = 1.0;
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillText(labelText, labelX + 4, labelY + 12);
+    
+    ctx.restore();
+  }
+
   // Draw detection results with object tracking and professional bounding boxes
   function drawResults(boxes, useApiResults = false) {
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    // Throttle canvas rendering for better performance
+    const now = performance.now();
+    if (now - lastCanvasRender < CANVAS_RENDER_INTERVAL) {
+      return; // Skip this render cycle
+    }
+    lastCanvasRender = now;
+    
+    // Only resize canvas if video dimensions changed (performance optimization)
+    if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+    }
+    
+    // Clear and draw the current video frame first to ensure synchronization
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     // Update tracked objects with current detections
     trackObjects(boxes);
@@ -1439,7 +1457,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       currentFrameDetections++;
       const labelName = CLASS_NAMES[classIndex] || `Unknown Class ${classIndex}`;
       
-      console.log(`🔍 Camera Detection: Raw classId=${classId}, Corrected=${classIndex}, Label="${labelName}"`);  // Debug log
+      // Reduced debug logging for performance
       
       detectedTypes.add(labelName);
       detectionStats.detectedHazards.add(labelName);
@@ -1453,17 +1471,18 @@ document.addEventListener("DOMContentLoaded", async () => {
       let color = isInterpolated ? '#FFD700' : baseColor; // Gold for interpolated
       
       // Professional bounding box drawing
-      drawProfessionalBoundingBox(ctx, {
+      drawSimpleBoundingBox(ctx, {
         x1, y1, x2, y2,
         label: labelName,
         confidence: trackedObj.confidence,
-        classIndex: classIndex,
-        detectionIndex: trackedObj.id,
         color: color,
         isInterpolated: isInterpolated
       });
 
-      console.log(`📦 Tracked object #${trackedObj.id}:`, labelName, (trackedObj.confidence * 100).toFixed(1) + "%", isInterpolated ? "(interpolated)" : "(detected)");
+      // Reduced logging for performance - only log occasionally
+      if (frameCount % 30 === 0) {
+        console.log(`📦 Tracked object #${trackedObj.id}:`, labelName, (trackedObj.confidence * 100).toFixed(1) + "%", isInterpolated ? "(interpolated)" : "(detected)");
+      }
       
       // Add to camera session tracking (only for new detections, not interpolated)
       if (!isInterpolated) {
@@ -1529,19 +1548,21 @@ document.addEventListener("DOMContentLoaded", async () => {
         : 0;
       processingTime.textContent = `${avgProcessingTime}ms`;
       
-      // Performance monitoring for adaptive quality
+      // Simplified performance monitoring (reduced overhead)
+      if (performanceHistory.length >= 5) {
+        performanceHistory.shift(); // Keep only last 5 measurements
+      }
+      
       performanceHistory.push({
         fps: fps,
         processingTime: avgProcessingTime,
         timestamp: now
       });
       
-      // Keep only recent performance data (last 10 seconds)
-      performanceHistory = performanceHistory.filter(entry => now - entry.timestamp < 10000);
-      
-      // Adaptive quality adjustment
-      if (adaptiveQualityEnabled && performanceHistory.length >= 3) {
+      // Less frequent adaptive quality adjustment
+      if (adaptiveQualityEnabled && performanceHistory.length >= 3 && now - lastQualityAdjustment >= 3000) {
         checkAndAdjustQuality();
+        lastQualityAdjustment = now;
       }
       
       fpsCounter = 0;
@@ -1559,25 +1580,25 @@ document.addEventListener("DOMContentLoaded", async () => {
     const avgFps = performanceHistory.reduce((sum, entry) => sum + entry.fps, 0) / performanceHistory.length;
     const avgProcessingTime = performanceHistory.reduce((sum, entry) => sum + entry.processingTime, 0) / performanceHistory.length;
     
-    // Poor performance thresholds
-    const lowFpsThreshold = 15;
-    const highProcessingThreshold = 150; // ms
+    // More aggressive performance thresholds for 10+ FPS target
+    const lowFpsThreshold = 8;     // Lower threshold for more aggressive throttling
+    const highProcessingThreshold = 200; // ms - allow more processing time
     
     // Good performance thresholds  
-    const goodFpsThreshold = 25;
-    const lowProcessingThreshold = 50; // ms
+    const goodFpsThreshold = 15;   // Lower good threshold to be less aggressive about increasing
+    const lowProcessingThreshold = 80; // ms - more realistic threshold
     
     if (avgFps < lowFpsThreshold || avgProcessingTime > highProcessingThreshold) {
-      // Performance is poor - reduce quality
-      if (DETECTION_CONFIG.detectionInterval < 8) {
-        DETECTION_CONFIG.detectionInterval += 1;
-        console.log(`⚡ Performance low (${avgFps.toFixed(1)} FPS, ${avgProcessingTime.toFixed(1)}ms) - reducing detection frequency to every ${DETECTION_CONFIG.detectionInterval} frames`);
-        showNotification(`Adjusting detection frequency for better performance`, 'info');
+      // Performance is poor - more aggressive throttling
+      if (DETECTION_CONFIG.detectionInterval < DETECTION_CONFIG.maxInterval) {
+        DETECTION_CONFIG.detectionInterval = Math.min(DETECTION_CONFIG.detectionInterval + 2, DETECTION_CONFIG.maxInterval);
+        console.log(`⚡ Performance low (${avgFps.toFixed(1)} FPS, ${avgProcessingTime.toFixed(1)}ms) - aggressively reducing detection frequency to every ${DETECTION_CONFIG.detectionInterval} frames`);
+        showNotification(`Aggressively throttling detection for better performance`, 'warning');
       }
     } else if (avgFps > goodFpsThreshold && avgProcessingTime < lowProcessingThreshold) {
-      // Performance is good - can increase quality
-      if (DETECTION_CONFIG.detectionInterval > 2) {
-        DETECTION_CONFIG.detectionInterval -= 1;
+      // Performance is good - gradually increase quality
+      if (DETECTION_CONFIG.detectionInterval > DETECTION_CONFIG.minInterval) {
+        DETECTION_CONFIG.detectionInterval = Math.max(DETECTION_CONFIG.detectionInterval - 1, DETECTION_CONFIG.minInterval);
         console.log(`🚀 Performance good (${avgFps.toFixed(1)} FPS, ${avgProcessingTime.toFixed(1)}ms) - increasing detection frequency to every ${DETECTION_CONFIG.detectionInterval} frames`);
       }
     }
@@ -1585,7 +1606,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Add detecting class to camera wrapper
   function setDetectingState(isDetecting) {
-      const cameraWrapper = document.getElementById('camera-wrapper');
+    const cameraWrapper = document.getElementById('camera-wrapper');
+    if (!cameraWrapper) {
+      console.warn('Camera wrapper element not found');
+      return;
+    }
+    
     if (isDetecting) {
       cameraWrapper.classList.add('detecting');
     } else {
@@ -1594,15 +1620,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   // Set initial state of buttons
   function updateButtonStates() {
-      if (detecting) {
-          startBtn.style.display = "none";
-          stopBtn.style.display = "inline-block";
-          switchCameraBtn.style.display = "inline-block";
-      } else {
-          startBtn.style.display = "inline-block";
-          stopBtn.style.display = "none";
-          switchCameraBtn.style.display = "none";
-      }
+    if (!startBtn || !stopBtn || !switchCameraBtn) {
+      console.warn('One or more camera control buttons not found in DOM');
+      return;
+    }
+    
+    if (detecting) {
+      startBtn.style.display = "none";
+      stopBtn.style.display = "inline-block";
+      switchCameraBtn.style.display = "inline-block";
+    } else {
+      startBtn.style.display = "inline-block";
+      stopBtn.style.display = "none";
+      switchCameraBtn.style.display = "none";
+    }
   }
   // Main detection loop with improved frame handling
   async function processFrame() {
@@ -1626,7 +1657,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const imageData = offCtx.getImageData(0, 0, FIXED_SIZE, FIXED_SIZE);
 
       // Try session-based API detection first (if available), then fallback to ONNX
-      if (apiAvailable && useApi && apiSessionId && frameCount % 4 === 0) { // Use API every 4th frame for better responsiveness
+      if (apiAvailable && useApi && apiSessionId && frameCount % 15 === 0) { // Reduce API calls for better performance
         try {
           // Create a proper canvas with video frame for API detection
           const apiCanvas = document.createElement('canvas');
@@ -1656,9 +1687,18 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (detections.length === 0 && session) {
         detections = await detectWithOnnx(imageData);
       }
+      
+      // Update last frame detections and frame number when new detections are processed
+      if (detections.length > 0) {
+        lastFrameDetections = [...detections]; // Deep copy
+        lastDetectionFrame = frameCount;
+      }
+    } else {
+      // Use last frame detections for smooth tracking between detection intervals
+      detections = lastFrameDetections;
     }
 
-    // Draw detections (new and persisted)
+    // Always draw detections to ensure synchronization with current video frame
     drawDetections(ctx, detections, useApiResults);
     updatePerformanceStats();
 
@@ -1670,7 +1710,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   // Event Listeners
-  startBtn.addEventListener("click", async () => {
+  if (startBtn) {
+    startBtn.addEventListener("click", async () => {
     if (!session) {
       showNotification("Model not loaded. Please wait for model initialization.", 'warning');
       return;
@@ -1726,11 +1767,17 @@ document.addEventListener("DOMContentLoaded", async () => {
       updateConnectionStatus('ready', 'System Ready');
     }
   });
+  }
 
-  stopBtn.addEventListener("click", async () => {
+  if (stopBtn) {
+    stopBtn.addEventListener("click", async () => {
     detecting = false;
 
     setDetectingState(false);
+    
+    // Clean up streaming buffers for optimal memory usage
+    resetStreamingBuffers();
+    
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
       stream = null;
@@ -1800,9 +1847,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     updateConnectionStatus('ready', 'System Ready');
   });
+  }
 
   // switch camera
-  switchCameraBtn.addEventListener("click", async () => {
+  if (switchCameraBtn) {
+    switchCameraBtn.addEventListener("click", async () => {
     if (!detecting) return;
     
     currentCamera = currentCamera === 'user' ? 'environment' : 'user';
@@ -1834,6 +1883,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       console.error("Camera switch error:", err);
     }
   });
+  }
 
   // Settings button toggle with accessibility
   settingsBtn.addEventListener("click", () => {
