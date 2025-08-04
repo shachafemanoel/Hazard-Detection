@@ -1,33 +1,42 @@
 /**
- * yolo_tfjs.js
- * Modular JavaScript module for object detection using YOLOv5 with ONNX Runtime
+ * yolo-runtime.js
+ * Unified JavaScript module for object detection using YOLOv5
+ * Supports both ONNX Runtime and OpenVINO inference engines.
  * Hazard Detection - Road Damage Detection Module
  * Following Node.js Integration Guide patterns
  */
 
 /**
- * Load ONNX model from specified path
- * @param {string} modelPath - Path to ONNX model
- * @returns {Promise<ort.InferenceSession>} - Loaded InferenceSession object
+ * Load model using available runtime (OpenVINO or ONNX)
+ * @param {string} modelPath - Path to model file
+ * @returns {Promise<object>} - Loaded InferenceSession object
  */
 export async function loadModel(modelPath) {
   try {
     let session;
+
+    // Prefer OpenVINO runtime when available
+    if (typeof ov !== 'undefined' && ov.InferenceSession) {
+      session = await ov.InferenceSession.create(modelPath);
+      console.log('✅ YOLO model loaded with OpenVINO!');
+      return session;
+    }
+
     try {
-      // Attempt to load with WebGL
+      // Attempt to load with WebGL using ONNX Runtime
       session = await ort.InferenceSession.create(modelPath, {
         executionProviders: ['webgl'],
       });
-      console.log('✅ YOLO model loaded with WebGL!');
+      console.log('✅ YOLO model loaded with ONNX WebGL!');
     } catch (err) {
       // Fallback to CPU if WebGL fails
       console.warn('WebGL backend failed, falling back to CPU:', err);
       session = await ort.InferenceSession.create(modelPath);
-      console.log('✅ YOLO model loaded with CPU!');
+      console.log('✅ YOLO model loaded with ONNX CPU!');
     }
     return session;
   } catch (err) {
-    console.error('❌ Failed to load ONNX model:', err);
+    console.error('❌ Failed to load model:', err);
     throw err;
   }
 }

@@ -558,9 +558,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // Load ONNX model
+  // Load model using available runtime
   async function loadModel() {
-    showLoading("Loading ONNX Runtime model...", 25);
+    showLoading("Loading detection model...", 25);
     
     // Prioritized model paths - using the latest road damage detection model
     const modelPaths = [
@@ -589,24 +589,29 @@ document.addEventListener("DOMContentLoaded", async () => {
       throw new Error('No ONNX model found in any of the expected locations');
     }
 
-    showLoading("Initializing ONNX Runtime...", 50);
+    showLoading("Initializing inference runtime...", 50);
 
     try {
-      try {
-        session = await ort.InferenceSession.create(modelPath, { executionProviders: ['webgl'] });
-        console.log("✅ ONNX model loaded with WebGL backend");
-      } catch (err) {
-        console.log("💻 WebGL not available, using CPU backend (this is normal):");
-        session = await ort.InferenceSession.create(modelPath, { 
-          executionProviders: ['cpu'],
-          graphOptimizationLevel: 'disabled',
-          enableCpuMemArena: false,
-          logSeverityLevel: 2
-        });
-        console.log("✅ ONNX model loaded with CPU backend");
+      if (typeof ov !== 'undefined' && ov.InferenceSession) {
+        session = await ov.InferenceSession.create(modelPath);
+        console.log("✅ Model loaded with OpenVINO runtime");
+      } else {
+        try {
+          session = await ort.InferenceSession.create(modelPath, { executionProviders: ['webgl'] });
+          console.log("✅ ONNX model loaded with WebGL backend");
+        } catch (err) {
+          console.log("💻 WebGL not available, using CPU backend (this is normal):");
+          session = await ort.InferenceSession.create(modelPath, {
+            executionProviders: ['cpu'],
+            graphOptimizationLevel: 'disabled',
+            enableCpuMemArena: false,
+            logSeverityLevel: 2
+          });
+          console.log("✅ ONNX model loaded with CPU backend");
+        }
       }
     } catch (err) {
-      console.error("❌ Failed to create ONNX session with any provider:", err);
+      console.error("❌ Failed to create inference session:", err);
       throw new Error(`Failed to initialize AI model: ${err.message}`);
     }
 

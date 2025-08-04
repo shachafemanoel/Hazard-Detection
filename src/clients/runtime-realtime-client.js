@@ -1,4 +1,5 @@
-// Client-side realtime detection using local ONNX models
+// Client-side realtime detection using local models
+// Supports ONNX Runtime and OpenVINO for inference
 // Eliminates dependency on external API services
 
 // Internal imports
@@ -7,9 +8,9 @@ import {
   preprocessImageToTensor,
   runInference,
   parseBoxes,
-} from '../utils/yolo-tfjs.js';
+} from '../utils/yolo-runtime.js';
 
-class ClientSideRealtimeClient {
+class RuntimeRealtimeClient {
   constructor(config = {}) {
     this.config = {
       modelPath:
@@ -312,14 +313,14 @@ class ClientSideRealtimeClient {
 }
 
 // Factory function for easy usage
-function createClientSideRealtimeClient(config) {
-  return new ClientSideRealtimeClient(config);
+function createRuntimeRealtimeClient(config) {
+  return new RuntimeRealtimeClient(config);
 }
 
 // Browser compatibility - expose as global
 if (typeof window !== 'undefined') {
-  window.createClientSideRealtimeClient = createClientSideRealtimeClient;
-  window.ClientSideRealtimeClient = ClientSideRealtimeClient;
+  window.createRuntimeRealtimeClient = createRuntimeRealtimeClient;
+  window.RuntimeRealtimeClient = RuntimeRealtimeClient;
 }
 
-export { ClientSideRealtimeClient, createClientSideRealtimeClient };
+export { RuntimeRealtimeClient, createRuntimeRealtimeClient };
