@@ -2,6 +2,7 @@
 import express from 'express';
 import session from 'express-session';
 import { createRequire } from 'module';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 
 // Some environments bundle different versions of connect-redis. Use createRequire
 // so we can support both CommonJS and ESM variants gracefully.
@@ -77,6 +78,14 @@ const upload = multer();
 // 🚀 Initialize Express app
 const app = express();
 const port = process.env.PORT || process.env.WEB_PORT || 3000;
+
+app.use(
+  ['/session', '/detect', '/health'],
+  createProxyMiddleware({
+    target: process.env.HAZARD_API_URL_PRIVATE,
+    changeOrigin: true
+  })
+);
 
 // Simple mode detection (for testing without Redis/complex features)
 const isSimpleMode = process.env.SIMPLE_MODE === 'true' || !process.env.REDIS_HOST;
@@ -676,17 +685,7 @@ app.get('/auth/status', (req, res) => {
     });
 });
 
-// Health check endpoint (enhanced with simple mode support)
-app.get('/health', (req, res) => {
-    res.json({
-        status: 'OK',
-        timestamp: new Date().toISOString(),
-        env: process.env.NODE_ENV || 'development',
-        port: port,
-        mode: isSimpleMode ? 'simple' : 'full',
-        redis: redisConnected ? 'connected' : 'disconnected'
-    });
-});
+app.get('/health', (req, res) => res.json({ status: 'healthy' }));
 
 // Test API endpoint (from simple-server)
 app.get('/api/test', (req, res) => {

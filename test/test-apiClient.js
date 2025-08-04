@@ -1,7 +1,7 @@
-const { expect } = require('chai');
-const sinon = require('sinon');
-const axios = require('axios');
-const { createRealtimeClient, resolveBaseUrl, probeHealth } = require('../lib/realtimeClient');
+import { expect } from 'chai';
+import sinon from 'sinon';
+import axios from 'axios';
+import { createRealtimeClient, resolveBaseUrl, probeHealth } from '../lib/realtimeClient.js';
 
 describe('Realtime API Client', () => {
   let axiosStub;

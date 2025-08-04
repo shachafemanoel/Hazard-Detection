@@ -11,9 +11,9 @@
  * 6. Error scenarios and fallback mechanisms
  */
 
-const puppeteer = require('puppeteer');
-const path = require('path');
-const fs = require('fs');
+import puppeteer from 'puppeteer';
+import path from 'path';
+import fs from 'fs';
 
 describe('Post-Refactor QA: Hazard Detection System', () => {
   let browser;

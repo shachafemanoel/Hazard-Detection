@@ -1,5 +1,5 @@
-const path = require('path');
-const puppeteer = require('puppeteer');
+import path from 'path';
+import puppeteer from 'puppeteer';
 
 describe('Realtime client browser E2E', () => {
   let browser;

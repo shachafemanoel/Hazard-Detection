@@ -3,10 +3,10 @@
  * Quick verification that core functionality works after refactoring
  */
 
-const { spawn, exec } = require('child_process');
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
+import { spawn, exec } from 'child_process';
+import http from 'http';
+import fs from 'fs';
+import path from 'path';
 
 describe('Post-Refactor Integration Tests', () => {
   const SERVER_URL = 'http://localhost:8080';

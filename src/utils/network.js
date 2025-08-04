@@ -83,6 +83,10 @@ async function resolveBaseUrl(options = {}) {
     return localUrl;
   }
 
+  if (process.env.HAZARD_USE_PRIVATE === 'true') {
+    return process.env.HAZARD_API_URL_PRIVATE;
+  }
+
   // Get preference from options or environment
   const usePrivate =
     options.usePrivate || process.env.HAZARD_USE_PRIVATE || 'auto';

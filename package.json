@@ -5,6 +5,7 @@
   "main": "server/routes/server.js",
   "type": "module",
   "scripts": {
+    "postinstall": "npm install http-proxy-middleware",
     "start": "node server/routes/server.js",
     "dev": "nodemon server/routes/server.js",
     "build": "echo 'No build step needed'",
@@ -39,6 +40,8 @@
     "postcss": "^8.5.3",
     "tailwindcss": "^4.1.7",
     "eventsource": "^2.0.2",
-    "undici": "^6.19.2"
+    "undici": "^6.19.2",
+    "supertest": "^6.3.3",
+    "chai": "^4.3.10"
   }
 }

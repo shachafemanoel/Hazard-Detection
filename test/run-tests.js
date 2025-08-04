@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-const { spawn } = require('child_process');
-const MockHazardDetectionServer = require('./mock-server');
+import { spawn } from 'child_process';
+import MockHazardDetectionServer from './mock-server.js';
 
 async function runTests() {
   console.log('🧪 Starting Realtime Client Test Suite\n');
@@ -89,8 +89,9 @@ process.on('SIGINT', () => {
   process.exit(130);
 });
 
-if (require.main === module) {
+const isDirectRun = import.meta.url.endsWith(process.argv[1]);
+if (isDirectRun) {
   runTests();
 }
 
-module.exports = runTests;
+export default runTests;
