@@ -1,349 +1,670 @@
-// apiClient.js
-const DEFAULT_TIMEOUT = 5000;
-// Always talk to the backend through the same origin proxy
-// exposed by server.js under the /api/v1 prefix
-let API_URL = '/api/v1';
+// apiClient.js - Resilient Hazard Detection API Client
+// Uses consolidated network utilities for endpoint resolution
 
-export async function loadApiConfig() {
-  // Previously this function fetched remote configuration and adjusted
-  // the API base URL to an external service. The server now proxies all
-  // requests, so we simply ensure the base URL points to the proxy.
-  try {
-    await fetch('/api/config');
-    console.log('🔧 API configuration loaded via proxy:', API_URL);
-  } catch (error) {
-    console.warn('⚠️ Failed to load API config, using proxy defaults:', error);
-  }
-}
+// Internal imports (adjusted path for public directory)
+import { resolveBaseUrl, withTimeout } from './network.js';
 
-export async function testApiConnection() {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
-  try {
-    const res = await fetch(`${API_URL}/health`, { 
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'Hazard-Detection-Web/1.0'
-      }
-    });
-    clearTimeout(id);
-    
-    if (res.ok) {
-      const data = await res.json();
-      console.log("✅ API service is available:", data);
-      
-      // Check if model is ready
-      if (data.status === 'healthy') {
-        if (data.model_status && data.model_status.includes('error')) {
-          console.warn("⚠️ Backend model has issues:", data.model_status);
-          return false;
-        }
-        return true;
-      }
-    }
-    return false;
-  } catch (error) {
-    clearTimeout(id);
-    if (error.name === 'AbortError') {
-      console.log("🔄 API health check timed out");
-    } else {
-      console.log("🏠 API service not accessible");
-    }
-    return false;
-  }
-}
+const DEFAULT_TIMEOUT = 30000; // 30 seconds for image processing
 
-export async function startApiSession(token = null) {
+let baseUrl = ''; // This will be resolved dynamically
+let hasInitialized = false;
+
+// Initialize API failure tracking
+let apiFailureCount = 0;
+const maxRetries = 3;
+const retryDelay = 1000; // 1 second
+
+// withTimeout is now imported from network utils
+
+/**
+ * Initialize the API client with endpoint resolution
+ * @param {Object} options Configuration options
+ * @returns {Promise<Object>} API configuration object
+ */
+async function loadApiConfig(options = {}) {
   try {
-    const headers = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    const res = await fetch(`${API_URL}/session/start`, { 
-      method: "POST",
-      headers,
-    });
-    
-    if (!res.ok) {
-      const errorData = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
-      throw new Error(`Failed to start session: ${errorData.detail || res.statusText}`);
-    }
-    
-    const { session_id } = await res.json();
-    console.log("✅ API session started:", session_id);
-    return session_id;
+    baseUrl = await resolveBaseUrl(options);
+    hasInitialized = true;
+    console.log('🔧 API configuration loaded with base URL:', baseUrl);
+    return { baseURL: baseUrl, timeout: DEFAULT_TIMEOUT };
   } catch (error) {
-    console.error("❌ Failed to start API session:", error);
+    console.error('❌ Failed to load API config:', error.message);
+    // Re-throw to prevent the application from starting with a broken API client
     throw error;
   }
 }
 
-export async function detectWithApi(sessionId, blob, token = null) {
+/**
+ * Ensure API is initialized before making requests
+ */
+async function ensureInitialized() {
+  if (!hasInitialized) {
+    await loadApiConfig();
+  }
+}
+
+/**
+ * Health check - calls exactly /health endpoint
+ */
+async function checkHealth() {
+  await ensureInitialized();
+
   try {
-    const form = new FormData();
-    form.append("file", blob, 'frame.jpg');
-    
-    const headers = {};
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+    const res = await fetch(`${baseUrl}/health`, {
+      signal: withTimeout(DEFAULT_TIMEOUT),
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'Hazard-Detection-API/1.0',
+      },
+    });
+
+    if (!res.ok) {
+      throw new Error(`Health check failed: ${res.status}`);
     }
 
-    const res = await fetch(`${API_URL}/detect/${sessionId}`, {
-      method: "POST",
-      body: form,
-      headers,
-    });
-    
-    if (!res.ok) {
-      const errorData = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
-      throw new Error(`API detection failed: ${errorData.detail || res.statusText}`);
+    const data = await res.json();
+    console.log('✅ API service health:', data);
+    return data;
+  } catch (error) {
+    console.error('❌ Health check failed:', error.message);
+    throw new Error(`Health check failed: ${error.message}`);
+  }
+}
+
+/**
+ * Test API connection (backward compatibility)
+ */
+async function testApiConnection() {
+  try {
+    const health = await checkHealth();
+
+    // Check service and model status
+    if (health.status === 'healthy') {
+      if (health.model_status && health.model_status.includes('error')) {
+        console.warn('⚠️ Backend model has issues:', health.model_status);
+        return false;
+      }
+      console.log('✅ API service and model ready');
+      return true;
     }
-    
+    return false;
+  } catch (error) {
+    if (error.message.includes('timed out') || error.name === 'AbortError') {
+      console.log('🔄 API health check timed out');
+    } else {
+      console.log('🏠 API service not accessible');
+    }
+    return false;
+  }
+}
+
+/**
+ * Start session
+ */
+async function startSession() {
+  await ensureInitialized();
+
+  try {
+    const res = await fetch(`${baseUrl}/session/start`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        'User-Agent': 'Hazard-Detection-API/1.0',
+      },
+    });
+
+    if (!res.ok) {
+      const errorData = await res
+        .json()
+        .catch(() => ({ detail: `HTTP ${res.status}` }));
+      throw new Error(
+        `Failed to start session: ${errorData.detail || res.statusText}`
+      );
+    }
+
+    const data = await res.json();
+    console.log('✅ API session started:', data.session_id);
+    return data.session_id;
+  } catch (error) {
+    console.error('❌ Failed to start session:', error.message);
+    throw new Error(`Failed to start session: ${error.message}`);
+  }
+}
+
+/**
+ * Backward compatibility alias
+ */
+async function startApiSession() {
+  return await startSession();
+}
+
+/**
+ * Detect hazards with session
+ */
+async function detectHazards(sessionId, imageBlob) {
+  await ensureInitialized();
+
+  try {
+    if (!sessionId) {
+      throw new Error('Session ID is required for detection');
+    }
+
+    if (!imageBlob || imageBlob.size === 0) {
+      throw new Error('Valid image blob is required');
+    }
+
+    const formData = new FormData();
+    formData.append('file', imageBlob, 'frame.jpg');
+
+    const res = await fetch(`${baseUrl}/detect/${sessionId}`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'User-Agent': 'Hazard-Detection-API/1.0',
+      },
+    });
+
+    if (!res.ok) {
+      const errorData = await res
+        .json()
+        .catch(() => ({ detail: `HTTP ${res.status}` }));
+      throw new Error(
+        `Detection failed: ${errorData.detail || res.statusText}`
+      );
+    }
+
     const result = await res.json();
-    
+
     // Validate response structure
     if (!Array.isArray(result.detections)) {
-      console.warn("⚠️ Unexpected API response format:", result);
-      return { detections: [] };
+      console.warn('⚠️ Unexpected API response format:', result);
+      return { detections: [], new_reports: [] };
     }
-    
+
+    // Reset failure count on successful detection
+    apiFailureCount = 0;
+
+    console.log(
+      `🔍 Detection completed: ${result.detections.length} detections found`
+    );
     return result;
   } catch (error) {
-    console.warn("API detection failed:", error.message);
-    throw error;
+    apiFailureCount++;
+    console.error('❌ Detection failed:', error.message);
+    throw new Error(`Detection failed: ${error.message}`);
   }
 }
-
-export async function endApiSession(sessionId, token = null) {
-  try {
-    const headers = {};
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    const res = await fetch(`${API_URL}/session/${sessionId}/end`, { 
-      method: "POST" ,
-      headers,
-    });
-    
-    if (res.ok) {
-      const data = await res.json();
-      console.log("✅ API session ended:", data);
-      return data;
-    } else {
-      const errorData = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
-      console.warn("⚠️ Session end warning:", errorData.detail);
-      return { message: "Session ended with warning" };
-    }
-  } catch (error) {
-    console.error("❌ Failed to end API session:", error);
-    return { message: "Session ended with error" };
-  }
-}
-
-// Export API_URL for debugging purposes
-export function getApiUrl() {
-  return API_URL;
-}
-
-// For testing purposes, allow overriding the API_URL
-export function setApiUrl(url) {
-    API_URL = url;
-}
-
-// --- Real-time Streaming Client ---
 
 /**
- * Probes the health of a base URL.
- * @param {string} base - The base URL to probe.
- * @param {number} timeout - The timeout in milliseconds.
- * @returns {Promise<boolean>} - True if healthy, false otherwise.
+ * Backward compatibility alias
  */
-async function probeHealth(base, timeout = 2000) {
+async function detectWithApi(sessionId, blob) {
+  return await detectHazards(sessionId, blob);
+}
+
+/**
+ * Legacy single detection (without session)
+ */
+async function detectSingle(imageBlob) {
+  await ensureInitialized();
+
   try {
-    const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeout);
-    const response = await fetch(`${base.replace(/\/+$/, '')}/health`, {
-      signal: controller.signal,
-      validateStatus: () => true,
+    if (!imageBlob || imageBlob.size === 0) {
+      throw new Error('Valid image blob is required');
+    }
+
+    const formData = new FormData();
+    formData.append('file', imageBlob, 'frame.jpg');
+
+    const res = await fetch(`${baseUrl}/detect`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'User-Agent': 'Hazard-Detection-API/1.0',
+      },
     });
-    clearTimeout(id);
-    return response.status >= 200 && response.status < 300;
-  } catch {
+
+    if (!res.ok) {
+      const errorData = await res
+        .json()
+        .catch(() => ({ detail: `HTTP ${res.status}` }));
+      throw new Error(
+        `Single detection failed: ${errorData.detail || res.statusText}`
+      );
+    }
+
+    const result = await res.json();
+    console.log(
+      `🔍 Single detection completed: ${result.detections?.length || 0} detections found`
+    );
+    return result;
+  } catch (error) {
+    console.error('❌ Single detection failed:', error.message);
+    throw new Error(`Single detection failed: ${error.message}`);
+  }
+}
+
+/**
+ * Batch detection
+ */
+async function detectBatch(imageBlobs) {
+  await ensureInitialized();
+
+  try {
+    if (!Array.isArray(imageBlobs) || imageBlobs.length === 0) {
+      throw new Error('Array of image blobs is required for batch detection');
+    }
+
+    const formData = new FormData();
+
+    imageBlobs.forEach((blob, index) => {
+      if (blob && blob.size > 0) {
+        formData.append('files', blob, `frame_${index}.jpg`);
+      }
+    });
+
+    const res = await fetch(`${baseUrl}/detect-batch`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'User-Agent': 'Hazard-Detection-API/1.0',
+      },
+    });
+
+    if (!res.ok) {
+      const errorData = await res
+        .json()
+        .catch(() => ({ detail: `HTTP ${res.status}` }));
+      throw new Error(
+        `Batch detection failed: ${errorData.detail || res.statusText}`
+      );
+    }
+
+    const result = await res.json();
+    console.log(
+      `🔍 Batch detection completed: ${result.results?.length || 0} results`
+    );
+    return result;
+  } catch (error) {
+    console.error('❌ Batch detection failed:', error.message);
+    throw new Error(`Batch detection failed: ${error.message}`);
+  }
+}
+
+/**
+ * Get session summary
+ */
+async function getSessionSummary(sessionId) {
+  await ensureInitialized();
+
+  try {
+    if (!sessionId) {
+      throw new Error('Session ID is required');
+    }
+
+    const res = await fetch(`${baseUrl}/session/${sessionId}/summary`, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'Hazard-Detection-API/1.0',
+      },
+    });
+
+    if (!res.ok) {
+      const errorData = await res
+        .json()
+        .catch(() => ({ detail: `HTTP ${res.status}` }));
+      throw new Error(
+        `Failed to get session summary: ${errorData.detail || res.statusText}`
+      );
+    }
+
+    const data = await res.json();
+    console.log('📊 Session summary retrieved:', data);
+    return data;
+  } catch (error) {
+    console.error('❌ Failed to get session summary:', error.message);
+    throw new Error(`Failed to get session summary: ${error.message}`);
+  }
+}
+
+/**
+ * End session
+ */
+async function endSession(sessionId) {
+  await ensureInitialized();
+
+  try {
+    if (!sessionId) {
+      return { message: 'No active session' };
+    }
+
+    const res = await fetch(`${baseUrl}/session/${sessionId}/end`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': 'Hazard-Detection-API/1.0',
+      },
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      console.log('✅ Session ended successfully:', data);
+      return data;
+    } else {
+      const errorData = await res
+        .json()
+        .catch(() => ({ detail: `HTTP ${res.status}` }));
+      console.warn('⚠️ Session end warning:', errorData.detail);
+      return { message: 'Session ended with warning' };
+    }
+  } catch (error) {
+    console.error('❌ Failed to end session:', error.message);
+    return { message: 'Session ended with error' };
+  }
+}
+
+/**
+ * Backward compatibility alias
+ */
+async function endApiSession(sessionId) {
+  return await endSession(sessionId);
+}
+
+/**
+ * Confirm report
+ */
+async function confirmReport(sessionId, reportId) {
+  await ensureInitialized();
+
+  try {
+    if (!sessionId || !reportId) {
+      throw new Error('Session ID and Report ID are required');
+    }
+
+    const res = await fetch(
+      `${baseUrl}/session/${sessionId}/report/${reportId}/confirm`,
+      {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'Hazard-Detection-API/1.0',
+        },
+      }
+    );
+
+    if (!res.ok) {
+      const errorData = await res
+        .json()
+        .catch(() => ({ detail: `HTTP ${res.status}` }));
+      throw new Error(
+        `Failed to confirm report: ${errorData.detail || res.statusText}`
+      );
+    }
+
+    const data = await res.json();
+    console.log('✅ Report confirmed:', data);
+    return data;
+  } catch (error) {
+    console.error('❌ Failed to confirm report:', error.message);
+    throw new Error(`Failed to confirm report: ${error.message}`);
+  }
+}
+
+/**
+ * Dismiss report
+ */
+async function dismissReport(sessionId, reportId) {
+  await ensureInitialized();
+
+  try {
+    if (!sessionId || !reportId) {
+      throw new Error('Session ID and Report ID are required');
+    }
+
+    const res = await fetch(
+      `${baseUrl}/session/${sessionId}/report/${reportId}/dismiss`,
+      {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'Hazard-Detection-API/1.0',
+        },
+      }
+    );
+
+    if (!res.ok) {
+      const errorData = await res
+        .json()
+        .catch(() => ({ detail: `HTTP ${res.status}` }));
+      throw new Error(
+        `Failed to dismiss report: ${errorData.detail || res.statusText}`
+      );
+    }
+
+    const data = await res.json();
+    console.log('✅ Report dismissed:', data);
+    return data;
+  } catch (error) {
+    console.error('❌ Failed to dismiss report:', error.message);
+    throw new Error(`Failed to dismiss report: ${error.message}`);
+  }
+}
+
+/**
+ * Retry wrapper for operations
+ */
+async function withRetry(operation, maxRetriesToUse = maxRetries) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxRetriesToUse; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+
+      // Don't retry on client errors (4xx)
+      if (error.message.includes('HTTP 4')) {
+        throw error;
+      }
+
+      if (attempt === maxRetriesToUse) {
+        break;
+      }
+
+      console.log(
+        `⚠️ Attempt ${attempt} failed, retrying in ${retryDelay * attempt}ms...`
+      );
+      await new Promise((resolve) => setTimeout(resolve, retryDelay * attempt));
+    }
+  }
+
+  throw lastError;
+}
+
+/**
+ * Enhanced detection with retry
+ */
+async function detectHazardsWithRetry(sessionId, imageBlob) {
+  return withRetry(() => detectHazards(sessionId, imageBlob));
+}
+
+/**
+ * Enhanced single detection with retry
+ */
+async function detectSingleWithRetry(imageBlob) {
+  return withRetry(() => detectSingle(imageBlob));
+}
+
+/**
+ * Safe detection wrapper
+ */
+async function safeDetection(imageBlob, useSession = true) {
+  try {
+    // Validate blob
+    if (!imageBlob || imageBlob.size === 0) {
+      throw new Error('Valid image blob is required');
+    }
+
+    // Check service health first
+    const health = await checkHealth();
+    if (health.status !== 'healthy') {
+      throw new Error(`Service not ready: ${health.status}`);
+    }
+
+    if (useSession) {
+      const sessionId = await startSession();
+      const result = await detectHazardsWithRetry(sessionId, imageBlob);
+      await endSession(sessionId);
+      return result;
+    } else {
+      return await detectSingleWithRetry(imageBlob);
+    }
+  } catch (error) {
+    console.error('🚨 Safe detection failed:', {
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Return error in consistent format
+    return {
+      success: false,
+      error: error.message,
+      detections: [],
+    };
+  }
+}
+
+/**
+ * Check if API is available
+ */
+async function isApiAvailable() {
+  try {
+    const health = await checkHealth();
+    return health.status === 'healthy';
+  } catch (error) {
     return false;
   }
 }
 
 /**
- * Resolves the base URL for the API, prioritizing the private network.
- * @returns {Promise<string>} - The resolved base URL.
+ * Export API_URL for debugging purposes
  */
-async function resolveBaseUrl() {
-  // In a browser context, we can't directly access process.env.
-  // These will be populated by the server's /api/config endpoint.
-  const configRes = await fetch('/api/config');
-  if (!configRes.ok) {
-    throw new Error('Could not fetch API configuration from server.');
-  }
-  const config = await configRes.json();
-
-  const priv = config.HAZARD_API_URL_PRIVATE;
-  const pub = config.HAZARD_API_URL_PUBLIC;
-  const pref = config.HAZARD_USE_PRIVATE;
-
-  if (pref === 'true') {
-    console.log('Private network forced by configuration.');
-    return priv;
-  }
-  if (pref === 'false') {
-    console.log('Public network forced by configuration.');
-    return pub;
-  }
-
-  console.log('Probing private network...');
-  if (await probeHealth(priv)) {
-    console.log('✅ Private network is healthy. Using private URL.');
-    return priv;
-  }
-
-  console.log('⚠️ Private network is not reachable. Probing public network...');
-  if (await probeHealth(pub)) {
-    console.log('✅ Public network is healthy. Using public URL.');
-    return pub;
-  }
-
-  throw new Error('No healthy endpoint found. Both private and public URLs are unreachable.');
+function getApiUrl() {
+  return baseUrl;
 }
 
-/**
- * Creates a real-time streaming client.
- * @param {object} config - The configuration for the client.
- * @returns {object} - The real-time client instance.
- */
-export function createRealtimeClient(config = {}) {
-  let status = 'disconnected';
-  let baseUrl = '';
-  let eventSource = null;
-  let sessionId = null;
-  let clientConfig = {};
+// CommonJS exports for Node.js compatibility
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    // Core API functions
+    loadApiConfig,
+    checkHealth,
+    testApiConnection,
+    isApiAvailable,
 
-  const statusListeners = new Set();
-  const errorListeners = new Set();
-  const messageListeners = new Set();
+    // Session management
+    startSession,
+    startApiSession, // backward compatibility
+    endSession,
+    endApiSession, // backward compatibility
+    getSessionSummary,
 
-  function setStatus(newStatus) {
-    if (status === newStatus) return;
-    status = newStatus;
-    statusListeners.forEach(cb => cb(status));
-  }
+    // Detection functions
+    detectHazards,
+    detectWithApi, // backward compatibility
+    detectSingle,
+    detectBatch,
+    detectHazardsWithRetry,
+    detectSingleWithRetry,
+    safeDetection,
 
-  async function connect() {
-    setStatus('connecting');
+    // Report management
+    confirmReport,
+    dismissReport,
 
-    // 1. Fetch configuration
-    const configRes = await fetch('/api/config');
-    clientConfig = await configRes.json();
+    // Utility functions
+    withRetry,
+    getApiUrl,
 
-    let attempts = 0;
-    const maxRetries = clientConfig.REALTIME_MAX_RETRIES || 5;
-    const backoff = clientConfig.REALTIME_BACKOFF_MS || 500;
-
-    while (attempts < maxRetries) {
-      try {
-        // 2. Resolve base URL and start session
-        baseUrl = await resolveBaseUrl();
-        sessionId = await startApiSession(clientConfig.REALTIME_AUTH_TOKEN);
-
-        // 3. Establish SSE connection
-        const eventSourceUrl = `${baseUrl.replace(/\/api\/v1$/, '')}/api/events/stream`;
-        eventSource = new EventSource(eventSourceUrl);
-
-        eventSource.onopen = () => {
-          setStatus('connected');
-          attempts = 0; // Reset on successful connection
-        };
-
-        eventSource.onmessage = (event) => {
-          try {
-            const message = JSON.parse(event.data);
-            messageListeners.forEach(cb => cb(message));
-          } catch (error) {
-            errorListeners.forEach(cb => cb(error));
-          }
-        };
-
-        eventSource.onerror = (error) => {
-          setStatus('reconnecting');
-          errorListeners.forEach(cb => cb(error));
-        };
-
-        return; // Success, exit loop
-
-      } catch (error) {
-        attempts++;
-        setStatus('reconnecting');
-        errorListeners.forEach(cb => cb(error));
-        if (attempts >= maxRetries) {
-          setStatus('disconnected');
-          throw new Error(`Connection failed after ${maxRetries} attempts.`);
-        }
-        await new Promise(resolve => setTimeout(resolve, backoff * Math.pow(2, attempts)));
-      }
-    }
-  }
-
-  function disconnect() {
-    if (eventSource) {
-      eventSource.close();
-      eventSource = null;
-    }
-    if (sessionId) {
-      endApiSession(sessionId, clientConfig.REALTIME_AUTH_TOKEN);
-      sessionId = null;
-    }
-    setStatus('disconnected');
-  }
-
-  async function send(payload) {
-    if (status !== 'connected' || !sessionId) {
-      throw new Error('Client is not connected.');
-    }
-    setStatus('uploading');
-    try {
-      const result = await detectWithApi(sessionId, payload, clientConfig.REALTIME_AUTH_TOKEN);
-      setStatus('connected');
-      return result;
-    } catch (error) {
-      setStatus('connected');
-      errorListeners.forEach(cb => cb(error));
-      throw error;
-    }
-  }
-
-  function onMessage(cb) {
-    messageListeners.add(cb);
-  }
-
-  function onError(cb) {
-    errorListeners.add(cb);
-  }
-
-  function onStatus(cb) {
-    statusListeners.add(cb);
-  }
-
-  function isConnected() {
-    return status === 'connected';
-  }
-
-  return {
-    connect,
-    disconnect,
-    send,
-    onMessage,
-    onError,
-    onStatus,
-    isConnected,
+    // Failure tracking for debugging
+    getApiFailureCount: () => apiFailureCount,
+    resetApiFailureCount: () => {
+      apiFailureCount = 0;
+    },
   };
 }
+
+// Browser compatibility - expose as globals
+if (typeof window !== 'undefined') {
+  // Core API functions
+  window.loadApiConfig = loadApiConfig;
+  window.checkHealth = checkHealth;
+  window.testApiConnection = testApiConnection;
+  window.isApiAvailable = isApiAvailable;
+
+  // Session management
+  window.startSession = startSession;
+  window.startApiSession = startApiSession; // backward compatibility
+  window.endSession = endSession;
+  window.endApiSession = endApiSession; // backward compatibility
+  window.getSessionSummary = getSessionSummary;
+
+  // Detection functions
+  window.detectHazards = detectHazards;
+  window.detectWithApi = detectWithApi; // backward compatibility
+  window.detectSingle = detectSingle;
+  window.detectBatch = detectBatch;
+  window.detectHazardsWithRetry = detectHazardsWithRetry;
+  window.detectSingleWithRetry = detectSingleWithRetry;
+  window.safeDetection = safeDetection;
+
+  // Report management
+  window.confirmReport = confirmReport;
+  window.dismissReport = dismissReport;
+
+  // Utility functions
+  window.withRetry = withRetry;
+  window.getApiUrl = getApiUrl;
+
+  // Expose failure tracking for debugging
+  window.getApiFailureCount = () => apiFailureCount;
+  window.resetApiFailureCount = () => {
+    apiFailureCount = 0;
+  };
+}
+
+// ES6 module exports
+export {
+  // Core API functions
+  loadApiConfig,
+  checkHealth,
+  testApiConnection,
+  isApiAvailable,
+
+  // Session management
+  startSession,
+  startApiSession,
+  endSession,
+  endApiSession,
+  getSessionSummary,
+
+  // Detection functions
+  detectHazards,
+  detectWithApi,
+  detectSingle,
+  detectBatch,
+  detectHazardsWithRetry,
+  detectSingleWithRetry,
+  safeDetection,
+
+  // Report management
+  confirmReport,
+  dismissReport,
+
+  // Utility functions
+  withRetry,
+  getApiUrl,
+};

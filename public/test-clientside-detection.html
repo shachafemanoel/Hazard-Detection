@@ -92,7 +92,7 @@
 <body>
     <div class="container">
         <h1>🔍 Client-Side Hazard Detection Test</h1>
-        <p>This page tests the client-side ONNX detection system without relying on external APIs.</p>
+        <p>This page tests the client-side detection system without relying on external APIs.</p>
         
         <div class="test-section">
             <h3>📊 System Status</h3>
@@ -153,8 +153,8 @@
     
     <!-- Load our detection modules -->
     <script type="module">
-        import { loadModel, preprocessImageToTensor, runInference, parseBoxes, drawDetections } from './js/yolo_tfjs.js';
-        import { createClientSideRealtimeClient } from './js/clientSideRealtimeClient.js';
+        import { loadModel, preprocessImageToTensor, runInference, parseBoxes, drawDetections } from './js/yolo_runtime.js';
+        import { createRuntimeRealtimeClient } from './js/runtimeRealtimeClient.js';
         
         // Global variables
         let model = null;

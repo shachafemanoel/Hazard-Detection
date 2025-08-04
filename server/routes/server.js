@@ -103,8 +103,12 @@ app.use(express.static(path.join(__dirname, '../../public'), {
 
 // Specific route for ONNX model files
 app.get('/object_detection_model/*.onnx', (req, res) => {
-    const modelName = req.params[0];
-    const modelPath = path.join(__dirname, '../../public/object_detection_model', `${modelName}.onnx`);
+    const modelName = decodeURIComponent(req.params[0]);
+    const modelPath = path.join(
+      __dirname,
+      '../../public/object_detection_model',
+      `${modelName}.onnx`
+    );
     
     console.log(`📂 Requesting ONNX model: ${modelName}.onnx`);
     console.log(`📁 Full path: ${modelPath}`);
@@ -188,7 +192,7 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // 🔗 API URL using private-first networking (Railway internal network)
-const { resolveBaseUrl } = require('../../lib/realtimeClient');
+import { resolveBaseUrl } from '../utils/network.js';
 
 // Determine API URL with private network preference
 let API_URL;

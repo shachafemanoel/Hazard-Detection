@@ -116,16 +116,19 @@ class HazardDetectionApp {
 
     // Try multiple model paths
     const modelPaths = [
+      './object_detection_model/last_model_train12052025.onnx',
+      '/object_detection_model/last_model_train12052025.onnx',
       './object_detection_model/model 18_7.onnx',
       '/object_detection_model/model 18_7.onnx'
     ];
 
     for (const path of modelPaths) {
       try {
-        const testResponse = await fetch(path, { method: 'HEAD' });
+        const encodedPath = encodeURI(path);
+        const testResponse = await fetch(encodedPath, { method: 'HEAD' });
         if (testResponse.ok) {
           console.log(`📦 Loading model from: ${path}`);
-          this.session = await ort.InferenceSession.create(path, {
+          this.session = await ort.InferenceSession.create(encodedPath, {
             executionProviders: ['webgl', 'wasm'],
             graphOptimizationLevel: 'all'
           });
@@ -136,7 +139,7 @@ class HazardDetectionApp {
         console.log(`❌ Model not found at: ${path}`);
       }
     }
-    
+
     throw new Error('No model file found');
   }
 

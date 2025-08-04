@@ -405,69 +405,71 @@ document.addEventListener("DOMContentLoaded", async () => {
     return detectionCanvas;
   }
 
+  // Save image and create detection report via API
+  async function saveImageAndCreateReport({ blob, metadata }) {
+    const formData = new FormData();
+    formData.append('file', blob, `detection_${Date.now()}.jpg`);
+
+    for (const key in metadata) {
+      if (Object.hasOwnProperty.call(metadata, key)) {
+        const value = metadata[key];
+        if (typeof value === 'object' && value !== null) {
+          formData.append(key, JSON.stringify(value));
+        } else {
+          formData.append(key, value);
+        }
+      }
+    }
+
+    const response = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Upload failed: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log('✅ Detection report uploaded:', result);
+    return result;
+  }
+
   // Upload detection image and report
   async function uploadDetection(canvas, detections) {
-      return new Promise((resolve, reject) => {
-          canvas.toBlob(async (blob) => {
-              if (!blob) return reject("❌ No blob from canvas");
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(async (blob) => {
+        if (!blob) return reject('❌ No blob from canvas');
 
-              try {
-                  const formData = new FormData();
-                  formData.append('file', blob, `detection_${Date.now()}.jpg`);
+        try {
+          const metadata = {
+            detections: detections.map(det => {
+              const [x1, y1, x2, y2, score, classId] = det;
+              const correctedClassId = Math.floor(classId) - 1;
+              const classIndex = Math.max(0, correctedClassId);
+              return {
+                class: CLASS_NAMES[classIndex] || `Unknown Class ${classIndex}`,
+                confidence: score,
+                bbox: [x1, y1, x2, y2]
+              };
+            }),
+            timestamp: new Date().toISOString(),
+            source: 'live_camera_detection',
+            sessionId: apiSessionId || 'local_session',
+            frameNumber: frameCount,
+            geoData: geoData
+          };
 
-                  // Append metadata fields
-                  const metadata = {
-                      detections: detections.map(det => {
-                          const [x1, y1, x2, y2, score, classId] = det;
-                          const correctedClassId = Math.floor(classId) - 1;
-                          const classIndex = Math.max(0, correctedClassId);
-                          return {
-                              class: CLASS_NAMES[classIndex] || `Unknown Class ${classIndex}`,
-                              confidence: score,
-                              bbox: [x1, y1, x2, y2]
-                          };
-                      }),
-                      timestamp: new Date().toISOString(),
-                      source: 'live_camera_detection',
-                      sessionId: apiSessionId || 'local_session',
-                      frameNumber: frameCount,
-                      geoData: geoData // Add geolocation data
-                  };
-
-                  // Append all metadata key-value pairs to FormData
-                  for (const key in metadata) {
-                    if (Object.hasOwnProperty.call(metadata, key)) {
-                      const value = metadata[key];
-                      // Stringify objects/arrays before appending
-                      if (typeof value === 'object' && value !== null) {
-                        formData.append(key, JSON.stringify(value));
-                      } else {
-                        formData.append(key, value);
-                      }
-                    }
-                  }
-
-                  const response = await fetch('/api/upload', {
-                      method: 'POST',
-                      body: formData,
-                      credentials: 'include'
-                  });
-
-                  if (response.ok) {
-                      const result = await response.json();
-                      console.log("✅ Detection report uploaded:", result);
-                      // The service now returns the full report, which includes the image URL
-                      resolve(result.report.image.url);
-                  } else {
-                      const errorText = await response.text();
-                      throw new Error(`Upload failed: ${response.status} - ${errorText}`);
-                  }
-              } catch (error) {
-                  console.error("Upload error:", error);
-                  reject(error);
-              }
-          }, "image/jpeg", 0.9);
-      });
+          const result = await saveImageAndCreateReport({ blob, metadata });
+          resolve(result.report.image.url);
+        } catch (error) {
+          console.error('Upload error:', error);
+          reject(error);
+        }
+      }, 'image/jpeg', 0.9);
+    });
   }
 
   // Geolocation data for saved detections
@@ -556,15 +558,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // Load ONNX model
+  // Load model using available runtime
   async function loadModel() {
-    showLoading("Loading ONNX Runtime model...", 25);
+    showLoading("Loading detection model...", 25);
     
     // Prioritized model paths - using the latest road damage detection model
     const modelPaths = [
-      './object_detection_model/road_damage_detection_last_version.onnx', // Primary model
-      './object_detection_model/road_damage_detection_simplified.onnx',   // Fallback 1
-      './object_detection_model/model 18_7.onnx'                         // Fallback 2
+      './object_detection_model/last_model_train12052025.onnx',          // Primary model
+      './object_detection_model/road_damage_detection_last_version.onnx', // Fallback 1
+      './object_detection_model/road_damage_detection_simplified.onnx',   // Fallback 2
+      './object_detection_model/model 18_7.onnx'                          // Fallback 3
     ];
     
     let modelPath = null;
@@ -586,24 +589,29 @@ document.addEventListener("DOMContentLoaded", async () => {
       throw new Error('No ONNX model found in any of the expected locations');
     }
 
-    showLoading("Initializing ONNX Runtime...", 50);
+    showLoading("Initializing inference runtime...", 50);
 
     try {
-      try {
-        session = await ort.InferenceSession.create(modelPath, { executionProviders: ['webgl'] });
-        console.log("✅ ONNX model loaded with WebGL backend");
-      } catch (err) {
-        console.log("💻 WebGL not available, using CPU backend (this is normal):");
-        session = await ort.InferenceSession.create(modelPath, { 
-          executionProviders: ['cpu'],
-          graphOptimizationLevel: 'disabled',
-          enableCpuMemArena: false,
-          logSeverityLevel: 2
-        });
-        console.log("✅ ONNX model loaded with CPU backend");
+      if (typeof ov !== 'undefined' && ov.InferenceSession) {
+        session = await ov.InferenceSession.create(modelPath);
+        console.log("✅ Model loaded with OpenVINO runtime");
+      } else {
+        try {
+          session = await ort.InferenceSession.create(modelPath, { executionProviders: ['webgl'] });
+          console.log("✅ ONNX model loaded with WebGL backend");
+        } catch (err) {
+          console.log("💻 WebGL not available, using CPU backend (this is normal):");
+          session = await ort.InferenceSession.create(modelPath, {
+            executionProviders: ['cpu'],
+            graphOptimizationLevel: 'disabled',
+            enableCpuMemArena: false,
+            logSeverityLevel: 2
+          });
+          console.log("✅ ONNX model loaded with CPU backend");
+        }
       }
     } catch (err) {
-      console.error("❌ Failed to create ONNX session with any provider:", err);
+      console.error("❌ Failed to create inference session:", err);
       throw new Error(`Failed to initialize AI model: ${err.message}`);
     }
 
@@ -612,57 +620,103 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
 
-  // Initialize detection system
+  // Initialize detection system with ONNX fallback
   async function initializeDetection() {
     showLoading("Initializing Detection System...", 0);
     initialized = false;
+    useApi = false; // Default to ONNX-only
+    apiAvailable = false;
 
     try {
-      // Load API configuration first
-      showLoading("Loading API configuration...", 5);
-      await window.loadApiConfig();
-      
-      // Test API connection
-      showLoading("Testing API connection...", 10);
-      apiAvailable = await window.testApiConnection();
-      
-      if (apiAvailable) {
-        try {
-          showLoading("Starting API session...", 15);
+      // Always load ONNX model first
+      await loadModel();
+      console.log('✅ ONNX model loaded');
+
+      try {
+        // Attempt to load remote API configuration and start session
+        await window.loadApiConfig();
+        const apiOk = await window.testApiConnection();
+        if (apiOk) {
           apiSessionId = await window.startApiSession();
-          showNotification('API connected and session started', 'success');
+          apiAvailable = true;
+          useApi = true;
+          console.log('✅ API session started, using remote detection');
           updateConnectionStatus('connected', 'Enhanced Mode (API + ONNX)');
-        } catch (error) {
-          console.warn("Failed to start API session:", error);
-          apiAvailable = false;
-          updateConnectionStatus('warning', 'API Failed - ONNX Only');
+        } else {
+          showNotification('Remote API unavailable, running local model', 'warning');
+          console.warn('⚠️ API unavailable, using ONNX-only detection');
+          updateConnectionStatus('ready', 'Local ONNX Detection Mode');
         }
-      } else {
+      } catch (err) {
+        console.warn('⚠️ Initialization error:', err.message);
+        console.warn('→ Falling back to ONNX-only detection');
+        showNotification('Remote API unavailable, running local model', 'warning');
         updateConnectionStatus('ready', 'Local ONNX Detection Mode');
       }
-      
-      // Load ONNX model
-      const onnxLoaded = await loadModel();
-      
-      if (!onnxLoaded && !apiAvailable) {
-        throw new Error("No detection models available. Please check your connection.");
+
+      const modeMessage = apiAvailable && useApi
+        ? '🚀 Enhanced detection ready with API + ONNX support'
+        : '🎯 Local detection ready with ONNX model';
+
+      // 1. Always load the local ONNX model first
+      showLoading("Loading local AI model...", 10);
+      await loadModel();
+      console.log('✅ ONNX model loaded.');
+      updateConnectionStatus('ready', 'Local Model Ready');
+
+      // 2. Try to connect to the API, but don't fail if it's unavailable
+      try {
+        showLoading("Checking for remote API...", 70);
+        // The loadApiConfig is necessary to resolve the API base URL.
+        // It can throw "No healthy endpoint found" if the API is down.
+        await window.loadApiConfig();
+        const apiOk = await window.testApiConnection();
+        if (apiOk) {
+          showLoading("Starting API session...", 85);
+          apiSessionId = await window.startApiSession();
+          useApi = true;
+          apiAvailable = true;
+          console.log('✅ API session started, using remote detection');
+          showNotification('Remote API connected. Using enhanced detection.', 'success');
+          updateConnectionStatus('connected', 'Enhanced Mode (API + ONNX)');
+        } else {
+          // This case handles when testApiConnection returns false but doesn't throw an error.
+          console.warn('⚠️ API unavailable, using ONNX-only detection');
+          showNotification('Remote API unavailable, running local model', 'warning');
+          updateConnectionStatus('warning', 'ONNX-Only Mode');
+        }
+      } catch (err) {
+        // This case handles when resolveBaseUrl or testApiConnection throws an error
+        // (e.g., "No healthy endpoint found")
+        console.warn('⚠️ API initialization failed:', err.message);
+        console.warn('→ Falling back to ONNX-only detection');
+        showNotification('Remote API unavailable, running local model', 'warning');
+        updateConnectionStatus('warning', 'ONNX-Only Mode');
+        // `useApi` is already false, so we just continue without re-throwing the error.
       }
 
-      const modeMessage = apiAvailable 
-        ? "🚀 Enhanced detection ready with API + ONNX support" 
-        : "🎯 Local detection ready with ONNX model";
+      // 3. Finalize initialization
+      const modeMessage = useApi
+        ? "🚀 Enhanced detection ready (API + ONNX)"
+        : "🎯 Local detection ready (ONNX only)";
       
+
       showNotification(modeMessage, 'success');
       initialized = true;
+      startProcessingLoop();
       return true;
+
     } catch (error) {
+      // This catch block now only handles critical errors, like the ONNX model failing to load.
+      console.error("❌ Critical initialization failed:", error);
       showNotification(`Initialization failed: ${error.message}`, 'error');
+      updateConnectionStatus('error', 'Initialization Failed');
       return false;
     } finally {
       // A short delay to ensure the final loading message is visible before hiding.
       setTimeout(() => {
         hideLoading();
-      }, 500); // 500ms delay
+      }, 500);
     }
   }
 
@@ -1455,6 +1509,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
+  function drawDetections(drawCtx, detections, useApiResults = false) {
+    drawResults(detections, useApiResults);
+  }
+
   // Update FPS and performance stats with adaptive quality
   function updatePerformanceStats() {
     fpsCounter++;
@@ -1547,7 +1605,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
   }
   // Main detection loop with improved frame handling
-  async function detectionLoop() {
+  async function processFrame() {
     if (!detecting || !session) return;
 
     frameCount++;
@@ -1601,10 +1659,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     // Draw detections (new and persisted)
-    drawResults(detections, useApiResults);
+    drawDetections(ctx, detections, useApiResults);
     updatePerformanceStats();
 
-    requestAnimationFrame(detectionLoop);
+    requestAnimationFrame(processFrame);
+  }
+
+  function startProcessingLoop() {
+    requestAnimationFrame(processFrame);
   }
 
   // Event Listeners
@@ -1652,7 +1714,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         
         const statusMsg = apiAvailable && useApi ? 'Enhanced API + ONNX Detection Active' : 'ONNX Detection Active';
         updateConnectionStatus('processing', statusMsg);
-        detectionLoop();
+        startProcessingLoop();
       }, { once: true });
 
     } catch (err) {

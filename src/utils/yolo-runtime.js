@@ -1,33 +1,42 @@
 /**
- * yolo_tfjs.js
- * Modular JavaScript module for object detection using YOLOv5 with ONNX Runtime
+ * yolo-runtime.js
+ * Unified JavaScript module for object detection using YOLOv5
+ * Supports both ONNX Runtime and OpenVINO inference engines.
  * Hazard Detection - Road Damage Detection Module
  * Following Node.js Integration Guide patterns
  */
 
 /**
- * Load ONNX model from specified path
- * @param {string} modelPath - Path to ONNX model
- * @returns {Promise<ort.InferenceSession>} - Loaded InferenceSession object
+ * Load model using available runtime (OpenVINO or ONNX)
+ * @param {string} modelPath - Path to model file
+ * @returns {Promise<object>} - Loaded InferenceSession object
  */
 export async function loadModel(modelPath) {
   try {
     let session;
+
+    // Prefer OpenVINO runtime when available
+    if (typeof ov !== 'undefined' && ov.InferenceSession) {
+      session = await ov.InferenceSession.create(modelPath);
+      console.log('✅ YOLO model loaded with OpenVINO!');
+      return session;
+    }
+
     try {
-      // Attempt to load with WebGL
+      // Attempt to load with WebGL using ONNX Runtime
       session = await ort.InferenceSession.create(modelPath, {
         executionProviders: ['webgl'],
       });
-      console.log('✅ YOLO model loaded with WebGL!');
+      console.log('✅ YOLO model loaded with ONNX WebGL!');
     } catch (err) {
       // Fallback to CPU if WebGL fails
       console.warn('WebGL backend failed, falling back to CPU:', err);
       session = await ort.InferenceSession.create(modelPath);
-      console.log('✅ YOLO model loaded with CPU!');
+      console.log('✅ YOLO model loaded with ONNX CPU!');
     }
     return session;
   } catch (err) {
-    console.error('❌ Failed to load ONNX model:', err);
+    console.error('❌ Failed to load model:', err);
     throw err;
   }
 }
@@ -129,7 +138,7 @@ export async function runInference(session, tensor) {
     const outputKey = Object.keys(results)[0];
     const outputData = results[outputKey].data;
 
-    // Convert to array of arrays [x1, y1, x2, y2, score, classId]
+    // Convert to array of arrays [cx, cy, width, height, score, classId]
     const boxes = [];
     for (let i = 0; i < outputData.length; i += 6) {
       boxes.push(Array.from(outputData.slice(i, i + 6)));
@@ -152,13 +161,16 @@ export function parseBoxes(boxes, confidenceThreshold = 0.5) {
   const parsedBoxes = [];
 
   for (const box of boxes) {
-    const [x1, y1, x2, y2, score, classId] = box;
+    const [cx, cy, w, h, score, classId] = box;
 
     // Filter by confidence threshold and reasonable box size
     if (score < confidenceThreshold) continue;
-    const boxW = x2 - x1;
-    const boxH = y2 - y1;
-    if (boxW <= 1 || boxH <= 1) continue;
+    if (w <= 1 || h <= 1) continue;
+
+    const x1 = cx - w / 2;
+    const y1 = cy - h / 2;
+    const x2 = cx + w / 2;
+    const y2 = cy + h / 2;
 
     parsedBoxes.push({
       x1,
@@ -200,11 +212,14 @@ export function drawDetections(
   // Calculate scale factors
   let scaleX = ctx.canvas.width / 640;
   let scaleY = ctx.canvas.height / 640;
+  let offsetX = 0;
+  let offsetY = 0;
 
   // If letterbox parameters exist, use them for more accurate calculation
   if (letterboxParams) {
-    scaleX = displayWidth / 640;
-    scaleY = displayHeight / 640;
+    ({ offsetX, offsetY } = letterboxParams);
+    scaleX = displayWidth / letterboxParams.newW;
+    scaleY = displayHeight / letterboxParams.newH;
   }
 
   // Draw boxes
@@ -214,8 +229,8 @@ export function drawDetections(
     // Box dimensions adapted to screen
     const boxW = (x2 - x1) * scaleX;
     const boxH = (y2 - y1) * scaleY;
-    const left = x1 * scaleX;
-    const top = y1 * scaleY;
+    const left = (x1 - offsetX) * scaleX;
+    const top = (y1 - offsetY) * scaleY;
 
     // Draw box
     ctx.strokeStyle = 'red';
