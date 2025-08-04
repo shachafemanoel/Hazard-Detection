@@ -1,64 +1,69 @@
 document.addEventListener("DOMContentLoaded", async function () {
+  // אלמנטים של מסך הבית וממשק ההעלאה
+  const homeScreenContent = document.getElementById('home-screen-content');
+  const detectionSection = document.getElementById('detection-section');
+  const showUploadSectionBtn = document.getElementById('show-upload-section-btn');
+  const closeUploadSectionBtn = document.getElementById('close-upload-section-btn');
+
   const imageUpload = document.getElementById("image-upload");
   const confidenceSlider = document.getElementById("confidence-slider");
   const confValueSpan = document.getElementById("conf-value");
-  const canvas = document.getElementById("preview-canvas");
-  const ctx = canvas ? canvas.getContext("2d") : null; // Check if canvas exists
+  const canvas = document.getElementById('preview-canvas');
+  const ctx = canvas.getContext('2d');
   const logoutBtn = document.getElementById("logout-btn");
   const saveBtn = document.getElementById("save-detection");
   const uploadingModal = document.getElementById("uploading-modal");
-  const uploadingModalBootstrap = new bootstrap.Modal(document.getElementById('uploading-modal'));
+  const modelLoading = document.getElementById('model-loading');
+
+  // Toast Notification Elements
+  const toastElement = document.getElementById('toast-notification');
+  const toastBody = document.getElementById('toast-body');
+  const toastClose = document.getElementById('toast-close');
+  const uploadPage = document.getElementById('upload-page');
+  if (uploadPage) {
+    uploadPage.classList.add('tech-panel');
+  }
+  if (saveBtn) saveBtn.disabled = true;
+  if (toastClose && toastElement) {
+    toastClose.addEventListener('click', () => {
+      toastElement.style.display = 'none';
+    });
+  }
 
   function showUploadingModal() {
-    uploadingModalBootstrap.show();
+    if (uploadingModal) uploadingModal.style.display = 'flex';
   }
 
   function hideUploadingModal() {
-    uploadingModalBootstrap.hide();
+    if (uploadingModal) uploadingModal.style.display = 'none';
+  }
+
+  function showModelLoading() {
+    if (modelLoading) modelLoading.style.display = 'flex';
+  }
+
+  function hideModelLoading() {
+    if (modelLoading) modelLoading.style.display = 'none';
   }
 
   function showToast(message, type = 'success') {
-    notify(message, type);
-  }
+    if (!toastElement || !toastBody) return;
 
-  // Update detection modal with current detection results
-  function updateDetectionModal(boxes, hazardTypes) {
-    const detectionResults = document.getElementById('detection-results');
-    
-    if (boxes.length === 0) {
-      detectionResults.innerHTML = '<p class="text-muted">No detections found in this image.</p>';
-      return;
+    toastBody.textContent = message;
+    toastElement.classList.add('notification', 'tech-panel', 'tech-button');
+
+    if (type === 'error') {
+      toastElement.style.background = 'var(--danger)';
+    } else if (type === 'success') {
+      toastElement.style.background = 'var(--success)';
+    } else {
+      toastElement.style.background = 'var(--accent)';
     }
 
-    let html = `
-      <div class="detection-summary mb-3">
-        <h6>Detection Summary</h6>
-        <p><strong>Total Detections:</strong> ${boxes.length}</p>
-        <p><strong>Hazard Types:</strong> ${hazardTypes.join(', ')}</p>
-      </div>
-      <div class="detection-list">
-        <h6>Individual Detections</h6>
-    `;
-
-    boxes.forEach((box, index) => {
-      let [x1, y1, x2, y2, score, classId] = box;
-      const correctedClassId = Math.floor(classId) - 1;
-      const classIndex = Math.max(0, correctedClassId);
-      const labelName = classNames[classIndex] || `Unknown Class ${classIndex}`;
-      const scorePerc = (score * 100).toFixed(1);
-
-      html += `
-        <div class="detection-item border rounded p-2 mb-2">
-          <strong>Detection #${index + 1}</strong><br>
-          <span class="text-info">${labelName}</span><br>
-          <small class="text-muted">Confidence: ${scorePerc}%</small><br>
-          <small class="text-muted">Location: (${Math.round(x1)}, ${Math.round(y1)}) to (${Math.round(x2)}, ${Math.round(y2)})</small>
-        </div>
-      `;
-    });
-
-    html += '</div>';
-    detectionResults.innerHTML = html;
+    toastElement.style.display = 'block';
+    setTimeout(() => {
+      toastElement.style.display = 'none';
+    }, 5000); // Hide after 5 seconds
   }
 
   let geoData = null;
@@ -101,6 +106,35 @@ document.addEventListener("DOMContentLoaded", async function () {
     });
   }
 
+  // ניהול תצוגת מסך הבית וממשק ההעלאה
+  if (showUploadSectionBtn && homeScreenContent && detectionSection) {
+    showUploadSectionBtn.addEventListener('click', () => {
+      homeScreenContent.style.display = 'none';
+      detectionSection.style.display = 'block';
+    });
+  }
+
+  if (closeUploadSectionBtn && homeScreenContent && detectionSection) {
+    closeUploadSectionBtn.addEventListener('click', () => {
+      detectionSection.style.display = 'none';
+      homeScreenContent.style.display = 'block';
+      // איפוס אופציונלי של שדות וקנבס בעת סגירה
+      if (imageUpload) {
+        imageUpload.value = ''; // מנקה את שדה העלאת התמונה
+      }
+      if (ctx && canvas) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height); // נמחק את התמונה המוצגת ב-canvas
+      }
+      if (confValueSpan && confidenceSlider) {
+        confValueSpan.textContent = confidenceSlider.value; // מאפס את תצוגת הסף
+      }
+      currentImage = null; // מאפס את התמונה הנוכחית
+      geoData = null; // מאפס נתוני מיקום
+      if (saveBtn) saveBtn.disabled = true; // מנטרל כפתור שמירה
+      const tooltip = document.getElementById("tooltip");
+      if (tooltip) tooltip.style.display = "none";
+    });
+  }
 
 
 // שמירת התמונה והנתונים
@@ -152,7 +186,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       formData.append('locationNote', 'GPS');
 
         try {
-            const res = await fetch("/api/upload", {
+            const res = await fetch("/upload-detection", {
                 method: "POST",
                 body: formData,
                 credentials: "include",
@@ -193,10 +227,11 @@ document.addEventListener("DOMContentLoaded", async function () {
               imageInput.value = ''; // מנקה את שדה העלאת התמונה
           }
 
-          if (imagePreview) {
-              const ctx = imagePreview.getContext('2d'); 
-              ctx.clearRect(0, 0, imagePreview.width, imagePreview.height);           // נמחק את התמונה המוצגת ב-canvas
-          }
+      if (imagePreview) {
+          const ctx = imagePreview.getContext('2d');
+          ctx.clearRect(0, 0, imagePreview.width, imagePreview.height);           // נמחק את התמונה המוצגת ב-canvas
+      }
+      if (saveBtn) saveBtn.disabled = true;
       }, 2500);
     }, "image/jpeg", 0.95);
   });
@@ -206,39 +241,11 @@ document.addEventListener("DOMContentLoaded", async function () {
   
   // Road Damage Classes (mapping to model's 10 classes)
   const classNames = [
-    'Alligator Crack',
-    'Block Crack', 
-    'Crosswalk Blur',
-    'Lane Blur',
-    'Longitudinal Crack',
-    'Manhole',
-    'Patch Repair',
-    'Pothole',
-    'Transverse Crack',
-    'Wheel Mark Crack'
+    'crack',
+    'knocked', 
+    'pothole',
+    'surface_damage'
   ];
-
-  // Detection configuration for upload processing
-  const DETECTION_CONFIG = {
-    minConfidence: 0.35,          // Lower for batch processing
-    nmsThreshold: 0.4,            // Lower for better precision
-    maxDetections: 50,            // Higher limit for batch processing
-    minBoxSize: 4,                // Smaller for crack detection
-    aspectRatioFilter: 30.0,      // Allow longer shapes for cracks/markings
-    // Class-specific minimum confidences for upload processing
-    classThresholds: {
-      0: 0.30, // Alligator Crack
-      1: 0.35, // Block Crack
-      2: 0.40, // Crosswalk Blur
-      3: 0.40, // Lane Blur
-      4: 0.30, // Longitudinal Crack
-      5: 0.45, // Manhole
-      6: 0.35, // Patch Repair
-      7: 0.30, // Pothole
-      8: 0.30, // Transverse Crack
-      9: 0.35  // Wheel Mark Crack
-    }
-  };
   let session = null;
   
   // Configure ONNX Runtime environment for CPU execution
@@ -260,6 +267,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     return;
   }
 
+  showModelLoading();
   try {
     // Prioritized model paths - using the latest road damage detection model
     const modelPaths = [
@@ -281,6 +289,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         }
       } catch (e) {
         console.log(`❌ Failed to access model at ${path}:`, e.message);
+        showToast(`⚠️ Model not found at ${path}`, 'error');
         // Continue to next path
       }
     }
@@ -304,8 +313,12 @@ document.addEventListener("DOMContentLoaded", async function () {
     );
     
     console.log("✅ YOLO model loaded!");
+    showToast('✅ Model loaded', 'success');
   } catch (err) {
     console.error("❌ Failed to load model:", err);
+    showToast('❌ Failed to load model', 'error');
+  } finally {
+    hideModelLoading();
   }
 
   let confidenceThreshold = parseFloat(confidenceSlider.value);
@@ -326,13 +339,18 @@ document.addEventListener("DOMContentLoaded", async function () {
   if (!file || !canvas) return; // Add check for canvas
 
   // 1. נתחיל קריאת EXIF ברקע (לא חוסם את התצוגה)
-  getGeoDataFromImage(file).then(data => {
-    if (data) {
-      geoData = data;      // שומר מיקום אם קיים
-    } else {
-      console.warn("אין נתוני EXIF גיאו בתמונה הזאת");
-    }
-  });
+  getGeoDataFromImage(file)
+    .then(data => {
+      if (data) {
+        geoData = data;      // שומר מיקום אם קיים
+      } else {
+        console.warn("אין נתוני EXIF גיאו בתמונה הזאת");
+      }
+    })
+    .catch(err => {
+      console.error('Failed to read EXIF data', err);
+      showToast('⚠️ Failed to read location data', 'error');
+    });
 
   // 2. תמיד תציג תצוגה ותריץ את המודל
   const reader = new FileReader();
@@ -342,6 +360,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       currentImage = img;
       canvas.width  = FIXED_SIZE;
       canvas.height = FIXED_SIZE;
+      if (saveBtn) saveBtn.disabled = true;
       await runInferenceOnImage(img);  // כאן מציירים את המסגרות
     };
     img.src = e.target.result;
@@ -352,16 +371,11 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   async function runInferenceOnImage(imageElement) {
     if (!session) {
-      console.warn("Model not loaded yet or canvas not found.");
+      console.warn("Model not loaded yet.");
       return;
     }
 
     try {
-      const offscreen = document.createElement("canvas");
-      offscreen.width = FIXED_SIZE;
-      offscreen.height = FIXED_SIZE;
-      const offCtx = offscreen.getContext("2d");
-
       const imgW = imageElement.width;
       const imgH = imageElement.height;
       const scale = Math.min(FIXED_SIZE / imgW, FIXED_SIZE / imgH);
@@ -372,7 +386,18 @@ document.addEventListener("DOMContentLoaded", async function () {
 
       letterboxParams = { offsetX, offsetY, newW, newH };
 
-      offCtx.fillStyle = "black";
+      // Draw uploaded image on the visible canvas first
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = 'black';
+      ctx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
+      ctx.drawImage(imageElement, offsetX, offsetY, newW, newH);
+
+      // Prepare offscreen canvas for model inference
+      const offscreen = document.createElement('canvas');
+      offscreen.width = FIXED_SIZE;
+      offscreen.height = FIXED_SIZE;
+      const offCtx = offscreen.getContext('2d');
+      offCtx.fillStyle = 'black';
       offCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
       offCtx.drawImage(imageElement, offsetX, offsetY, newW, newH);
 
@@ -422,6 +447,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       drawResults(filteredBoxes);
     } catch (err) {
       console.error("Error in inference:", err);
+      showToast('❌ Inference failed', 'error');
     }
   }
 
@@ -788,20 +814,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   }
 
   function drawResults(boxes) {
-    if (!ctx) return; // Check if context exists
-
-    hazardTypes = []; // Reset hazard types array
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const { offsetX, offsetY, newW, newH } = letterboxParams;
-
-    // Draw background
-    ctx.fillStyle = "black";
-    ctx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
-
-    if (currentImage) {
-      ctx.drawImage(currentImage, offsetX, offsetY, newW, newH);
-    }
-
+    hazardTypes = [];
     hasHazard = false;
     const tooltip = document.getElementById("tooltip");
     
@@ -874,16 +887,6 @@ document.addEventListener("DOMContentLoaded", async function () {
     // Update detection information panel
     updateDetectionInfoPanel(boxes, detectionCount, hazardTypes);
     
-    // Update detection modal with filtered results
-    updateDetectionModal(boxes.filter(box => {
-      let [x1, y1, x2, y2, score, classId] = box;
-      const correctedClassId = Math.floor(classId) - 1;
-      const classIndex = Math.max(0, correctedClassId);
-      const classThreshold = DETECTION_CONFIG.classThresholds[classIndex] || DETECTION_CONFIG.minConfidence;
-      const threshold = Math.max(confidenceThreshold, classThreshold);
-      return score >= threshold;
-    }), hazardTypes);
-    
     // Log detection summary
     console.log(`✅ Detected ${detectionCount} hazards:`, hazardTypes);
     if (detectionCount > 0) {
@@ -953,6 +956,7 @@ if (saveBtn && tooltip) { // Ensure elements exist before adding listeners
         }
       } catch (error) {
         console.error("Logout failed:", error);
+        showToast('❌ Logout failed', 'error');
       }
     });
   } else {
@@ -967,6 +971,7 @@ if (saveBtn && tooltip) { // Ensure elements exist before adding listeners
           }
         } catch (error) {
           console.error("Logout failed:", error);
+          showToast('❌ Logout failed', 'error');
         }
       });
     }
