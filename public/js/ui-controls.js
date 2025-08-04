@@ -10,10 +10,10 @@ export function filterReportsByType(reports, term) {
   });
 }
 
-export function initControls({ toggleHeatmap, centerMap, plotReports, heatLayer } = {}) {
+export function initControls({ toggleHeatmap, centerMap, plotReports } = {}) {
   // Wait for DOM to be ready
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => initControls({ toggleHeatmap, centerMap, plotReports, heatLayer }));
+    document.addEventListener('DOMContentLoaded', () => initControls({ toggleHeatmap, centerMap, plotReports }));
     return;
   }
 
@@ -39,7 +39,7 @@ export function initControls({ toggleHeatmap, centerMap, plotReports, heatLayer 
 
     const heatmapBtn = document.getElementById('toggle-heatmap');
     if (heatmapBtn && typeof heatmapBtn.addEventListener === 'function' && typeof toggleHeatmap === 'function') {
-      heatmapBtn.addEventListener('click', () => toggleHeatmap(heatLayer));
+      heatmapBtn.addEventListener('click', toggleHeatmap);
     }
 
     const centerBtn = document.getElementById('center-map');
