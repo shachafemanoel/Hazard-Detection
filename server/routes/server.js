@@ -199,7 +199,7 @@ let API_URL;
 try {
   // In production, prefer private network, fallback to public
   const privateUrl = process.env.HAZARD_API_URL_PRIVATE || 'http://ideal-learning.railway.internal:8080';
-  const publicUrl = process.env.HAZARD_API_URL_PUBLIC || 'https://hazard-api-production-production.up.railway.app';
+  const publicUrl = process.env.HAZARD_API_URL_PUBLIC || 'https://hazard-api-production.up.railway.app';
   
   // For Railway deployment, use private network
   if (process.env.RAILWAY_ENVIRONMENT) {
@@ -211,7 +211,7 @@ try {
     console.log(`🌐 Using external API URL: ${API_URL}`);
   }
 } catch (error) {
-  API_URL = 'https://hazard-api-production-production.up.railway.app';
+  API_URL = 'https://hazard-api-production.up.railway.app';
   console.log(`⚠️ Fallback to public API URL: ${API_URL}`);
 }
 
@@ -699,7 +699,7 @@ app.get('/api/test', (req, res) => {
 
 // API configuration endpoint for frontend
 app.get('/api/config', (req, res) => {
-    const apiUrl = process.env.API_URL || process.env.HAZARD_API_URL || 'https://hazard-api-production-production.up.railway.app';
+    const apiUrl = process.env.API_URL || process.env.HAZARD_API_URL || 'https://hazard-api-production.up.railway.app';
     // Ensure URL does NOT end with slash for proper endpoint construction in the guide
     const normalizedUrl = apiUrl.endsWith('/') ? apiUrl.slice(0, -1) : apiUrl;
     
@@ -709,7 +709,7 @@ app.get('/api/config', (req, res) => {
 
         // Real-time client configuration
         HAZARD_API_URL_PRIVATE: process.env.HAZARD_API_URL_PRIVATE || 'http://ideal-learning.railway.internal:8080',
-        HAZARD_API_URL_PUBLIC: process.env.HAZARD_API_URL_PUBLIC || 'https://hazard-api-production-production.up.railway.app',
+        HAZARD_API_URL_PUBLIC: process.env.HAZARD_API_URL_PUBLIC || 'https://hazard-api-production.up.railway.app',
         HAZARD_USE_PRIVATE: process.env.HAZARD_USE_PRIVATE || 'auto',
         REALTIME_TRANSPORT: process.env.REALTIME_TRANSPORT || 'auto',
         REALTIME_AUTH_TOKEN: process.env.REALTIME_AUTH_TOKEN || null,

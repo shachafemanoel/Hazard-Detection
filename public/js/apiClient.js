@@ -3,6 +3,7 @@
 
 // Internal imports (adjusted path for public directory)
 import { resolveBaseUrl, withTimeout } from './network.js';
+import { createRealtimeClient } from '../../src/clients/realtime-client.js';
 
 const DEFAULT_TIMEOUT = 30000; // 30 seconds for image processing
 
@@ -41,6 +42,15 @@ async function ensureInitialized() {
   if (!hasInitialized) {
     await loadApiConfig();
   }
+}
+
+/**
+ * Manually set the API base URL (useful for testing)
+ * @param {string} url The base URL to use for API calls
+ */
+function setApiUrl(url) {
+  baseUrl = url;
+  hasInitialized = true;
 }
 
 /**
@@ -588,6 +598,8 @@ if (typeof module !== 'undefined' && module.exports) {
     // Utility functions
     withRetry,
     getApiUrl,
+    setApiUrl,
+    createRealtimeClient,
 
     // Failure tracking for debugging
     getApiFailureCount: () => apiFailureCount,
@@ -628,6 +640,8 @@ if (typeof window !== 'undefined') {
   // Utility functions
   window.withRetry = withRetry;
   window.getApiUrl = getApiUrl;
+  window.setApiUrl = setApiUrl;
+  window.createRealtimeClient = createRealtimeClient;
 
   // Expose failure tracking for debugging
   window.getApiFailureCount = () => apiFailureCount;
@@ -667,4 +681,6 @@ export {
   // Utility functions
   withRetry,
   getApiUrl,
+  setApiUrl,
+  createRealtimeClient,
 };

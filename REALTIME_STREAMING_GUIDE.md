@@ -21,7 +21,7 @@ The client is configured via environment variables that are exposed by the serve
 | Variable                  | Description                                               | Default                                                        |
 | ------------------------- | --------------------------------------------------------- | -------------------------------------------------------------- |
 | `HAZARD_API_URL_PRIVATE`  | The URL of the private API endpoint.                      | `http://ideal-learning.railway.internal:8080`                  |
-| `HAZARD_API_URL_PUBLIC`   | The URL of the public API endpoint.                       | `https://hazard-api-production-production.up.railway.app`      |
+| `HAZARD_API_URL_PUBLIC`   | The URL of the public API endpoint.                       | `https://hazard-api-production.up.railway.app`      |
 | `HAZARD_USE_PRIVATE`      | Force usage of private/public network (`true`, `false`, `auto`). | `auto`                                                         |
 | `REALTIME_TRANSPORT`      | The desired transport (`ws`, `sse`, `http`).              | `auto` (currently defaults to SSE+HTTP)                        |
 | `REALTIME_AUTH_TOKEN`     | A Bearer token for authenticating API requests.           | `null`                                                         |
