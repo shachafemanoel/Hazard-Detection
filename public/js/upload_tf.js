@@ -36,28 +36,31 @@ document.addEventListener("DOMContentLoaded", () => {
       let loaded = false;
       for (const path of modelPaths) {
         try {
-          session = await ort.InferenceSession.create(path, { executionProviders: ['webgl'] });
+          if (typeof ov !== 'undefined' && ov.InferenceSession) {
+            session = await ov.InferenceSession.create(path);
+          } else {
+            try {
+              session = await ort.InferenceSession.create(path, { executionProviders: ['webgl'] });
+            } catch (err) {
+              console.warn(`WebGL backend failed for ${path}, falling back:`, err);
+              session = await ort.InferenceSession.create(path);
+            }
+          }
           loaded = true;
           break;
-        } catch (err) {
-          console.warn(`WebGL backend failed for ${path}, falling back:`, err);
-          try {
-            session = await ort.InferenceSession.create(path);
-            loaded = true;
-            break;
-          } catch (err2) {
-            console.warn(`❌ Failed to load ONNX model at ${path}:`, err2);
-          }
+        } catch (err2) {
+          console.warn(`❌ Failed to load model at ${path}:`, err2);
         }
       }
 
       if (!loaded) {
-        throw new Error('No ONNX model loaded');
+        throw new Error('No model loaded');
       }
 
-      console.log("✅ YOLO model loaded (live camera)!");
+      const runtimeName = typeof ov !== 'undefined' && ov.InferenceSession ? 'OpenVINO' : 'ONNX';
+      console.log(`✅ YOLO model loaded (${runtimeName} runtime)!`);
     } catch (err) {
-      console.error("❌ Failed to load ONNX model:", err);
+      console.error("❌ Failed to load model:", err);
     }
   }
 

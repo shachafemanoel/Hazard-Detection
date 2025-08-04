@@ -240,24 +240,27 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
   };
   let session = null;
-  
-  // Configure ONNX Runtime environment for CPU execution
-  // Use CPU execution provider to avoid WASM ES module issues
-  console.log('✅ ONNX Runtime loaded, configuring for CPU execution...');
+  let runtime = 'onnx';
 
-  // Check if ONNX Runtime is loaded
-  if (typeof ort === 'undefined') {
-    console.error('ONNX Runtime not loaded. Please ensure ort.wasm.min.js is included in the HTML.');
-    // Create a script element to load ONNX Runtime dynamically
-    const script = document.createElement('script');
-    script.src = './ort/ort.wasm.min.js';
-    script.onload = () => {
-      console.log('ONNX Runtime loaded dynamically');
-      // Retry model loading after ONNX Runtime is loaded
-      setTimeout(() => location.reload(), 1000);
-    };
-    document.head.appendChild(script);
-    return;
+  // Detect available runtime
+  if (typeof ov !== 'undefined' && ov.InferenceSession) {
+    runtime = 'openvino';
+    console.log('✅ OpenVINO runtime detected');
+  } else {
+    console.log('✅ ONNX Runtime loaded, configuring for CPU execution...');
+    if (typeof ort === 'undefined') {
+      console.error('ONNX Runtime not loaded. Please ensure ort.wasm.min.js is included in the HTML.');
+      // Create a script element to load ONNX Runtime dynamically
+      const script = document.createElement('script');
+      script.src = './ort/ort.wasm.min.js';
+      script.onload = () => {
+        console.log('ONNX Runtime loaded dynamically');
+        // Retry model loading after ONNX Runtime is loaded
+        setTimeout(() => location.reload(), 1000);
+      };
+      document.head.appendChild(script);
+      return;
+    }
   }
 
   try {
@@ -290,21 +293,26 @@ document.addEventListener("DOMContentLoaded", async function () {
       throw new Error('No ONNX model found in any of the expected locations');
     }
 
-    // Create session with CPU execution provider only (avoid WASM ES module issues)
-    const executionProviders = ['cpu'];
-    console.log('✅ Using CPU execution provider');
-    
-    session = await ort.InferenceSession.create(
-      modelPath,
-      { 
-        executionProviders: executionProviders,
-        graphOptimizationLevel: 'disabled', // Disable optimizations for stability
-        enableCpuMemArena: false,
-        logSeverityLevel: 2 // Reduce logging
-      }
-    );
-    
-    console.log("✅ YOLO model loaded!");
+    // Initialize session based on selected runtime
+    if (runtime === 'openvino') {
+      session = await ov.InferenceSession.create(modelPath);
+      console.log('✅ YOLO model loaded with OpenVINO runtime!');
+    } else {
+      const executionProviders = ['cpu'];
+      console.log('✅ Using CPU execution provider');
+
+      session = await ort.InferenceSession.create(
+        modelPath,
+        {
+          executionProviders: executionProviders,
+          graphOptimizationLevel: 'disabled', // Disable optimizations for stability
+          enableCpuMemArena: false,
+          logSeverityLevel: 2 // Reduce logging
+        }
+      );
+
+      console.log("✅ YOLO model loaded with ONNX runtime!");
+    }
   } catch (err) {
     console.error("❌ Failed to load model:", err);
   }
