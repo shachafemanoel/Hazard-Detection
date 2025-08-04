@@ -1,6 +1,12 @@
 let map;
 let markerCluster;
 let heatLayer;
+let densityPolygons = [];
+let userLocation;
+
+const DEFAULT_CENTER = [32, 32];
+const DEFAULT_ZOOM = 10; // fallback zoom
+const RADIUS_METERS = 30000;
 
 function setupMobileMapToolbar() {
   const mapEl = document.getElementById('map');
@@ -13,10 +19,12 @@ function setupMobileMapToolbar() {
   const zoomIn = document.createElement('button');
   zoomIn.id = 'mobile-zoom-in';
   zoomIn.innerHTML = '<i class="fas fa-plus"></i>';
+  zoomIn.setAttribute('aria-label', 'Zoom in');
 
   const zoomOut = document.createElement('button');
   zoomOut.id = 'mobile-zoom-out';
   zoomOut.innerHTML = '<i class="fas fa-minus"></i>';
+  zoomOut.setAttribute('aria-label', 'Zoom out');
 
   if (toggleBtn) toolbar.appendChild(toggleBtn);
   if (centerBtn) toolbar.appendChild(centerBtn);
@@ -33,10 +41,11 @@ function setupMobileMapToolbar() {
 
 export function initializeMap() {
   const isMobile = window.innerWidth <= 768;
-  map = L.map('map', { zoomControl: !isMobile }).setView([32.0853, 34.7818], 13);
+  map = L.map('map', { zoomControl: !isMobile }).setView(DEFAULT_CENTER, DEFAULT_ZOOM);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
   }).addTo(map);
 
   markerCluster = L.markerClusterGroup();
@@ -44,11 +53,22 @@ export function initializeMap() {
 
   heatLayer = L.heatLayer([], { radius: 25 });
 
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        userLocation = [pos.coords.latitude, pos.coords.longitude];
+        const bounds = L.circle(userLocation, { radius: RADIUS_METERS }).getBounds();
+        map.fitBounds(bounds);
+      },
+      () => map.setView(DEFAULT_CENTER, DEFAULT_ZOOM)
+    );
+  } else {
+    map.setView(DEFAULT_CENTER, DEFAULT_ZOOM);
+  }
+
   if (isMobile) {
     setupMobileMapToolbar();
   }
-
-  return { heatLayer };
 }
 
 export function toggleHeatmap(layer = heatLayer) {
@@ -61,7 +81,13 @@ export function toggleHeatmap(layer = heatLayer) {
 }
 
 export function centerMap() {
-  if (map) map.setView([32.0853, 34.7818], 13);
+  if (!map) return;
+  if (userLocation) {
+    const bounds = L.circle(userLocation, { radius: RADIUS_METERS }).getBounds();
+    map.fitBounds(bounds);
+  } else {
+    map.setView(DEFAULT_CENTER, DEFAULT_ZOOM);
+  }
 }
 
 export async function geocode(address) {
@@ -95,11 +121,43 @@ export async function plotReports(reports) {
 
     if (coords) {
       const marker = L.marker(coords);
-      marker.bindPopup(`<b>ID:</b> ${report.id}<br><b>Type:</b> ${report.type}<br><b>Status:</b> ${report.status}`);
+      const img = report.image ? `<br><img src="${report.image}" alt="${report.type || ''}" style="max-width:150px;max-height:150px;"/>` : '';
+      marker.bindPopup(`<b>ID:</b> ${report.id}<br><b>Type:</b> ${report.type}<br><b>Status:</b> ${report.status}${img}`);
       markerCluster.addLayer(marker);
       heatPoints.push(coords);
     }
   }
 
   heatLayer.setLatLngs(heatPoints);
+
+  densityPolygons.forEach((p) => map.removeLayer(p));
+  densityPolygons = createDensityPolygons(heatPoints).map((coords) =>
+    L.polygon(coords, { color: '#ff7800', weight: 1, fillOpacity: 0.2 }).addTo(map)
+  );
+}
+
+function createDensityPolygons(points, threshold = 5) {
+  const GRID = 0.3; // approx 30km
+  const cells = new Map();
+  for (const [lat, lon] of points) {
+    const key = `${Math.floor(lat / GRID)},${Math.floor(lon / GRID)}`;
+    cells.set(key, (cells.get(key) || 0) + 1);
+  }
+  const polys = [];
+  for (const [key, count] of cells.entries()) {
+    if (count >= threshold) {
+      const [latIdx, lonIdx] = key.split(',').map(Number);
+      const latMin = latIdx * GRID;
+      const lonMin = lonIdx * GRID;
+      const latMax = latMin + GRID;
+      const lonMax = lonMin + GRID;
+      polys.push([
+        [latMin, lonMin],
+        [latMin, lonMax],
+        [latMax, lonMax],
+        [latMax, lonMin],
+      ]);
+    }
+  }
+  return polys;
 }
