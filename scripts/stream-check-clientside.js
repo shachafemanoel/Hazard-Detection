@@ -13,7 +13,10 @@ async function main() {
 
   try {
     // Check if we have the required model
-    const modelPath = path.join(__dirname, '../public/object_detection_model/road_damage_detection_simplified.onnx');
+    const modelPath = path.join(
+      __dirname,
+      '../public/object_detection_model/last_model_train12052025.onnx'
+    );
     
     if (!fs.existsSync(modelPath)) {
       console.log('❌ ONNX model not found at:', modelPath);

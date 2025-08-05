@@ -96,7 +96,12 @@ def validate_onnx_model(model_path):
         return False
 
 def main():
-    model_path = "/Users/shachafemanoel/Documents/Hazard-Detection/public/object_detection_model/last_model_train12052025.onnx"
+    model_path = os.path.join(
+        os.path.dirname(__file__),
+        'public',
+        'object_detection_model',
+        'last_model_train12052025.onnx'
+    )
     
     print("🔍 ONNX Model Validation Tool")
     print("=" * 50)
