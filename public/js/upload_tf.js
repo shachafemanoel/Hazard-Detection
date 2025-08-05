@@ -30,7 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const modelPaths = [
         '/object_detection_model/last_model_train12052025.onnx',
-        '/object_detection_model/road_damage_detection_last_version.onnx'
+        '/object_detection_model/yolov8n.onnx'
       ];
 
       let loaded = false;
