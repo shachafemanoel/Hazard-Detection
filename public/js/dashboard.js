@@ -357,6 +357,9 @@ function setupMobileDrawer() {
 }
 
   async function init() {
+    if (typeof window.initializeNotifications === 'function') {
+      window.initializeNotifications();
+    }
     initializeMap();
     initControls({ toggleHeatmap, centerMap, plotReports });
     initializeEventListeners();
