@@ -202,7 +202,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   });
   
   // Enhanced Road Damage Detection Model Configuration
-  const FIXED_SIZE = 512; // Optimized for road_damage_detection_last_version.onnx
+  const FIXED_SIZE = 480; // Optimized for road_damage_detection_last_version.onnx
   
   // Road Damage Classes (mapping to model's 10 classes)
   const classNames = [
@@ -266,11 +266,8 @@ document.addEventListener("DOMContentLoaded", async function () {
   try {
     // Prioritized model paths - using the latest road damage detection model
     const modelPaths = [
-      './object_detection_model/last_model_train12052025.onnx',          // Primary model
-      './object_detection_model/road_damage_detection_last_version.onnx', // Fallback 1
-      './object_detection_model/road_damage_detection_simplified.onnx',   // Fallback 2
-      './object_detection_model/model 18_7.onnx'                          // Fallback 3
-    ];
+      './object_detection_model/best0408.onnx',          // Primary model
+    ]
     
     let modelPath = null;
     for (const path of modelPaths) {
