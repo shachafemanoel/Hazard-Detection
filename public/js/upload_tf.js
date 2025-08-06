@@ -35,10 +35,30 @@ document.addEventListener("DOMContentLoaded", () => {
 
       let loaded = false;
       for (const path of modelPaths) {
+        console.log(`🔍 Attempting to load model from: ${path}`);
         try {
+          let headResp;
+          try {
+            headResp = await fetch(path, { method: 'HEAD' });
+            const contentLength = headResp.headers.get('Content-Length');
+            if (headResp.ok) {
+              console.log(`📡 Model reachable (status: ${headResp.status}, size: ${contentLength || 'unknown'})`);
+            } else {
+              console.error(`❌ Model not reachable (status: ${headResp.status})`);
+              continue;
+            }
+          } catch (networkErr) {
+            console.error(`❌ Network error checking model at ${path}:`, networkErr);
+            continue;
+          }
+
           if (typeof ov !== 'undefined' && ov.InferenceSession) {
             session = await ov.InferenceSession.create(path);
           } else {
+            if (typeof ort === 'undefined' || !ort.InferenceSession) {
+              console.error('❌ ONNX Runtime (ort) is not available');
+              throw new Error('ONNX Runtime (ort) is not available');
+            }
             try {
               session = await ort.InferenceSession.create(path, { executionProviders: ['webgl'] });
             } catch (err) {
@@ -47,6 +67,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
           }
           loaded = true;
+          console.log('✅ Model file reachable, proceeding with session creation');
           break;
         } catch (err2) {
           console.warn(`❌ Failed to load model at ${path}:`, err2);
