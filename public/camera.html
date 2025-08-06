@@ -20,8 +20,10 @@
   <main class="camera-app main-content">
     <!-- Video & inference canvas -->
     <section class="camera-view" aria-label="Live camera feed">
-      <video id="camera-stream" autoplay playsinline muted></video>
-      <canvas id="overlay-canvas" aria-hidden="true"></canvas>
+      <div class="camera-container">
+        <video id="camera-stream" autoplay playsinline muted class="camera-video"></video>
+        <canvas id="overlay-canvas" class="overlay-canvas"></canvas>
+      </div>
     </section>
 
     <!-- --------------- UI overlay --------------- -->
@@ -30,20 +32,20 @@
       <header class="top-bar">
         <div class="status-indicator">
           <span class="status-dot"></span>
-          <span id="loading-status">Loading model…</span>
+          <span id="loading-status" aria-live="polite">Loading model…</span>
         </div>
-        <span class="model-info">Model best0408.onnx</span>
+        <span class="model-info" id="detection-mode-info">Initializing...</span>
       </header>
 
       <!-- Detection badges -->
       <section class="detection-overlay">
         <div class="detection-badge">
           <i class="fas fa-search"></i>
-          <span id="detection-count-badge">0 hazards</span>
+          <span id="detection-count-badge" aria-live="polite">0 hazards</span>
         </div>
         <div class="detection-badge">
           <i class="fas fa-gauge-high"></i>
-          <span id="fps-badge">0 FPS</span>
+          <span id="fps-badge" aria-live="polite">0 FPS</span>
         </div>
         <div class="detection-badge" id="hazard-types-display" hidden>
           <i class="fas fa-exclamation-triangle"></i>
@@ -59,7 +61,96 @@
         <button id="stop-camera"  class="camera-button primary" hidden aria-label="Stop">
           <i class="fas fa-stop"></i>
         </button>
+        <button id="capture-btn" class="camera-button secondary" hidden aria-label="Capture">
+          <i class="fas fa-camera"></i>
+        </button>
+        <button id="settings-btn" class="camera-button secondary" aria-label="Settings" aria-expanded="false">
+          <i class="fas fa-cog"></i>
+        </button>
+        <button id="summary-btn" class="camera-button secondary" aria-label="View Summary" data-bs-toggle="modal" data-bs-target="#detection-summary-modal">
+          <i class="fas fa-chart-bar"></i>
+        </button>
       </footer>
+
+      <!-- Settings panel -->
+      <section class="settings-panel" id="settings-panel">
+        <div class="settings-content">
+          <h3>Camera Settings</h3>
+          <div class="setting-item">
+            <label for="confidence-threshold">Detection Confidence</label>
+            <input type="range" id="confidence-threshold" min="0.1" max="0.9" step="0.1" value="0.5">
+            <span id="confidence-value">0.5</span>
+          </div>
+          <button class="btn btn-secondary" onclick="document.getElementById('settings-panel').classList.remove('show')">Close</button>
+        </div>
+      </section>
+
+      <!-- Hazard alert modal -->
+      <div class="modal" id="hazard-alert-modal" style="display: none;">
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">Hazard Detected</h5>
+              <button type="button" class="btn-close" onclick="document.getElementById('hazard-alert-modal').style.display='none'"></button>
+            </div>
+            <div class="modal-body">
+              <p id="hazard-details">Multiple hazards detected in the current frame.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detection Summary Modal -->
+      <div class="modal fade" id="detection-summary-modal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">📊 Detection Session Summary</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              <div class="row mb-4">
+                <div class="col-md-3 text-center">
+                  <div class="bg-primary text-white p-3 rounded">
+                    <h3 id="session-total-detections">0</h3>
+                    <small>Total Detections</small>
+                  </div>
+                </div>
+                <div class="col-md-3 text-center">
+                  <div class="bg-success text-white p-3 rounded">
+                    <h3 id="session-duration">0:00</h3>
+                    <small>Session Duration</small>
+                  </div>
+                </div>
+                <div class="col-md-3 text-center">
+                  <div class="bg-warning text-white p-3 rounded">
+                    <h3 id="session-unique-hazards">0</h3>
+                    <small>Unique Hazards</small>
+                  </div>
+                </div>
+                <div class="col-md-3 text-center">
+                  <div class="bg-info text-white p-3 rounded">
+                    <h3 id="session-avg-confidence">0%</h3>
+                    <small>Avg Confidence</small>
+                  </div>
+                </div>
+              </div>
+              
+              <h6>Recent Detections</h6>
+              <div id="recent-detections-list" class="mb-3" style="max-height: 300px; overflow-y: auto;">
+                <p class="text-muted">No detections recorded yet.</p>
+              </div>
+              
+              <div class="d-flex justify-content-between">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-success" id="save-session-report" disabled>
+                  <i class="fas fa-save"></i> Save Session Report
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <!-- Loading overlay -->
       <section class="loading-overlay" id="loading-overlay">
@@ -76,14 +167,18 @@
         // Configure ONNX Runtime for optimal web performance
         if (typeof ort !== 'undefined') {
             ort.env.wasm.wasmPaths = '/ort/';
-            ort.env.wasm.numThreads = Math.min(navigator.hardwareConcurrency || 4, 4);
+            // Disable multi-threading to avoid crossOriginIsolated requirements
+            ort.env.wasm.numThreads = 1;
             ort.env.logLevel = 'error'; // Reduce logging
         }
     </script>
     <script src="js/notifications.js"></script>
     <script type="module" src="js/apiClient.js"></script>
     <!-- Camera detection with optimized ONNX integration -->
-    <script type="module" src="js/upload_tf.js"></script>
+    <script type="module" src="js/camera_detection.js"></script>
+    
+    <!-- Test script for development -->
+    <script src="../test_camera_functions.js"></script>
     
     <!-- Initialize App -->
     <script>
@@ -124,11 +219,11 @@
                     const stopBtn = document.getElementById('stop-camera');
                     const captureBtn = document.getElementById('capture-btn');
                     
-                    if (startBtn.style.display !== 'none') {
+                    if (!startBtn.hidden) {
                         startBtn.click();
-                    } else if (captureBtn.style.display !== 'none') {
+                    } else if (!captureBtn.hidden) {
                         captureBtn.click();
-                    } else if (stopBtn.style.display !== 'none') {
+                    } else if (!stopBtn.hidden) {
                         stopBtn.click();
                     }
                 }

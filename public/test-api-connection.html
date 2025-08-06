@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Railway API Connection Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 800px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            background: #1a1a1a; 
+            color: #fff; 
+        }
+        .test-result { 
+            padding: 10px; 
+            margin: 10px 0; 
+            border-radius: 5px; 
+            border-left: 4px solid #00ff00; 
+        }
+        .test-result.error { 
+            border-left-color: #ff0000; 
+            background: #330000; 
+        }
+        .test-result.success { 
+            border-left-color: #00ff00; 
+            background: #003300; 
+        }
+        .test-result.warning { 
+            border-left-color: #ffaa00; 
+            background: #333300; 
+        }
+        button { 
+            background: #007acc; 
+            color: white; 
+            border: none; 
+            padding: 10px 20px; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            margin: 5px; 
+        }
+        button:hover { 
+            background: #005f99; 
+        }
+        pre { 
+            background: #2a2a2a; 
+            padding: 10px; 
+            border-radius: 5px; 
+            overflow-x: auto; 
+        }
+        #results { 
+            margin-top: 20px; 
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 Railway API Connection Test</h1>
+    <p>This test verifies that the camera detection app can connect to the Railway API.</p>
+    
+    <button onclick="testConnection()">🧪 Test Railway Connection</button>
+    <button onclick="testCameraIntegration()">📷 Test Camera Integration</button>
+    <button onclick="clearResults()">🧹 Clear Results</button>
+    
+    <div id="results"></div>
+
+    <script>
+        const API_CONFIG = {
+            baseUrl: 'https://hazard-api-production-production.up.railway.app',
+            healthEndpoint: '/health',
+            detectEndpoint: '/detect',
+            sessionEndpoint: '/session/start',
+            timeout: 10000
+        };
+
+        function addResult(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.innerHTML = message;
+            results.appendChild(div);
+            results.scrollTop = results.scrollHeight;
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+        }
+
+        async function testConnection() {
+            clearResults();
+            addResult('🔄 Starting Railway API Connection Test...', 'info');
+
+            try {
+                // Test 1: Health Check
+                addResult('📋 Step 1: Testing Health Check...', 'info');
+                const healthResponse = await fetch(`${API_CONFIG.baseUrl}${API_CONFIG.healthEndpoint}`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (healthResponse.ok) {
+                    const health = await healthResponse.json();
+                    addResult(`✅ Health check passed
+                        <pre>Status: ${health.status}
+Model: ${health.model_status}
+Backend: ${health.backend_type}
+Input Shape: ${health.device_info?.input_shape?.join('x') || 'N/A'}
+Active Sessions: ${health.active_sessions || 0}</pre>`, 'success');
+                } else {
+                    throw new Error(`Health check failed: ${healthResponse.status}`);
+                }
+
+                // Test 2: Session Creation
+                addResult('📋 Step 2: Testing Session Creation...', 'info');
+                const sessionResponse = await fetch(`${API_CONFIG.baseUrl}${API_CONFIG.sessionEndpoint}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        confidence_threshold: 0.5,
+                        source: 'browser_test'
+                    })
+                });
+
+                if (sessionResponse.ok) {
+                    const session = await sessionResponse.json();
+                    addResult(`✅ Session created successfully
+                        <pre>Session ID: ${session.session_id}
+Message: ${session.message}</pre>`, 'success');
+                } else {
+                    throw new Error(`Session creation failed: ${sessionResponse.status}`);
+                }
+
+                addResult('🎉 <strong>Railway API Connection Test Completed Successfully!</strong>', 'success');
+                addResult(`📡 <strong>API Ready:</strong> ${API_CONFIG.baseUrl}`, 'success');
+
+            } catch (error) {
+                addResult(`❌ <strong>Test Failed:</strong> ${error.message}`, 'error');
+                addResult(`🔧 <strong>Troubleshooting:</strong>
+                    <pre>1. Check Railway service status
+2. Verify CORS settings
+3. Check browser console for more details
+4. Test manually: curl ${API_CONFIG.baseUrl}/health</pre>`, 'warning');
+            }
+        }
+
+        async function testCameraIntegration() {
+            clearResults();
+            addResult('📷 Testing Camera Integration...', 'info');
+
+            // Test the actual camera detection code path
+            try {
+                // Test API availability check (similar to camera_detection.js)
+                addResult('🔄 Checking API availability...', 'info');
+                
+                const response = await fetch(`${API_CONFIG.baseUrl}${API_CONFIG.healthEndpoint}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    signal: AbortSignal.timeout(API_CONFIG.timeout)
+                });
+
+                if (response.ok) {
+                    const health = await response.json();
+                    const isHealthy = health.status === 'healthy' || health.status === 'ok';
+                    
+                    if (isHealthy && health.model_status === 'loaded_openvino') {
+                        addResult('✅ Camera integration ready - Railway API with OpenVINO model available', 'success');
+                        addResult(`🧠 <strong>Model Details:</strong>
+                            <pre>Backend: ${health.backend_type}
+Device: ${health.device_info?.device || 'N/A'}
+Input Size: ${health.device_info?.input_shape?.slice(2).join('x') || 'N/A'}
+Performance Mode: ${health.device_info?.performance_mode || 'N/A'}
+Async Inference: ${health.device_info?.async_inference || 'N/A'}</pre>`, 'success');
+                        
+                        // Test session for camera
+                        addResult('🔄 Creating camera session...', 'info');
+                        const sessionResponse = await fetch(`${API_CONFIG.baseUrl}${API_CONFIG.sessionEndpoint}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                confidence_threshold: 0.5,
+                                source: 'camera_detection'
+                            })
+                        });
+
+                        if (sessionResponse.ok) {
+                            const session = await sessionResponse.json();
+                            addResult(`✅ Camera session ready: ${session.session_id}`, 'success');
+                        } else {
+                            addResult(`⚠️ Session creation failed but API is healthy`, 'warning');
+                        }
+
+                    } else {
+                        addResult(`⚠️ API healthy but model status: ${health.model_status}`, 'warning');
+                    }
+                } else {
+                    addResult(`❌ API not responding: ${response.status}`, 'error');
+                }
+
+                addResult('🎯 <strong>Camera Integration Test Complete</strong>', 'info');
+                addResult(`📋 <strong>Next Steps:</strong>
+                    <pre>1. Open camera.html
+2. Click "Start Camera" 
+3. Grant camera permissions
+4. Detection should work with Railway API</pre>`, 'success');
+
+            } catch (error) {
+                addResult(`❌ Camera integration test failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Auto-run test on page load
+        window.addEventListener('load', () => {
+            addResult('🌐 Page loaded - Ready to test Railway connection', 'info');
+        });
+    </script>
+</body>
+</html>
