@@ -43,12 +43,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   const DEFAULT_SAVE_INTERVAL = 120; // frames
   const PERFORMANCE_UPDATE_INTERVAL = 1000; // 1 second
 
-  // Road Damage Classes
+  // Road Damage Classes (Global constant for ONNX model)
   const CLASS_NAMES = [
-    'Alligator Crack', 'Block Crack', 'Crosswalk Blur', 'Lane Blur',
-    'Longitudinal Crack', 'Manhole', 'Patch Repair', 'Pothole',
-    'Transverse Crack', 'Wheel Mark Crack'
+    'Crack',
+    'Knocked',
+    'Pothole', 
+    'Surface Damage'
   ];
+
+  // Make CLASS_NAMES globally available
+  window.CLASS_NAMES = CLASS_NAMES;
 
   // Camera Detection Session Tracking
   let cameraSession = {
@@ -61,6 +65,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Frame synchronization tracking
   let lastFrameDetections = [];
+  let lastDetections = []; // Global reference for compatibility
   let lastDetectionFrame = 0;
   let lastQualityAdjustment = 0;
 
@@ -288,10 +293,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Streaming-optimized detection configuration
   const DETECTION_CONFIG = {
     trackingEnabled: true,        // Enable object tracking
-    confidenceDecayRate: 0.95,    // Slower decay for smoother tracking (better performance allows this)
+    confidenceDecayRate: 0.95,    // Slower decay for smoother tracking
     detectionInterval: 4,         // Start with higher interval for better performance
     maxInterval: 12,              // Maximum throttling interval
     minInterval: 2,               // Minimum interval for good performance
+    minConfidence: 0.5,          // Default minimum confidence threshold
+    classThresholds: {           // Class-specific confidence thresholds
+      0: 0.4, // Crack - lower threshold for common damage
+      1: 0.6, // Knocked - higher threshold for less common
+      2: 0.5, // Pothole - medium threshold
+      3: 0.5  // Surface Damage - medium threshold
+    }
   };
 
   // Enhanced color scheme for different road damage types
@@ -338,6 +350,37 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Queue for detections awaiting upload
   const pendingDetections = [];
+
+  // Missing utility functions
+  function updateSavedImagesDisplay() {
+    const savedImagesEl = document.getElementById('saved-images-count');
+    if (savedImagesEl) {
+      savedImagesEl.textContent = savedImagesCount;
+    }
+  }
+
+  // Fetch reports function for compatibility
+  async function fetchReports(filters = {}) {
+    try {
+      const params = new URLSearchParams();
+      if (filters.tripId) params.append('tripId', filters.tripId);
+      
+      const response = await fetch(`/api/reports?${params}`, {
+        method: 'GET',
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        return { reports: Array.isArray(data) ? data : data.reports || [] };
+      } else {
+        throw new Error(`HTTP ${response.status}`);
+      }
+    } catch (error) {
+      console.warn('fetchReports failed:', error);
+      return { reports: [] };
+    }
+  }
 
   // Create detection image with bounding boxes
   function createDetectionImage(videoElement, detections) {
@@ -570,17 +613,22 @@ document.addEventListener("DOMContentLoaded", async () => {
   async function loadModel() {
     showLoading("Loading detection model...", 25);
     
-    // Detect available runtime (following upload.js logic)
+    // Ensure ONNX Runtime is properly loaded and configured
+    if (typeof ort === 'undefined') {
+      console.error('ONNX Runtime not loaded. Please ensure ort.min.js is included in the HTML.');
+      throw new Error('ONNX Runtime not available');
+    }
+    
+    // Wait for ONNX Runtime to be ready
+    await ort.env.ready;
+    
+    // Detect available runtime
     let runtime = 'onnx';
     if (typeof ov !== 'undefined' && ov.InferenceSession) {
       runtime = 'openvino';
       console.log('✅ OpenVINO runtime detected');
     } else {
       console.log('✅ ONNX Runtime loaded, configuring for CPU execution...');
-      if (typeof ort === 'undefined') {
-        console.error('ONNX Runtime not loaded. Please ensure ort.wasm.min.js is included in the HTML.');
-        return false;
-      }
     }
     
     // Prioritized model paths - using the latest road damage detection model
@@ -609,28 +657,42 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     showLoading("Initializing inference runtime...", 50);
 
-    // Initialize session based on selected runtime (following exact upload.js logic)
+    // Initialize session based on selected runtime with optimized configuration
     try {
       if (runtime === 'openvino') {
-        session = await ov.InferenceSession.create(modelPath);
+        session = await ov.InferenceSession.create(modelPath, {
+          deviceName: 'CPU',
+          cacheDir: './cache'
+        });
         console.log('✅ YOLO model loaded with OpenVINO runtime!');
       } else {
-        const executionProviders = ['cpu'];
-        console.log('✅ Using CPU execution provider');
+        // Optimized ONNX Runtime configuration for web inference
+        const sessionOptions = {
+          executionProviders: [
+            {
+              name: 'cpu',
+              deviceType: 'cpu',
+              allocatorType: 'arena',
+            }
+          ],
+          graphOptimizationLevel: 'basic', // Enable basic optimizations
+          enableCpuMemArena: true, // Enable memory arena for performance
+          enableMemPattern: true, // Enable memory pattern optimization
+          executionMode: 'sequential', // Sequential execution for consistency
+          logSeverityLevel: 4, // Only log errors
+          logVerbosityLevel: 0,
+        };
 
-        session = await ort.InferenceSession.create(
-          modelPath,
-          {
-            executionProviders: executionProviders,
-            graphOptimizationLevel: 'disabled', // Disable optimizations for stability
-            enableCpuMemArena: false,
-            logSeverityLevel: 2 // Reduce logging
-          }
-        );
+        session = await ort.InferenceSession.create(modelPath, sessionOptions);
 
-        console.log("✅ YOLO model loaded with ONNX runtime!");
+        console.log("✅ YOLO model loaded with optimized ONNX runtime!");
         console.log(`📊 Model inputs: ${session.inputNames.join(', ')}`);
         console.log(`📊 Model outputs: ${session.outputNames.join(', ')}`);
+        
+        // Validate model input/output shapes
+        if (session.inputNames.length === 0 || session.outputNames.length === 0) {
+          throw new Error('Invalid model: no inputs or outputs detected');
+        }
       }
     } catch (err) {
       console.error("❌ Failed to load model:", err);
@@ -744,8 +806,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     letterboxParams = { scale, newW, newH, offsetX, offsetY };
   }
 
-  // Process frame with ONNX
-  // Streaming-optimized YOLO detection with persistent tensors
+  // ONNX detection with proper memory management and tensor reuse
   async function detectWithOnnx(imageData) {
     if (!session) return [];
 
@@ -756,71 +817,79 @@ document.addEventListener("DOMContentLoaded", async () => {
       const tensorSize = width * height;
       const totalSize = 3 * tensorSize;
       
-      // Initialize or reuse persistent tensors (streaming optimization)
+      // Initialize persistent tensors only when dimensions change
       if (!persistentTensorData || currentTensorSize !== totalSize) {
+        // Properly dispose of old tensors to prevent memory leaks
+        if (persistentTensor) {
+          persistentTensor = null;
+        }
         persistentTensorData = new Float32Array(totalSize);
         currentTensorSize = totalSize;
-        persistentTensor = null; // Will be recreated with new dimensions
       }
 
-      // Optimized in-place CHW conversion (reuse buffer)
-      for (let i = 0; i < data.length; i += 4) {
-        const pixelIndex = i / 4;
-        const h = Math.floor(pixelIndex / width);
-        const w = pixelIndex % width;
-        const baseIndex = h * width + w;
-        
-        persistentTensorData[baseIndex] = data[i] * 0.00392156862745098;                    // R: /255 optimized
-        persistentTensorData[tensorSize + baseIndex] = data[i + 1] * 0.00392156862745098;  // G: /255 optimized  
-        persistentTensorData[2 * tensorSize + baseIndex] = data[i + 2] * 0.00392156862745098; // B: /255 optimized
-      }
-
-      // Reuse tensor object when possible (streaming pattern)
-      if (!persistentTensor || persistentTensor.dims[2] !== height || persistentTensor.dims[3] !== width) {
-        const dims = [1, 3, height, width];
-        persistentTensor = new ort.Tensor("float32", persistentTensorData, dims);
-        persistentFeeds = { images: persistentTensor };
-      }
-
-      // YOLO streaming inference
-      const results = await session.run(persistentFeeds);
-      const outputKey = Object.keys(results)[0];
-      const output = results[outputKey];
-      const outputData = output.data;
-
-      // Stream-optimized detection parsing (minimal overhead)
-      const detections = [];
-      const maxDetections = 20; // Reduced for better performance
+      // Optimized CHW conversion with proper normalization
+      const channelSize = width * height;
+      const rgbChannels = [0, channelSize, 2 * channelSize]; // R, G, B channel offsets
       
-      // Direct array processing - avoid slice() for better performance
-      for (let i = 0; i < outputData.length - 5; i += 6) {
-        const score = outputData[i + 4];
+      for (let i = 0, pixelIndex = 0; i < data.length; i += 4, pixelIndex++) {
+        // Normalize pixel values to [0, 1] range as expected by ONNX models
+        persistentTensorData[rgbChannels[0] + pixelIndex] = data[i] / 255.0;     // R
+        persistentTensorData[rgbChannels[1] + pixelIndex] = data[i + 1] / 255.0; // G
+        persistentTensorData[rgbChannels[2] + pixelIndex] = data[i + 2] / 255.0; // B
+      }
+
+      // Create tensor with proper dimensions [batch, channels, height, width]
+      const tensor = new ort.Tensor('float32', persistentTensorData, [1, 3, height, width]);
+      
+      // Prepare feeds object with correct input name
+      const inputName = session.inputNames[0];
+      const feeds = {};
+      feeds[inputName] = tensor;
+
+      // Run inference
+      const results = await session.run(feeds);
+      
+      // Get output tensor
+      const outputName = session.outputNames[0];
+      const outputTensor = results[outputName];
+      const outputData = outputTensor.data;
+
+      // Parse detections based on model output format
+      const detections = [];
+      const numDetections = outputTensor.dims[1] || outputData.length / 6;
+      const maxDetections = Math.min(50, numDetections);
+      
+      for (let i = 0; i < maxDetections * 6; i += 6) {
+        if (i + 5 >= outputData.length) break;
         
-        // Quick confidence check (model already filtered, so trust it more)
-        if (score > 0.15) { // Slightly higher threshold for performance
+        const confidence = outputData[i + 4];
+        const classId = outputData[i + 5];
+        
+        // Filter detections by confidence threshold
+        if (confidence > confidenceThreshold) {
           detections.push([
             outputData[i],     // x1
             outputData[i + 1], // y1  
             outputData[i + 2], // x2
             outputData[i + 3], // y2
-            score,             // confidence
-            outputData[i + 5]  // class_id
+            confidence,        // confidence
+            classId           // class_id
           ]);
-          
-          // Streaming-style early exit for performance
-          if (detections.length >= maxDetections) break;
         }
       }
 
       const processingTime = performance.now() - startTime;
       
-      // Reduce performance monitoring overhead - only track every 5th detection
+      // Track performance metrics
       if (frameCount % 5 === 0) {
         detectionStats.frameProcessingTimes.push(processingTime);
+        if (detectionStats.frameProcessingTimes.length > 100) {
+          detectionStats.frameProcessingTimes = detectionStats.frameProcessingTimes.slice(-50);
+        }
       }
       
       if (detections.length > 0) {
-        console.log(`🔍 Frame ${frameCount}: ${detections.length} detections (model processed)`);
+        console.log(`🔍 Frame ${frameCount}: ${detections.length} detections (${processingTime.toFixed(1)}ms)`);
       }
       
       return detections;
@@ -830,14 +899,41 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // Enhanced detection filtering for road damage (real-time optimized)
-  // Clean up persistent tensors (streaming optimization)
+  // Proper memory cleanup for ONNX resources
   function resetStreamingBuffers() {
-    persistentTensorData = null;
-    persistentTensor = null;
-    persistentFeeds = null;
-    currentTensorSize = null;
-    console.log("🔄 Streaming buffers reset");
+    try {
+      // Dispose of ONNX tensors to prevent memory leaks
+      if (persistentTensor) {
+        persistentTensor = null;
+      }
+      
+      // Clear persistent data buffers
+      persistentTensorData = null;
+      currentTensorSize = null;
+      
+      // Force garbage collection hint
+      if (window.gc) {
+        window.gc();
+      }
+      
+      console.log("🔄 ONNX memory buffers cleaned up");
+    } catch (error) {
+      console.warn("Warning during buffer cleanup:", error);
+    }
+  }
+
+  // Proper session disposal function
+  async function disposeSession() {
+    try {
+      if (session) {
+        // ONNX Runtime Web doesn't have explicit dispose, but we null the reference
+        session = null;
+        console.log("🔄 ONNX session disposed");
+      }
+      resetStreamingBuffers();
+    } catch (error) {
+      console.warn("Warning during session disposal:", error);
+    }
   }
 
   // applyDetectionFilters removed - YOLO ONNX model handles all filtering
@@ -1688,6 +1784,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       // Update last frame detections and frame number when new detections are processed
       if (detections.length > 0) {
         lastFrameDetections = [...detections]; // Deep copy
+        lastDetections = [...detections]; // Update global reference too
         lastDetectionFrame = frameCount;
       }
     } else {
@@ -1772,8 +1869,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     setDetectingState(false);
     
-    // Clean up streaming buffers for optimal memory usage
-    resetStreamingBuffers();
+    // Clean up streaming buffers and dispose session for optimal memory usage
+    await disposeSession();
     
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
@@ -2330,22 +2427,49 @@ exportSummaryBtn.addEventListener('click', exportSummary);
     saveDetectionBtn.addEventListener('click', savePreviewedDetection);
   }
 
-  // Initialize on load
+  // Initialize on load with comprehensive validation
   async function main() {
-    updateButtonStates();
-    startBtn.disabled = true;
-    
-    const success = await initializeDetection();
-    
-    if (success) {
-      startBtn.disabled = false;
-      // Status is set by initializeDetection
-    } else {
+    try {
+      // Validate essential components
+      console.log("🔍 Validating system components...");
+      
+      // Check ONNX Runtime availability
+      if (typeof ort === 'undefined') {
+        throw new Error('ONNX Runtime not loaded');
+      }
+      
+      // Check essential DOM elements
+      const requiredElements = ['start-camera', 'stop-camera', 'camera-stream', 'overlay-canvas'];
+      const missingElements = requiredElements.filter(id => !document.getElementById(id));
+      if (missingElements.length > 0) {
+        throw new Error(`Missing DOM elements: ${missingElements.join(', ')}`);
+      }
+      
+      // Check CLASS_NAMES is properly defined
+      if (!window.CLASS_NAMES || !Array.isArray(window.CLASS_NAMES)) {
+        throw new Error('CLASS_NAMES not properly defined');
+      }
+      
+      updateButtonStates();
       startBtn.disabled = true;
-      // Status is set by initializeDetection on failure
+      
+      console.log("✅ System validation passed");
+      const success = await initializeDetection();
+      
+      if (success) {
+        startBtn.disabled = false;
+        console.log("🚀 Enhanced ONNX-powered Camera Detection System Ready");
+      } else {
+        startBtn.disabled = true;
+        console.warn("⚠️ System loaded with limited functionality");
+      }
+      
+    } catch (error) {
+      console.error("❌ System initialization failed:", error);
+      updateConnectionStatus('error', `Initialization Error: ${error.message}`);
+      if (startBtn) startBtn.disabled = true;
     }
-    
-    console.log("🚀 Enhanced Camera Detection System Loaded");
   }
+  
   main();
 });

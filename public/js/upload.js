@@ -206,17 +206,12 @@ document.addEventListener("DOMContentLoaded", async function () {
   
   // Road Damage Classes (mapping to model's 10 classes)
   const classNames = [
-    'Alligator Crack',
-    'Block Crack', 
-    'Crosswalk Blur',
-    'Lane Blur',
-    'Longitudinal Crack',
-    'Manhole',
-    'Patch Repair',
-    'Pothole',
-    'Transverse Crack',
-    'Wheel Mark Crack'
+    'crack',
+    'knocked',
+    'pothole',
+    'surface damage'
   ];
+  
 
   // Detection configuration for upload processing
   const DETECTION_CONFIG = {

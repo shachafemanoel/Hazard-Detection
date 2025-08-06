@@ -281,11 +281,19 @@
     <!-- Core Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/layout.js" defer></script>
+    <!-- ONNX Runtime for Web -->
     <script src="ort/ort.min.js"></script>
+    <script>
+        // Configure ONNX Runtime for optimal web performance
+        if (typeof ort !== 'undefined') {
+            ort.env.wasm.wasmPaths = 'ort/';
+            ort.env.wasm.numThreads = Math.min(navigator.hardwareConcurrency || 4, 4);
+            ort.env.logLevel = 'error'; // Reduce logging
+        }
+    </script>
     <script src="js/notifications.js"></script>
     <script type="module" src="js/apiClient.js"></script>
-    <script type="module" src="js/firebaseConfig-browser.js"></script>
-    <!-- Camera detection logic with ONNX fallback -->
+    <!-- Camera detection with optimized ONNX integration -->
     <script src="js/camera_detection.js" defer></script>
     
     <!-- Initialize App -->

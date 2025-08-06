@@ -360,14 +360,18 @@ function setupMobileDrawer() {
     if (typeof window.initializeNotifications === 'function') {
       window.initializeNotifications();
     }
-    initializeMap();
-    initControls({ toggleHeatmap, centerMap, plotReports });
-    initializeEventListeners();
-    setupMobileDrawer();
+    
     try {
+      // Wait for Google Maps to initialize
+      await initializeMap();
+      initControls({ toggleHeatmap, centerMap, plotReports });
+      initializeEventListeners();
+      setupMobileDrawer();
+      
       await updateDashboard();
       notify('Dashboard loaded.', 'success');
     } catch (err) {
+      console.error('Dashboard initialization failed:', err);
       notify('Failed to load dashboard', 'danger');
     }
   }
