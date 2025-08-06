@@ -1,6 +1,7 @@
 // camera_detection.js - Refactored for camera.html
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js";
 import { storage } from "./firebaseConfig.js";
+import { setApiUrl, checkHealth, startSession, detectHazards } from './apiClient.js';
 
 // Global state
 let cameraState = {
@@ -20,9 +21,6 @@ let cameraState = {
 // External API configuration - Railway Production
 const API_CONFIG = {
   baseUrl: 'https://hazard-api-production-production.up.railway.app',
-  healthEndpoint: '/health',
-  detectEndpoint: '/detect',
-  sessionEndpoint: '/session/start',
   timeout: 10000, // Increased timeout for Railway
   retryAttempts: 3,
   retryDelay: 1000
@@ -186,115 +184,32 @@ async function initializeDetection() {
 }
 
 async function checkAPIAvailability() {
-  let lastError;
-  
-  for (let attempt = 1; attempt <= API_CONFIG.retryAttempts; attempt++) {
-    try {
-      updateStatus(`Checking Railway API availability... (${attempt}/${API_CONFIG.retryAttempts})`);
-      
-      const response = await fetch(`${API_CONFIG.baseUrl}${API_CONFIG.healthEndpoint}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        signal: AbortSignal.timeout(API_CONFIG.timeout)
-      });
-      
-      if (response.ok) {
-        const health = await response.json();
-        console.log('📡 Railway API Health Status:', health);
-        
-        // Check Railway API health response format
-        const isHealthy = health.status === 'healthy' || 
-                         health.status === 'ok' || 
-                         health.overall === 'healthy';
-        
-        if (isHealthy && health.model_status === 'loaded_openvino') {
-          console.log('✅ Railway API with OpenVINO model ready');
-          updateDetectionModeInfo('api');
-          return true;
-        } else if (isHealthy) {
-          console.log('⚠️ Railway API healthy but model status:', health.model_status);
-          return true;
-        }
-      } else {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-    } catch (error) {
-      lastError = error;
-      console.warn(`❌ API attempt ${attempt} failed:`, error.message);
-      
-      if (attempt < API_CONFIG.retryAttempts) {
-        updateStatus(`API connection failed, retrying in ${API_CONFIG.retryDelay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, API_CONFIG.retryDelay));
-      }
+  try {
+    setApiUrl(API_CONFIG.baseUrl);
+    const health = await checkHealth(); // aligned with spec: GET /health
+    if (health.status === 'healthy') {
+      updateDetectionModeInfo('api');
+      return true;
     }
+    console.warn('❌ API health check returned non-healthy status:', health.status);
+    return false;
+  } catch (error) {
+    console.warn('❌ API health check failed:', error.message);
+    return false;
   }
-  
-  console.warn('❌ Failed to connect to Railway API after all attempts:', lastError?.message);
-  return false;
 }
 
 async function startAPISession() {
-  let retryCount = 0;
-  const maxRetries = 2;
-  
-  while (retryCount <= maxRetries) {
-    try {
-      const response = await fetch(`${API_CONFIG.baseUrl}${API_CONFIG.sessionEndpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          confidence_threshold: cameraState.confidenceThreshold,
-          source: 'camera_detection'
-        }),
-        signal: AbortSignal.timeout(API_CONFIG.timeout)
-      });
-      
-      if (response.ok) {
-        const session = await response.json();
-        cameraState.apiSessionId = session.session_id;
-        console.log('📋 API Session created:', session.session_id);
-        updateStatus("Connected to cloud AI - Session active");
-        return true;
-      }
-      
-      const errorText = await response.text().catch(() => 'Unknown error');
-      throw new Error(`Session creation failed: ${response.status} - ${errorText}`);
-      
-    } catch (error) {
-      console.error(`❌ Session creation attempt ${retryCount + 1} failed:`, error.message);
-      
-      // Check for specific errors that shouldn't retry
-      if (error.message.includes('404') || error.message.includes('Invalid')) {
-        console.warn('🚫 Non-recoverable session error');
-        break;
-      }
-      
-      retryCount++;
-      
-      // Retry on network/timeout errors
-      if (retryCount <= maxRetries && 
-          (error.name === 'AbortError' || 
-           error.message.includes('fetch') || 
-           error.message.includes('network'))) {
-        const delay = Math.min(1000 * retryCount, 3000);
-        console.log(`⏳ Retrying session creation in ${delay}ms`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        continue;
-      }
-      
-      break;
-    }
+  try {
+    cameraState.apiSessionId = await startSession(); // aligned with spec: POST /session/start
+    console.log('📋 API Session created:', cameraState.apiSessionId);
+    updateStatus("Connected to cloud AI - Session active");
+    return true;
+  } catch (error) {
+    console.error('❌ Session creation failed:', error.message);
+    updateStatus("Cloud AI session failed - Will fallback to local");
+    return false;
   }
-  
-  console.error('❌ Failed to create API session after all retries');
-  updateStatus("Cloud AI session failed - Will fallback to local");
-  return false;
 }
 
 async function loadLocalModel() {
@@ -621,7 +536,7 @@ async function detectionLoop() {
     
     if (cameraState.detectionMode === 'api') {
       // Use external API for detection
-      detections = await runAPIDetection(inputTensor);
+      detections = await runAPIDetection();
     } else {
       // Use local model for detection
       detections = await runLocalDetection(inputTensor);
@@ -1203,118 +1118,22 @@ function updateDetectionSessionSummary() {
   if (avgConfidenceEl) avgConfidenceEl.textContent = `${Math.round(avgConfidence * 100)}%`;
 }
 
-async function runAPIDetection(inputTensor) {
-  let retryCount = 0;
-  const maxRetries = 2;
-  
-  while (retryCount <= maxRetries) {
-    try {
-      // Convert tensor to base64 image for API
-      const imageData = tensorToImageData(inputTensor);
-      const canvas = document.createElement('canvas');
-      canvas.width = cameraState.modelInputSize;
-      canvas.height = cameraState.modelInputSize;
-      const ctx = canvas.getContext('2d');
-      ctx.putImageData(imageData, 0, 0);
-      
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-      const base64Image = dataUrl.split(',')[1];
-      
-      const requestBody = {
-        image: base64Image,
-        confidence_threshold: cameraState.confidenceThreshold,
-        session_id: cameraState.apiSessionId
-      };
-      
-      const response = await fetch(`${API_CONFIG.baseUrl}${API_CONFIG.detectEndpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestBody),
-        signal: AbortSignal.timeout(API_CONFIG.timeout)
-      });
-      
-      if (response.status === 503) {
-        throw new Error('Service temporarily unavailable - model loading');
-      }
-      
-      if (response.status === 404) {
-        throw new Error('API endpoint not found - check API version');
-      }
-      
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Unknown error');
-        throw new Error(`API request failed: ${response.status} - ${errorText}`);
-      }
-      
-      const result = await response.json();
-      console.log('📡 API Detection result:', result);
-      
-      // Check if result indicates success
-      if (result.success === false) {
-        throw new Error(result.error || 'API returned failure status');
-      }
-      
-      // Convert API response to our detection format
-      const detections = parseAPIDetections(result.detections || result.predictions || []);
-      
-      // Reset API availability flag on success
-      cameraState.apiAvailable = true;
-      
-      return detections;
-      
-    } catch (error) {
-      console.error(`❌ API detection attempt ${retryCount + 1} failed:`, error.message);
-      
-      // Check for specific error types that shouldn't retry
-      if (error.message.includes('endpoint not found') || 
-          error.message.includes('Invalid image') ||
-          error.message.includes('base64')) {
-        console.warn('🚫 Non-recoverable API error, switching to local model');
-        break;
-      }
-      
-      retryCount++;
-      
-      // If we have retries left and it's a network/timeout error, wait and retry
-      if (retryCount <= maxRetries && 
-          (error.name === 'AbortError' || 
-           error.message.includes('fetch') || 
-           error.message.includes('network') ||
-           error.message.includes('Service temporarily unavailable'))) {
-        const delay = Math.min(1000 * Math.pow(2, retryCount), 5000); // Exponential backoff, max 5s
-        console.log(`⏳ Retrying API call in ${delay}ms (attempt ${retryCount}/${maxRetries})`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        continue;
-      }
-      
-      // All retries exhausted or non-recoverable error
-      break;
-    }
+async function runAPIDetection() {
+  try {
+    const blob = await new Promise((resolve) =>
+      offscreen.toBlob(resolve, 'image/jpeg', 0.8)
+    );
+    const result = await detectHazards(
+      cameraState.apiSessionId,
+      blob
+    ); // aligned with spec: POST /detect/{session_id}, multipart/form-data, field name "file"
+    cameraState.apiAvailable = true;
+    return parseAPIDetections(result.detections || []);
+  } catch (error) {
+    console.error('❌ API detection attempt failed:', error.message);
+    cameraState.apiAvailable = false;
+    throw error;
   }
-  
-  // Fallback to local model
-  console.log('🔄 API calls failed, falling back to local model...');
-  cameraState.detectionMode = 'local';
-  cameraState.apiAvailable = false;
-  
-  // Update UI to show fallback mode
-  updateDetectionModeInfo('local');
-  
-  if (!cameraState.session) {
-    const localLoaded = await loadLocalModel();
-    if (!localLoaded) {
-      console.error('❌ Both API and local model failed');
-      return [];
-    }
-  }
-  
-  if (cameraState.session) {
-    return await runLocalDetection(inputTensor);
-  }
-  
-  return [];
 }
 
 async function runLocalDetection(inputTensor) {

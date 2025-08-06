@@ -8,7 +8,7 @@
     "start": "node server/routes/server.js",
     "dev": "nodemon server/routes/server.js",
     "build": "echo 'No build step needed'",
-    "test": "node --test __tests__/refactor-integration.test.js",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "stream:check": "node scripts/stream-check.js"
   },
   "keywords": [],
@@ -37,6 +37,7 @@
   "devDependencies": {
     "autoprefixer": "^10.4.21",
     "eventsource": "^2.0.2",
+    "jest": "^29.7.0",
     "nodemon": "^3.1.10",
     "postcss": "^8.5.3",
     "tailwindcss": "^4.1.7",

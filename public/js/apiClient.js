@@ -120,7 +120,7 @@ async function startSession() {
     const res = await fetch(`${baseUrl}/session/start`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        // aligned with spec: POST /session/start has no body
         Accept: 'application/json',
         'User-Agent': 'Hazard-Detection-API/1.0',
       },
@@ -136,6 +136,9 @@ async function startSession() {
     }
 
     const data = await res.json();
+    if (!data.session_id) {
+      throw new Error('Failed to start session: missing session_id');
+    }
     console.log('✅ API session started:', data.session_id);
     return data.session_id;
   } catch (error) {
@@ -173,17 +176,23 @@ async function detectHazards(sessionId, imageBlob) {
       method: 'POST',
       body: formData,
       headers: {
+        // aligned with spec: POST /detect/{session_id}, multipart/form-data, field name "file"
         'User-Agent': 'Hazard-Detection-API/1.0',
       },
     });
 
+    if (res.status === 400) {
+      throw new Error('Bad Request – check file upload');
+    }
+    if (res.status === 404) {
+      throw new Error('Endpoint Not Found');
+    }
+    if (res.status === 405) {
+      throw new Error('Method Not Allowed');
+    }
     if (!res.ok) {
-      const errorData = await res
-        .json()
-        .catch(() => ({ detail: `HTTP ${res.status}` }));
-      throw new Error(
-        `Detection failed: ${errorData.detail || res.statusText}`
-      );
+      const bodyText = await res.text();
+      throw new Error(`Detection failed: ${res.status} ${bodyText}`);
     }
 
     const result = await res.json();
@@ -509,6 +518,82 @@ async function dismissReport(sessionId, reportId) {
 }
 
 /**
+ * Get original report image
+ * aligned with spec: GET /session/{session_id}/report/{report_id}/image returns JPEG
+ */
+async function getReportImage(sessionId, reportId) {
+  await ensureInitialized();
+
+  try {
+    if (!sessionId || !reportId) {
+      throw new Error('Session ID and Report ID are required');
+    }
+
+    const res = await fetch(
+      `${baseUrl}/session/${sessionId}/report/${reportId}/image`,
+      {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Hazard-Detection-API/1.0',
+        },
+      }
+    );
+
+    if (!res.ok) {
+      throw new Error(`Failed to fetch report image: ${res.status}`);
+    }
+
+    const contentType = res.headers.get('content-type');
+    if (!contentType || !contentType.includes('image/jpeg')) {
+      throw new Error(`Unexpected content type: ${contentType}`);
+    }
+
+    return await res.arrayBuffer();
+  } catch (error) {
+    console.error('❌ Failed to fetch report image:', error.message);
+    throw new Error(`Failed to fetch report image: ${error.message}`);
+  }
+}
+
+/**
+ * Get annotated model response plot
+ * aligned with spec: GET /session/{session_id}/report/{report_id}/plot returns JPEG
+ */
+async function getReportPlot(sessionId, reportId) {
+  await ensureInitialized();
+
+  try {
+    if (!sessionId || !reportId) {
+      throw new Error('Session ID and Report ID are required');
+    }
+
+    const res = await fetch(
+      `${baseUrl}/session/${sessionId}/report/${reportId}/plot`,
+      {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Hazard-Detection-API/1.0',
+        },
+      }
+    );
+
+    if (!res.ok) {
+      throw new Error(`Failed to fetch report plot: ${res.status}`);
+    }
+
+    const contentType = res.headers.get('content-type');
+    if (!contentType || !contentType.includes('image/jpeg')) {
+      throw new Error(`Unexpected content type: ${contentType}`);
+    }
+
+    return await res.arrayBuffer();
+  } catch (error) {
+    console.error('❌ Failed to fetch report plot:', error.message);
+    throw new Error(`Failed to fetch report plot: ${error.message}`);
+  }
+}
+
+/**
  * Retry wrapper for operations
  */
 async function withRetry(operation, maxRetriesToUse = maxRetries) {
@@ -681,6 +766,8 @@ if (typeof window !== 'undefined') {
   // Report management
   window.confirmReport = confirmReport;
   window.dismissReport = dismissReport;
+  window.getReportImage = getReportImage;
+  window.getReportPlot = getReportPlot;
 
   // Utility functions
   window.withRetry = withRetry;
@@ -719,10 +806,12 @@ export {
   detectSingleWithRetry,
   safeDetection,
 
-  // Report management
-  confirmReport,
-  dismissReport,
-  saveReport,
+    // Report management
+    confirmReport,
+    dismissReport,
+    getReportImage,
+    getReportPlot,
+    saveReport,
 
   // Utility functions
   withRetry,
