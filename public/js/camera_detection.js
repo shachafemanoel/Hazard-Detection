@@ -1,2475 +1,392 @@
-// Enhanced Camera Detection System with Hybrid ONNX + API Detection
-
-document.addEventListener("DOMContentLoaded", async () => {
-  // DOM Elements
-  const startBtn = document.getElementById("start-camera");
-  const stopBtn = document.getElementById("stop-camera");
-  const switchCameraBtn = document.getElementById("switch-camera");
-  const settingsBtn = document.getElementById("settings-btn");
-  const video = document.getElementById("camera-stream");
-  const canvas = document.getElementById("overlay-canvas");
-  const ctx = canvas.getContext("2d");
-  const sensitivitySlider = document.getElementById("sensitivity-slider");
-  const settingsPanel = document.getElementById("settings-panel");
-  const loadingOverlay = document.getElementById("loading-overlay");
-  
-  // Status and stats elements
-  const connectionStatus = document.getElementById("connection-status");
-  const loadingStatus = document.getElementById("loading-status");
-  const loadingProgressBar = document.getElementById("loading-progress-bar");
-  const fpsDisplay = document.getElementById("fps-display");
-  const processingTime = document.getElementById("processing-time");
-  const frameCountDisplay = document.getElementById("frame-count");
-  const currentDetections = document.getElementById("current-detections");
-  const sessionDetections = document.getElementById("session-detections");
-  const hazardTypesList = document.getElementById("hazard-types-list");
-  const detectionCountBadge = document.getElementById("detection-count-badge");
-  const fpsBadge = document.getElementById("fps-badge");
-
-  // Summary modal elements
-  const summaryModal = new bootstrap.Modal(document.getElementById('summaryModal'));
-  const exportSummaryBtn = document.getElementById("export-summary");
-  const viewDashboardBtn = document.getElementById("view-dashboard");
-  const totalDetectionsCount = document.getElementById("total-detections-count");
-  const sessionDurationDisplay = document.getElementById("session-duration");
-  const uniqueHazardsCount = document.getElementById("unique-hazards-count");
-  const detectionsGrid = document.getElementById("detections-grid");
-  const savedReportsList = document.getElementById("saved-reports-list");
-
-  // Constants
-  const FIXED_SIZE =480; // Further reduced for maximum performance
-  const API_HEALTH_CHECK_INTERVAL = 10000; // 10 seconds
-  const SESSION_UPDATE_INTERVAL = 1000; // 1 second
-  const DEFAULT_SAVE_INTERVAL = 120; // frames
-  const PERFORMANCE_UPDATE_INTERVAL = 1000; // 1 second
-
-  // Road Damage Classes (Global constant for ONNX model)
-  const CLASS_NAMES = [
-    'Crack',
-    'Knocked',
-    'Pothole', 
-    'Surface Damage'
-  ];
-
-  // Make CLASS_NAMES globally available
-  window.CLASS_NAMES = CLASS_NAMES;
-
-  // Camera Detection Session Tracking
-  let cameraSession = {
-    startTime: null,
-    detections: [],
-    totalDetections: 0,
-    uniqueHazards: new Set(),
-    isActive: false
-  };
-
-  // Frame synchronization tracking
-  let lastFrameDetections = [];
-  let lastDetections = []; // Global reference for compatibility
-  let lastDetectionFrame = 0;
-  let lastQualityAdjustment = 0;
-
-  // YOLO streaming optimizations - persistent tensors and buffers
-  let persistentTensorData = null;
-  let persistentTensor = null;
-  let persistentFeeds = null;
-  let currentTensorSize = null;
-  
-  // Function to start camera session
-  function startCameraSession() {
-    cameraSession = {
-      startTime: Date.now(),
-      detections: [],
-      totalDetections: 0,
-      uniqueHazards: new Set(),
-      isActive: true
-    };
-    updateCameraSessionDisplay();
-  }
-  
-  // Function to end camera session
-  function endCameraSession() {
-    cameraSession.isActive = false;
-    // Show final summary
-    if (cameraSession.totalDetections > 0) {
-      setTimeout(() => showCameraSessionSummary(), 1000);
-    }
-  }
-  
-  // Function to add detection to camera session
-  function addCameraDetection(detection) {
-    if (!cameraSession.isActive) return;
-    
-    cameraSession.detections.push({
-      ...detection,
-      timestamp: Date.now(),
-      id: Date.now() + Math.random()
-    });
-    cameraSession.totalDetections++;
-    cameraSession.uniqueHazards.add(detection.type);
-    updateCameraSessionDisplay();
-  }
-  
-  // Function to update camera session display
-  function updateCameraSessionDisplay() {
-    if (!cameraSession.startTime) return;
-    
-    const sessionDuration = Date.now() - cameraSession.startTime;
-    const durationMinutes = Math.floor(sessionDuration / 60000);
-    const durationSeconds = Math.floor((sessionDuration % 60000) / 1000);
-    
-    // Update session displays in camera interface
-    const sessionTotalEl = document.getElementById('camera-session-total');
-    const sessionDurationEl = document.getElementById('camera-session-duration');
-    const sessionTypesEl = document.getElementById('camera-session-types');
-    
-    if (sessionTotalEl) sessionTotalEl.textContent = cameraSession.totalDetections;
-    if (sessionDurationEl) sessionDurationEl.textContent = `${durationMinutes}:${durationSeconds.toString().padStart(2, '0')}`;
-    if (sessionTypesEl) sessionTypesEl.textContent = cameraSession.uniqueHazards.size;
-  }
-  
-  // Function to show camera session summary
-  function showCameraSessionSummary() {
-    updateSummaryData();
-    summaryModal.show();
-  }
-
-  function hideSummaryModal() {
-    summaryModal.hide();
-  }
-  
-  // Start periodic camera session updates
-  setInterval(() => {
-    if (cameraSession.isActive) {
-      updateCameraSessionDisplay();
-    }
-  }, 1000); // Update every second
-  
-  // Periodic API health check to detect when model becomes ready
-  setInterval(async () => {
-    if (apiAvailable && useApi && detecting) {
-      try {
-        const isHealthy = await window.testApiConnection();
-        if (isHealthy) {
-          console.log("✅ Periodic health check passed");
-          // Reset failure count when model becomes ready
-          if (window.apiFailureCount > 0) {
-            window.apiFailureCount = 0;
-            console.log("🔄 Model ready - resetting API failure count");
-          }
-        }
-      } catch (error) {
-        // Silently ignore health check failures during periodic checks
-      }
-    }
-  }, 10000); // Check every 10 seconds
-  
-  // Function to determine optimal video constraints based on screen and device
-  async function getOptimalVideoConstraints() {
-    const screenWidth = window.screen.width;
-    const screenHeight = window.screen.height;
-    const devicePixelRatio = window.devicePixelRatio || 1;
-    
-    // Detect device type and capabilities
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    const isTablet = /(iPad|tablet|playbook|silk)|(android(?!.*mobi))/i.test(navigator.userAgent);
-    
-    // Calculate optimal resolution based on screen size and device type
-    let idealWidth, idealHeight, maxWidth, maxHeight;
-    
-    if (isMobile && !isTablet) {
-      // Mobile phones - optimize for performance
-      idealWidth = Math.min(640, screenWidth * devicePixelRatio * 0.8);
-      idealHeight = Math.min(480, screenHeight * devicePixelRatio * 0.6);
-      maxWidth = 1280;
-      maxHeight = 720;
-    } else if (isTablet) {
-      // Tablets - balance quality and performance
-      idealWidth = Math.min(1280, screenWidth * devicePixelRatio * 0.7);
-      idealHeight = Math.min(720, screenHeight * devicePixelRatio * 0.5);
-      maxWidth = 1920;
-      maxHeight = 1080;
-    } else {
-      // Desktop/laptop - prioritize quality
-      idealWidth = Math.min(1920, screenWidth * 0.8);
-      idealHeight = Math.min(1080, screenHeight * 0.6);
-      maxWidth = 3840; // 4K support
-      maxHeight = 2160;
-    }
-    
-    // Test camera capabilities to find best supported resolution
-    const testConstraints = {
-      video: {
-        width: { ideal: idealWidth, max: maxWidth },
-        height: { ideal: idealHeight, max: maxHeight },
-        facingMode: currentCamera,
-        frameRate: { ideal: 30, max: 60 }
-      }
-    };
-    
-    try {
-      // Test if the device supports the ideal constraints
-      const testStream = await navigator.mediaDevices.getUserMedia(testConstraints);
-      const videoTrack = testStream.getVideoTracks()[0];
-      const settings = videoTrack.getSettings();
-      
-      // Stop test stream immediately
-      testStream.getTracks().forEach(track => track.stop());
-      
-      console.log(`✅ Camera capabilities detected:`, {
-        resolution: `${settings.width}x${settings.height}`,
-        frameRate: settings.frameRate,
-        deviceType: isMobile ? 'Mobile' : isTablet ? 'Tablet' : 'Desktop'
-      });
-      
-      // Return optimized constraints based on actual capabilities
-      return {
-        video: {
-          width: { ideal: settings.width, max: maxWidth },
-          height: { ideal: settings.height, max: maxHeight },
-          facingMode: currentCamera,
-          frameRate: { ideal: Math.min(30, settings.frameRate || 30) }
-        }
-      };
-    } catch (error) {
-      console.warn('🔄 Camera capability test failed, using fallback constraints:', error);
-      
-      // Fallback to conservative constraints
-      return {
-        video: {
-          width: { ideal: 640, max: 1280 },
-          height: { ideal: 480, max: 720 },
-          facingMode: currentCamera,
-          frameRate: { ideal: 30 }
-        }
-      };
-    }
-  }
-  
-  // Function to handle different API error types and implement fallbacks
-  function handleApiError(error) {
-    const errorMessage = error.message || '';
-    const modelLoadingErrors = ['model not loaded', 'Service may still be starting', 'Model is loading', 'Backend not ready', 'PyTorch model not loaded', 'OpenVino model not loaded', 'Model initialization'];
-    const backendDependencyErrors = ['ExportOptions', 'torch.onnx._internal.exporter'];
-    const imageFormatErrors = ['cvtColor', 'OpenCV'];
-    const sessionErrors = ['Session', '404'];
-
-    if (modelLoadingErrors.some(e => errorMessage.includes(e))) {
-      console.warn('🚀 Backend model still loading - this is temporary during startup');
-      showNotification('Backend model loading - will use when ready', 'info');
-      updateConnectionStatus('connected', 'API Connected (Model Loading...)');
-      return true;
-    }
-
-    if (backendDependencyErrors.some(e => errorMessage.includes(e))) {
-      console.warn('🔧 PyTorch ONNX export error detected - this is a backend dependency issue');
-      apiAvailable = false;
-      useApi = false;
-      showNotification('Backend model error detected - using local detection only', 'warning');
-      updateConnectionStatus('warning', 'Local ONNX Detection (Backend Issue)');
-      return true;
-    }
-
-    if (imageFormatErrors.some(e => errorMessage.includes(e))) {
-      console.warn('🖼️ Image format error - adjusting image preprocessing');
-      return false;
-    }
-
-    if (sessionErrors.some(e => errorMessage.includes(e))) {
-      console.log('🔄 Session expired - will create new session');
-      apiSessionId = null;
-      return false;
-    }
-
-    return false;
-  }
-  
-  // Make camera session functions globally available
-  window.startCameraSession = startCameraSession;
-  window.endCameraSession = endCameraSession;
-  window.showCameraSessionSummary = showCameraSessionSummary;
-  window.getOptimalVideoConstraints = getOptimalVideoConstraints;
-
-  // Streaming-optimized detection configuration
-  const DETECTION_CONFIG = {
-    trackingEnabled: true,        // Enable object tracking
-    confidenceDecayRate: 0.95,    // Slower decay for smoother tracking
-    detectionInterval: 4,         // Start with higher interval for better performance
-    maxInterval: 12,              // Maximum throttling interval
-    minInterval: 2,               // Minimum interval for good performance
-    minConfidence: 0.5,          // Default minimum confidence threshold
-    classThresholds: {           // Class-specific confidence thresholds
-      0: 0.4, // Crack - lower threshold for common damage
-      1: 0.6, // Knocked - higher threshold for less common
-      2: 0.5, // Pothole - medium threshold
-      3: 0.5  // Surface Damage - medium threshold
-    }
-  };
-
-  // Enhanced color scheme for different road damage types
-  const hazardColors = {
-    'Alligator Crack': '#FF4444',    // Red - Critical structural damage
-    'Block Crack': '#FF6600',        // Red-Orange - Significant cracking
-    'Crosswalk Blur': '#4444FF',     // Blue - Safety marking issues
-    'Lane Blur': '#6644FF',          // Purple - Traffic marking issues  
-    'Longitudinal Crack': '#FF8844', // Orange - Directional cracking
-    'Manhole': '#888888',            // Gray - Infrastructure elements
-    'Patch Repair': '#44FF88',       // Green - Previous repairs
-    'Pothole': '#FF0088',            // Pink - Critical surface damage
-    'Transverse Crack': '#FFAA44',   // Light Orange - Cross cracking
-    'Wheel Mark Crack': '#AA4444'    // Dark Red - Load-induced damage
-  };
-
-  // Detection state
-  let stream = null;
-  let detecting = false;
-  let currentCamera = 'user'; // 'user' for front, 'environment' for back
-  let session = null;
-  let optimalConstraints = null; // Store optimal video constraints
-  let apiSessionId = null; // Session ID for API detection
-  let apiAvailable = false;
-  let useApi = false; // Flag to control API usage
-  let frameCount = 0;
-  let detectionStats = {
-    totalDetections: 0,
-    sessionStart: Date.now(),
-    frameProcessingTimes: [],
-    detectedHazards: new Set()
-  };
-
-  let sessionDetectionsSummary = []; // Store detailed detection information for summary
-  let savedImagesCount = 0; // Track number of saved images
-  let DETECTION_SAVE_INTERVAL = 120; // Default save interval
-
-  // Object tracking state
-  let trackedObjects = new Map();
-  let nextObjectId = 0;
-  const INTERPOLATION_FRAMES = 5;
-  const TRACKING_PERSISTENCE_FRAMES = 30;
-  const MAX_TRACKING_DISTANCE = 50;
-
-  // Queue for detections awaiting upload
-  const pendingDetections = [];
-
-  // Missing utility functions
-  function updateSavedImagesDisplay() {
-    const savedImagesEl = document.getElementById('saved-images-count');
-    if (savedImagesEl) {
-      savedImagesEl.textContent = savedImagesCount;
-    }
-  }
-
-  // Fetch reports function for compatibility
-  async function fetchReports(filters = {}) {
-    try {
-      const params = new URLSearchParams();
-      if (filters.tripId) params.append('tripId', filters.tripId);
-      
-      const response = await fetch(`/api/reports?${params}`, {
-        method: 'GET',
-        credentials: 'include'
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        return { reports: Array.isArray(data) ? data : data.reports || [] };
-      } else {
-        throw new Error(`HTTP ${response.status}`);
-      }
-    } catch (error) {
-      console.warn('fetchReports failed:', error);
-      return { reports: [] };
-    }
-  }
-
-  // Create detection image with bounding boxes
-  function createDetectionImage(videoElement, detections) {
-    const detectionCanvas = document.createElement('canvas');
-    const detectionCtx = detectionCanvas.getContext('2d');
-    
-    // Set canvas size to match video
-    detectionCanvas.width = videoElement.videoWidth || videoElement.clientWidth;
-    detectionCanvas.height = videoElement.videoHeight || videoElement.clientHeight;
-    
-    // Draw video frame
-    detectionCtx.drawImage(videoElement, 0, 0, detectionCanvas.width, detectionCanvas.height);
-    
-    // Draw detections on the image
-    detections.forEach((detection, index) => {
-      let [x1, y1, x2, y2, score, classId] = detection;
-      
-      // Fix class ID mapping
-      const correctedClassId = Math.floor(classId) - 1;
-      const classIndex = Math.max(0, correctedClassId);
-      const labelName = CLASS_NAMES[classIndex] || `Unknown Class ${classIndex}`;
-      
-      // Scale coordinates to canvas size
-      const scaleX = detectionCanvas.width / FIXED_SIZE;
-      const scaleY = detectionCanvas.height / FIXED_SIZE;
-      
-      if (!letterboxParams) return;
-      
-      const { offsetX, offsetY, newW, newH } = letterboxParams;
-      x1 = (x1 - offsetX) * scaleX * (detectionCanvas.width / newW);
-      y1 = (y1 - offsetY) * scaleY * (detectionCanvas.height / newH);
-      x2 = (x2 - offsetX) * scaleX * (detectionCanvas.width / newW);
-      y2 = (y2 - offsetY) * scaleY * (detectionCanvas.height / newH);
-      
-      const boxW = x2 - x1;
-      const boxH = y2 - y1;
-      
-      if (boxW < 1 || boxH < 1) return;
-      
-      // Draw bounding box
-      const color = hazardColors[labelName] || '#00FF00';
-      detectionCtx.strokeStyle = color;
-      detectionCtx.lineWidth = 3;
-      detectionCtx.strokeRect(x1, y1, boxW, boxH);
-      
-      // Draw label background
-      const text = `${labelName} ${(score * 100).toFixed(1)}%`;
-      detectionCtx.font = 'bold 14px Arial';
-      const textWidth = detectionCtx.measureText(text).width;
-      const labelHeight = 20;
-      
-      detectionCtx.fillStyle = color;
-      detectionCtx.fillRect(x1, y1 - labelHeight, textWidth + 10, labelHeight);
-      
-      // Draw label text
-      detectionCtx.fillStyle = '#000000';
-      detectionCtx.fillText(text, x1 + 5, y1 - 5);
-    });
-    
-    return detectionCanvas;
-  }
-
-  // Save image and create detection report via API
-  async function saveImageAndCreateReport({ blob, metadata }) {
-    const formData = new FormData();
-    formData.append('file', blob, `detection_${Date.now()}.jpg`);
-
-    for (const key in metadata) {
-      if (Object.hasOwnProperty.call(metadata, key)) {
-        const value = metadata[key];
-        if (typeof value === 'object' && value !== null) {
-          formData.append(key, JSON.stringify(value));
-        } else {
-          formData.append(key, value);
-        }
-      }
-    }
-
-    const response = await fetch('/api/upload', {
-      method: 'POST',
-      body: formData,
-      credentials: 'include'
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Upload failed: ${response.status} - ${errorText}`);
-    }
-
-    const result = await response.json();
-    console.log('✅ Detection report uploaded:', result);
-    return result;
-  }
-
-  // Upload detection image and report
-  async function uploadDetection(canvas, detections) {
-    return new Promise((resolve, reject) => {
-      canvas.toBlob(async (blob) => {
-        if (!blob) return reject('❌ No blob from canvas');
-
-        try {
-          const metadata = {
-            detections: detections.map(det => {
-              const [x1, y1, x2, y2, score, classId] = det;
-              const correctedClassId = Math.floor(classId) - 1;
-              const classIndex = Math.max(0, correctedClassId);
-              return {
-                class: CLASS_NAMES[classIndex] || `Unknown Class ${classIndex}`,
-                confidence: score,
-                bbox: [x1, y1, x2, y2]
-              };
-            }),
-            timestamp: new Date().toISOString(),
-            source: 'live_camera_detection',
-            sessionId: apiSessionId || 'local_session',
-            frameNumber: frameCount,
-            geoData: geoData
-          };
-
-          const result = await saveImageAndCreateReport({ blob, metadata });
-          resolve(result.report.image.url);
-        } catch (error) {
-          console.error('Upload error:', error);
-          reject(error);
-        }
-      }, 'image/jpeg', 0.9);
-    });
-  }
-
-  // Geolocation data for saved detections
-  let geoData = null;
-  if ("geolocation" in navigator) {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        geoData = JSON.stringify({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-      },
-      (err) => {
-        console.warn("Geolocation unavailable:", err.message);
-      }
-    );
-  }
-
-  // Performance monitoring
-  let fpsCounter = 0;
-  let lastFpsUpdate = Date.now();
-  let performanceHistory = [];
-  let adaptiveQualityEnabled = true;
-  
-  // Canvas rendering optimization
-  let lastCanvasRender = 0;
-  const CANVAS_RENDER_INTERVAL = 33; // ~30 FPS max for canvas rendering
-  
-  // Offscreen canvas for processing
-  const offscreen = document.createElement("canvas");
-  offscreen.width = FIXED_SIZE;
-  offscreen.height = FIXED_SIZE;
-  const offCtx = offscreen.getContext("2d", { willReadFrequently: true });
-
-  let letterboxParams = null;
-  let confidenceThreshold = 0.5;
-
-  let initialized = false;
-
-  // Ensure canvas dimensions always match the displayed video
-  function syncCanvasSize() {
-    if (!video || !canvas) return;
-    const width = video.clientWidth || video.videoWidth;
-    const height = video.clientHeight || video.videoHeight;
-    canvas.width = width;
-    canvas.height = height;
-    canvas.style.width = width + 'px';
-    canvas.style.height = height + 'px';
-  }
-
-  // Keep canvas in sync when the window resizes
-  window.addEventListener('resize', syncCanvasSize);
-
-  // Update UI status
-  function updateConnectionStatus(status, message) {
-    if (!connectionStatus) {
-      console.log(`Connection status: ${status} - ${message}`);
-      return;
-    }
-    
-    const indicator = connectionStatus.querySelector('.status-indicator');
-    const text = connectionStatus.querySelector('.status-text');
-    
-    if (indicator) {
-      indicator.className = `fas fa-circle status-indicator ${status}`;
-    }
-    if (text) {
-      text.textContent = message;
-    }
-  }
-
-// Show loading overlay with progress
-  function showLoading(message, progress = 0) {
-    loadingStatus.textContent = message;
-    loadingProgressBar.style.width = `${progress}%`;
-    loadingOverlay.style.display = 'flex';
-  }
-
-  // Hide loading overlay
-  function hideLoading() {
-    loadingOverlay.style.display = 'none';
-  }
-
-  // Show notification
-  function showNotification(message, type = 'info') {
-    notify(message, type);
-  }
-
-
-  // End API detection session using API client
-  async function endApiSessionLocal() {
-    if (!apiSessionId) return { message: "No active session" };
-    
-    try {
-      const result = await window.endApiSession(apiSessionId);
-      apiSessionId = null;
-      return result;
-    } catch (error) {
-      console.error("❌ Failed to end API session:", error);
-      apiSessionId = null;
-      return { message: "Session ended with error" };
-    }
-  }
-
-  // Load model using available runtime
-  async function loadModel() {
-    showLoading("Loading detection model...", 25);
-    
-    // Ensure ONNX Runtime is properly loaded and configured
-    if (typeof ort === 'undefined') {
-      console.error('ONNX Runtime not loaded. Please ensure ort.min.js is included in the HTML.');
-      throw new Error('ONNX Runtime not available');
-    }
-    
-    // Wait for ONNX Runtime to be ready
-    await ort.env.ready;
-    
-    // Detect available runtime
-    let runtime = 'onnx';
-    if (typeof ov !== 'undefined' && ov.InferenceSession) {
-      runtime = 'openvino';
-      console.log('✅ OpenVINO runtime detected');
-    } else {
-      console.log('✅ ONNX Runtime loaded, configuring for CPU execution...');
-    }
-    
-    // Prioritized model paths - using the latest road damage detection model
-    const modelPaths = [
-      './object_detection_model/best0408.onnx',          // Primary model
-    ]
-    
-    let modelPath = null;
-    for (const path of modelPaths) {
-      try {
-        const encodedPath = encodeURI(path);
-        const response = await fetch(encodedPath, { method: 'HEAD' });
-        if (response.ok) {
-          modelPath = encodedPath;
-          console.log(`✅ Found ONNX model at: ${path}`);
-          break;
-        }
-      } catch (e) {
-        console.log(`❌ Failed to access model at ${path}:`, e.message);
-      }
-    }
-    
-    if (!modelPath) {
-      throw new Error('No ONNX model found in any of the expected locations');
-    }
-
-    showLoading("Initializing inference runtime...", 50);
-
-    // Initialize session based on selected runtime with optimized configuration
-    try {
-      if (runtime === 'openvino') {
-        session = await ov.InferenceSession.create(modelPath, {
-          deviceName: 'CPU',
-          cacheDir: './cache'
-        });
-        console.log('✅ YOLO model loaded with OpenVINO runtime!');
-      } else {
-        // Optimized ONNX Runtime configuration for web inference
-        const sessionOptions = {
-          executionProviders: [
-            {
-              name: 'cpu',
-              deviceType: 'cpu',
-              allocatorType: 'arena',
-            }
-          ],
-          graphOptimizationLevel: 'basic', // Enable basic optimizations
-          enableCpuMemArena: true, // Enable memory arena for performance
-          enableMemPattern: true, // Enable memory pattern optimization
-          executionMode: 'sequential', // Sequential execution for consistency
-          logSeverityLevel: 4, // Only log errors
-          logVerbosityLevel: 0,
-        };
-
-        session = await ort.InferenceSession.create(modelPath, sessionOptions);
-
-        console.log("✅ YOLO model loaded with optimized ONNX runtime!");
-        console.log(`📊 Model inputs: ${session.inputNames.join(', ')}`);
-        console.log(`📊 Model outputs: ${session.outputNames.join(', ')}`);
-        
-        // Validate model input/output shapes
-        if (session.inputNames.length === 0 || session.outputNames.length === 0) {
-          throw new Error('Invalid model: no inputs or outputs detected');
-        }
-      }
-    } catch (err) {
-      console.error("❌ Failed to load model:", err);
-      console.warn("⚠️ No working ONNX model found. The current model appears to be corrupted.");
-      console.warn("💡 Recommendation: Convert PyTorch models to ONNX or download a working model.");
-      
-      // Show user-friendly error message
-      showLoading("Model loading failed - using fallback mode", 100);
-      
-      // For now, return false to indicate model loading failed but don't crash
-      return false;
-    }
-
-    showLoading("Model loaded successfully!", 100);
-    return true;
-  }
-
-
-  // Initialize detection system with ONNX fallback
-  async function initializeDetection() {
-    showLoading("Initializing Detection System...", 0);
-    initialized = false;
-    useApi = false; // Default to ONNX-only
-    apiAvailable = false;
-
-    try {
-      // 1. Try to load the local ONNX model first
-      showLoading("Loading local AI model...", 10);
-      const modelLoaded = await loadModel();
-      
-      if (modelLoaded) {
-        console.log('✅ ONNX model loaded.');
-        updateConnectionStatus('ready', 'Local Model Ready');
-      } else {
-        console.warn('⚠️ ONNX model failed to load, continuing without local detection');
-        updateConnectionStatus('warning', 'Local Model Failed - API Only Mode');
-      }
-
-      // 2. Try to connect to the API, but don't fail if it's unavailable
-      try {
-        showLoading("Checking for remote API...", 70);
-        // The loadApiConfig is necessary to resolve the API base URL.
-        // It can throw "No healthy endpoint found" if the API is down.
-        await window.loadApiConfig();
-        const apiOk = await window.testApiConnection();
-        if (apiOk) {
-          showLoading("Starting API session...", 85);
-          apiSessionId = await window.startApiSession();
-          useApi = true;
-          apiAvailable = true;
-          console.log('✅ API session started, using remote detection');
-          showNotification('Remote API connected. Using enhanced detection.', 'success');
-          updateConnectionStatus('connected', 'Enhanced Mode (API + ONNX)');
-        } else {
-          // This case handles when testApiConnection returns false but doesn't throw an error.
-          console.warn('⚠️ API unavailable, using ONNX-only detection');
-          showNotification('Remote API unavailable, running local model', 'warning');
-          updateConnectionStatus('warning', 'ONNX-Only Mode');
-        }
-      } catch (err) {
-        // This case handles when resolveBaseUrl or testApiConnection throws an error
-        // (e.g., "No healthy endpoint found")
-        console.warn('⚠️ API initialization failed:', err.message);
-        console.warn('→ Falling back to ONNX-only detection');
-        showNotification('Remote API unavailable, running local model', 'warning');
-        updateConnectionStatus('warning', 'ONNX-Only Mode');
-        // `useApi` is already false, so we just continue without re-throwing the error.
-      }
-
-      // 3. Finalize initialization - determine operational mode
-      let modeMessage;
-      if (useApi && modelLoaded) {
-        modeMessage = "🚀 Enhanced detection ready (API + ONNX)";
-      } else if (useApi && !modelLoaded) {
-        modeMessage = "🌐 API-only detection ready";
-      } else if (!useApi && modelLoaded) {
-        modeMessage = "🎯 Local detection ready (ONNX only)";
-      } else {
-        // Neither API nor model available - camera preview only
-        modeMessage = "📷 Camera preview mode (no detection available)";
-        console.warn("⚠️ Running in camera-only mode - no detection available");
-        updateConnectionStatus('warning', 'Camera Only - No Detection');
-      }
-
-      showNotification(modeMessage, (useApi || modelLoaded) ? 'success' : 'warning');
-      initialized = true;
-      startProcessingLoop();
-      return true;
-
-    } catch (error) {
-      // This catch block handles critical errors
-      console.error("❌ Critical initialization failed:", error);
-      showNotification(`Initialization failed: ${error.message}`, 'error');
-      updateConnectionStatus('error', 'Initialization Failed');
-      return false;
-    } finally {
-      // A short delay to ensure the final loading message is visible before hiding.
-      setTimeout(() => {
-        hideLoading();
-      }, 500);
-    }
-  }
-
-  // Compute letterbox parameters
-  function computeLetterboxParams() {
-    const scale = Math.min(FIXED_SIZE / video.videoWidth, FIXED_SIZE / video.videoHeight);
-    const newW = Math.round(video.videoWidth * scale);
-    const newH = Math.round(video.videoHeight * scale);
-    const offsetX = Math.floor((FIXED_SIZE - newW) / 2);
-    const offsetY = Math.floor((FIXED_SIZE - newH) / 2);
-    letterboxParams = { scale, newW, newH, offsetX, offsetY };
-  }
-
-  // ONNX detection with proper memory management and tensor reuse
-  async function detectWithOnnx(imageData) {
-    if (!session) return [];
-
-    const startTime = performance.now();
-    
-    try {
-      const { data, width, height } = imageData;
-      const tensorSize = width * height;
-      const totalSize = 3 * tensorSize;
-      
-      // Initialize persistent tensors only when dimensions change
-      if (!persistentTensorData || currentTensorSize !== totalSize) {
-        // Properly dispose of old tensors to prevent memory leaks
-        if (persistentTensor) {
-          persistentTensor = null;
-        }
-        persistentTensorData = new Float32Array(totalSize);
-        currentTensorSize = totalSize;
-      }
-
-      // Optimized CHW conversion with proper normalization
-      const channelSize = width * height;
-      const rgbChannels = [0, channelSize, 2 * channelSize]; // R, G, B channel offsets
-      
-      for (let i = 0, pixelIndex = 0; i < data.length; i += 4, pixelIndex++) {
-        // Normalize pixel values to [0, 1] range as expected by ONNX models
-        persistentTensorData[rgbChannels[0] + pixelIndex] = data[i] / 255.0;     // R
-        persistentTensorData[rgbChannels[1] + pixelIndex] = data[i + 1] / 255.0; // G
-        persistentTensorData[rgbChannels[2] + pixelIndex] = data[i + 2] / 255.0; // B
-      }
-
-      // Create tensor with proper dimensions [batch, channels, height, width]
-      const tensor = new ort.Tensor('float32', persistentTensorData, [1, 3, height, width]);
-      
-      // Prepare feeds object with correct input name
-      const inputName = session.inputNames[0];
-      const feeds = {};
-      feeds[inputName] = tensor;
-
-      // Run inference
-      const results = await session.run(feeds);
-      
-      // Get output tensor
-      const outputName = session.outputNames[0];
-      const outputTensor = results[outputName];
-      const outputData = outputTensor.data;
-
-      // Parse detections based on model output format
-      const detections = [];
-      const numDetections = outputTensor.dims[1] || outputData.length / 6;
-      const maxDetections = Math.min(50, numDetections);
-      
-      for (let i = 0; i < maxDetections * 6; i += 6) {
-        if (i + 5 >= outputData.length) break;
-        
-        const confidence = outputData[i + 4];
-        const classId = outputData[i + 5];
-        
-        // Filter detections by confidence threshold
-        if (confidence > confidenceThreshold) {
-          detections.push([
-            outputData[i],     // x1
-            outputData[i + 1], // y1  
-            outputData[i + 2], // x2
-            outputData[i + 3], // y2
-            confidence,        // confidence
-            classId           // class_id
-          ]);
-        }
-      }
-
-      const processingTime = performance.now() - startTime;
-      
-      // Track performance metrics
-      if (frameCount % 5 === 0) {
-        detectionStats.frameProcessingTimes.push(processingTime);
-        if (detectionStats.frameProcessingTimes.length > 100) {
-          detectionStats.frameProcessingTimes = detectionStats.frameProcessingTimes.slice(-50);
-        }
-      }
-      
-      if (detections.length > 0) {
-        console.log(`🔍 Frame ${frameCount}: ${detections.length} detections (${processingTime.toFixed(1)}ms)`);
-      }
-      
-      return detections;
-    } catch (error) {
-      console.error("ONNX detection error:", error);
-      return [];
-    }
-  }
-
-  // Proper memory cleanup for ONNX resources
-  function resetStreamingBuffers() {
-    try {
-      // Dispose of ONNX tensors to prevent memory leaks
-      if (persistentTensor) {
-        persistentTensor = null;
-      }
-      
-      // Clear persistent data buffers
-      persistentTensorData = null;
-      currentTensorSize = null;
-      
-      // Force garbage collection hint
-      if (window.gc) {
-        window.gc();
-      }
-      
-      console.log("🔄 ONNX memory buffers cleaned up");
-    } catch (error) {
-      console.warn("Warning during buffer cleanup:", error);
-    }
-  }
-
-  // Proper session disposal function
-  async function disposeSession() {
-    try {
-      if (session) {
-        // ONNX Runtime Web doesn't have explicit dispose, but we null the reference
-        session = null;
-        console.log("🔄 ONNX session disposed");
-      }
-      resetStreamingBuffers();
-    } catch (error) {
-      console.warn("Warning during session disposal:", error);
-    }
-  }
-
-  // applyDetectionFilters removed - YOLO ONNX model handles all filtering
-  // NMS functions removed - model has built-in NMS
-
-  // Process frame with API using API client
-  async function detectWithApiClient(canvas) {
-    if (!apiAvailable || !apiSessionId) {
-      return [];
-    }
-
-    try {
-      // Ensure we have a valid canvas
-      if (!canvas || canvas.width === 0 || canvas.height === 0) {
-        console.warn("❌ Invalid canvas for API detection");
-        return [];
-      }
-
-      // Create blob from canvas
-      const blob = await new Promise((resolve, reject) => {
-        canvas.toBlob((blob) => {
-          if (blob) {
-            resolve(blob);
-          } else {
-            reject(new Error("Failed to create blob from canvas"));
-          }
-        }, 'image/jpeg', 0.9);
-      });
-
-      if (!blob || blob.size === 0) {
-        console.warn("❌ Invalid blob created from canvas");
-        return [];
-      }
-
-      // Use API client for detection
-      const result = await window.detectWithApi(apiSessionId, blob);
-      
-      // Log new detections for debugging
-      if (result.detections && result.detections.length > 0) {
-        const newDetections = result.detections.filter(det => det.is_new);
-        if (newDetections.length > 0) {
-          console.log("🆕 New hazards detected via API:", newDetections.map(d => `${d.class_name} (${(d.confidence * 100).toFixed(1)}%)`));
-        }
-      }
-
-      // Reset failure count on successful API call
-      if (window.apiFailureCount > 0) {
-        window.apiFailureCount = 0;
-        console.log("✅ API detection recovered");
-      }
-
-      // Convert API format to internal format
-      // API returns bbox as [x, y, width, height], we need [x1, y1, x2, y2]
-      return result.detections.map(det => {
-        const [x, y, width, height] = det.bbox;
-        const classIndex = CLASS_NAMES.indexOf(det.class_name);
-        
-        return [
-          x,                    // x1
-          y,                    // y1  
-          x + width,            // x2
-          y + height,           // y2
-          det.confidence,       // confidence
-          classIndex !== -1 ? classIndex + 1 : 1  // class_id (add 1 to match model format)
-        ];
-      });
-    } catch (error) {
-      console.warn("API detection failed:", error.message);
-      
-      // Enhanced error handling
-      const errorHandled = handleApiError(error);
-      
-      // Show user notification for API errors
-      if (!errorHandled && !error.message.includes('model loading')) {
-        showNotification('API detection temporarily unavailable', 'warning');
-      }
-      
-      // Handle failure counting
-      if (!error.message.includes('model not loaded') && 
-          !error.message.includes('Service may still be starting') &&
-          !error.message.includes('PyTorch model not loaded') &&
-          !error.message.includes('OpenVino model not loaded')) {
-        if (!window.apiFailureCount) window.apiFailureCount = 0;
-        window.apiFailureCount++;
-        
-        if (window.apiFailureCount > 5) {
-          console.warn("🚫 Too many API failures, temporarily disabling API detection");
-          useApi = false;
-          // Re-enable after 30 seconds
-          setTimeout(() => {
-            window.apiFailureCount = 0;
-            useApi = true;
-            console.log("🔄 Re-enabling API detection");
-          }, 30000);
-        }
-      }
-      
-      return [];
-    }
-  }
-
-  // Enhanced detection saving with Cloudinary integration
-  async function saveDetection(videoElement, detections, primaryDetection) {
-    try {
-      if (!videoElement || detections.length === 0) {
-        console.warn("❌ Invalid video or no detections for saving");
+import { saveReport } from './apiClient.js';
+
+// DOM Elements
+const videoElement = document.getElementById('camera-stream');
+const canvasElement = document.getElementById('overlay-canvas');
+const startButton = document.getElementById('start-camera');
+const stopButton = document.getElementById('stop-camera');
+const loadingIndicator = document.getElementById('loading-overlay');
+const loadingStatus = document.getElementById('loading-status');
+
+// --- UI Elements for results ---
+const detectionCountBadge = document.getElementById('detection-count-badge');
+const hazardTypesList = document.getElementById('hazard-types-list');
+const hazardTypesDisplay = document.getElementById('hazard-types-display');
+const fpsBadge = document.getElementById('fps-badge'); // For FPS counter
+
+// Detection state
+let isDetecting = false;
+let session; // ONNX session
+let animationFrameId;
+const model_dim = [480, 480]; // Model input dimensions
+
+// FPS calculation
+let lastFrameTime = 0;
+let frameCount = 0;
+let fps = 0;
+
+const model_path = "../object_detection_model/best0408.onnx";
+const classes = [
+    "dumpster", "vent", "bikes", "sign", "construction", "trashcan",
+    "vape", "truck", "person", "car", "bus", "motorcycle", "scooter",
+    "bench", "hydrant", "chair", "table", "door", "window", "stairs",
+    "ramp", "elevator", "escalator", "column", "crosswalk", "curb",
+    "pothole", "crack", "graffiti", "garbage", "spill", "blockage",
+    "animal", "plant", "fire", "smoke", "flood", "wires", "fallen_object",
+    "emergency_vehicle", "police", "ambulance", "fire_truck", "traffic_light",
+    "stop_sign", "cone", "barricade", "fence", "wall", "railing", "camera",
+    "speaker", "intercom", "alarm", "extinguisher", "first_aid", "phone",
+    "person_with_disability", "guide_dog", "wheelchair", "stroller", "baby",
+    "child", "adult", "senior", "male", "female", "crowd", "homeless_person",
+    "protest", "fight", "accident", "injury", "weapon", "gun", "knife",
+    "bat", "club", "homeless_encampment", "tent", "sleeping_bag", "cart",
+    "bag", "box", "luggage", "bottle", "can", "cup", "cigarette", "drug_paraphernalia",
+    "needle", "pipe", "syringe", "puddle", "ice", "snow", "leaves", "debris",
+    "construction_site", "crane", "excavator", "bulldozer", "scaffolding",
+    "manhole", "grate", "sewer", "power_line", "transformer", "utility_pole",
+    "billboard", "poster", "banner", "awning", "canopy", "shed", "garage",
+    "parking_meter", "newsstand", "kiosk", "vending_machine", "atm", "mailbox",
+    "trash_compactor", "recycling_bin", "dumpster_fire", "abandoned_vehicle",
+    "flat_tire", "broken_window", "graffiti_removal", "street_sweeper",
+    "delivery_truck", "food_cart", "street_performer", "musician", "artist",
+    "panhandler", "beggar", "preacher", "activist", "security_guard",
+    "police_officer", "firefighter", "paramedic", "utility_worker", "construction_worker",
+    "maintenance_worker", "janitor", "custodian", "gardener", "landscaper",
+    "dog_walker", "runner", "jogger", "cyclist", "skater", "skateboarder",
+    "rollerblader", "scooter_rider", "tourist", "resident", "commuter",
+    "student", "teacher", "parent", "guardian", "nanny", "caregiver",
+    "delivery_person", "mail_carrier", "courier", "messenger", "vendor",
+    "shopkeeper", "cashier", "waiter", "waitress", "bartender", "barista",
+    "chef", "cook", "host", "hostess", "manager", "owner", "employee",
+    "customer", "client", "patient", "visitor", "guest", "member", "user",
+    "spectator", "audience", "congregation", "passenger", "driver", "pedestrian",
+    "bystander", "witness", "victim", "suspect", "criminal", "offender",
+    "person_of_interest"
+];
+
+
+// --- Initialization ---
+async function initialize() {
+    if (!startButton || !stopButton || !loadingIndicator) {
+        console.error("Required UI elements are missing from the page.");
         return;
-      }
+    }
+    startButton.addEventListener('click', startCamera);
+    stopButton.addEventListener('click', stopCamera);
+    await loadModel();
+}
 
-      // Create detection image with bounding boxes
-      const detectionCanvas = createDetectionImage(videoElement, detections);
-      
-      let imageUrl;
-      
-      // Upload to the unified endpoint
-      try {
-        imageUrl = await uploadDetection(detectionCanvas, detections);
-        console.log("☁️ Detection report uploaded, image URL:", imageUrl);
-      } catch (uploadError) {
-        console.warn("⚠️ Upload failed, using data URL as fallback:", uploadError.message);
-        imageUrl = detectionCanvas.toDataURL("image/jpeg", 0.9);
-      }
+// --- Model Loading ---
+async function loadModel() {
+    console.log("Loading model...");
+    loadingIndicator.style.display = 'flex';
+    if (loadingStatus) loadingStatus.textContent = 'Loading AI Model...';
 
-      // Create a detection report with primary detection info
-      const [x1, y1, x2, y2, score, classId] = primaryDetection;
-      const correctedClassId = Math.floor(classId) - 1;
-      const classIndex = Math.max(0, correctedClassId);
-      const label = CLASS_NAMES[classIndex] || `Unknown Class ${classIndex}`;
+    try {
+        session = await ort.InferenceSession.create(model_path, { executionProviders: ['wasm'] });
+        console.log("Model loaded successfully.");
+        startButton.disabled = false;
+        if (loadingStatus) loadingStatus.textContent = 'Model Ready';
+    } catch (error) {
+        console.error("Failed to load the model:", error);
+        if (loadingStatus) loadingStatus.textContent = 'Error: Model Failed to Load';
+        if (typeof notify === 'function') {
+            notify("Error: Could not load the detection model. Please refresh and try again.", "error");
+        }
+    } finally {
+        // Hide loading indicator after a short delay to show status
+        setTimeout(() => { loadingIndicator.style.display = 'none'; }, 1500);
+    }
+}
 
-      const report = {
-        type: label,
-        location: geoData ? JSON.parse(geoData) : { lat: 31.7683, lng: 35.2137 },
-        time: new Date().toISOString(),
-        image: imageUrl,
-        status: "unreviewed",
-        reportedBy: "live_camera",
-        confidence: Math.round(score * 100),
-        sessionId: apiSessionId || 'local_session',
-        frameNumber: frameCount,
-        detectionMode: apiAvailable ? 'hybrid' : 'onnx_only',
-        // Additional metadata for summary
-        allDetections: detections.map(det => {
-          const [dx1, dy1, dx2, dy2, dscore, dclassId] = det;
-          const dcorrectedClassId = Math.floor(dclassId) - 1;
-          const dclassIndex = Math.max(0, dcorrectedClassId);
-          return {
-            type: CLASS_NAMES[dclassIndex] || `Unknown Class ${dclassIndex}`,
-            confidence: dscore,
-            bbox: [dx1, dy1, dx2, dy2]
-          };
-        })
-      };
+// --- Camera Controls ---
+async function startCamera() {
+    if (isDetecting || !session) {
+        if (!session) {
+            console.warn("Detection started before model was ready.");
+            if (typeof notify === 'function') notify("Model not loaded. Cannot start detection.", "warning");
+        }
+        return;
+    }
+    isDetecting = true;
+    startButton.style.display = 'none';
+    stopButton.style.display = 'block';
 
-      pendingDetections.push(report);
-
-      // Update saved images count
-      savedImagesCount++;
-      updateSavedImagesDisplay();
-
-      console.log("📝 Detection with image queued:", { 
-        type: label, 
-        confidence: `${Math.round(score * 100)}%`, 
-        timestamp: report.time,
-        mode: report.detectionMode,
-        imageType: imageUrl.startsWith('data:') ? 'dataURL' : 'cloudinary',
-        totalDetections: detections.length
-      });
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        videoElement.srcObject = stream;
+        videoElement.onloadedmetadata = () => {
+            videoElement.play();
+            canvasElement.width = videoElement.videoWidth;
+            canvasElement.height = videoElement.videoHeight;
+            lastFrameTime = performance.now();
+            detectionLoop();
+        };
     } catch (err) {
-      console.error("❌ Error during detection saving:", err);
-      showNotification('Failed to save detection image', 'error');
-    }
-  }
-
-  // Helper function to calculate distance between two box centers
-  function boxDistance(box1, box2) {
-    const centerX1 = (box1[0] + box1[2]) / 2;
-    const centerY1 = (box1[1] + box1[3]) / 2;
-    const centerX2 = (box2[0] + box2[2]) / 2;
-    const centerY2 = (box2[1] + box2[3]) / 2;
-    return Math.sqrt(Math.pow(centerX1 - centerX2, 2) + Math.pow(centerY1 - centerY2, 2));
-  }
-
-  // Calculate Intersection over Union (IoU) for better tracking
-  function calculateIoU(box1, box2) {
-    const [x1a, y1a, x2a, y2a] = box1;
-    const [x1b, y1b, x2b, y2b] = box2;
-    
-    const xLeft = Math.max(x1a, x1b);
-    const yTop = Math.max(y1a, y1b);
-    const xRight = Math.min(x2a, x2b);
-    const yBottom = Math.min(y2a, y2b);
-    
-    if (xRight < xLeft || yBottom < yTop) return 0;
-    
-    const intersectionArea = (xRight - xLeft) * (yBottom - yTop);
-    const box1Area = (x2a - x1a) * (y2a - y1a);
-    const box2Area = (x2b - x1b) * (y2b - y1b);
-    const unionArea = box1Area + box2Area - intersectionArea;
-    
-    return intersectionArea / unionArea;
-  }
-
-  // Interpolate box position based on velocity
-  function interpolateBox(trackedObj, framesSinceLastUpdate) {
-    if (!trackedObj.velocity || framesSinceLastUpdate === 0) {
-      return trackedObj.box;
-    }
-    
-    const [x1, y1, x2, y2, score, classId] = trackedObj.box;
-    const [vx, vy] = trackedObj.velocity;
-    
-    // Apply velocity with dampening
-    const dampening = Math.min(framesSinceLastUpdate / INTERPOLATION_FRAMES, 1);
-    const newX1 = x1 + vx * framesSinceLastUpdate * dampening;
-    const newY1 = y1 + vy * framesSinceLastUpdate * dampening;
-    const newX2 = x2 + vx * framesSinceLastUpdate * dampening;
-    const newY2 = y2 + vy * framesSinceLastUpdate * dampening;
-    
-    return [newX1, newY1, newX2, newY2, score, classId];
-  }
-
-  // Track objects across frames
-  function trackObjects(newDetections) {
-    const currentFrame = frameCount;
-    const processedBoxes = [];
-    const usedDetections = new Set();
-    
-    // Filter detections by confidence using class-specific thresholds
-    const validDetections = newDetections.filter(box => {
-      const classIndex = Math.floor(box[5]);
-      const classThreshold = DETECTION_CONFIG.classThresholds[classIndex] || DETECTION_CONFIG.minConfidence;
-      const threshold = Math.max(confidenceThreshold, classThreshold);
-      return box[4] >= threshold;
-    });
-    
-    // Update existing tracked objects
-    for (const [id, trackedObj] of trackedObjects) {
-      let bestMatch = null;
-      let bestScore = 0;
-      let bestDetectionIndex = -1;
-      
-      // Find best matching detection for this tracked object
-      validDetections.forEach((detection, index) => {
-        if (usedDetections.has(index)) return;
-        
-        const [x1, y1, x2, y2, score, classId] = detection;
-        
-        // Only match same class
-        // Fix class ID mapping for comparison
-        const correctedClassId = Math.floor(classId) - 1;
-        const detectionClassIndex = Math.max(0, correctedClassId);
-        if (detectionClassIndex !== trackedObj.classId) return;
-        
-        // Calculate matching score (combination of IoU and distance)
-        const iou = calculateIoU(trackedObj.box, [x1, y1, x2, y2]);
-        const distance = boxDistance(trackedObj.box, [x1, y1, x2, y2]);
-        const matchScore = iou * 0.7 + (1 - Math.min(distance / MAX_TRACKING_DISTANCE, 1)) * 0.3;
-        
-        if (matchScore > bestScore && distance < MAX_TRACKING_DISTANCE) {
-          bestMatch = detection;
-          bestScore = matchScore;
-          bestDetectionIndex = index;
+        console.error("Error accessing camera:", err);
+        if (typeof notify === 'function') {
+            notify("Could not access camera. Please grant permission and ensure a camera is available.", "error");
         }
-      });
-      
-      if (bestMatch && bestScore > 0.3) {
-        // Update tracked object with new detection
-        const [newX1, newY1, newX2, newY2, newScore, newClassId] = bestMatch;
-        const [oldX1, oldY1, oldX2, oldY2] = trackedObj.box;
-        
-        // Calculate velocity
-        const framesDiff = currentFrame - trackedObj.lastDetectionFrame;
-        if (framesDiff > 0) {
-          const vx = (newX1 - oldX1) / framesDiff;
-          const vy = (newY1 - oldY1) / framesDiff;
-          trackedObj.velocity = [vx, vy];
-        }
-        
-        trackedObj.box = [newX1, newY1, newX2, newY2, Math.max(trackedObj.confidence, newScore), newClassId];
-        trackedObj.lastSeen = currentFrame;
-        trackedObj.lastDetectionFrame = currentFrame;
-        trackedObj.confidence = Math.max(trackedObj.confidence * 0.9, newScore);
-        
-        usedDetections.add(bestDetectionIndex);
-      } else {
-        // Update position using velocity interpolation
-        const framesSinceLastDetection = currentFrame - trackedObj.lastDetectionFrame;
-        if (framesSinceLastDetection <= INTERPOLATION_FRAMES) {
-          trackedObj.box = interpolateBox(trackedObj, framesSinceLastDetection);
-        }
-        trackedObj.lastSeen = currentFrame;
-        trackedObj.confidence *= 0.95; // Decay confidence when not detected
-      }
+        isDetecting = false;
+        startButton.style.display = 'block';
+        stopButton.style.display = 'none';
     }
-    
-    // Add new objects for unmatched detections
-    validDetections.forEach((detection, index) => {
-      if (usedDetections.has(index)) return;
-      
-      const [x1, y1, x2, y2, score, classId] = detection;
-      const newId = nextObjectId++;
-      
-      trackedObjects.set(newId, {
-        id: newId,
-        box: [x1, y1, x2, y2, score, classId],
-        // Fix class ID mapping - model outputs class_id + 1, so subtract 1
-        classId: Math.max(0, Math.floor(classId) - 1),
-        confidence: score,
-        lastSeen: currentFrame,
-        lastDetectionFrame: currentFrame,
-        velocity: [0, 0],
-        age: 0
-      });
-    });
-    
-    // Remove old tracked objects and collect active ones
-    for (const [id, trackedObj] of trackedObjects) {
-      if (currentFrame - trackedObj.lastSeen > TRACKING_PERSISTENCE_FRAMES || trackedObj.confidence < 0.3) {
-        trackedObjects.delete(id);
-      } else {
-        processedBoxes.push(trackedObj.box);
-        trackedObj.age++;
-      }
+}
+
+function stopCamera() {
+    if (!isDetecting) return;
+    isDetecting = false;
+    startButton.style.display = 'block';
+    stopButton.style.display = 'none';
+
+    if (videoElement.srcObject) {
+        videoElement.srcObject.getTracks().forEach(track => track.stop());
+        videoElement.srcObject = null;
     }
-  }
-
-  // Professional bounding box drawing function for camera detection
-  function drawProfessionalBoundingBox(ctx, options) {
-    const { x1, y1, x2, y2, label, confidence, classIndex, detectionIndex, color, isInterpolated } = options;
-    
-    const boxW = x2 - x1;
-    const boxH = y2 - y1;
-    const scorePerc = (confidence * 100).toFixed(1);
-    
-    // Save current context state
-    ctx.save();
-    
-    // Calculate dynamic styling based on confidence
-    const alpha = Math.min(0.6 + confidence * 0.4, 1.0);
-    const lineWidth = Math.max(2, Math.min(5, confidence * 6));
-    const cornerSize = Math.max(8, Math.min(14, confidence * 16));
-    
-    // Adjust for interpolated/tracked objects
-    if (isInterpolated) {
-      ctx.globalAlpha = alpha * 0.7;
-      ctx.setLineDash([6, 3]);
-    } else {
-      ctx.globalAlpha = alpha;
-      ctx.setLineDash([]);
+    if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
     }
+    const ctx = canvasElement.getContext('2d');
+    ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
     
-    // Set shadow for depth effect
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
-    ctx.shadowBlur = 3;
-    ctx.shadowOffsetX = 1;
-    ctx.shadowOffsetY = 1;
-    
-    // Draw main bounding box
-    ctx.strokeStyle = color;
-    ctx.lineWidth = lineWidth;
-    ctx.strokeRect(x1, y1, boxW, boxH);
-    
-    // Reset shadow for corner markers
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
-    
-    // Draw professional corner markers
-    ctx.fillStyle = color;
-    ctx.globalAlpha = Math.min(alpha + 0.2, 1.0);
-    
-    const cornerThickness = Math.max(2, lineWidth / 2);
-    const cornerLength = cornerSize;
-    
-    // Top-left corner
-    ctx.fillRect(x1 - cornerThickness, y1 - cornerThickness, cornerLength, cornerThickness);
-    ctx.fillRect(x1 - cornerThickness, y1 - cornerThickness, cornerThickness, cornerLength);
-    
-    // Top-right corner
-    ctx.fillRect(x2 - cornerLength + cornerThickness, y1 - cornerThickness, cornerLength, cornerThickness);
-    ctx.fillRect(x2, y1 - cornerThickness, cornerThickness, cornerLength);
-    
-    // Bottom-left corner
-    ctx.fillRect(x1 - cornerThickness, y2, cornerLength, cornerThickness);
-    ctx.fillRect(x1 - cornerThickness, y2 - cornerLength + cornerThickness, cornerThickness, cornerLength);
-    
-    // Bottom-right corner
-    ctx.fillRect(x2 - cornerLength + cornerThickness, y2, cornerLength, cornerThickness);
-    ctx.fillRect(x2, y2 - cornerLength + cornerThickness, cornerThickness, cornerLength);
-    
-    // Draw confidence indicator bar
-    const confBarWidth = Math.min(boxW * 0.6, 40);
-    const confBarHeight = 3;
-    const confBarX = x1 + (boxW - confBarWidth) / 2;
-    const confBarY = y2 - 6;
-    
-    // Background bar
-    ctx.globalAlpha = 0.4;
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(confBarX, confBarY, confBarWidth, confBarHeight);
-    
-    // Confidence fill
-    ctx.globalAlpha = 0.8;
-    ctx.fillStyle = color;
-    ctx.fillRect(confBarX, confBarY, confBarWidth * confidence, confBarHeight);
-    
-    // Professional label design
-    ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
-    const mainText = label;
-    const confText = `${scorePerc}%`;
-    const idText = `#${detectionIndex}`;
-    const trackingText = isInterpolated ? 'TRACKED' : '';
-    
-    const mainTextWidth = ctx.measureText(mainText).width;
-    const confTextWidth = ctx.measureText(confText).width;
-    const idTextWidth = ctx.measureText(idText).width;
-    const trackingTextWidth = trackingText ? ctx.measureText(trackingText).width : 0;
-    
-    const labelPadding = 6;
-    const labelSpacing = 3;
-    const totalLabelWidth = mainTextWidth + confTextWidth + idTextWidth + trackingTextWidth + labelPadding * 2 + labelSpacing * 3;
-    const labelHeight = 18;
-    
-    // Smart label positioning
-    let labelX = x1;
-    let labelY = y1 - labelHeight - 3;
-    
-    // Adjust if label goes outside canvas bounds
-    if (labelX + totalLabelWidth > canvas.width) {
-      labelX = canvas.width - totalLabelWidth - 3;
-    }
-    if (labelY < 0) {
-      labelY = y2 + 3;
-    }
-    
-    // Draw label background with gradient effect
-    ctx.globalAlpha = 0.9;
-    
-    // Create gradient background
-    const gradient = ctx.createLinearGradient(labelX, labelY, labelX, labelY + labelHeight);
-    gradient.addColorStop(0, color);
-    gradient.addColorStop(1, adjustColorBrightness(color, -15));
-    
-    ctx.fillStyle = gradient;
-    drawRoundedRect(ctx, labelX, labelY, totalLabelWidth, labelHeight, 3);
-    
-    // Draw label text with shadow
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-    ctx.shadowBlur = 1;
-    ctx.shadowOffsetX = 1;
-    ctx.shadowOffsetY = 1;
-    
-    ctx.globalAlpha = 1.0;
-    ctx.fillStyle = '#FFFFFF';
-    
-    // Main label text
-    ctx.font = 'bold 10px "Segoe UI", Arial, sans-serif';
-    ctx.fillText(mainText, labelX + labelPadding, labelY + 12);
-    
-    // Confidence text
-    ctx.font = 'bold 9px "Segoe UI", Arial, sans-serif';
-    ctx.fillStyle = '#E0E0E0';
-    ctx.fillText(confText, labelX + labelPadding + mainTextWidth + labelSpacing, labelY + 12);
-    
-    // Detection ID
-    ctx.font = 'bold 8px "Segoe UI", Arial, sans-serif';
-    ctx.fillStyle = '#CCCCCC';
-    ctx.fillText(idText, labelX + labelPadding + mainTextWidth + confTextWidth + labelSpacing * 2, labelY + 12);
-    
-    // Tracking indicator
-    if (trackingText) {
-      ctx.font = 'bold 7px "Segoe UI", Arial, sans-serif';
-      ctx.fillStyle = '#FFD700';
-      ctx.fillText(trackingText, labelX + labelPadding + mainTextWidth + confTextWidth + idTextWidth + labelSpacing * 3, labelY + 11);
-    }
-    
-    // Restore context state
-    ctx.restore();
-  }
-  
-  // Helper function to draw rounded rectangles
-  function drawRoundedRect(ctx, x, y, width, height, radius) {
-    ctx.beginPath();
-    ctx.moveTo(x + radius, y);
-    ctx.lineTo(x + width - radius, y);
-    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-    ctx.lineTo(x + width, y + height - radius);
-    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-    ctx.lineTo(x + radius, y + height);
-    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-    ctx.lineTo(x, y + radius);
-    ctx.quadraticCurveTo(x, y, x + radius, y);
-    ctx.closePath();
-    ctx.fill();
-  }
-  
-  // Helper function to adjust color brightness
-  function adjustColorBrightness(color, amount) {
-    const usePound = color[0] === '#';
-    const col = usePound ? color.slice(1) : color;
-    const num = parseInt(col, 16);
-    let r = (num >> 16) + amount;
-    let g = (num >> 8 & 0x00FF) + amount;
-    let b = (num & 0x0000FF) + amount;
-    r = r > 255 ? 255 : r < 0 ? 0 : r;
-    g = g > 255 ? 255 : g < 0 ? 0 : g;
-    b = b > 255 ? 255 : b < 0 ? 0 : b;
-    return (usePound ? '#' : '') + (r << 16 | g << 8 | b).toString(16).padStart(6, '0');
-  }
+    // Reset UI
+    if(detectionCountBadge) detectionCountBadge.textContent = '0 hazards';
+    if(hazardTypesDisplay) hazardTypesDisplay.style.display = 'none';
+    if(hazardTypesList) hazardTypesList.textContent = 'No hazards';
+    if(fpsBadge) fpsBadge.textContent = '0 FPS';
+}
 
-  // Simplified bounding box drawing for better performance
-  function drawSimpleBoundingBox(ctx, options) {
-    const { x1, y1, x2, y2, label, confidence, color, isInterpolated } = options;
-    
-    const boxW = x2 - x1;
-    const boxH = y2 - y1;
-    const scorePerc = (confidence * 100).toFixed(0);
-    
-    // Save context
-    ctx.save();
-    
-    // Simple box with adaptive line width
-    const lineWidth = isInterpolated ? 2 : 3;
-    const alpha = isInterpolated ? 0.6 : 0.8;
-    
-    ctx.globalAlpha = alpha;
-    ctx.strokeStyle = color;
-    ctx.lineWidth = lineWidth;
-    ctx.strokeRect(x1, y1, boxW, boxH);
-    
-    // Simple label background
-    const labelText = `${label} (${scorePerc}%)`;
-    ctx.font = '12px Arial';
-    const textWidth = ctx.measureText(labelText).width;
-    const labelHeight = 16;
-    
-    // Position label
-    let labelX = x1;
-    let labelY = y1 - labelHeight - 2;
-    if (labelY < 0) labelY = y2 + labelHeight + 2;
-    
-    // Background
-    ctx.globalAlpha = 0.8;
-    ctx.fillStyle = color;
-    ctx.fillRect(labelX, labelY, textWidth + 8, labelHeight);
-    
-    // Text
-    ctx.globalAlpha = 1.0;
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillText(labelText, labelX + 4, labelY + 12);
-    
-    ctx.restore();
-  }
+// --- Detection Loop ---
+async function detectionLoop() {
+    if (!isDetecting) return;
 
-  // Draw detection results with object tracking and professional bounding boxes
-  function drawResults(boxes, useApiResults = false) {
-    // Throttle canvas rendering for better performance
-    const now = performance.now();
-    if (now - lastCanvasRender < CANVAS_RENDER_INTERVAL) {
-      return; // Skip this render cycle
-    }
-    lastCanvasRender = now;
-    
-    // Only resize canvas if video dimensions changed (performance optimization)
-    if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-    }
-    
-    // Clear and draw the current video frame first to ensure synchronization
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    // Update tracked objects with current detections
-    trackObjects(boxes);
-
-    let currentFrameDetections = 0;
-    const detectedTypes = new Set();
-
-      // Draw all tracked objects (including interpolated ones)
-      for (const [id, trackedObj] of trackedObjects) {
-        let [x1, y1, x2, y2, score, classId] = trackedObj.box;
-
-        // Fix class ID mapping - model outputs class_id + 1, so subtract 1
-        const correctedClassId = Math.floor(classId) - 1;
-        const classIndex = Math.max(0, correctedClassId); // Ensure non-negative
-
-        // Scale coordinates back to displayed video dimensions
-        if (!useApiResults) {
-          const { offsetX, offsetY, newW, newH } = letterboxParams;
-          const scaleX = canvas.width / newW;
-          const scaleY = canvas.height / newH;
-          x1 = (x1 - offsetX) * scaleX;
-          y1 = (y1 - offsetY) * scaleY;
-          x2 = (x2 - offsetX) * scaleX;
-          y2 = (y2 - offsetY) * scaleY;
-        } else {
-          const scaleX = canvas.width / video.videoWidth;
-          const scaleY = canvas.height / video.videoHeight;
-          x1 *= scaleX;
-          y1 *= scaleY;
-          x2 *= scaleX;
-          y2 *= scaleY;
-        }
-
-        const boxW = x2 - x1;
-        const boxH = y2 - y1;
-
-        if (boxW < 1 || boxH < 1) {
-          continue;
-        }
-
-      currentFrameDetections++;
-      const labelName = CLASS_NAMES[classIndex] || `Unknown Class ${classIndex}`;
-      
-      // Reduced debug logging for performance
-      
-      detectedTypes.add(labelName);
-      detectionStats.detectedHazards.add(labelName);
-
-      // Enhanced visual styling with hazard-specific colors and tracking
-      const framesSinceLastDetection = frameCount - trackedObj.lastDetectionFrame;
-      const isInterpolated = framesSinceLastDetection > 0;
-      
-      // Use hazard-specific colors
-      let baseColor = hazardColors[labelName] || '#00FF00';
-      let color = isInterpolated ? '#FFD700' : baseColor; // Gold for interpolated
-      
-      // Professional bounding box drawing
-      drawSimpleBoundingBox(ctx, {
-        x1, y1, x2, y2,
-        label: labelName,
-        confidence: trackedObj.confidence,
-        color: color,
-        isInterpolated: isInterpolated
-      });
-
-      // Reduced logging for performance - only log occasionally
-      if (frameCount % 30 === 0) {
-        console.log(`📦 Tracked object #${trackedObj.id}:`, labelName, (trackedObj.confidence * 100).toFixed(1) + "%", isInterpolated ? "(interpolated)" : "(detected)");
-      }
-      
-      // Add to camera session tracking (only for new detections, not interpolated)
-      if (!isInterpolated) {
-        addCameraDetection({
-          type: labelName,
-          confidence: trackedObj.confidence,
-          classIndex: classIndex,
-          coordinates: { x1, y1, x2, y2 },
-          objectId: trackedObj.id
-        });
-      }
-
-      // Save detection periodically with bounding box image
-      if (frameCount % DETECTION_SAVE_INTERVAL === 0 && !isInterpolated) { // Save based on user setting
-        // Get current frame detections for this class
-        const currentFrameDetections = [];
-        for (const [id, trackedObj] of trackedObjects) {
-          if (Math.floor(trackedObj.box[5]) - 1 === classIndex) {
-            currentFrameDetections.push(trackedObj.box);
-          }
-        }
-        
-        if (currentFrameDetections.length > 0) {
-          saveDetection(video, currentFrameDetections, trackedObj.box).catch((e) => console.error(e));
-        }
-      }
-
-    }
-
-    // Update statistics
-    currentDetections.textContent = currentFrameDetections;
-    detectionStats.totalDetections += currentFrameDetections;
-    sessionDetections.textContent = detectionStats.totalDetections;
-    detectionCountBadge.textContent = `${currentFrameDetections} hazards`;
-
-    // Update hazard types list
-    if (detectedTypes.size > 0) {
-      hazardTypesList.innerHTML = Array.from(detectedTypes)
-        .map(type => `<div class="hazard-type">${type}</div>`)
-        .join('');
-    } else {
-      hazardTypesList.innerHTML = '<div class="no-hazards">No hazards detected</div>';
-    }
-  }
-
-  function drawDetections(drawCtx, detections, useApiResults = false) {
-    drawResults(detections, useApiResults);
-  }
-
-  // Update FPS and performance stats with adaptive quality
-  function updatePerformanceStats() {
-    fpsCounter++;
-    const now = Date.now();
-    
-    if (now - lastFpsUpdate >= 1000) {
-      const fps = Math.round(fpsCounter * 1000 / (now - lastFpsUpdate));
-      fpsDisplay.textContent = fps;
-      fpsBadge.textContent = `${fps} FPS`;
-      
-      // Average processing time
-      const avgProcessingTime = detectionStats.frameProcessingTimes.length > 0 
-        ? Math.round(detectionStats.frameProcessingTimes.reduce((a, b) => a + b, 0) / detectionStats.frameProcessingTimes.length)
-        : 0;
-      processingTime.textContent = `${avgProcessingTime}ms`;
-      
-      // Simplified performance monitoring (reduced overhead)
-      if (performanceHistory.length >= 5) {
-        performanceHistory.shift(); // Keep only last 5 measurements
-      }
-      
-      performanceHistory.push({
-        fps: fps,
-        processingTime: avgProcessingTime,
-        timestamp: now
-      });
-      
-      // Less frequent adaptive quality adjustment
-      if (adaptiveQualityEnabled && performanceHistory.length >= 3 && now - lastQualityAdjustment >= 3000) {
-        checkAndAdjustQuality();
-        lastQualityAdjustment = now;
-      }
-      
-      fpsCounter = 0;
-      lastFpsUpdate = now;
-      
-      // Keep only recent processing times
-      if (detectionStats.frameProcessingTimes.length > 30) {
-        detectionStats.frameProcessingTimes = detectionStats.frameProcessingTimes.slice(-30);
-      }
-    }
-  }
-  
-  // Adaptive quality adjustment based on performance
-  function checkAndAdjustQuality() {
-    const avgFps = performanceHistory.reduce((sum, entry) => sum + entry.fps, 0) / performanceHistory.length;
-    const avgProcessingTime = performanceHistory.reduce((sum, entry) => sum + entry.processingTime, 0) / performanceHistory.length;
-    
-    // More aggressive performance thresholds for 10+ FPS target
-    const lowFpsThreshold = 8;     // Lower threshold for more aggressive throttling
-    const highProcessingThreshold = 200; // ms - allow more processing time
-    
-    // Good performance thresholds  
-    const goodFpsThreshold = 15;   // Lower good threshold to be less aggressive about increasing
-    const lowProcessingThreshold = 80; // ms - more realistic threshold
-    
-    if (avgFps < lowFpsThreshold || avgProcessingTime > highProcessingThreshold) {
-      // Performance is poor - more aggressive throttling
-      if (DETECTION_CONFIG.detectionInterval < DETECTION_CONFIG.maxInterval) {
-        DETECTION_CONFIG.detectionInterval = Math.min(DETECTION_CONFIG.detectionInterval + 2, DETECTION_CONFIG.maxInterval);
-        console.log(`⚡ Performance low (${avgFps.toFixed(1)} FPS, ${avgProcessingTime.toFixed(1)}ms) - aggressively reducing detection frequency to every ${DETECTION_CONFIG.detectionInterval} frames`);
-        showNotification(`Aggressively throttling detection for better performance`, 'warning');
-      }
-    } else if (avgFps > goodFpsThreshold && avgProcessingTime < lowProcessingThreshold) {
-      // Performance is good - gradually increase quality
-      if (DETECTION_CONFIG.detectionInterval > DETECTION_CONFIG.minInterval) {
-        DETECTION_CONFIG.detectionInterval = Math.max(DETECTION_CONFIG.detectionInterval - 1, DETECTION_CONFIG.minInterval);
-        console.log(`🚀 Performance good (${avgFps.toFixed(1)} FPS, ${avgProcessingTime.toFixed(1)}ms) - increasing detection frequency to every ${DETECTION_CONFIG.detectionInterval} frames`);
-      }
-    }
-  }
-
-  // Add detecting class to camera wrapper
-  function setDetectingState(isDetecting) {
-    const cameraWrapper = document.getElementById('camera-wrapper');
-    if (!cameraWrapper) {
-      console.warn('Camera wrapper element not found');
-      return;
-    }
-    
-    if (isDetecting) {
-      cameraWrapper.classList.add('detecting');
-    } else {
-      cameraWrapper.classList.remove('detecting');
-    }
-  }
-  // Set initial state of buttons
-  function updateButtonStates() {
-    if (!startBtn || !stopBtn || !switchCameraBtn) {
-      console.warn('One or more camera control buttons not found in DOM');
-      return;
-    }
-    
-    if (detecting) {
-      startBtn.style.display = "none";
-      stopBtn.style.display = "inline-block";
-      switchCameraBtn.style.display = "inline-block";
-    } else {
-      startBtn.style.display = "inline-block";
-      stopBtn.style.display = "none";
-      switchCameraBtn.style.display = "none";
-    }
-  }
-  // Main detection loop with improved frame handling
-  async function processFrame() {
-    if (!detecting || !session) return;
-
-    frameCount++;
-    frameCountDisplay.textContent = frameCount;
-
-    if (!letterboxParams) computeLetterboxParams();
-
-    let detections = [];
-    let useApiResults = false;
-
-    // Process detection using configurable interval for better performance
-    if (frameCount % DETECTION_CONFIG.detectionInterval === 0) {
-      // Prepare frame for detection
-      offCtx.fillStyle = "black";
-      offCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
-      offCtx.drawImage(video, letterboxParams.offsetX, letterboxParams.offsetY, letterboxParams.newW, letterboxParams.newH);
-
-      const imageData = offCtx.getImageData(0, 0, FIXED_SIZE, FIXED_SIZE);
-
-      // Try session-based API detection first (if available), then fallback to ONNX
-      if (apiAvailable && useApi && apiSessionId && frameCount % 15 === 0) { // Reduce API calls for better performance
+    const frame = await captureFrame();
+    if (frame) {
         try {
-          // Create a proper canvas with video frame for API detection
-          const apiCanvas = document.createElement('canvas');
-          apiCanvas.width = FIXED_SIZE;
-          apiCanvas.height = FIXED_SIZE;
-          const apiCtx = apiCanvas.getContext('2d');
-          
-          // Draw video frame properly formatted for detection
-          apiCtx.fillStyle = "black";
-          apiCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
-          apiCtx.drawImage(video, letterboxParams.offsetX, letterboxParams.offsetY, letterboxParams.newW, letterboxParams.newH);
-          
-          console.log("🌐 Attempting session-based API detection...");
-          detections = await detectWithApiClient(apiCanvas);
-          if (detections.length > 0) {
-            useApiResults = true;
-            console.log("🔥 Using session-based API detection results:", detections.length, "detections");
-          } else {
-            console.log("🔍 Session-based API returned no detections");
-          }
+            const tensor = preprocess(frame, model_dim);
+            const feeds = { 'images': tensor };
+            const results = await session.run(feeds);
+            const detections = postprocess(results.output0, model_dim, frame.width, frame.height);
+
+            drawResults(detections, frame);
+            if (detections.length > 0) {
+                handleSaveDetection(detections, frame);
+            }
+
         } catch (error) {
-          console.warn("Session-based API detection failed, using ONNX fallback:", error);
+            console.error("Error during detection:", error);
         }
-      }
+    }
+    
+    // Calculate FPS
+    const now = performance.now();
+    frameCount++;
+    if (now - lastFrameTime >= 1000) {
+        fps = frameCount;
+        frameCount = 0;
+        lastFrameTime = now;
+        if(fpsBadge) fpsBadge.textContent = `${fps} FPS`;
+    }
 
-      // Fallback to ONNX if API didn't return results or failed
-      if (detections.length === 0 && session) {
-        detections = await detectWithOnnx(imageData);
-      }
-      
-      // Update last frame detections and frame number when new detections are processed
-      if (detections.length > 0) {
-        lastFrameDetections = [...detections]; // Deep copy
-        lastDetections = [...detections]; // Update global reference too
-        lastDetectionFrame = frameCount;
-      }
+    animationFrameId = requestAnimationFrame(detectionLoop);
+}
+
+async function captureFrame() {
+    if (videoElement.readyState < 2) return null; // Not ready
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = videoElement.videoWidth;
+    tempCanvas.height = videoElement.videoHeight;
+    const ctx = tempCanvas.getContext('2d');
+    ctx.drawImage(videoElement, 0, 0, tempCanvas.width, tempCanvas.height);
+    return tempCanvas;
+}
+
+
+// --- Pre-processing ---
+function preprocess(source, model_dim) {
+    const [model_width, model_height] = model_dim;
+    const [input_width, input_height] = [source.width, source.height];
+
+    const ratio = Math.min(model_width / input_width, model_height / input_height);
+    const new_width = Math.round(input_width * ratio);
+    const new_height = Math.round(input_height * ratio);
+
+    const C = document.createElement('canvas');
+    C.width = model_width;
+    C.height = model_height;
+    const ctx = C.getContext('2d');
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, model_width, model_height);
+
+    const x_offset = (model_width - new_width) / 2;
+    const y_offset = (model_height - new_height) / 2;
+    ctx.drawImage(source, x_offset, y_offset, new_width, new_height);
+
+    const image_data = ctx.getImageData(0, 0, model_width, model_height);
+    const data = image_data.data;
+
+    const red = [], green = [], blue = [];
+    for (let i = 0; i < data.length; i += 4) {
+        red.push(data[i] / 255.0);
+        green.push(data[i + 1] / 255.0);
+        blue.push(data[i + 2] / 255.0);
+    }
+    const transposed = red.concat(green, blue);
+    const float32_data = new Float32Array(transposed);
+
+    return new ort.Tensor('float32', float32_data, [1, 3, model_height, model_width]);
+}
+
+
+// --- Post-processing ---
+function postprocess(output, model_dim, original_width, original_height) {
+    if (!output || !output.dims) {
+        console.error("Invalid model output received for postprocessing.");
+        return [];
+    }
+    const [model_width, model_height] = model_dim;
+    const boxes = [];
+
+    for (let i = 0; i < output.dims[2]; i++) {
+        const data = output.data.slice(i * output.dims[1], (i + 1) * output.dims[1]);
+        const [x, y, w, h, ...class_probs] = data;
+        const score = Math.max(...class_probs);
+
+        if (score < 0.3) continue; // Confidence threshold
+
+        const label_index = class_probs.indexOf(score);
+        const label = classes[label_index];
+
+        const ratio_w = original_width / model_width;
+        const ratio_h = original_height / model_height;
+        const ratio = Math.max(ratio_w, ratio_h);
+
+        const [x_c, y_c, width, height] = [
+            (x - (model_width - original_width / ratio) / 2) * ratio,
+            (y - (model_height - original_height / ratio) / 2) * ratio,
+            w * ratio,
+            h * ratio
+        ];
+
+        boxes.push({
+            box: [
+                x_c - width / 2,
+                y_c - height / 2,
+                x_c + width / 2,
+                y_c + height / 2
+            ],
+            label: label,
+            score: score,
+        });
+    }
+    return nms(boxes, 0.5); // Apply NMS with IoU threshold of 0.5
+}
+
+// --- NMS (Non-Maximum Suppression) ---
+function nms(boxes, iou_threshold) {
+    boxes.sort((a, b) => b.score - a.score);
+    const result = [];
+    while (boxes.length > 0) {
+        result.push(boxes[0]);
+        boxes = boxes.filter(box => iou(boxes[0], box) < iou_threshold);
+    }
+    return result;
+}
+
+function iou(box1, box2) {
+    const [x1, y1, x2, y2] = box1.box;
+    const [x3, y3, x4, y4] = box2.box;
+
+    const inter_x1 = Math.max(x1, x3);
+    const inter_y1 = Math.max(y1, y3);
+    const inter_x2 = Math.min(x2, x4);
+    const inter_y2 = Math.min(y2, y4);
+
+    const inter_area = Math.max(0, inter_x2 - inter_x1) * Math.max(0, inter_y2 - inter_y1);
+    const box1_area = (x2 - x1) * (y2 - y1);
+    const box2_area = (x4 - x3) * (y4 - y3);
+
+    return inter_area / (box1_area + box2_area - inter_area);
+}
+
+
+// --- Drawing and Reporting ---
+function drawResults(detections, source) {
+    const ctx = canvasElement.getContext('2d');
+    ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+    ctx.drawImage(source, 0, 0, canvasElement.width, canvasElement.height);
+
+    // Update UI badges
+    if(detectionCountBadge) detectionCountBadge.textContent = `${detections.length} hazard${detections.length === 1 ? '' : 's'}`;
+    if (detections.length > 0) {
+        if(hazardTypesDisplay) hazardTypesDisplay.style.display = 'flex';
+        const uniqueLabels = [...new Set(detections.map(d => d.label))];
+        if(hazardTypesList) hazardTypesList.textContent = uniqueLabels.join(', ');
     } else {
-      // Use last frame detections for smooth tracking between detection intervals
-      detections = lastFrameDetections;
+        if(hazardTypesDisplay) hazardTypesDisplay.style.display = 'none';
     }
 
-    // Always draw detections to ensure synchronization with current video frame
-    drawDetections(ctx, detections, useApiResults);
-    updatePerformanceStats();
+    detections.forEach(det => {
+        const [x1, y1, x2, y2] = det.box;
+        const label = `${det.label} (${det.score.toFixed(2)})`;
+        ctx.strokeStyle = '#00FF00';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
 
-    requestAnimationFrame(processFrame);
-  }
-
-  function startProcessingLoop() {
-    requestAnimationFrame(processFrame);
-  }
-
-  // Event Listeners
-  if (startBtn) {
-    startBtn.addEventListener("click", async () => {
-    if (!session) {
-      showNotification("Model not loaded. Please wait for model initialization.", 'warning');
-      return;
-    }
-
-    try {
-      startBtn.disabled = true;
-      updateConnectionStatus('processing', 'Starting Camera...');
-
-      // API session was already started during initialization
-
-      // Get optimal constraints based on device capabilities
-      updateConnectionStatus('processing', 'Optimizing camera settings...');
-      optimalConstraints = await getOptimalVideoConstraints();
-      
-      console.log('🎯 Using optimal video constraints:', optimalConstraints);
-      const constraints = optimalConstraints;
-
-      stream = await navigator.mediaDevices.getUserMedia(constraints);
-      video.srcObject = stream;
-      
-      detecting = true;
-      updateButtonStates(); // Hide start, show stop
-
-      video.addEventListener("loadeddata", () => {
-        syncCanvasSize();
-        computeLetterboxParams();
-        setDetectingState(true);
-        
-        // Reset detection stats and summary for new session
-        detectionStats = {
-          totalDetections: 0,
-          sessionStart: Date.now(),
-          frameProcessingTimes: [],
-          detectedHazards: new Set()
-        };
-        sessionDetectionsSummary = [];
-        
-        // Start camera session tracking
-        startCameraSession();
-        
-        const statusMsg = apiAvailable && useApi ? 'Enhanced API + ONNX Detection Active' : 'ONNX Detection Active';
-        updateConnectionStatus('processing', statusMsg);
-        startProcessingLoop();
-      }, { once: true });
-
-    } catch (err) {
-      showNotification("לא ניתן לפתוח מצלמה", 'error');
-      console.error("Camera error:", err);
-      detecting = false;
-      updateButtonStates();
-      startBtn.disabled = false;
-      updateConnectionStatus('ready', 'System Ready');
-    }
-  });
-  }
-
-  if (stopBtn) {
-    stopBtn.addEventListener("click", async () => {
-    detecting = false;
-
-    setDetectingState(false);
-    
-    // Clean up streaming buffers and dispose session for optimal memory usage
-    await disposeSession();
-    
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      stream = null;
-    }
-    video.srcObject = null;
-
-    updateButtonStates();
-    startBtn.disabled = false;
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    console.log("Camera stopped");
-    
-    // End camera session tracking
-    endCameraSession();
-
-    // End API session and get summary
-    if (apiAvailable && apiSessionId) {
-      try {
-        const sessionSummary = await endApiSessionLocal();
-        console.log("📊 API detection session completed:", sessionSummary);
-      } catch (error) {
-        console.warn("⚠️ Failed to properly end API session:", error);
-      }
-    }
-
-    // Send queued detections to API (matching upload_tf.js logic)
-    if (pendingDetections.length > 0) {
-      console.log(`📨 Sending ${pendingDetections.length} detections to server...`);
-      for (const detection of pendingDetections) {
-        try {
-          const res = await fetch("/api/reports", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(detection)
-          });
-          const result = await res.json();
-          console.log("✅ Detection saved:", result);
-        } catch (e) {
-          console.error("🔥 Failed to send detection:", e);
-        }
-      }
-      pendingDetections.length = 0;
-    }
-
-    // Show summary modal if there were detections
-    if (detectionStats.totalDetections > 0 || sessionDetectionsSummary.length > 0) {
-        // Fetch reports for this trip and then show summary
-        if (apiSessionId) {
-            fetchReports({ tripId: apiSessionId }).then(data => {
-                showSummaryModal(data.reports);
-            }).catch(error => {
-                console.error("Failed to fetch reports for summary:", error);
-                // Fallback to showing modal without server data if fetch fails
-                showSummaryModal([]);
-            });
-        } else {
-            // If there's no session ID, show summary with whatever is local (likely nothing)
-            showSummaryModal([]);
-        }
-    }
-
-    // Reset stats and clear tracking data
-    frameCount = 0;
-
-    // Don't reset detection stats immediately - keep for summary modal
-    // They will be reset when starting a new session
-
-    updateConnectionStatus('ready', 'System Ready');
-  });
-  }
-
-  // switch camera
-  if (switchCameraBtn) {
-    switchCameraBtn.addEventListener("click", async () => {
-    if (!detecting) return;
-    
-    currentCamera = currentCamera === 'user' ? 'environment' : 'user';
-    
-    // Stop current stream
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-    }
-    
-    // Start with new camera
-    try {
-      // Recalculate optimal constraints for new camera
-      updateConnectionStatus('processing', 'Optimizing new camera settings...');
-      optimalConstraints = await getOptimalVideoConstraints();
-      
-      console.log('🔄 Camera switch - new optimal constraints:', optimalConstraints);
-      const constraints = optimalConstraints;
-
-      stream = await navigator.mediaDevices.getUserMedia(constraints);
-      video.srcObject = stream;
-      
-      video.addEventListener("loadeddata", () => {
-        syncCanvasSize();
-        computeLetterboxParams();
-      }, { once: true });
-      
-    } catch (err) {
-      showNotification("Failed to switch camera", 'error');
-      console.error("Camera switch error:", err);
-    }
-  });
-  }
-
-  // Settings button toggle with accessibility
-  settingsBtn.addEventListener("click", () => {
-    const isExpanded = settingsPanel.classList.contains('show');
-    settingsPanel.classList.toggle('show');
-    settingsBtn.setAttribute('aria-expanded', !isExpanded);
-    settingsPanel.setAttribute('aria-hidden', isExpanded);
-  });
-
-  // Sensitivity slider with real-time feedback
-  sensitivitySlider.addEventListener("input", (e) => {
-    confidenceThreshold = parseFloat(e.target.value);
-    const valueElement = document.getElementById('sensitivity-value');
-    if (valueElement) {
-      valueElement.textContent = `${Math.round(confidenceThreshold * 100)}%`;
-    }
-    
-    // Update detection config in real-time
-    DETECTION_CONFIG.minConfidence = confidenceThreshold;
-    console.log(`🎚️ Detection sensitivity updated: ${Math.round(confidenceThreshold * 100)}%`);
-  });
-
-  // Save interval slider
-  const saveIntervalSlider = document.getElementById('save-interval-slider');
-  if (saveIntervalSlider) {
-    saveIntervalSlider.addEventListener("input", (e) => {
-      const newInterval = parseInt(e.target.value);
-      const valueElement = document.getElementById('save-interval-value');
-      if (valueElement) {
-        valueElement.textContent = newInterval;
-      }
-      
-      // Update detection save interval
-      DETECTION_SAVE_INTERVAL = newInterval;
-      console.log(`💾 Auto-save interval updated: every ${newInterval} frames`);
+        ctx.fillStyle = '#00FF00';
+        ctx.font = '16px sans-serif';
+        const textWidth = ctx.measureText(label).width;
+        ctx.fillRect(x1 - 1, y1 - 18, textWidth + 4, 20);
+        ctx.fillStyle = '#000000';
+        ctx.fillText(label, x1 + 1, y1 - 2);
     });
-  }
-  // Summary Modal Functions
-  function showSummaryModal(reports = []) {
-    updateSummaryData(reports);
-    summaryModal.show();
-  }
+}
 
-  function hideSummaryModal() {
-    summaryModal.hide();
-  }
+let lastSaveTime = 0;
+const SAVE_INTERVAL = 5000; // 5 seconds
 
-  function updateSummaryData(reports = []) {
-    // Update session stats from server data
-    totalDetectionsCount.textContent = reports.length;
-    
-    // Calculate and display session duration
-    const sessionDuration = Date.now() - detectionStats.sessionStart;
-    const minutes = Math.floor(sessionDuration / 60000);
-    const seconds = Math.floor((sessionDuration % 60000) / 1000);
-    sessionDurationDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-    
-    // Update unique hazards count from server data
-    const uniqueHazards = new Set(reports.map(r => r.type));
-    uniqueHazardsCount.textContent = uniqueHazards.size;
-    
-    // Update detections grid
-    updateDetectionsGrid(reports);
-    
-    // Load saved reports (this is for a separate list in the modal, can remain)
-    loadSavedReports();
-  }
-
-  function updateDetectionsGrid(reports = []) {
-    if (reports.length === 0) {
-      detectionsGrid.innerHTML = `
-        <div class="no-detections">
-          <i class="fas fa-search"></i>
-          <p>No hazards were saved to the server for this session</p>
-        </div>
-      `;
-      return;
+function handleSaveDetection(detections, frameCanvas) {
+    const now = Date.now();
+    if (now - lastSaveTime < SAVE_INTERVAL) {
+        return; // Debounce saving
     }
+    lastSaveTime = now;
 
-    detectionsGrid.innerHTML = reports.map((report, index) => `
-      <div class="detection-item">
-        ${report.image ? `
-          <div class="detection-image">
-            <img src="${report.image}" alt="${report.type}" onclick="showImageModal('${report.image}', '${report.type}')" />
-          </div>
-        ` : ''}
-        <div class="detection-content">
-          <div class="detection-item-header">
-            <span class="detection-type">${report.type}</span>
-            <span class="detection-confidence">${report.confidence}%</span>
-          </div>
-          <div class="detection-timestamp">${new Date(report.time).toLocaleTimeString()}</div>
-          <div class="detection-location">
-            <i class="fas fa-map-marker-alt"></i>
-            ${report.location ? `${report.location.lat.toFixed(4)}, ${report.location.lng.toFixed(4)}` : 'Live Camera Feed'}
-          </div>
-        </div>
-      </div>
-    `).join('');
-  }
+    console.log("Preparing to save detection:", detections);
 
-  // Show image in modal
-  function showImageModal(imageSrc, title) {
-    const modal = document.createElement('div');
-    modal.className = 'image-modal';
-    modal.innerHTML = `
-      <div class="image-modal-overlay" onclick="this.parentElement.remove()">
-        <div class="image-modal-content" onclick="event.stopPropagation()">
-          <div class="image-modal-header">
-            <h3>${title}</h3>
-            <button onclick="this.closest('.image-modal').remove()" class="image-modal-close">
-              <i class="fas fa-times"></i>
-            </button>
-          </div>
-          <div class="image-modal-body">
-            <img src="${imageSrc}" alt="${title}" style="max-width: 100%; max-height: 80vh;" />
-          </div>
-        </div>
-      </div>
-    `;
-    
-    // Add modal styles
-    const style = document.createElement('style');
-    style.textContent = `
-      .image-modal {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        z-index: 9999;
-      }
-      .image-modal-overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.9);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-      }
-      .image-modal-content {
-        background: #fff;
-        border-radius: 8px;
-        max-width: 90vw;
-        max-height: 90vh;
-        overflow: auto;
-        cursor: default;
-      }
-      .image-modal-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 15px 20px;
-        border-bottom: 1px solid #eee;
-      }
-      .image-modal-header h3 {
-        margin: 0;
-        color: #333;
-      }
-      .image-modal-close {
-        background: none;
-        border: none;
-        font-size: 18px;
-        cursor: pointer;
-        color: #666;
-      }
-      .image-modal-body {
-        padding: 20px;
-        text-align: center;
-      }
-    `;
-    
-    document.head.appendChild(style);
-    document.body.appendChild(modal);
-  }
-
-  async function loadSavedReports() {
-    try {
-      savedReportsList.innerHTML = `
-        <div class="loading-reports">
-          <i class="fas fa-spinner fa-spin"></i>
-          <p>Loading saved reports...</p>
-        </div>
-      `;
-
-      // Fetch saved reports from the server with timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-      
-      const response = await fetch('/api/reports', {
-        method: 'GET',
-        credentials: 'include',
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-
-      if (response.ok) {
-        const data = await response.json();
-        
-        // Handle different API response formats
-        let reports = [];
-        if (Array.isArray(data)) {
-          reports = data;
-        } else if (data.reports && Array.isArray(data.reports)) {
-          reports = data.reports;
-        } else if (data.data && Array.isArray(data.data)) {
-          reports = data.data;
-        } else {
-          console.log('Unexpected API response format:', data);
-          reports = [];
+    frameCanvas.toBlob(async (blob) => {
+        if (!blob) {
+            console.error("Failed to create blob from canvas.");
+            return;
         }
-        
-        if (reports.length === 0) {
-          savedReportsList.innerHTML = `
-            <div class="no-detections">
-              <i class="fas fa-inbox"></i>
-              <p>No saved reports found</p>
-            </div>
-          `;
-          return;
-        }
-
-        // Show recent reports (last 10)
-        const recentReports = reports.slice(0, 10);
-        
-        savedReportsList.innerHTML = recentReports.map(report => `
-          <div class="report-item">
-            <div class="report-thumbnail" style="background-image: url('${report.image || '/images/placeholder.jpg'}')"></div>
-            <div class="report-info">
-              <div class="report-type">${report.type}</div>
-              <div class="report-details">
-                ${new Date(report.time).toLocaleDateString()} • ${report.location}
-              </div>
-            </div>
-            <div class="report-status ${report.status === 'uploaded' ? 'uploaded' : 'pending'}">
-              ${report.status}
-            </div>
-          </div>
-        `).join('');
-      } else if (response.status === 404) {
-        // API endpoint doesn't exist - show placeholder
-        savedReportsList.innerHTML = `
-          <div class="no-detections">
-            <i class="fas fa-info-circle"></i>
-            <p>Reports API not available</p>
-          </div>
-        `;
-      } else {
-        throw new Error(`Failed to fetch reports: ${response.status}`);
-      }
-    } catch (error) {
-      console.error('Error loading saved reports:', error);
-      
-      // Show different messages based on error type
-      let errorMessage = 'Error loading reports';
-      if (error.name === 'AbortError') {
-        errorMessage = 'Request timed out';
-      } else if (error.message.includes('404') || error.message.includes('Failed to fetch')) {
-        errorMessage = 'Reports service unavailable';
-      } else if (error.name === 'TypeError') {
-        errorMessage = 'Connection error';
-      }
-      
-      savedReportsList.innerHTML = `
-        <div class="no-detections">
-          <i class="fas fa-exclamation-triangle"></i>
-          <p>${errorMessage}</p>
-        </div>
-      `;
-    }
-  }
-
-  function exportSummary() {
-    const summaryData = {
-      sessionStats: {
-        totalDetections: detectionStats.totalDetections,
-        sessionDuration: Date.now() - detectionStats.sessionStart,
-        uniqueHazards: Array.from(detectionStats.detectedHazards),
-        sessionStart: new Date(detectionStats.sessionStart).toISOString(),
-        sessionEnd: new Date().toISOString()
-      },
-      detections: sessionDetectionsSummary,
-      performance: {
-        averageProcessingTime: detectionStats.frameProcessingTimes.length > 0 
-          ? Math.round(detectionStats.frameProcessingTimes.reduce((a, b) => a + b, 0) / detectionStats.frameProcessingTimes.length)
-          : 0,
-        totalFrames: frameCount
-      }
-    };
-
-    const blob = new Blob([JSON.stringify(summaryData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `detection-summary-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    showNotification('Summary exported successfully', 'success');
-  }
-
-exportSummaryBtn.addEventListener('click', exportSummary);
-  
-  viewDashboardBtn.addEventListener('click', () => {
-    window.location.href = '/dashboard.html';
-  });
-
-  // Additional UI elements for new functionality
-  const captureBtn = document.getElementById('capture-btn');
-  const summaryBtn = document.getElementById('summary-btn');
-  const imagePreviewModal = new bootstrap.Modal(document.getElementById('imagePreviewModal'));
-  const previewImage = document.getElementById('preview-image');
-  const detectionMetadata = document.getElementById('detection-metadata');
-  const saveDetectionBtn = document.getElementById('save-detection-btn');
-
-  // Global variable to store current captured frame data for saving
-  let currentCapturedData = null;
-
-  // Manual capture function
-  function captureCurrentFrame() {
-    if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
-      showNotification('No video available for capture', 'error');
-      return;
-    }
-
-    try {
-      // Create canvas to capture the current frame
-      const captureCanvas = document.createElement('canvas');
-      captureCanvas.width = video.videoWidth;
-      captureCanvas.height = video.videoHeight;
-      const captureCtx = captureCanvas.getContext('2d');
-      
-      // Draw the current video frame
-      captureCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
-      
-      // Get current detections if available
-      const currentDetections = lastDetections || [];
-      
-      // Create image with detections drawn on it for preview
-      let previewCanvas = captureCanvas;
-      if (currentDetections.length > 0) {
-        previewCanvas = createDetectionImage(video, currentDetections);
-      }
-      
-      // Store capture data for potential saving
-      currentCapturedData = {
-        canvas: captureCanvas,
-        detections: currentDetections,
-        timestamp: new Date().toISOString()
-      };
-      
-      // Show preview in modal
-      const imageDataUrl = previewCanvas.toDataURL('image/jpeg', 0.9);
-      previewImage.src = imageDataUrl;
-      
-      // Update metadata
-      const metadata = `
-        <p><strong>Capture Time:</strong> ${new Date().toLocaleString()}</p>
-        <p><strong>Detections Found:</strong> ${currentDetections.length}</p>
-        ${currentDetections.length > 0 ? `
-          <div class="detection-list">
-            ${currentDetections.map((det) => {
-              const [, , , , score, classId] = det;
-              const correctedClassId = Math.floor(classId) - 1;
-              const classIndex = Math.max(0, correctedClassId);
-              const label = CLASS_NAMES[classIndex] || `Unknown Class ${classIndex}`;
-              return `<p>• ${label} (${(score * 100).toFixed(1)}% confidence)</p>`;
-            }).join('')}
-          </div>
-        ` : ''}
-      `;
-      detectionMetadata.innerHTML = metadata;
-      
-      // Show the modal
-      imagePreviewModal.show();
-      
-      showNotification('Frame captured successfully', 'success');
-      
-    } catch (error) {
-      console.error('Error capturing frame:', error);
-      showNotification('Failed to capture frame', 'error');
-    }
-  }
-
-  // Save the previewed detection
-  async function savePreviewedDetection() {
-    if (!currentCapturedData) {
-      showNotification('No captured data to save', 'error');
-      return;
-    }
-
-    try {
-      const { canvas, detections, timestamp } = currentCapturedData;
-      
-      if (detections.length === 0) {
-        // Save as manual capture without detections
-        const imageUrl = await uploadDetection(canvas, []);
-        
-        const report = {
-          type: 'Manual Capture',
-          confidence: 100,
-          timestamp: timestamp,
-          imageUrl: imageUrl,
-          location: { x: 0, y: 0, width: canvas.width, height: canvas.height },
-          manual: true
+        const reportData = {
+            timestamp: new Date().toISOString(),
+            latitude: null, // No EXIF for live video
+            longitude: null,
+            detections: detections.map(d => ({
+                box: d.box,
+                label: d.label,
+                score: d.score
+            })),
+            imageBlob: blob,
+            imageName: `detection-${Date.now()}.jpg`
         };
-        
-        // Note: Manual captures are handled separately from automatic detections
-        // They could be stored in localStorage or sent to the server directly
-        showNotification('Manual capture saved successfully', 'success');
-      } else {
-        // Save with detections using existing saveDetection function
-        const primaryDetection = detections[0]; // Use first detection as primary
-        await saveDetection(video, detections, primaryDetection);
-        showNotification('Detection report saved successfully', 'success');
-      }
-      
-      // Hide modal and clear captured data
-      imagePreviewModal.hide();
-      currentCapturedData = null;
-      
-    } catch (error) {
-      console.error('Error saving previewed detection:', error);
-      showNotification('Failed to save detection report', 'error');
-    }
-  }
 
-  // Manual capture button
-  if (captureBtn) {
-    captureBtn.addEventListener('click', captureCurrentFrame);
-  }
+        try {
+            await saveReport(reportData);
+            console.log("Report saved successfully.");
+            if (typeof notify === 'function') {
+                notify(`Report with ${detections.length} hazard(s) saved.`, 'success');
+            }
+        } catch (error) {
+            console.error("Error saving report:", error);
+            if (typeof notify === 'function') {
+                notify('Error saving report. See console for details.', 'error');
+            }
+        }
+    }, 'image/jpeg', 0.8);
+}
 
-  // Summary button
-  if (summaryBtn) {
-    summaryBtn.addEventListener('click', showCameraSessionSummary);
-  }
 
-  // Save detection button in preview modal
-  if (saveDetectionBtn) {
-    saveDetectionBtn.addEventListener('click', savePreviewedDetection);
-  }
-
-  // Initialize on load with comprehensive validation
-  async function main() {
-    try {
-      // Validate essential components
-      console.log("🔍 Validating system components...");
-      
-      // Check ONNX Runtime availability
-      if (typeof ort === 'undefined') {
-        throw new Error('ONNX Runtime not loaded');
-      }
-      
-      // Check essential DOM elements
-      const requiredElements = ['start-camera', 'stop-camera', 'camera-stream', 'overlay-canvas'];
-      const missingElements = requiredElements.filter(id => !document.getElementById(id));
-      if (missingElements.length > 0) {
-        throw new Error(`Missing DOM elements: ${missingElements.join(', ')}`);
-      }
-      
-      // Check CLASS_NAMES is properly defined
-      if (!window.CLASS_NAMES || !Array.isArray(window.CLASS_NAMES)) {
-        throw new Error('CLASS_NAMES not properly defined');
-      }
-      
-      updateButtonStates();
-      startBtn.disabled = true;
-      
-      console.log("✅ System validation passed");
-      const success = await initializeDetection();
-      
-      if (success) {
-        startBtn.disabled = false;
-        console.log("🚀 Enhanced ONNX-powered Camera Detection System Ready");
-      } else {
-        startBtn.disabled = true;
-        console.warn("⚠️ System loaded with limited functionality");
-      }
-      
-    } catch (error) {
-      console.error("❌ System initialization failed:", error);
-      updateConnectionStatus('error', `Initialization Error: ${error.message}`);
-      if (startBtn) startBtn.disabled = true;
-    }
-  }
-  
-  main();
-});
+// --- Start ---
+document.addEventListener('DOMContentLoaded', initialize);

@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@400;500&display=swap');
+
 /* --- Technology Dashboard Car Design Theme --- */
 
 /* Theme Variables */
@@ -27,8 +29,6 @@
   --font-body: 'Roboto', sans-serif;
   --font-display: 'Orbitron', sans-serif;
 }
-
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Roboto:wght@400;500&display=swap');
 
 body {
   background-color: var(--bg-dark);

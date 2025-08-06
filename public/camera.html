@@ -23,7 +23,7 @@
     <!-- Main Camera App Container -->
     <main class="camera-app main-content" role="main">
         <!-- Camera View Section -->
-        <section class="camera-view" aria-label="Live camera feed">
+        <section class="camera-view" id="camera-wrapper" aria-label="Live camera feed">
             <video id="camera-stream" autoplay playsinline muted aria-label="Live camera stream"></video>
             <canvas id="overlay-canvas" aria-hidden="true"></canvas>
         </section>
@@ -100,7 +100,7 @@
                         <i class="fas fa-cog" aria-hidden="true"></i>
                     </button>
                     <button class="camera-button primary" id="start-camera" 
-                            aria-label="Start detection">
+                            aria-label="Start detection" disabled>
                         <i class="fas fa-play" aria-hidden="true"></i>
                     </button>
                     <button class="camera-button primary" id="stop-camera" 
@@ -286,7 +286,7 @@
     <script>
         // Configure ONNX Runtime for optimal web performance
         if (typeof ort !== 'undefined') {
-            ort.env.wasm.wasmPaths = 'ort/';
+            ort.env.wasm.wasmPaths = '/ort/';
             ort.env.wasm.numThreads = Math.min(navigator.hardwareConcurrency || 4, 4);
             ort.env.logLevel = 'error'; // Reduce logging
         }
@@ -294,7 +294,7 @@
     <script src="js/notifications.js"></script>
     <script type="module" src="js/apiClient.js"></script>
     <!-- Camera detection with optimized ONNX integration -->
-    <script src="js/camera_detection.js" defer></script>
+    <script type="module" src="js/camera_detection.js"></script>
     
     <!-- Initialize App -->
     <script>
