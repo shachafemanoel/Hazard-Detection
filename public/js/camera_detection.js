@@ -1127,12 +1127,25 @@ async function runAPIDetection() {
       cameraState.apiSessionId,
       blob
     ); // aligned with spec: POST /detect/{session_id}, multipart/form-data, field name "file"
+    
     cameraState.apiAvailable = true;
-    return parseAPIDetections(result.detections || []);
+    
+    // Validate API response
+    if (!result || typeof result !== 'object') {
+      console.warn('⚠️ Invalid API response format:', result);
+      return [];
+    }
+    
+    // Check for detections array
+    const detections = result.detections || [];
+    console.log(`🔍 API returned ${detections.length} detections`);
+    
+    return parseAPIDetections(detections);
   } catch (error) {
     console.error('❌ API detection attempt failed:', error.message);
     cameraState.apiAvailable = false;
-    throw error;
+    // Return empty array instead of throwing to prevent endless error loop
+    return [];
   }
 }
 
@@ -1224,15 +1237,45 @@ async function runLocalDetection(inputTensor) {
 function parseAPIDetections(apiDetections) {
   const detections = [];
   
+  if (!Array.isArray(apiDetections)) {
+    console.warn('⚠️ API detections is not an array:', apiDetections);
+    return [];
+  }
+  
   for (const detection of apiDetections) {
-    // API might return different formats, adapt as needed
+    if (!detection) {
+      console.warn('⚠️ Empty detection object, skipping');
+      continue;
+    }
+    
+    // Handle the API response format: bbox array [x1, y1, x2, y2]
+    let x1, y1, x2, y2, score, classId;
+    
+    if (detection.bbox && Array.isArray(detection.bbox) && detection.bbox.length >= 4) {
+      // API format: {bbox: [x1, y1, x2, y2], confidence: score, class_id: id}
+      [x1, y1, x2, y2] = detection.bbox;
+      score = detection.confidence;
+      classId = detection.class_id;
+    } else if (detection.x1 !== undefined && detection.y1 !== undefined) {
+      // Alternative format: {x1, y1, x2, y2, score, classId}
+      x1 = detection.x1;
+      y1 = detection.y1;
+      x2 = detection.x2;
+      y2 = detection.y2;
+      score = detection.score || detection.confidence;
+      classId = detection.classId || detection.class_id;
+    } else {
+      console.warn('⚠️ Unrecognized detection format:', detection);
+      continue;
+    }
+    
     const parsed = {
-      x1: detection.x1 || detection.bbox[0] || detection.box[0],
-      y1: detection.y1 || detection.bbox[1] || detection.box[1], 
-      x2: detection.x2 || detection.bbox[2] || detection.box[2],
-      y2: detection.y2 || detection.bbox[3] || detection.box[3],
-      score: detection.confidence || detection.score,
-      classId: detection.class_id || detection.class || 0
+      x1: parseFloat(x1),
+      y1: parseFloat(y1),
+      x2: parseFloat(x2),
+      y2: parseFloat(y2),
+      score: parseFloat(score),
+      classId: parseInt(classId || 0)
     };
     
     // Validate and filter
