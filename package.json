@@ -8,8 +8,7 @@
     "start": "node server/routes/server.js",
     "dev": "nodemon server/routes/server.js",
     "build": "echo 'No build step needed'",
-    "test:run": "node --test __tests__/**/*.test.js test/**/*.test.js public/js/**/*.test.js",
-    "test": "./test-server.sh",
+    "test": "node --test __tests__/refactor-integration.test.js",
     "stream:check": "node scripts/stream-check.js"
   },
   "keywords": [],

@@ -66,25 +66,113 @@
         <div class="loading-spinner"></div>
       </section>
     </div>
-    <!-- ----------------------------------------- -->
-  </main>
 
-  <!-- 1️⃣  ONNX Runtime (global `window.ort`) -->
-  <script type="module">
-    import * as ort from 'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.mjs';
-    window.ort = ort;
-  </script>
-  <script>
-    // Configure ONNX Runtime WASM path for CDN
-    if (typeof ort !== 'undefined') {
-      ort.env.wasm.wasmPath = 'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/';
-      ort.env.wasm.numThreads = 1; // Or adjust based on your needs
-      ort.env.wasm.simd = true; // Enable SIMD if supported
-      ort.env.wasm.proxy = true; // Enable proxy for threaded WASM
-    }
-  </script>
+    <!-- Core Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/layout.js" defer></script>
+    <!-- ONNX Runtime for Web -->
+    <script src="ort/ort.min.js"></script>
+    <script>
+        // Configure ONNX Runtime for optimal web performance
+        if (typeof ort !== 'undefined') {
+            ort.env.wasm.wasmPaths = '/ort/';
+            ort.env.wasm.numThreads = Math.min(navigator.hardwareConcurrency || 4, 4);
+            ort.env.logLevel = 'error'; // Reduce logging
+        }
+    </script>
+    <script src="js/notifications.js"></script>
+    <script type="module" src="js/apiClient.js"></script>
+    <!-- Camera detection with optimized ONNX integration -->
+    <script type="module" src="js/upload_tf.js"></script>
+    
+    <!-- Initialize App -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize notification system
+            if (typeof initializeNotifications === 'function') {
+                initializeNotifications();
+            }
+            
+            // Initialize accessibility features
+            initializeAccessibility();
+            
+            console.log('📷 Professional Hazard Detection Camera App Loaded');
+        });
 
-  <!-- 2️⃣  Unified controller -->
-  <script type="module" defer src="js/upload_tf.js"></script>
+        // Accessibility initialization
+        function initializeAccessibility() {
+            // Add keyboard navigation support
+            document.addEventListener('keydown', function(e) {
+                // ESC key closes modals and panels
+                if (e.key === 'Escape') {
+                    const settingsPanel = document.getElementById('settings-panel');
+                    if (settingsPanel.classList.contains('show')) {
+                        settingsPanel.classList.remove('show');
+                        document.getElementById('settings-btn').setAttribute('aria-expanded', 'false');
+                    }
+                    
+                    const alertModal = document.getElementById('hazard-alert-modal');
+                    if (alertModal.style.display !== 'none') {
+                        alertModal.style.display = 'none';
+                    }
+                }
+                
+                // Space bar for capture/start/stop
+                if (e.code === 'Space' && !e.target.matches('input, button, textarea')) {
+                    e.preventDefault();
+                    const startBtn = document.getElementById('start-camera');
+                    const stopBtn = document.getElementById('stop-camera');
+                    const captureBtn = document.getElementById('capture-btn');
+                    
+                    if (startBtn.style.display !== 'none') {
+                        startBtn.click();
+                    } else if (captureBtn.style.display !== 'none') {
+                        captureBtn.click();
+                    } else if (stopBtn.style.display !== 'none') {
+                        stopBtn.click();
+                    }
+                }
+            });
+
+            // Announce status changes to screen readers
+            const statusObserver = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.type === 'childList' || mutation.type === 'characterData') {
+                        const target = mutation.target;
+                        if (target.closest('[aria-live]')) {
+                            // Let screen readers announce the change
+                            console.log('Status update:', target.textContent);
+                        }
+                    }
+                });
+            });
+
+            // Observe status elements
+            const statusElements = document.querySelectorAll('[aria-live]');
+            statusElements.forEach(element => {
+                statusObserver.observe(element, {
+                    childList: true,
+                    subtree: true,
+                    characterData: true
+                });
+            });
+        }
+
+        // Global error handler for better user experience
+        window.addEventListener('error', function(e) {
+            console.error('Global error:', e.error);
+            if (typeof notify === 'function') {
+                notify('An unexpected error occurred. Please try refreshing the page.', 'error');
+            }
+        });
+
+        // Unhandled promise rejection handler
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error('Unhandled promise rejection:', e.reason);
+            if (typeof notify === 'function') {
+                notify('A background process failed. The app should continue working normally.', 'warning');
+            }
+        });
+    </script>
 </body>
 </html>
