@@ -75,7 +75,7 @@ async function resolveBaseUrl(options = {}) {
     'http://ideal-learning.railway.internal:8080';
   const publicUrl =
     env.HAZARD_API_URL_PUBLIC ||
-    'https://hazard-api-production.up.railway.app';
+    'https://hazard-api-production-production.up.railway.app';
   const localUrl = env.HAZARD_API_URL_LOCAL || 'http://localhost:8080';
 
   // Local-Dev Override - highest priority

@@ -36,7 +36,7 @@ This guide explains how to deploy the Hazard Detection system as two separate se
    - `MODEL_BACKEND=auto`
    - `MODEL_DIR=/app/models`
 
-3. **Note the Railway URL** (e.g., `https://hazard-api-production.up.railway.app`)
+3. **Note the Railway URL** (e.g., `https://hazard-api-production-production.up.railway.app`)
 
 ### Option B: Render Deployment
 

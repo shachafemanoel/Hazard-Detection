@@ -40,12 +40,12 @@ GOOGLE_GEOCODING_API_KEY = "AIzaSyAJ4073PjQ5koFcU9O3WCt8IsK43NNMPcc"
 GOOGLE_MAPS_API_KEY = "AIzaSyAJ4073PjQ5koFcU9O3WCt8IsK43NNMPcc"
 
 # API Integration - Using exact URL format from fetch guide
-API_URL = "https://hazard-api-production.up.railway.app/"
-HAZARD_API_URL = "https://hazard-api-production.up.railway.app/"
+API_URL = "https://hazard-api-production-production.up.railway.app/"
+HAZARD_API_URL = "https://hazard-api-production-production.up.railway.app/"
 
 # NEW: Realtime Client Configuration for Private-First Connectivity
 HAZARD_API_URL_PRIVATE = "http://ideal-learning.railway.internal:8080"
-HAZARD_API_URL_PUBLIC = "https://hazard-api-production.up.railway.app"
+HAZARD_API_URL_PUBLIC = "https://hazard-api-production-production.up.railway.app"
 HAZARD_USE_PRIVATE = "auto"
 REALTIME_TIMEOUT_MS = "30000"
 REALTIME_MAX_RETRIES = "5"
