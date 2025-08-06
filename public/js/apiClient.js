@@ -3,7 +3,7 @@
 
 // Internal imports (adjusted path for public directory)
 import { resolveBaseUrl, withTimeout } from './network.js';
-import { createRealtimeClient } from '../../src/clients/realtime-client.js';
+import { createRealtimeClient } from './realtime-client.js';
 
 const DEFAULT_TIMEOUT = 30000; // 30 seconds for image processing
 

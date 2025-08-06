@@ -16,7 +16,7 @@ if (typeof process !== 'undefined' && process.release?.name === 'node') {
 
 const API_CONFIG = {
   baseUrl: 'https://hazard-api-production-production.up.railway.app',
-  healthEndpoint: '/health',
+  healthEndpoint: '/api/v1/health',
   detectEndpoint: '/detect',
   sessionEndpoint: '/session/start',
   timeout: 10000
@@ -122,7 +122,7 @@ async function testRailwayConnection() {
     console.error('   1. Check if Railway service is running: railway status');
     console.error('   2. Verify domain: railway domain');
     console.error('   3. Check logs: railway logs');
-    console.error(`   4. Test manually: curl ${API_CONFIG.baseUrl}/health`);
+    console.error(`   4. Test manually: curl ${API_CONFIG.baseUrl}${API_CONFIG.healthEndpoint}`);
   }
 }
 
