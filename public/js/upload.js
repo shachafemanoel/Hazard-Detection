@@ -264,7 +264,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   }
 
   try {
-    // Prioritized model paths - using the latest road damage detection model
+    // Prioritized model paths - using available ONNX models
     const modelPaths = [
       './object_detection_model/best0408.onnx',          // Primary model
     ]

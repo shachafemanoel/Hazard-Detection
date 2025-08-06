@@ -15,7 +15,7 @@ class RuntimeRealtimeClient {
     this.config = {
       modelPath:
         config.modelPath ||
-        '/object_detection_model/road_damage_detection_simplified.onnx',
+        '/object_detection_model/last_model_train12052025.onnx',
       confidenceThreshold: config.confidenceThreshold || 0.5,
       inputSize: config.inputSize || 640,
       classNames: config.classNames || [

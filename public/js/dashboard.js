@@ -357,8 +357,11 @@ function setupMobileDrawer() {
 }
 
   async function init() {
-    const { heatLayer } = initializeMap();
-    initControls({ toggleHeatmap, centerMap, plotReports, heatLayer });
+    if (typeof window.initializeNotifications === 'function') {
+      window.initializeNotifications();
+    }
+    initializeMap();
+    initControls({ toggleHeatmap, centerMap, plotReports });
     initializeEventListeners();
     setupMobileDrawer();
     try {

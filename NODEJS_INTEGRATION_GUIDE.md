@@ -2,7 +2,7 @@
 
 ## 🚀 Quick Start
 
-This guide shows how external Node.js services can integrate with your OpenVINO-powered hazard detection API running at `https://hazard-api-production-production.up.railway.app`.
+This guide shows how external Node.js services can integrate with your OpenVINO-powered hazard detection API running at `https://hazard-api-production.up.railway.app`.
 
 ## 📋 Table of Contents
 
@@ -19,7 +19,7 @@ This guide shows how external Node.js services can integrate with your OpenVINO-
 
 ### Base URL
 ```
-https://hazard-api-production-production.up.railway.app
+https://hazard-api-production.up.railway.app
 ```
 
 ### Key Features
@@ -53,7 +53,7 @@ npm install axios form-data fs path
 ```javascript
 // config.js
 const API_CONFIG = {
-  baseURL: 'https://hazard-api-production-production.up.railway.app',
+  baseURL: 'https://hazard-api-production.up.railway.app',
   timeout: 30000, // 30 seconds for image processing
   headers: {
     'Accept': 'application/json',
@@ -812,7 +812,7 @@ runTests();
 
 ```bash
 # .env
-HAZARD_API_BASE_URL=https://hazard-api-production-production.up.railway.app
+HAZARD_API_BASE_URL=https://hazard-api-production.up.railway.app
 HAZARD_API_TIMEOUT=30000
 LOG_LEVEL=info
 ```

@@ -69,7 +69,7 @@ Configure via environment variables:
 ```bash
 # Network Endpoints
 HAZARD_API_URL_PRIVATE=http://ideal-learning.railway.internal:8080
-HAZARD_API_URL_PUBLIC=https://hazard-api-production-production.up.railway.app
+HAZARD_API_URL_PUBLIC=https://hazard-api-production.up.railway.app
 
 # Network Selection
 HAZARD_USE_PRIVATE=auto    # auto | true | false
@@ -215,7 +215,7 @@ npm run stream:check        # Test against live API
 ### Public Fallback
 ```
 🌐 Public network selected
-🔄 POST https://hazard-api-production-production.up.railway.app/session/start
+🔄 POST https://hazard-api-production.up.railway.app/session/start
 📊 Status changed: connecting  
 📊 Status changed: connected
 ✅ Session started: session-456

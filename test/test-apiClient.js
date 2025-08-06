@@ -72,7 +72,7 @@ describe('Realtime API Client', () => {
       
       const url = await resolveBaseUrl();
       
-      expect(url).to.equal('https://hazard-api-production-production.up.railway.app');
+      expect(url).to.equal('https://hazard-api-production.up.railway.app');
     });
 
     it('should throw when both endpoints are down', async () => {
@@ -100,7 +100,7 @@ describe('Realtime API Client', () => {
       
       const url = await resolveBaseUrl();
       
-      expect(url).to.equal('https://hazard-api-production-production.up.railway.app');
+      expect(url).to.equal('https://hazard-api-production.up.railway.app');
       expect(axiosStub.called).to.be.false; // Should not probe when forced
     });
 
