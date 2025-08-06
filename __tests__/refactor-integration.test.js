@@ -36,8 +36,8 @@ describe('Post-Refactor Integration Tests', () => {
 
     test('should serve JavaScript modules', async () => {
       const jsFiles = [
-        '/js/camera_detection.js',
-        '/js/dashboard.js', 
+        '/js/upload_tf.js',
+        '/js/dashboard.js',
         '/js/upload.js',
         '/js/notifications.js'
       ];
@@ -178,7 +178,7 @@ describe('Post-Refactor Integration Tests', () => {
       const response = await fetch(`${SERVER_URL}/camera.html`);
       const html = await response.text();
       
-      expect(html).toContain('js/camera_detection.js');
+      expect(html).toContain('js/upload_tf.js');
       expect(html).toContain('js/notifications.js');
       expect(html).toContain('ort/ort.min.js');
       
