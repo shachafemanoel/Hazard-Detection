@@ -12,7 +12,7 @@
     "restartPolicyMaxRetries": 3
   },
   "variables": {
-    "PORT": "8080",
+    "PORT": "3000",
     "NODE_ENV": "production",
     "CLOUDINARY_CLOUD_NAME": "dgn5da9f8",
     "CLOUDINARY_API_KEY": "688173149321172",

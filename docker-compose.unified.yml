@@ -6,13 +6,13 @@ services:
       context: .
       dockerfile: Dockerfile.unified
     ports:
-      - "8080:8080"  # Web interface
-      - "8000:8000"  # API interface (optional external access)
+      - "3000:3000"  # Web interface
+      - "8080:8080"  # API interface (optional external access)
     restart: unless-stopped
     environment:
       # Core service configuration
       - NODE_ENV=production
-      - PORT=8080
+      - PORT=3000
       
       # Model configuration (will be auto-detected, but can be overridden)
       - MODEL_BACKEND=auto  # auto, openvino, pytorch
