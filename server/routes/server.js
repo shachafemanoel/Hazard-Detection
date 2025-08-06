@@ -190,25 +190,14 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // 🔗 API URL using private-first networking (Railway internal network)
 import { resolveBaseUrl } from '../utils/network.js';
 
-// Determine API URL with private network preference
+// Determine API URL using private-first resolution with automatic fallback
 let API_URL;
 try {
-  // In production, prefer private network, fallback to public
-  const privateUrl = process.env.HAZARD_API_URL_PRIVATE || 'http://ideal-learning.railway.internal:8080';
-  const publicUrl = process.env.HAZARD_API_URL_PUBLIC || 'https://hazard-api-production-production.up.railway.app';
-  
-  // For Railway deployment, use private network
-  if (process.env.RAILWAY_ENVIRONMENT) {
-    API_URL = privateUrl;
-    console.log(`🔒 Using private network API URL: ${API_URL}`);
-  } else {
-    // For non-Railway deployments, use configured URL or fallback to public
-    API_URL = process.env.API_URL || process.env.HAZARD_API_URL || publicUrl;
-    console.log(`🌐 Using external API URL: ${API_URL}`);
-  }
+  API_URL = await resolveBaseUrl();
+  console.log(`🔗 Resolved API URL: ${API_URL}`);
 } catch (error) {
   API_URL = 'https://hazard-api-production-production.up.railway.app';
-  console.log(`⚠️ Fallback to public API URL: ${API_URL}`);
+  console.error(`⚠️ Failed to resolve API URL, falling back to public: ${error.message}`);
 }
 
 // API request helper function
@@ -242,7 +231,11 @@ app.get('/api/v1/health', async (req, res) => {
         const result = await makeApiRequest('/health');
         res.json(result);
     } catch (error) {
-        res.status(502).json({ error: error.message });
+        // Return a graceful unhealthy status instead of a 502 to avoid
+        // triggering platform health check failures when the upstream
+        // service is unavailable. This keeps the web server responsive
+        // while still conveying the backend issue.
+        res.status(200).json({ status: 'unhealthy', error: error.message });
     }
 });
 
