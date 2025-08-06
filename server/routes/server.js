@@ -242,7 +242,11 @@ app.get('/api/v1/health', async (req, res) => {
         const result = await makeApiRequest('/health');
         res.json(result);
     } catch (error) {
-        res.status(502).json({ error: error.message });
+        // Return a graceful unhealthy status instead of a 502 to avoid
+        // triggering platform health check failures when the upstream
+        // service is unavailable. This keeps the web server responsive
+        // while still conveying the backend issue.
+        res.status(200).json({ status: 'unhealthy', error: error.message });
     }
 });
 
