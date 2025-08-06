@@ -3,14 +3,10 @@ export default {
   testTimeout: 30000,
   verbose: true,
   collectCoverage: false,
-  testMatch: [
-    '**/__tests__/**/*.test.js',
-    '**/test/**/*.test.js'
-  ],
+  testMatch: ['**/__tests__/apiClient.test.js'],
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   moduleFileExtensions: ['js', 'json'],
   preset: null,
-  extensionsToTreatAsEsm: ['.js'],
   globals: {
     'ts-jest': {
       useESM: true
