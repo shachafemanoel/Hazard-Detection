@@ -176,6 +176,28 @@ const detectBatch = async (imageFiles) => {
 };
 ```
 
+### 4. Report Images and Plots
+
+Once detections generate reports you can fetch the original frame or an annotated plot.
+
+#### Get Original Report Image
+**GET `/session/{session_id}/report/{report_id}/image`**
+
+```bash
+# Save the raw frame
+curl -o report.jpg "${API_BASE_URL}/session/SESSION_ID/report/REPORT_ID/image"
+```
+
+#### Get Annotated Model Response Plot
+**GET `/session/{session_id}/report/{report_id}/plot`**
+
+```bash
+# Download image with bounding boxes
+curl -o plot.jpg "${API_BASE_URL}/session/SESSION_ID/report/REPORT_ID/plot"
+```
+
+Both endpoints return `image/jpeg` streams.
+
 ## 🔧 Complete Usage Examples
 
 ### React Hook for Hazard Detection
