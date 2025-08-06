@@ -1,18 +1,23 @@
-const { expect } = require('chai');
-const sinon = require('sinon');
-const axios = require('axios');
-const { createRealtimeClient, resolveBaseUrl, probeHealth } = require('../lib/realtimeClient');
+import axios from 'axios';
+import { describe, test, beforeEach, afterEach } from 'node:test';
+import assert from 'node:assert';
+// Note: This file references '../lib/realtimeClient' which may need to be updated to the correct ESM path
+// For now, commenting out until the correct path is available
+// import { createRealtimeClient, resolveBaseUrl, probeHealth } from '../lib/realtimeClient.js';
 
 describe('Realtime API Client', () => {
-  let axiosStub;
+  let originalGet, originalPost;
 
   beforeEach(() => {
-    axiosStub = sinon.stub(axios, 'get');
-    sinon.stub(axios, 'post');
+    // Store original methods
+    originalGet = axios.get;
+    originalPost = axios.post;
   });
 
   afterEach(() => {
-    sinon.restore();
+    // Restore original methods
+    axios.get = originalGet;
+    axios.post = originalPost;
   });
 
   describe('probeHealth', () => {

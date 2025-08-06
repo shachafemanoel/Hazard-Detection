@@ -11,9 +11,16 @@
  * 6. Error scenarios and fallback mechanisms
  */
 
-const puppeteer = require('puppeteer');
-const path = require('path');
-const fs = require('fs');
+import puppeteer from 'puppeteer';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import { describe, test, before, after, beforeEach, afterEach } from 'node:test';
+import assert from 'node:assert';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 describe('Post-Refactor QA: Hazard Detection System', () => {
   let browser;
@@ -22,7 +29,7 @@ describe('Post-Refactor QA: Hazard Detection System', () => {
   const TEST_SERVER_URL = 'http://localhost:8080';
   const TEST_TIMEOUT = 30000;
   
-  beforeAll(async () => {
+  before(async () => {
     console.log('🚀 Starting Post-Refactor QA Test Suite...');
     
     // Launch browser with necessary permissions
@@ -43,12 +50,12 @@ describe('Post-Refactor QA: Hazard Detection System', () => {
     });
 
     // Create persistent context for cookies/sessions
-    context = await browser.createIncognitoBrowserContext();
+    context = browser; // Use default browser context
     
     console.log('✅ Browser launched successfully');
   }, TEST_TIMEOUT);
 
-  afterAll(async () => {
+  after(async () => {
     if (context) await context.close();
     if (browser) await browser.close();
     console.log('🔚 QA Test Suite completed');
@@ -97,7 +104,7 @@ describe('Post-Refactor QA: Hazard Detection System', () => {
             err.includes('SyntaxError')
           );
           
-          expect(criticalErrors).toHaveLength(0);
+          assert.strictEqual(criticalErrors.length, 0, `Critical errors found: ${criticalErrors.join(', ')}`);
           
         } catch (error) {
           console.error(`❌ ${htmlFile} failed to load:`, error.message);
@@ -120,7 +127,7 @@ describe('Post-Refactor QA: Hazard Detection System', () => {
                typeof window.probeHealth === 'function';
       });
       
-      expect(networkUtilsAvailable).toBe(true);
+      assert.strictEqual(networkUtilsAvailable, true, 'Network utilities should be available');
       
       await page.close();
     });
@@ -164,7 +171,7 @@ describe('Post-Refactor QA: Hazard Detection System', () => {
         msg.includes('initializeDetection')
       );
 
-      expect(modelLoadMessages.length).toBeGreaterThan(0);
+      assert.ok(modelLoadMessages.length > 0, 'Model load messages should be present');
       console.log('✅ Camera Page: ONNX model loading detected');
     }, TEST_TIMEOUT);
 
@@ -185,7 +192,7 @@ describe('Post-Refactor QA: Hazard Detection System', () => {
         url.includes('/health')
       );
 
-      expect(healthCheckRequests.length).toBeGreaterThan(0);
+      assert.ok(healthCheckRequests.length > 0, 'Health check requests should be present');
       console.log('✅ Camera Page: API health check requests detected');
     });
 
@@ -205,10 +212,10 @@ describe('Post-Refactor QA: Hazard Detection System', () => {
         };
       });
 
-      expect(elements.startBtn).toBe(true);
-      expect(elements.video).toBe(true);
-      expect(elements.canvas).toBe(true);
-      expect(elements.connectionStatus).toBe(true);
+      assert.strictEqual(elements.startBtn, true, 'Start button should be present');
+      assert.strictEqual(elements.video, true, 'Video element should be present');
+      assert.strictEqual(elements.canvas, true, 'Canvas element should be present');
+      assert.strictEqual(elements.connectionStatus, true, 'Connection status should be present');
       
       console.log('✅ Camera Page: All essential UI elements present');
     });
@@ -251,7 +258,7 @@ describe('Post-Refactor QA: Hazard Detection System', () => {
         url.includes('/api/reports')
       );
 
-      expect(reportsApiCalls.length).toBeGreaterThan(0);
+      assert.ok(reportsApiCalls.length > 0, 'Reports API calls should be present');
       console.log('✅ Dashboard Page: Reports API calls detected');
     });
 
@@ -271,9 +278,9 @@ describe('Post-Refactor QA: Hazard Detection System', () => {
         };
       });
 
-      expect(dashboardState.reportsTable).toBe(true);
-      expect(dashboardState.statsCards).toBeGreaterThan(0);
-      expect(dashboardState.map).toBe(true);
+      assert.strictEqual(dashboardState.reportsTable, true, 'Reports table should be present');
+      assert.ok(dashboardState.statsCards > 0, 'Stat cards should be present');
+      assert.strictEqual(dashboardState.map, true, 'Map should be present');
       
       console.log('✅ Dashboard Page: Core elements populated', dashboardState);
     });
@@ -296,7 +303,7 @@ describe('Post-Refactor QA: Hazard Detection System', () => {
         return !!(statusFilter && typeFilter && myReportsFilter);
       });
       
-      expect(filtersWork).toBe(true);
+      assert.strictEqual(filtersWork, true, 'Filters should be working');
       console.log('✅ Dashboard Page: Search and filter controls working');
     });
   });
@@ -332,10 +339,10 @@ describe('Post-Refactor QA: Hazard Detection System', () => {
         };
       });
 
-      expect(uploadElements.fileInput).toBe(true);
-      expect(uploadElements.canvas).toBe(true);
-      expect(uploadElements.saveBtn).toBe(true);
-      expect(uploadElements.confidenceSlider).toBe(true);
+      assert.strictEqual(uploadElements.fileInput, true, 'File input should be present');
+      assert.strictEqual(uploadElements.canvas, true, 'Canvas should be present');
+      assert.strictEqual(uploadElements.saveBtn, true, 'Save button should be present');
+      assert.strictEqual(uploadElements.confidenceSlider, true, 'Confidence slider should be present');
       
       console.log('✅ Upload Page: All essential elements present');
     });
@@ -361,8 +368,8 @@ describe('Post-Refactor QA: Hazard Detection System', () => {
         };
       });
       
-      expect(fileSelected.inputExists).toBe(true);
-      expect(fileSelected.saveBtnExists).toBe(true);
+      assert.strictEqual(fileSelected.inputExists, true, 'File input should exist');
+      assert.strictEqual(fileSelected.saveBtnExists, true, 'Save button should exist');
       
       console.log('✅ Upload Page: File upload controls responsive');
     });
@@ -396,7 +403,7 @@ describe('Post-Refactor QA: Hazard Detection System', () => {
         return { success: false, error: 'probeHealth not available' };
       });
       
-      expect(healthProbeResult.success).toBe(true);
+      assert.strictEqual(healthProbeResult.success, true, 'Health probe should be successful');
       console.log('✅ Network Utilities: Health probe working', healthProbeResult);
     });
 
@@ -419,8 +426,8 @@ describe('Post-Refactor QA: Hazard Detection System', () => {
         return { success: false, error: 'withTimeout not available' };
       });
       
-      expect(timeoutTest.success).toBe(true);
-      expect(timeoutTest.hasSignal).toBe(true);
+      assert.strictEqual(timeoutTest.success, true, 'Timeout test should be successful');
+      assert.strictEqual(timeoutTest.hasSignal, true, 'Should have timeout signal');
       console.log('✅ Network Utilities: Timeout utility working');
     });
   });
@@ -469,7 +476,7 @@ describe('Post-Refactor QA: Hazard Detection System', () => {
 
       console.log('📝 Error Handling: API blocked, fallback messages:', fallbackMessages);
       // Test passes if no critical errors occurred
-      expect(true).toBe(true);
+      assert.ok(true, 'Test completed without critical errors');
     });
 
     test('should display user-friendly error notifications', async () => {
@@ -484,7 +491,7 @@ describe('Post-Refactor QA: Hazard Detection System', () => {
         };
       });
       
-      expect(notificationSystem.notifyFunction).toBe(true);
+      assert.strictEqual(notificationSystem.notifyFunction, true, 'Notification function should be available');
       console.log('✅ Error Handling: Notification system available');
     });
   });
@@ -508,7 +515,7 @@ describe('Post-Refactor QA: Hazard Detection System', () => {
         url.includes('wss://')
       );
 
-      expect(syncRequests.length).toBeGreaterThan(0);
+      assert.ok(syncRequests.length > 0, 'Sync requests should be present');
       console.log('✅ Real-time Sync: Polling/WebSocket requests detected');
       
       await page.close();

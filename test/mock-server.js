@@ -1,5 +1,5 @@
-const express = require('express');
-const multer = require('multer');
+import express from 'express';
+import multer from 'multer';
 
 class MockHazardDetectionServer {
   constructor(port = 0) {
@@ -216,7 +216,7 @@ class MockHazardDetectionServer {
 }
 
 // CLI usage
-if (require.main === module) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   const port = process.argv[2] ? parseInt(process.argv[2]) : 8080;
   const server = new MockHazardDetectionServer(port);
   
@@ -238,4 +238,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = MockHazardDetectionServer;
+export default MockHazardDetectionServer;

@@ -1,0 +1,49 @@
+{
+  "timestamp": "Wed Aug  6 19:55:02 IDT 2025",
+  "selection_config": {
+    "cpu_capabilities": {
+      "cpu_brand": "Unknown",
+      "has_sse42": true,
+      "has_avx": false,
+      "has_avx2": false,
+      "has_avx512": false,
+      "openvino_compatible": true,
+      "total_flags": "unknown"
+    },
+    "available_models": {
+      "openvino": {
+        "available": false,
+        "path": null,
+        "files": []
+      },
+      "pytorch": {
+        "available": false,
+        "path": null,
+        "files": []
+      },
+      "onnx": {
+        "available": true,
+        "path": "/Users/shachafemanoel/Documents/Hazard-Detection/public/object_detection_model",
+        "files": [
+          "best0408.onnx"
+        ]
+      }
+    },
+    "selected_backend": "onnx",
+    "model_path": "/Users/shachafemanoel/Documents/Hazard-Detection/public/object_detection_model",
+    "reasons": [
+      "Using ONNX models as fallback",
+      "Neither OpenVINO nor PyTorch models available"
+    ]
+  },
+  "environment_variables": {
+    "MODEL_BACKEND": "onnx",
+    "MODEL_DIR": "/Users/shachafemanoel/Documents/Hazard-Detection/public/object_detection_model",
+    "CPU_OPTIMIZATION": "enabled",
+    "INFERENCE_MODE": "onnx"
+  },
+  "container_info": {
+    "python_version": "3.13.2 (main, Feb  4 2025, 14:51:09) [Clang 16.0.0 (clang-1600.0.26.6)]",
+    "working_directory": "/Users/shachafemanoel/Documents/Hazard-Detection"
+  }
+}

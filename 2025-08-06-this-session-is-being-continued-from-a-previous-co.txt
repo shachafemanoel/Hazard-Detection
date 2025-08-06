@@ -1,0 +1,21 @@
+╭──────────────────────────────────────────────────────────╮
+│ ✻ Welcome to Claude Code!                                │
+│                                                          │
+│   /help for help, /status for your current setup         │
+│                                                          │
+│   cwd: /Users/shachafemanoel/Documents/Hazard-Detection  │
+╰──────────────────────────────────────────────────────────╯
+⏺ Compact summary (ctrl+r to expand)
+  ⎿  Read public/css/camera.css (868 lines)
+  ⎿  Read public/js/camera_detection.js (767 lines)
+  ⎿  Read public/camera.html (390 lines)
+  ⎿  Read public/app.js (445 lines)
+  ⎿  Todo list read (5 items)
+  ⎿  Claude usage limit reached. Your limit will reset at 8pm 
+     (Asia/Jerusalem).
+
+      • /upgrade to increase your usage limit.
+
+> /export 
+  ⎿  Conversation copied to clipboard
+

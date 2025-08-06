@@ -8,7 +8,8 @@
     "start": "node server/routes/server.js",
     "dev": "nodemon server/routes/server.js",
     "build": "echo 'No build step needed'",
-    "test": "node --test",
+    "test:run": "node --test __tests__/**/*.test.js test/**/*.test.js public/js/**/*.test.js",
+    "test": "./test-server.sh",
     "stream:check": "node scripts/stream-check.js"
   },
   "keywords": [],
@@ -29,16 +30,17 @@
     "ol": "^10.6.1",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
+    "puppeteer": "^24.16.0",
     "redis": "^4.7.1",
     "streamifier": "^0.1.1",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.21",
+    "eventsource": "^2.0.2",
     "nodemon": "^3.1.10",
     "postcss": "^8.5.3",
     "tailwindcss": "^4.1.7",
-    "eventsource": "^2.0.2",
     "undici": "^6.19.2"
   }
 }

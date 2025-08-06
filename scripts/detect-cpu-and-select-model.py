@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 
 class CPUModelSelector:
     def __init__(self):
-        self.app_root = Path('/app')
-        self.models_root = self.app_root / 'models'
+        self.app_root = Path('/Users/shachafemanoel/Documents/Hazard-Detection')
+        self.models_root = self.app_root / 'public/object_detection_model'
         self.config_file = self.app_root / 'model-config.json'
         
     def detect_cpu_capabilities(self):
@@ -126,10 +126,10 @@ class CPUModelSelector:
                 models['pytorch']['files'] = [f.name for f in pt_files]
         
         # Check ONNX models (backup frontend models)
-        onnx_files = list(pytorch_path.glob('*.onnx')) if pytorch_path.exists() else []
+        onnx_files = list(self.models_root.glob('*.onnx'))
         if onnx_files:
             models['onnx']['available'] = True
-            models['onnx']['path'] = str(pytorch_path)
+            models['onnx']['path'] = str(self.models_root)
             models['onnx']['files'] = [f.name for f in onnx_files]
         
         return models
@@ -194,7 +194,7 @@ class CPUModelSelector:
         """Generate environment variables for the selected configuration"""
         env_vars = {
             'MODEL_BACKEND': config['selected_backend'],
-            'MODEL_DIR': config['model_path'] or '/app/models',
+            'MODEL_DIR': config['model_path'] or '/Users/shachafemanoel/Documents/Hazard-Detection/public/object_detection_model',
             'CPU_OPTIMIZATION': 'enabled' if config['cpu_capabilities']['openvino_compatible'] else 'basic',
             'INFERENCE_MODE': config['selected_backend'],
         }
@@ -214,7 +214,7 @@ class CPUModelSelector:
                 pytorch_model = str(pt_files[0]) if pt_files else None
             
             env_vars.update({
-                'PYTORCH_MODEL_PATH': pytorch_model or '/app/models/pytorch/best.pt',
+                'PYTORCH_MODEL_PATH': pytorch_model or '/Users/shachafemanoel/Documents/Hazard-Detection/public/object_detection_model/best0408.onnx',
                 'TORCH_NUM_THREADS': '0',  # Auto-detect
                 'TORCH_DEVICE': 'cpu'
             })
@@ -266,7 +266,7 @@ class CPUModelSelector:
             # Create fallback configuration
             fallback_env = {
                 'MODEL_BACKEND': 'pytorch',
-                'MODEL_DIR': '/app/models/pytorch',
+                'MODEL_DIR': '/Users/shachafemanoel/Documents/Hazard-Detection/public/object_detection_model',
                 'PYTORCH_MODEL_PATH': '/app/models/pytorch/best.pt',
                 'INFERENCE_MODE': 'pytorch'
             }

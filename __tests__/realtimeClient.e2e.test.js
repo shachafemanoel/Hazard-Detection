@@ -1,14 +1,22 @@
-const path = require('path');
-const puppeteer = require('puppeteer');
+import path from 'path';
+import puppeteer from 'puppeteer';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import { describe, test, before, after } from 'node:test';
+import assert from 'node:assert';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 describe('Realtime client browser E2E', () => {
   let browser;
   let skipTests = false;
 
-  beforeAll(async () => {
+  before(async () => {
     try {
       browser = await puppeteer.launch({ 
         headless: 'new', 
+        protocol: 'cdp', 
         args: [
           '--no-sandbox', 
           '--disable-setuid-sandbox',
@@ -22,7 +30,7 @@ describe('Realtime client browser E2E', () => {
     }
   }, 30000);
 
-  afterAll(async () => {
+  after(async () => {
     if (browser) {
       await browser.close();
     }
@@ -35,10 +43,11 @@ describe('Realtime client browser E2E', () => {
     
     const page = await browser.newPage();
     try {
-      const scriptPath = path.resolve(__dirname, '../public/js/realtimeClient.js');
+      const scriptPath = path.resolve(__dirname, '../src/clients/realtime.browser.js');
       await page.addScriptTag({ path: scriptPath });
 
-      const baseUrl = await page.evaluate(async () => {
+      const baseUrl = await page.evaluate(async (scriptPath) => {
+        const { createRealtimeClient } = await import(scriptPath);
         // Stub fetch to simulate API responses
         const responses = {
           'http://ideal-learning.railway.internal:8080/health': { status: 200 },
@@ -55,9 +64,9 @@ describe('Realtime client browser E2E', () => {
         await client.connect();
         await client.send(new Blob(['abc'], { type: 'image/jpeg' }));
         return client.getBaseUrl();
-      });
+      }, scriptPath);
 
-      expect(baseUrl).toBe('http://ideal-learning.railway.internal:8080');
+      assert.strictEqual(baseUrl, 'http://ideal-learning.railway.internal:8080', 'Should use private endpoint when healthy');
     } finally {
       await page.close();
     }

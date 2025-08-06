@@ -24,34 +24,34 @@ trap cleanup SIGTERM SIGINT EXIT
 
 # Step 1: Run intelligent model selection
 echo "🧠 Running intelligent CPU detection and model selection..."
-cd /app
-python3 /app/scripts/detect-cpu-and-select-model.py
+cd /Users/shachafemanoel/Documents/Hazard-Detection
+python3 /Users/shachafemanoel/Documents/Hazard-Detection/scripts/detect-cpu-and-select-model.py
 
 # Load the generated model configuration
-if [ -f "/app/.env.model" ]; then
+if [ -f "/Users/shachafemanoel/Documents/Hazard-Detection/.env.model" ]; then
     echo "📋 Loading model configuration..."
-    export $(cat /app/.env.model | grep -v '^#' | xargs)
+    export $(cat /Users/shachafemanoel/Documents/Hazard-Detection/.env.model | grep -v '^#' | xargs)
     echo "✅ Selected Backend: ${MODEL_BACKEND}"
     echo "📁 Model Directory: ${MODEL_DIR}"
 else
     echo "⚠️ No model configuration found, using defaults..."
     export MODEL_BACKEND=pytorch
-    export MODEL_DIR=/app/models/pytorch
-    export PYTORCH_MODEL_PATH=/app/models/pytorch/best.pt
+    export MODEL_DIR=/Users/shachafemanoel/Documents/Hazard-Detection/public/object_detection_model
+    export PYTORCH_MODEL_PATH=/Users/shachafemanoel/Documents/Hazard-Detection/public/object_detection_model/best0408.onnx
 fi
 
 # Step 2: Update API app configuration based on selection
 echo "⚙️ Configuring API service for ${MODEL_BACKEND} backend..."
 
 # Set common environment variables
-export PYTHONPATH=/app
+export PYTHONPATH=/Users/shachafemanoel/Documents/Hazard-Detection:$PYTHONPATH
 export API_URL=http://localhost:${API_PORT}
 export WEB_PORT=${WEB_PORT}
 export API_PORT=${API_PORT}
 
 # Step 3: Start FastAPI service on configured API port
 echo "🐍 Starting FastAPI (${MODEL_BACKEND} backend) on port ${API_PORT}..."
-cd /app
+cd /Users/shachafemanoel/Documents/Hazard-Detection
 uvicorn api.app:app --host 0.0.0.0 --port ${API_PORT} --workers 1 &
 API_PID=$!
 
@@ -71,7 +71,7 @@ done
 
 # Step 4: Start Express web server
 echo "🌐 Starting Express web server on port ${WEB_PORT}..."
-cd /app/server/routes
+cd /Users/shachafemanoel/Documents/Hazard-Detection/server/routes
 
 if [ -f "server.js" ]; then
     # Use the full-featured server with authentication

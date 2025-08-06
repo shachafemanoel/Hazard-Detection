@@ -1,8 +1,5 @@
-// Jest setup file for QA tests
+// Test setup file for Node.js built-in test runner
 // Global test configuration and utilities
-
-// Increase timeout for E2E tests
-jest.setTimeout(30000);
 
 // Global test utilities
 global.TEST_CONFIG = {

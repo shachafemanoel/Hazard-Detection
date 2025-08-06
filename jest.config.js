@@ -1,13 +1,21 @@
-module.exports = {
+export default {
   testEnvironment: 'node',
   testTimeout: 30000,
   verbose: true,
   collectCoverage: false,
   testMatch: [
-    '**/__tests__/**/*.test.js'
+    '**/__tests__/**/*.test.js',
+    '**/test/**/*.test.js'
   ],
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   moduleFileExtensions: ['js', 'json'],
+  preset: null,
+  extensionsToTreatAsEsm: ['.js'],
+  globals: {
+    'ts-jest': {
+      useESM: true
+    }
+  },
   transform: {},
   testEnvironmentOptions: {
     // Add any specific environment options
@@ -20,6 +28,6 @@ module.exports = {
   ],
   // Handle ES6 modules in dependencies
   transformIgnorePatterns: [
-    'node_modules/(?!(some-es6-module)/)'
+    'node_modules/(?!(eventsource|undici)/)'
   ]
 };

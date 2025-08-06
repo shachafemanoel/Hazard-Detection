@@ -1,21 +1,23 @@
 // upload_tf.js
-import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js";
-import { storage } from "./firebaseConfig.js";
-
-
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   const startBtn = document.getElementById("start-camera");
   const stopBtn = document.getElementById("stop-camera");
   const video = document.getElementById("camera-stream");
   const canvas = document.getElementById("overlay-canvas");
   const ctx = canvas.getContext("2d");
+  const overlay = document.getElementById('loading-overlay');
+  const statusTxt = document.getElementById('loading-status');
+  const badgeCnt = document.getElementById('detection-count-badge');
+  const badgeFPS = document.getElementById('fps-badge');
+  const badgeType = document.getElementById('hazard-types-display');
+  const listType = document.getElementById('hazard-types-list');
 
-  const FIXED_SIZE = 320;
+  const FIXED_SIZE = 480;
   let stream = null;
   let detecting = false;
   let session = null;
   let frameCount = 0;
-  const pendingDetections = [];
+  let lastFpsTick = performance.now();
 
   const offscreen = document.createElement("canvas");
   offscreen.width = FIXED_SIZE;
@@ -27,10 +29,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const classNames = ['Alligator Crack', 'Block Crack', 'Construction Joint Crack', 'Crosswalk Blur', 'Lane Blur', 'Longitudinal Crack', 'Manhole', 'Patch Repair', 'Pothole', 'Transverse Crack', 'Wheel Mark Crack'];
 
   async function loadModel() {
+    statusTxt.textContent = 'Loading model…';
     try {
       const modelPaths = [
-        '/object_detection_model/last_model_train12052025.onnx',
-        '/object_detection_model/yolov8n.onnx'
+        './object_detection_model/best0408.onnx',
+        './object_detection_model/yolov8n.onnx', // Fallback or alternative
+        './object_detection_model/last_model_train12052025.onnx'
       ];
 
       let loaded = false;
@@ -39,12 +43,7 @@ document.addEventListener("DOMContentLoaded", () => {
           if (typeof ov !== 'undefined' && ov.InferenceSession) {
             session = await ov.InferenceSession.create(path);
           } else {
-            try {
-              session = await ort.InferenceSession.create(path, { executionProviders: ['webgl'] });
-            } catch (err) {
-              console.warn(`WebGL backend failed for ${path}, falling back:`, err);
-              session = await ort.InferenceSession.create(path);
-            }
+            session = await ort.InferenceSession.create(path, { executionProviders: ['wasm'] });
           }
           loaded = true;
           break;
@@ -58,9 +57,13 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       const runtimeName = typeof ov !== 'undefined' && ov.InferenceSession ? 'OpenVINO' : 'ONNX';
+      statusTxt.textContent = 'Model loaded';
+      overlay.hidden = true;
+      startBtn.disabled = false;
       console.log(`✅ YOLO model loaded (${runtimeName} runtime)!`);
     } catch (err) {
       console.error("❌ Failed to load model:", err);
+      statusTxt.textContent = 'Failed to load model';
     }
   }
 
@@ -73,49 +76,16 @@ document.addEventListener("DOMContentLoaded", () => {
     letterboxParams = { scale, newW, newH, offsetX, offsetY };
   }
 
-  async function uploadDetectionImage(canvas) {
-    return new Promise((resolve, reject) => {
-      canvas.toBlob(async (blob) => {
-        if (!blob) return reject("❌ No blob from canvas");
-
-        const timestamp = Date.now();
-        const imageRef = ref(storage, `detections/${timestamp}.jpg`);
-
-        await uploadBytes(imageRef, blob);
-        const url = await getDownloadURL(imageRef);
-
-        console.log("☁️ Uploaded image to Firebase Storage:", url);
-        resolve(url);
-      }, "image/jpeg", 0.9);
-    });
-  }
-
-  async function saveDetection(canvas, label, score) {
-    try {
-      const image = await uploadDetectionImage(canvas);
-      const report = {
-        type: label,
-        location: "Unknown",
-        time: new Date().toISOString(),
-        image,
-        status: "unreviewed",
-        reportedBy: "anonymous"
-      };
-
-      pendingDetections.push(report);
-      console.log("📝 Detection queued:", report);
-    } catch (err) {
-      console.error("❌ Error during image upload:", err);
-    }
-  }
-
   async function detectLoop() {
     if (!detecting || !session) return;
 
+    // FPS calculation
     frameCount++;
-    if (frameCount % 4 !== 0) {
-      requestAnimationFrame(() => detectLoop());
-      return;
+    const now = performance.now();
+    if (now - lastFpsTick > 1000) {
+      badgeFPS.textContent = `${frameCount} FPS`;
+      frameCount = 0;
+      lastFpsTick = now;
     }
 
     if (!letterboxParams) computeLetterboxParams();
@@ -161,6 +131,7 @@ document.addEventListener("DOMContentLoaded", () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
+      let detectedHazards = [];
       for (const [x1, y1, x2, y2, score, classId] of boxes) {
         if (score < 0.5) continue;
         const scaleX = video.videoWidth / FIXED_SIZE;
@@ -182,19 +153,18 @@ document.addEventListener("DOMContentLoaded", () => {
         const textY = top > 10 ? top - 5 : 10;
         ctx.fillText(`${label} (${scorePerc}%)`, left, textY);
 
-        console.log("📦 Detected object:", label, scorePerc + "%");
-
-        if (frameCount % 60 === 0) {
-          const snap = document.createElement('canvas');
-          snap.width = video.videoWidth;
-          snap.height = video.videoHeight;
-          const snapCtx = snap.getContext('2d');
-          // Draw the video frame and overlay
-          snapCtx.drawImage(video, 0, 0, snap.width, snap.height);
-          snapCtx.drawImage(canvas, 0, 0, snap.width, snap.height);
-          saveDetection(snap, label, score).catch((e) => console.error(e));
-        }
+        detectedHazards.push(label);
       }
+
+      badgeCnt.textContent = `${detectedHazards.length} hazard${detectedHazards.length === 1 ? '' : 's'}`;
+      if (detectedHazards.length) {
+        const unique = [...new Set(detectedHazards)];
+        badgeType.hidden = false;
+        listType.textContent = unique.join(', ');
+      } else {
+        badgeType.hidden = true;
+      }
+
     } catch (err) {
       console.error("❌ Error running ONNX model:", err);
     }
@@ -207,8 +177,8 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 } } });
       video.srcObject = stream;
-      startBtn.style.display = "none";
-      stopBtn.style.display = "inline-block";
+      startBtn.hidden = true;
+      stopBtn.hidden = false;
       video.addEventListener("loadeddata", () => {
         computeLetterboxParams();
         detecting = true;
@@ -220,33 +190,22 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  stopBtn.addEventListener("click", async () => {
+  stopBtn.addEventListener("click", () => {
     detecting = false;
     if (stream) {
       stream.getTracks().forEach((track) => track.stop());
       stream = null;
     }
     video.srcObject = null;
-    startBtn.style.display = "inline-block";
-    stopBtn.style.display = "none";
+    startBtn.hidden = false;
+    stopBtn.hidden = true;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    badgeCnt.textContent = '0 hazards';
+    badgeFPS.textContent = '0 FPS';
+    badgeType.hidden = true;
+    listType.textContent = '';
     console.log("Camera stopped");
-
-    if (pendingDetections.length > 0) {
-      console.log(`📨 Sending ${pendingDetections.length} detections to server...`);
-      for (const detection of pendingDetections) {
-        try {
-          const res = await fetch("/api/reports", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(detection)
-          });
-          const result = await res.json();
-          console.log("✅ Detection saved:", result);
-        } catch (e) {
-          console.error("🔥 Failed to send detection:", e);
-        }
-      }
-    }
   });
+
+  await loadModel();
 });

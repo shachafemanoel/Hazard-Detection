@@ -3,10 +3,17 @@
  * Quick verification that core functionality works after refactoring
  */
 
-const { spawn, exec } = require('child_process');
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
+import { spawn, exec } from 'child_process';
+import http from 'http';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import { describe, test } from 'node:test';
+import assert from 'node:assert';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 describe('Post-Refactor Integration Tests', () => {
   const SERVER_URL = 'http://localhost:8080';
@@ -16,10 +23,10 @@ describe('Post-Refactor Integration Tests', () => {
   describe('🏥 Server Health & Endpoints', () => {
     test('should respond to health check', async () => {
       const response = await fetch(`${SERVER_URL}/health`);
-      expect(response.ok).toBe(true);
+      assert.strictEqual(response.ok, true, 'Health check response should be ok');
       
       const data = await response.json();
-      expect(data.status).toBe('OK');
+      assert.strictEqual(data.status, 'OK', 'Health check status should be OK');
       console.log('✅ Server Health Check: PASS');
     }, TIMEOUT);
 
@@ -28,8 +35,8 @@ describe('Post-Refactor Integration Tests', () => {
       
       for (const page of pages) {
         const response = await fetch(`${SERVER_URL}/${page}`);
-        expect(response.ok).toBe(true);
-        expect(response.headers.get('content-type')).toContain('text/html');
+        assert.strictEqual(response.ok, true, `${page} should load successfully`);
+        assert.ok(response.headers.get('content-type').includes('text/html'), `${page} should return HTML content`);
         console.log(`✅ Static File Serving (${page}): PASS`);
       }
     }, TIMEOUT);
@@ -44,10 +51,10 @@ describe('Post-Refactor Integration Tests', () => {
       
       for (const jsFile of jsFiles) {
         const response = await fetch(`${SERVER_URL}${jsFile}`);
-        expect(response.ok).toBe(true);
+        assert.strictEqual(response.ok, true, `${jsFile} should load successfully`);
         // Content type check is flexible as some servers might serve as text/plain
         const contentType = response.headers.get('content-type');
-        expect(contentType).toBeTruthy();
+        assert.ok(contentType, `${jsFile} should have a content type`);
         console.log(`✅ JavaScript Module (${jsFile}): PASS`);
       }
     }, TIMEOUT);
@@ -56,18 +63,18 @@ describe('Post-Refactor Integration Tests', () => {
   describe('🔌 API Endpoints', () => {
     test('should handle reports API endpoint', async () => {
       const response = await fetch(`${SERVER_URL}/api/reports`);
-      expect(response.ok).toBe(true);
+      assert.strictEqual(response.ok, true, 'Reports API should respond successfully');
       
       const data = await response.json();
-      expect(data).toHaveProperty('reports');
-      expect(Array.isArray(data.reports)).toBe(true);
+      assert.ok(data.hasOwnProperty('reports'), 'Response should have reports property');
+      assert.ok(Array.isArray(data.reports), 'Reports should be an array');
       console.log('✅ Reports API: PASS');
     }, TIMEOUT);
 
     test('should handle geocoding endpoint', async () => {
       const testAddress = 'New York, NY';
       const response = await fetch(`${SERVER_URL}/api/geocode?address=${encodeURIComponent(testAddress)}`);
-      expect(response.ok).toBe(true);
+      assert.strictEqual(response.ok, true, 'Geocoding API should respond successfully');
       
       const data = await response.json();
       console.log('✅ Geocoding API: PASS');
@@ -85,7 +92,7 @@ describe('Post-Refactor Integration Tests', () => {
 
       for (const dirPath of requiredPaths) {
         const fullPath = path.join(process.cwd(), dirPath);
-        expect(fs.existsSync(fullPath)).toBe(true);
+        assert.ok(fs.existsSync(fullPath), `Directory ${dirPath} should exist`);
         console.log(`✅ Directory Structure (${dirPath}): PASS`);
       }
     });
@@ -101,7 +108,7 @@ describe('Post-Refactor Integration Tests', () => {
 
       for (const filePath of utilityFiles) {
         const fullPath = path.join(process.cwd(), filePath);
-        expect(fs.existsSync(fullPath)).toBe(true);
+        assert.ok(fs.existsSync(fullPath), `Utility file ${filePath} should exist`);
         console.log(`✅ Utility Module (${filePath}): PASS`);
       }
     });
@@ -113,9 +120,9 @@ describe('Post-Refactor Integration Tests', () => {
       const content = fs.readFileSync(networkUtilsPath, 'utf8');
       
       // Check for key exports (final export line contains all functions)
-      expect(content).toContain('export { withTimeout, probeHealth, resolveBaseUrl, toWsUrl }');
-      expect(content).toContain('window.withTimeout = withTimeout');
-      expect(content).toContain('window.resolveBaseUrl = resolveBaseUrl');
+      assert.ok(content.includes('export { withTimeout, probeHealth, resolveBaseUrl, toWsUrl }'), 'Should export network utilities');
+      assert.ok(content.includes('window.withTimeout = withTimeout'), 'Should expose withTimeout to window');
+      assert.ok(content.includes('window.resolveBaseUrl = resolveBaseUrl'), 'Should expose resolveBaseUrl to window');
       
       console.log('✅ Network Utilities Export: PASS');
     });
@@ -124,9 +131,9 @@ describe('Post-Refactor Integration Tests', () => {
       const reportsServicePath = path.join(process.cwd(), 'src/services/reports-service.js');
       const content = fs.readFileSync(reportsServicePath, 'utf8');
       
-      expect(content).toContain('window.fetchReports');
-      expect(content).toContain('export async function updateReport');
-      expect(content).toContain('export async function deleteReportById');
+      assert.ok(content.includes('window.fetchReports'), 'Should expose fetchReports to window');
+      assert.ok(content.includes('export async function updateReport'), 'Should export updateReport function');
+      assert.ok(content.includes('export async function deleteReportById'), 'Should export deleteReportById function');
       
       console.log('✅ Reports Service Export: PASS');
     });
@@ -140,13 +147,13 @@ describe('Post-Refactor Integration Tests', () => {
         
         // In development, should resolve to localhost
         const baseUrl = await resolveBaseUrl();
-        expect(baseUrl).toContain('localhost:8080');
+        assert.ok(baseUrl.includes('localhost:8080'), 'Base URL should contain localhost:8080');
         
         console.log('✅ Base URL Resolution: PASS');
       } catch (error) {
         console.log('⚠️ Base URL Resolution: Could not test dynamically');
         // Test passes if import works
-        expect(true).toBe(true);
+        assert.ok(true, 'Dynamic test could not be performed');
       }
     });
   });
@@ -154,20 +161,20 @@ describe('Post-Refactor Integration Tests', () => {
   describe('💾 Static Asset Verification', () => {
     test('should have ONNX runtime files', () => {
       const ortPath = path.join(process.cwd(), 'public/ort');
-      expect(fs.existsSync(ortPath)).toBe(true);
+      assert.ok(fs.existsSync(ortPath), 'ONNX runtime directory should exist');
       
       const ortFiles = fs.readdirSync(ortPath);
-      expect(ortFiles.some(file => file.includes('ort.min.js'))).toBe(true);
+      assert.ok(ortFiles.some(file => file.includes('ort.min.js')), 'Should have ONNX runtime files');
       
       console.log('✅ ONNX Runtime Assets: PASS');
     });
 
     test('should have object detection models', () => {
       const modelPath = path.join(process.cwd(), 'public/object_detection_model');
-      expect(fs.existsSync(modelPath)).toBe(true);
+      assert.ok(fs.existsSync(modelPath), 'Object detection model directory should exist');
       
       const modelFiles = fs.readdirSync(modelPath);
-      expect(modelFiles.some(file => file.endsWith('.onnx'))).toBe(true);
+      assert.ok(modelFiles.some(file => file.endsWith('.onnx')), 'Should have ONNX model files');
       
       console.log('✅ Object Detection Models: PASS');
     });
@@ -178,9 +185,9 @@ describe('Post-Refactor Integration Tests', () => {
       const response = await fetch(`${SERVER_URL}/camera.html`);
       const html = await response.text();
       
-      expect(html).toContain('js/camera_detection.js');
-      expect(html).toContain('js/notifications.js');
-      expect(html).toContain('ort/ort.min.js');
+      assert.ok(html.includes('js/camera_detection.js'), 'Camera page should include detection script');
+      assert.ok(html.includes('js/notifications.js'), 'Camera page should include notifications');
+      assert.ok(html.includes('ort/ort.min.js'), 'Camera page should include ONNX runtime');
       
       console.log('✅ Camera Page Script Includes: PASS');
     });
@@ -189,9 +196,9 @@ describe('Post-Refactor Integration Tests', () => {
       const response = await fetch(`${SERVER_URL}/dashboard.html`);
       const html = await response.text();
       
-      expect(html).toContain('js/dashboard.js');
-      expect(html).toContain('js/reports-api.js');
-      expect(html).toContain('js/map.js');
+      assert.ok(html.includes('js/dashboard.js'), 'Dashboard page should include dashboard script');
+      assert.ok(html.includes('js/reports-api.js'), 'Dashboard page should include reports API');
+      assert.ok(html.includes('js/map.js'), 'Dashboard page should include map script');
       
       console.log('✅ Dashboard Page Script Includes: PASS');
     });
@@ -200,9 +207,9 @@ describe('Post-Refactor Integration Tests', () => {
       const response = await fetch(`${SERVER_URL}/upload.html`);
       const html = await response.text();
       
-      expect(html).toContain('js/upload.js');
-      expect(html).toContain('js/notifications.js');
-      expect(html).toContain('ort/ort.min.js');
+      assert.ok(html.includes('js/upload.js'), 'Upload page should include upload script');
+      assert.ok(html.includes('js/notifications.js'), 'Upload page should include notifications');
+      assert.ok(html.includes('ort/ort.min.js'), 'Upload page should include ONNX runtime');
       
       console.log('✅ Upload Page Script Includes: PASS');
     });
@@ -211,13 +218,13 @@ describe('Post-Refactor Integration Tests', () => {
   describe('🚨 Error Handling', () => {
     test('should handle non-existent routes gracefully', async () => {
       const response = await fetch(`${SERVER_URL}/non-existent-page`);
-      expect(response.status).toBe(404);
+      assert.strictEqual(response.status, 404, 'Non-existent routes should return 404');
       console.log('✅ 404 Error Handling: PASS');
     });
 
     test('should handle API errors gracefully', async () => {
       const response = await fetch(`${SERVER_URL}/api/non-existent-endpoint`);
-      expect(response.status).toBe(404);
+      assert.strictEqual(response.status, 404, 'Non-existent API endpoints should return 404');
       console.log('✅ API Error Handling: PASS');
     });
   });
