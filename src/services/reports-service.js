@@ -65,10 +65,24 @@ window.fetchReports = async function (filters = {}) {
 
   const geocodedReports = await Promise.all(
     reports.map(async (report) => {
-      if (typeof report.location === 'string' && !report.lat && !report.lon) {
+      // Preserve existing coordinates if present
+      if (report.lat && report.lon) return report;
+
+      // Convert location array [lat, lon] to lat/lon fields
+      if (
+        Array.isArray(report.location) &&
+        report.location.length >= 2
+      ) {
+        const [lat, lon] = report.location;
+        return { ...report, lat: Number(lat), lon: Number(lon) };
+      }
+
+      // Geocode string addresses
+      if (typeof report.location === 'string') {
         const coords = await geocode(report.location);
         if (coords) return { ...report, lat: coords.lat, lon: coords.lon };
       }
+
       return report;
     })
   );
