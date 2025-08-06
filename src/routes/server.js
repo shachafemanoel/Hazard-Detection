@@ -244,7 +244,9 @@ app.get('/api/v1/health', async (req, res) => {
         const result = await makeApiRequest('/health');
         res.json(result);
     } catch (error) {
-        res.status(502).json({ error: error.message });
+        // Avoid failing health probes by returning a 200 with an
+        // explicit unhealthy status when the upstream API is down.
+        res.status(200).json({ status: 'unhealthy', error: error.message });
     }
 });
 
