@@ -51,7 +51,7 @@ describe('Realtime client browser E2E', () => {
         // Stub fetch to simulate API responses
         const responses = {
           'http://ideal-learning.railway.internal:8080/health': { status: 200 },
-          'https://hazard-api-production.up.railway.app/health': { status: 500 },
+          'https://hazard-api-production-production.up.railway.app/health': { status: 500 },
           'http://ideal-learning.railway.internal:8080/session/start': { status: 200, body: { session_id: 'abc' } },
           'http://ideal-learning.railway.internal:8080/detect/abc': { status: 200, body: { detections: [] } }
         };

@@ -8,7 +8,7 @@ echo "🚀 Starting Hazard Detection Frontend"
 WEB_PORT=${PORT:-3000}
 
 echo "🌐 Web Server Port: ${WEB_PORT}"
-echo "🔗 API Service URL: ${API_URL:-https://hazard-api-production.up.railway.app/}"
+echo "🔗 API Service URL: ${API_URL:-https://hazard-api-production-production.up.railway.app/}"
 
 # Function to cleanup on exit
 cleanup() {
@@ -45,7 +45,7 @@ done
 echo "🎉 Frontend started successfully!"
 echo "📊 Service Status:"
 echo "   🌐 Web Server: http://localhost:${WEB_PORT} (PID: $WEB_PID)"
-echo "   🔗 API Service: ${API_URL:-https://hazard-api-production.up.railway.app/}"
+echo "   🔗 API Service: ${API_URL:-https://hazard-api-production-production.up.railway.app/}"
 
 echo "🔄 Frontend is running. Press Ctrl+C to stop."
 
