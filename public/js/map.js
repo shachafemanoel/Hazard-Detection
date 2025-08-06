@@ -1,6 +1,7 @@
+import { MarkerClusterer } from "https://unpkg.com/@googlemaps/markerclusterer@2.5.3/dist/index.esm.js?module";
+
 let map;
 let customHeatLayer;
-let markerClusterer;
 let userLocation;
 let markers = [];
 let densityPolygons = [];
@@ -296,52 +297,27 @@ async function initGoogleMap() {
 }
 
 async function initMarkerClusterer() {
-  return new Promise((resolve) => {
-    // Check if MarkerClusterer is available
-    const checkMarkerClusterer = () => {
-      if (
-        typeof markerClusterer !== "undefined" &&
-        markerClusterer.MarkerClusterer
-      ) {
-        try {
-          window.markerClustererInstance = new markerClusterer.MarkerClusterer({
-            map,
-            markers: [],
-            gridSize: 60,
-            maxZoom: 15,
-          });
-          console.log("MarkerClusterer initialized successfully");
-          resolve();
-        } catch (error) {
-          console.warn("Failed to initialize MarkerClusterer:", error);
-          createFallbackClusterer();
-          resolve();
-        }
-      } else {
-        setTimeout(checkMarkerClusterer, 100);
-      }
-    };
-
-    checkMarkerClusterer();
-
-    // Timeout after 3 seconds
-    setTimeout(() => {
-      if (!window.markerClustererInstance) {
-        console.warn("MarkerClusterer timeout, using fallback");
-        createFallbackClusterer();
-        resolve();
-      }
-    }, 3000);
-  });
+  try {
+    window.markerClustererInstance = new MarkerClusterer({
+      map,
+      markers: [],
+      gridSize: 60,
+      maxZoom: 15,
+    });
+    console.log("MarkerClusterer initialized successfully");
+  } catch (error) {
+    console.warn("Failed to initialize MarkerClusterer:", error);
+    createFallbackClusterer();
+  }
 }
 
 function createFallbackClusterer() {
   window.markerClustererInstance = {
     clearMarkers: () => {
-      markers.forEach((marker) => marker.setMap(null));
+      markers.forEach((marker) => (marker.map = null));
     },
     addMarkers: (newMarkers) => {
-      newMarkers.forEach((marker) => marker.setMap(map));
+      newMarkers.forEach((marker) => (marker.map = map));
     },
   };
 }
@@ -369,23 +345,19 @@ async function getUserLocation() {
         map.setCenter(userLocation);
         map.setZoom(12);
 
-        // Add user location marker
-        new google.maps.Marker({
+        // Add user location marker using AdvancedMarkerElement
+        const userIcon = document.createElement("div");
+        userIcon.innerHTML = `
+          <svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="10" cy="10" r="8" fill="#4285f4" stroke="#fff" stroke-width="2"/>
+            <circle cx="10" cy="10" r="3" fill="#fff"/>
+          </svg>
+        `;
+        new google.maps.marker.AdvancedMarkerElement({
           position: userLocation,
-          map: map,
+          map,
           title: "Your Location",
-          icon: {
-            url:
-              "data:image/svg+xml;charset=UTF-8," +
-              encodeURIComponent(`
-              <svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="10" cy="10" r="8" fill="#4285f4" stroke="#fff" stroke-width="2"/>
-                <circle cx="10" cy="10" r="3" fill="#fff"/>
-              </svg>
-            `),
-            scaledSize: new google.maps.Size(20, 20),
-            anchor: new google.maps.Point(10, 10),
-          },
+          content: userIcon,
           zIndex: 1000,
         });
         resolve();
@@ -476,11 +448,11 @@ export async function plotReports(reports) {
     }
 
     if (coords) {
-      // Create marker
-      const marker = new google.maps.Marker({
+      // Create marker using AdvancedMarkerElement
+      const marker = new google.maps.marker.AdvancedMarkerElement({
         position: coords,
         title: `${report.type} - ${report.status}`,
-        icon: getMarkerIcon(report.type, report.status),
+        content: getMarkerIcon(report.type, report.status),
       });
 
       // Create info window
@@ -495,7 +467,7 @@ export async function plotReports(reports) {
             m.infoWindow.close();
           }
         });
-        infoWindow.open(map, marker);
+        infoWindow.open({ map, anchor: marker });
       });
 
       marker.infoWindow = infoWindow;
@@ -527,7 +499,7 @@ export async function plotReports(reports) {
   // Auto-fit map bounds if there are reports
   if (markers.length > 0) {
     const bounds = new google.maps.LatLngBounds();
-    markers.forEach((marker) => bounds.extend(marker.getPosition()));
+    markers.forEach((marker) => bounds.extend(marker.position));
 
     // Include user location in bounds if available
     if (userLocation) {
@@ -556,20 +528,15 @@ function getMarkerIcon(type, status) {
   };
 
   const color = colors[status] || "#6c757d";
-
-  return {
-    url:
-      "data:image/svg+xml;charset=UTF-8," +
-      encodeURIComponent(`
+  const div = document.createElement("div");
+  div.innerHTML = `
       <svg width="32" height="40" viewBox="0 0 32 40" xmlns="http://www.w3.org/2000/svg">
         <path d="M16 0C7.163 0 0 7.163 0 16c0 16 16 24 16 24s16-8 16-24C32 7.163 24.837 0 16 0z" fill="${color}"/>
         <circle cx="16" cy="16" r="8" fill="#fff"/>
         <text x="16" y="20" text-anchor="middle" fill="${color}" font-size="10" font-weight="bold">!</text>
       </svg>
-    `),
-    scaledSize: new google.maps.Size(32, 40),
-    anchor: new google.maps.Point(16, 40),
-  };
+  `;
+  return div;
 }
 
 function createInfoWindowContent(report) {

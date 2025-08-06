@@ -1,72 +1,105 @@
-// Unified camera detection script (upload_tf.js)
-// Combines previous camera_detection logic with updated model path
-// and WebAssembly execution provider configuration.
+// upload_tf.js
+import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js";
+import { storage } from "./firebaseConfig.js";
 
-import { saveReport } from "./apiClient.js";
 
-// DOM Elements
-const videoElement = document.getElementById("camera-stream");
-const canvasElement = document.getElementById("overlay-canvas");
-const startButton = document.getElementById("start-camera");
-const stopButton = document.getElementById("stop-camera");
-const loadingIndicator = document.getElementById("loading-overlay");
-const loadingStatus = document.getElementById("loading-status");
+document.addEventListener("DOMContentLoaded", initialize);
 
-// --- UI Elements for results ---
-const detectionCountBadge = document.getElementById("detection-count-badge");
-const hazardTypesList = document.getElementById("hazard-types-list");
-const hazardTypesDisplay = document.getElementById("hazard-types-display");
-const fpsBadge = document.getElementById("fps-badge");
-
-// Detection state
-let isDetecting = false;
-let session; // ONNX session
-let animationFrameId;
-const model_dim = [480, 480]; // Model input dimensions
-
-// FPS calculation
-let lastFrameTime = 0;
-let frameCount = 0;
-let fps = 0;
-
-// Use absolute path to avoid relative path issues
-const model_path = "/object_detection_model/best0408.onnx";
-
-// Model class names (road hazards)
-const classes = ["crack", "knocked", "pothole", "surface damage"];
-
-// --- Initialization ---
-async function initialize() {
-  if (!startButton || !stopButton || !loadingIndicator) {
-    console.error("Required UI elements are missing from the page.");
+function initialize() {
+  const startButton = document.getElementById("start-camera");
+  if (!startButton) {
+    console.error('Missing element with ID "start-camera"');
     return;
   }
-  startButton.addEventListener("click", startCamera);
-  stopButton.addEventListener("click", stopCamera);
-  await loadModel();
-}
 
-// --- Model Loading ---
-async function loadModel() {
-  console.log("Loading model...");
-  loadingIndicator.style.display = "flex";
-  if (loadingStatus) loadingStatus.textContent = "Loading AI Model...";
+  const stopButton = document.getElementById("stop-camera");
+  if (!stopButton) {
+    console.error('Missing element with ID "stop-camera"');
+    return;
+  }
 
-  try {
-    session = await ort.InferenceSession.create(model_path, {
-      executionProviders: ["wasm"],
-    });
-    console.log("Model loaded successfully.");
-    startButton.disabled = false;
-    if (loadingStatus) loadingStatus.textContent = "Model Ready";
-  } catch (error) {
-    console.error("Failed to load the model:", error);
-    if (loadingStatus) loadingStatus.textContent = "Error: Model Failed to Load";
-    if (typeof notify === "function") {
-      notify(
-        "Error: Could not load the detection model. Please refresh and try again.",
-        "error",
-      );
+  const loadingIndicator = document.getElementById("loading-overlay");
+  if (!loadingIndicator) {
+    console.error('Missing element with ID "loading-overlay"');
+    return;
+  }
+
+  const video = document.getElementById("camera-stream");
+  const canvas = document.getElementById("overlay-canvas");
+  const ctx = canvas.getContext("2d");
+
+  const FIXED_SIZE = 320;
+  let stream = null;
+  let detecting = false;
+  let session = null;
+  let frameCount = 0;
+  const pendingDetections = [];
+
+  const offscreen = document.createElement("canvas");
+  offscreen.width = FIXED_SIZE;
+  offscreen.height = FIXED_SIZE;
+  const offCtx = offscreen.getContext("2d", { willReadFrequently: true });
+
+  let letterboxParams = null;
+
+  const classNames = ['Alligator Crack', 'Block Crack', 'Construction Joint Crack', 'Crosswalk Blur', 'Lane Blur', 'Longitudinal Crack', 'Manhole', 'Patch Repair', 'Pothole', 'Transverse Crack', 'Wheel Mark Crack'];
+
+  async function loadModel() {
+    try {
+      const modelPaths = [
+        '/object_detection_model/last_model_train12052025.onnx',
+        '/object_detection_model/yolov8n.onnx'
+      ];
+
+      let loaded = false;
+      for (const path of modelPaths) {
+        console.log(`🔍 Attempting to load model from: ${path}`);
+        try {
+          let headResp;
+          try {
+            headResp = await fetch(path, { method: 'HEAD' });
+            const contentLength = headResp.headers.get('Content-Length');
+            if (headResp.ok) {
+              console.log(`📡 Model reachable (status: ${headResp.status}, size: ${contentLength || 'unknown'})`);
+            } else {
+              console.error(`❌ Model not reachable (status: ${headResp.status})`);
+              continue;
+            }
+          } catch (networkErr) {
+            console.error(`❌ Network error checking model at ${path}:`, networkErr);
+            continue;
+          }
+
+          if (typeof ov !== 'undefined' && ov.InferenceSession) {
+            session = await ov.InferenceSession.create(path);
+          } else {
+            if (typeof ort === 'undefined' || !ort.InferenceSession) {
+              console.error('❌ ONNX Runtime (ort) is not available');
+              throw new Error('ONNX Runtime (ort) is not available');
+            }
+            try {
+              session = await ort.InferenceSession.create(path, { executionProviders: ['webgl'] });
+            } catch (err) {
+              console.warn(`WebGL backend failed for ${path}, falling back:`, err);
+              session = await ort.InferenceSession.create(path);
+            }
+          }
+          loaded = true;
+          console.log('✅ Model file reachable, proceeding with session creation');
+          break;
+        } catch (err2) {
+          console.warn(`❌ Failed to load model at ${path}:`, err2);
+        }
+      }
+
+      if (!loaded) {
+        throw new Error('No model loaded');
+      }
+
+      const runtimeName = typeof ov !== 'undefined' && ov.InferenceSession ? 'OpenVINO' : 'ONNX';
+      console.log(`✅ YOLO model loaded (${runtimeName} runtime)!`);
+    } catch (err) {
+      console.error("❌ Failed to load model:", err);
     }
   } finally {
     // Hide loading indicator after a short delay to show status
@@ -150,228 +183,104 @@ async function detectionLoop() {
       const feeds = { images: tensor };
       const results = await session.run(feeds);
       const outputKey = Object.keys(results)[0];
-      const detections = postprocess(
-        results[outputKey],
-        model_dim,
-        frame.width,
-        frame.height,
-      );
-
-      drawResults(detections, frame);
-      if (detections.length > 0) {
-        handleSaveDetection(detections, frame);
+      const output = results[outputKey];
+      const outputData = output.data;
+      const boxes = [];
+      for (let i = 0; i < outputData.length; i += 6) {
+        boxes.push(outputData.slice(i, i + 6));
       }
-    } catch (error) {
-      console.error("Error during detection:", error);
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      for (const [x1, y1, x2, y2, score, classId] of boxes) {
+        if (score < 0.5) continue;
+        const scaleX = video.videoWidth / FIXED_SIZE;
+        const scaleY = video.videoHeight / FIXED_SIZE;
+        const boxW = (x2 - x1) * scaleX;
+        const boxH = (y2 - y1) * scaleY;
+        const left = x1 * scaleX;
+        const top = y1 * scaleY;
+        if (boxW < 1 || boxH < 1) continue;
+
+        ctx.strokeStyle = "red";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(left, top, boxW, boxH);
+
+        const label = classNames[Math.floor(classId)] || `Class ${classId}`;
+        const scorePerc = (score * 100).toFixed(1);
+        ctx.fillStyle = "red";
+        ctx.font = "16px Arial";
+        const textY = top > 10 ? top - 5 : 10;
+        ctx.fillText(`${label} (${scorePerc}%)`, left, textY);
+
+        console.log("📦 Detected object:", label, scorePerc + "%");
+
+        if (frameCount % 60 === 0) {
+          const snap = document.createElement('canvas');
+          snap.width = video.videoWidth;
+          snap.height = video.videoHeight;
+          const snapCtx = snap.getContext('2d');
+          // Draw the video frame and overlay
+          snapCtx.drawImage(video, 0, 0, snap.width, snap.height);
+          snapCtx.drawImage(canvas, 0, 0, snap.width, snap.height);
+          saveDetection(snap, label, score).catch((e) => console.error(e));
+        }
+      }
+    } catch (err) {
+      console.error("❌ Error running ONNX model:", err);
     }
+
+    requestAnimationFrame(() => detectLoop());
   }
 
-  // Calculate FPS
-  const now = performance.now();
-  frameCount++;
-  if (now - lastFrameTime >= 1000) {
-    fps = frameCount;
-    frameCount = 0;
-    lastFrameTime = now;
-    if (fpsBadge) fpsBadge.textContent = `${fps} FPS`;
-  }
+  startButton.addEventListener("click", async () => {
+    if (!session) await loadModel();
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 } } });
+      video.srcObject = stream;
+      startButton.style.display = "none";
+      stopButton.style.display = "inline-block";
+      video.addEventListener("loadeddata", () => {
+        computeLetterboxParams();
+        detecting = true;
+        detectLoop();
+      }, { once: true });
+    } catch (err) {
+      alert("לא ניתן לפתוח מצלמה");
+      console.error(err);
+    }
+  });
 
-  animationFrameId = requestAnimationFrame(detectionLoop);
-}
+  stopButton.addEventListener("click", async () => {
+    detecting = false;
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+      stream = null;
+    }
+    video.srcObject = null;
+    startButton.style.display = "inline-block";
+    stopButton.style.display = "none";
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    console.log("Camera stopped");
 
-async function captureFrame() {
-  if (videoElement.readyState < 2) return null; // Not ready
-  const tempCanvas = document.createElement("canvas");
-  tempCanvas.width = videoElement.videoWidth;
-  tempCanvas.height = videoElement.videoHeight;
-  const ctx = tempCanvas.getContext("2d");
-  ctx.drawImage(videoElement, 0, 0, tempCanvas.width, tempCanvas.height);
-  return tempCanvas;
-}
-
-// --- Pre-processing ---
-function preprocess(source, model_dim) {
-  const [model_width, model_height] = model_dim;
-  const [input_width, input_height] = [source.width, source.height];
-
-  const ratio = Math.min(
-    model_width / input_width,
-    model_height / input_height,
-  );
-  const new_width = Math.round(input_width * ratio);
-  const new_height = Math.round(input_height * ratio);
-
-  const C = document.createElement("canvas");
-  C.width = model_width;
-  C.height = model_height;
-  const ctx = C.getContext("2d");
-  ctx.fillStyle = "#000000";
-  ctx.fillRect(0, 0, model_width, model_height);
-
-  const x_offset = (model_width - new_width) / 2;
-  const y_offset = (model_height - new_height) / 2;
-  ctx.drawImage(source, x_offset, y_offset, new_width, new_height);
-
-  const image_data = ctx.getImageData(0, 0, model_width, model_height);
-  const data = image_data.data;
-
-  const red = [],
-    green = [],
-    blue = [];
-  for (let i = 0; i < data.length; i += 4) {
-    red.push(data[i] / 255.0);
-    green.push(data[i + 1] / 255.0);
-    blue.push(data[i + 2] / 255.0);
-  }
-  const transposed = red.concat(green, blue);
-  const float32_data = new Float32Array(transposed);
-
-  return new ort.Tensor("float32", float32_data, [
-    1,
-    3,
-    model_height,
-    model_width,
-  ]);
-}
-
-// --- Post-processing ---
-function postprocess(output, model_dim, original_width, original_height) {
-  if (!output || !output.data) {
-    console.error("Invalid model output received for postprocessing.");
-    return [];
-  }
-  const [model_width, model_height] = model_dim;
-  const boxes = [];
-  const data = output.data;
-
-  for (let i = 0; i < data.length; i += 6) {
-    const [x1, y1, x2, y2, score, classId] = data.slice(i, i + 6);
-    if (score < 0.5) continue;
-
-    const scaleX = original_width / model_width;
-    const scaleY = original_height / model_height;
-
-    boxes.push({
-      box: [x1 * scaleX, y1 * scaleY, x2 * scaleX, y2 * scaleY],
-      label: classes[Math.floor(classId)] || `class_${classId}`,
-      score: score,
-    });
-  }
-  return nms(boxes, 0.5);
-}
-
-// --- NMS (Non-Maximum Suppression) ---
-function nms(boxes, iou_threshold) {
-  boxes.sort((a, b) => b.score - a.score);
-  const result = [];
-  while (boxes.length > 0) {
-    result.push(boxes[0]);
-    boxes = boxes.filter((box) => iou(boxes[0], box) < iou_threshold);
-  }
-  return result;
-}
-
-function iou(box1, box2) {
-  const [x1, y1, x2, y2] = box1.box;
-  const [x3, y3, x4, y4] = box2.box;
-
-  const inter_x1 = Math.max(x1, x3);
-  const inter_y1 = Math.max(y1, y3);
-  const inter_x2 = Math.min(x2, x4);
-  const inter_y2 = Math.min(y2, y4);
-
-  const inter_area =
-    Math.max(0, inter_x2 - inter_x1) * Math.max(0, inter_y2 - inter_y1);
-  const box1_area = (x2 - x1) * (y2 - y1);
-  const box2_area = (x4 - x3) * (y4 - y3);
-
-  return inter_area / (box1_area + box2_area - inter_area);
-}
-
-// --- Drawing and Reporting ---
-function drawResults(detections, source) {
-  const ctx = canvasElement.getContext("2d");
-  ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-  ctx.drawImage(source, 0, 0, canvasElement.width, canvasElement.height);
-
-  // Update UI badges
-  if (detectionCountBadge)
-    detectionCountBadge.textContent = `${detections.length} hazard${
-      detections.length === 1 ? "" : "s"
-    }`;
-  if (detections.length > 0) {
-    if (hazardTypesDisplay) hazardTypesDisplay.style.display = "flex";
-    const uniqueLabels = [...new Set(detections.map((d) => d.label))];
-    if (hazardTypesList) hazardTypesList.textContent = uniqueLabels.join(", ");
-  } else {
-    if (hazardTypesDisplay) hazardTypesDisplay.style.display = "none";
-  }
-
-  detections.forEach((det) => {
-    const [x1, y1, x2, y2] = det.box;
-    const label = `${det.label} (${det.score.toFixed(2)})`;
-    ctx.strokeStyle = "#00FF00";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
-
-    ctx.fillStyle = "#00FF00";
-    ctx.font = "16px sans-serif";
-    const textWidth = ctx.measureText(label).width;
-    ctx.fillRect(x1 - 1, y1 - 18, textWidth + 4, 20);
-    ctx.fillStyle = "#000000";
-    ctx.fillText(label, x1 + 1, y1 - 2);
+    if (pendingDetections.length > 0) {
+      console.log(`📨 Sending ${pendingDetections.length} detections to server...`);
+      for (const detection of pendingDetections) {
+        try {
+          const res = await fetch("/api/reports", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(detection)
+          });
+          const result = await res.json();
+          console.log("✅ Detection saved:", result);
+        } catch (e) {
+          console.error("🔥 Failed to send detection:", e);
+        }
+      }
+    }
   });
 }
-
-let lastSaveTime = 0;
-const SAVE_INTERVAL = 5000; // 5 seconds
-
-function handleSaveDetection(detections, frameCanvas) {
-  const now = Date.now();
-  if (now - lastSaveTime < SAVE_INTERVAL) {
-    return; // Debounce saving
-  }
-  lastSaveTime = now;
-
-  console.log("Preparing to save detection:", detections);
-
-  frameCanvas.toBlob(
-    async (blob) => {
-      if (!blob) {
-        console.error("Failed to create blob from canvas.");
-        return;
-      }
-      const reportData = {
-        timestamp: new Date().toISOString(),
-        latitude: null,
-        longitude: null,
-        detections: detections.map((d) => ({
-          box: d.box,
-          label: d.label,
-          score: d.score,
-        })),
-        imageBlob: blob,
-        imageName: `detection-${Date.now()}.jpg`,
-      };
-
-      try {
-        await saveReport(reportData);
-        console.log("Report saved successfully.");
-        if (typeof notify === "function") {
-          notify(`Report with ${detections.length} hazard(s) saved.`, "success");
-        }
-      } catch (error) {
-        console.error("Error saving report:", error);
-        if (typeof notify === "function") {
-          notify("Error saving report. See console for details.", "error");
-        }
-      }
-    },
-    "image/jpeg",
-    0.8,
-  );
-}
-
-// --- Start ---
-document.addEventListener("DOMContentLoaded", initialize);
-
