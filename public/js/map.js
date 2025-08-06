@@ -29,26 +29,26 @@ class CustomHeatLayer {
   setMap(map) {
     if (this.map) {
       this.map.getDiv().removeChild(this.canvas);
-      this.map.unbind('bounds_changed', this.draw);
-      this.map.unbind('zoom_changed', this.draw);
+      this.map.unbind("bounds_changed", this.draw);
+      this.map.unbind("zoom_changed", this.draw);
     }
-    
+
     this.map = map;
-    
+
     if (map) {
-      this.canvas = document.createElement('canvas');
-      this.canvas.style.position = 'absolute';
-      this.canvas.style.top = '0';
-      this.canvas.style.left = '0';
-      this.canvas.style.pointerEvents = 'none';
-      this.canvas.style.zIndex = '1';
-      this.ctx = this.canvas.getContext('2d');
-      
+      this.canvas = document.createElement("canvas");
+      this.canvas.style.position = "absolute";
+      this.canvas.style.top = "0";
+      this.canvas.style.left = "0";
+      this.canvas.style.pointerEvents = "none";
+      this.canvas.style.zIndex = "1";
+      this.ctx = this.canvas.getContext("2d");
+
       map.getDiv().appendChild(this.canvas);
-      
-      google.maps.event.addListener(map, 'bounds_changed', () => this.draw());
-      google.maps.event.addListener(map, 'zoom_changed', () => this.draw());
-      
+
+      google.maps.event.addListener(map, "bounds_changed", () => this.draw());
+      google.maps.event.addListener(map, "zoom_changed", () => this.draw());
+
       this.draw();
     }
   }
@@ -88,7 +88,7 @@ class CustomHeatLayer {
     gradient.addColorStop(0, `rgba(255, 0, 0, ${this.opacity})`);
     gradient.addColorStop(0.4, `rgba(255, 165, 0, ${this.opacity * 0.7})`);
     gradient.addColorStop(0.7, `rgba(255, 255, 0, ${this.opacity * 0.4})`);
-    gradient.addColorStop(1, 'rgba(255, 255, 0, 0)');
+    gradient.addColorStop(1, "rgba(255, 255, 0, 0)");
 
     this.ctx.fillStyle = gradient;
     this.ctx.beginPath();
@@ -98,22 +98,22 @@ class CustomHeatLayer {
 }
 
 function setupMobileMapToolbar() {
-  const mapEl = document.getElementById('map');
-  const toolbar = document.createElement('div');
-  toolbar.className = 'mobile-map-toolbar';
+  const mapEl = document.getElementById("map");
+  const toolbar = document.createElement("div");
+  toolbar.className = "mobile-map-toolbar";
 
-  const toggleBtn = document.getElementById('toggle-heatmap');
-  const centerBtn = document.getElementById('center-map');
+  const toggleBtn = document.getElementById("toggle-heatmap");
+  const centerBtn = document.getElementById("center-map");
 
-  const zoomIn = document.createElement('button');
-  zoomIn.id = 'mobile-zoom-in';
+  const zoomIn = document.createElement("button");
+  zoomIn.id = "mobile-zoom-in";
   zoomIn.innerHTML = '<i class="fas fa-plus"></i>';
-  zoomIn.setAttribute('aria-label', 'Zoom in');
+  zoomIn.setAttribute("aria-label", "Zoom in");
 
-  const zoomOut = document.createElement('button');
-  zoomOut.id = 'mobile-zoom-out';
+  const zoomOut = document.createElement("button");
+  zoomOut.id = "mobile-zoom-out";
   zoomOut.innerHTML = '<i class="fas fa-minus"></i>';
-  zoomOut.setAttribute('aria-label', 'Zoom out');
+  zoomOut.setAttribute("aria-label", "Zoom out");
 
   if (toggleBtn) toolbar.appendChild(toggleBtn);
   if (centerBtn) toolbar.appendChild(centerBtn);
@@ -121,17 +121,17 @@ function setupMobileMapToolbar() {
   toolbar.appendChild(zoomOut);
   mapEl.appendChild(toolbar);
 
-  const mapControls = document.querySelector('.map-controls');
+  const mapControls = document.querySelector(".map-controls");
   mapControls?.remove();
 
-  zoomIn.addEventListener('click', () => {
+  zoomIn.addEventListener("click", () => {
     if (map) {
       const currentZoom = map.getZoom();
       map.setZoom(currentZoom + 1);
     }
   });
-  
-  zoomOut.addEventListener('click', () => {
+
+  zoomOut.addEventListener("click", () => {
     if (map) {
       const currentZoom = map.getZoom();
       map.setZoom(currentZoom - 1);
@@ -148,7 +148,7 @@ export function initializeMap() {
 
     // Wait for Google Maps API to load
     const checkGoogleMaps = () => {
-      if (typeof google !== 'undefined' && google.maps && google.maps.Map) {
+      if (typeof google !== "undefined" && google.maps && google.maps.Map) {
         initGoogleMap()
           .then(() => {
             mapInitialized = true;
@@ -165,7 +165,7 @@ export function initializeMap() {
     // Timeout after 15 seconds
     setTimeout(() => {
       if (!mapInitialized) {
-        reject(new Error('Google Maps API failed to load within timeout'));
+        reject(new Error("Google Maps API failed to load within timeout"));
       }
     }, 15000);
   });
@@ -173,113 +173,113 @@ export function initializeMap() {
 
 async function initGoogleMap() {
   const isMobile = window.innerWidth <= 768;
-  
+
   // Initialize map
-  map = new google.maps.Map(document.getElementById('map'), {
+  map = new google.maps.Map(document.getElementById("map"), {
     center: DEFAULT_CENTER,
     zoom: DEFAULT_ZOOM,
-    mapTypeId: 'roadmap',
+    mapTypeId: "roadmap",
     styles: [
       {
-        "elementType": "geometry",
-        "stylers": [{"color": "#242f3e"}]
+        elementType: "geometry",
+        stylers: [{ color: "#242f3e" }],
       },
       {
-        "elementType": "labels.text.stroke",
-        "stylers": [{"color": "#242f3e"}]
+        elementType: "labels.text.stroke",
+        stylers: [{ color: "#242f3e" }],
       },
       {
-        "elementType": "labels.text.fill",
-        "stylers": [{"color": "#746855"}]
+        elementType: "labels.text.fill",
+        stylers: [{ color: "#746855" }],
       },
       {
-        "featureType": "administrative.locality",
-        "elementType": "labels.text.fill",
-        "stylers": [{"color": "#d59563"}]
+        featureType: "administrative.locality",
+        elementType: "labels.text.fill",
+        stylers: [{ color: "#d59563" }],
       },
       {
-        "featureType": "poi",
-        "elementType": "labels.text.fill",
-        "stylers": [{"color": "#d59563"}]
+        featureType: "poi",
+        elementType: "labels.text.fill",
+        stylers: [{ color: "#d59563" }],
       },
       {
-        "featureType": "poi.park",
-        "elementType": "geometry",
-        "stylers": [{"color": "#263c3f"}]
+        featureType: "poi.park",
+        elementType: "geometry",
+        stylers: [{ color: "#263c3f" }],
       },
       {
-        "featureType": "poi.park",
-        "elementType": "labels.text.fill",
-        "stylers": [{"color": "#6b9a76"}]
+        featureType: "poi.park",
+        elementType: "labels.text.fill",
+        stylers: [{ color: "#6b9a76" }],
       },
       {
-        "featureType": "road",
-        "elementType": "geometry",
-        "stylers": [{"color": "#38414e"}]
+        featureType: "road",
+        elementType: "geometry",
+        stylers: [{ color: "#38414e" }],
       },
       {
-        "featureType": "road",
-        "elementType": "geometry.stroke",
-        "stylers": [{"color": "#212a37"}]
+        featureType: "road",
+        elementType: "geometry.stroke",
+        stylers: [{ color: "#212a37" }],
       },
       {
-        "featureType": "road",
-        "elementType": "labels.text.fill",
-        "stylers": [{"color": "#9ca5b3"}]
+        featureType: "road",
+        elementType: "labels.text.fill",
+        stylers: [{ color: "#9ca5b3" }],
       },
       {
-        "featureType": "road.highway",
-        "elementType": "geometry",
-        "stylers": [{"color": "#746855"}]
+        featureType: "road.highway",
+        elementType: "geometry",
+        stylers: [{ color: "#746855" }],
       },
       {
-        "featureType": "road.highway",
-        "elementType": "geometry.stroke",
-        "stylers": [{"color": "#1f2835"}]
+        featureType: "road.highway",
+        elementType: "geometry.stroke",
+        stylers: [{ color: "#1f2835" }],
       },
       {
-        "featureType": "road.highway",
-        "elementType": "labels.text.fill",
-        "stylers": [{"color": "#f3d19c"}]
+        featureType: "road.highway",
+        elementType: "labels.text.fill",
+        stylers: [{ color: "#f3d19c" }],
       },
       {
-        "featureType": "transit",
-        "elementType": "geometry",
-        "stylers": [{"color": "#2f3948"}]
+        featureType: "transit",
+        elementType: "geometry",
+        stylers: [{ color: "#2f3948" }],
       },
       {
-        "featureType": "transit.station",
-        "elementType": "labels.text.fill",
-        "stylers": [{"color": "#d59563"}]
+        featureType: "transit.station",
+        elementType: "labels.text.fill",
+        stylers: [{ color: "#d59563" }],
       },
       {
-        "featureType": "water",
-        "elementType": "geometry",
-        "stylers": [{"color": "#17263c"}]
+        featureType: "water",
+        elementType: "geometry",
+        stylers: [{ color: "#17263c" }],
       },
       {
-        "featureType": "water",
-        "elementType": "labels.text.fill",
-        "stylers": [{"color": "#515c6d"}]
+        featureType: "water",
+        elementType: "labels.text.fill",
+        stylers: [{ color: "#515c6d" }],
       },
       {
-        "featureType": "water",
-        "elementType": "labels.text.stroke",
-        "stylers": [{"color": "#17263c"}]
-      }
+        featureType: "water",
+        elementType: "labels.text.stroke",
+        stylers: [{ color: "#17263c" }],
+      },
     ],
     zoomControl: !isMobile,
     mapTypeControl: false,
     scaleControl: true,
     streetViewControl: false,
     rotateControl: false,
-    fullscreenControl: !isMobile
+    fullscreenControl: !isMobile,
   });
 
   // Initialize custom heatmap (replacement for deprecated Google Heatmap)
   customHeatLayer = new CustomHeatLayer({
     radius: 50,
-    opacity: 0.6
+    opacity: 0.6,
   });
 
   // Initialize MarkerClusterer
@@ -292,25 +292,28 @@ async function initGoogleMap() {
     setupMobileMapToolbar();
   }
 
-  console.log('Google Map initialized successfully');
+  console.log("Google Map initialized successfully");
 }
 
 async function initMarkerClusterer() {
   return new Promise((resolve) => {
     // Check if MarkerClusterer is available
     const checkMarkerClusterer = () => {
-      if (typeof markerClusterer !== 'undefined' && markerClusterer.MarkerClusterer) {
+      if (
+        typeof markerClusterer !== "undefined" &&
+        markerClusterer.MarkerClusterer
+      ) {
         try {
-          window.markerClustererInstance = new markerClusterer.MarkerClusterer({ 
-            map, 
+          window.markerClustererInstance = new markerClusterer.MarkerClusterer({
+            map,
             markers: [],
             gridSize: 60,
-            maxZoom: 15
+            maxZoom: 15,
           });
-          console.log('MarkerClusterer initialized successfully');
+          console.log("MarkerClusterer initialized successfully");
           resolve();
         } catch (error) {
-          console.warn('Failed to initialize MarkerClusterer:', error);
+          console.warn("Failed to initialize MarkerClusterer:", error);
           createFallbackClusterer();
           resolve();
         }
@@ -324,7 +327,7 @@ async function initMarkerClusterer() {
     // Timeout after 3 seconds
     setTimeout(() => {
       if (!window.markerClustererInstance) {
-        console.warn('MarkerClusterer timeout, using fallback');
+        console.warn("MarkerClusterer timeout, using fallback");
         createFallbackClusterer();
         resolve();
       }
@@ -335,18 +338,18 @@ async function initMarkerClusterer() {
 function createFallbackClusterer() {
   window.markerClustererInstance = {
     clearMarkers: () => {
-      markers.forEach(marker => marker.setMap(null));
+      markers.forEach((marker) => marker.setMap(null));
     },
     addMarkers: (newMarkers) => {
-      newMarkers.forEach(marker => marker.setMap(map));
-    }
+      newMarkers.forEach((marker) => marker.setMap(map));
+    },
   };
 }
 
 async function getUserLocation() {
   return new Promise((resolve) => {
     if (!navigator.geolocation) {
-      console.warn('Geolocation not supported');
+      console.warn("Geolocation not supported");
       map.setCenter(DEFAULT_CENTER);
       map.setZoom(DEFAULT_ZOOM);
       resolve();
@@ -357,36 +360,38 @@ async function getUserLocation() {
       (position) => {
         userLocation = {
           lat: position.coords.latitude,
-          lng: position.coords.longitude
+          lng: position.coords.longitude,
         };
-        
-        console.log('User location found:', userLocation);
-        
+
+        console.log("User location found:", userLocation);
+
         // Center map on user location
         map.setCenter(userLocation);
         map.setZoom(12);
-        
+
         // Add user location marker
         new google.maps.Marker({
           position: userLocation,
           map: map,
-          title: 'Your Location',
+          title: "Your Location",
           icon: {
-            url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+            url:
+              "data:image/svg+xml;charset=UTF-8," +
+              encodeURIComponent(`
               <svg width="20" height="20" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
                 <circle cx="10" cy="10" r="8" fill="#4285f4" stroke="#fff" stroke-width="2"/>
                 <circle cx="10" cy="10" r="3" fill="#fff"/>
               </svg>
             `),
             scaledSize: new google.maps.Size(20, 20),
-            anchor: new google.maps.Point(10, 10)
+            anchor: new google.maps.Point(10, 10),
           },
-          zIndex: 1000
+          zIndex: 1000,
         });
         resolve();
       },
       (error) => {
-        console.warn('Geolocation failed:', error.message);
+        console.warn("Geolocation failed:", error.message);
         // Fallback to default location
         map.setCenter(DEFAULT_CENTER);
         map.setZoom(DEFAULT_ZOOM);
@@ -395,15 +400,15 @@ async function getUserLocation() {
       {
         enableHighAccuracy: true,
         timeout: 10000,
-        maximumAge: 300000 // 5 minutes
-      }
+        maximumAge: 300000, // 5 minutes
+      },
     );
   });
 }
 
 export function toggleHeatmap() {
   if (!map || !customHeatLayer) return;
-  
+
   if (customHeatLayer.getMap()) {
     customHeatLayer.setMap(null);
   } else {
@@ -413,7 +418,7 @@ export function toggleHeatmap() {
 
 export function centerMap() {
   if (!map) return;
-  
+
   if (userLocation) {
     map.setCenter(userLocation);
     map.setZoom(12);
@@ -426,13 +431,13 @@ export function centerMap() {
 export async function geocode(address) {
   return new Promise((resolve) => {
     const geocoder = new google.maps.Geocoder();
-    
+
     geocoder.geocode({ address: address }, (results, status) => {
-      if (status === 'OK' && results[0]) {
+      if (status === "OK" && results[0]) {
         const location = results[0].geometry.location;
         resolve([location.lat(), location.lng()]);
       } else {
-        console.error('Geocoding failed:', status);
+        console.error("Geocoding failed:", status);
         resolve(null);
       }
     });
@@ -441,27 +446,30 @@ export async function geocode(address) {
 
 export async function plotReports(reports) {
   if (!map || !mapInitialized) {
-    console.warn('Map not initialized yet');
+    console.warn("Map not initialized yet");
     return;
   }
 
   // Clear existing markers and data
-  if (window.markerClustererInstance && window.markerClustererInstance.clearMarkers) {
+  if (
+    window.markerClustererInstance &&
+    window.markerClustererInstance.clearMarkers
+  ) {
     window.markerClustererInstance.clearMarkers();
   }
   markers = [];
   const heatmapData = [];
-  
+
   // Clear existing density polygons
-  densityPolygons.forEach(polygon => polygon.setMap(null));
+  densityPolygons.forEach((polygon) => polygon.setMap(null));
   densityPolygons = [];
 
   for (const report of reports) {
     let coords;
     if (report.lat && report.lon) {
       coords = { lat: Number(report.lat), lng: Number(report.lon) };
-    } else if (report.address) {
-      const geocodedCoords = await geocode(report.address);
+    } else if (report.location) {
+      const geocodedCoords = await geocode(report.location);
       if (geocodedCoords) {
         coords = { lat: geocodedCoords[0], lng: geocodedCoords[1] };
       }
@@ -472,17 +480,17 @@ export async function plotReports(reports) {
       const marker = new google.maps.Marker({
         position: coords,
         title: `${report.type} - ${report.status}`,
-        icon: getMarkerIcon(report.type, report.status)
+        icon: getMarkerIcon(report.type, report.status),
       });
 
       // Create info window
       const infoWindow = new google.maps.InfoWindow({
-        content: createInfoWindowContent(report)
+        content: createInfoWindowContent(report),
       });
 
-      marker.addListener('click', () => {
+      marker.addListener("click", () => {
         // Close other info windows
-        markers.forEach(m => {
+        markers.forEach((m) => {
           if (m.infoWindow) {
             m.infoWindow.close();
           }
@@ -492,14 +500,17 @@ export async function plotReports(reports) {
 
       marker.infoWindow = infoWindow;
       markers.push(marker);
-      
+
       // Add to custom heatmap data
       heatmapData.push(new google.maps.LatLng(coords.lat, coords.lng));
     }
   }
 
   // Update marker clusterer
-  if (window.markerClustererInstance && window.markerClustererInstance.addMarkers) {
+  if (
+    window.markerClustererInstance &&
+    window.markerClustererInstance.addMarkers
+  ) {
     window.markerClustererInstance.addMarkers(markers);
   }
 
@@ -509,22 +520,24 @@ export async function plotReports(reports) {
   }
 
   // Create density polygons
-  createDensityPolygons(heatmapData.map(point => ({ lat: point.lat(), lng: point.lng() })));
-  
+  createDensityPolygons(
+    heatmapData.map((point) => ({ lat: point.lat(), lng: point.lng() })),
+  );
+
   // Auto-fit map bounds if there are reports
   if (markers.length > 0) {
     const bounds = new google.maps.LatLngBounds();
-    markers.forEach(marker => bounds.extend(marker.getPosition()));
-    
+    markers.forEach((marker) => bounds.extend(marker.getPosition()));
+
     // Include user location in bounds if available
     if (userLocation) {
       bounds.extend(userLocation);
     }
-    
+
     map.fitBounds(bounds);
-    
+
     // Ensure reasonable zoom level
-    google.maps.event.addListenerOnce(map, 'bounds_changed', () => {
+    google.maps.event.addListenerOnce(map, "bounds_changed", () => {
       if (map.getZoom() > 15) {
         map.setZoom(15);
       } else if (map.getZoom() < 8) {
@@ -536,16 +549,18 @@ export async function plotReports(reports) {
 
 function getMarkerIcon(type, status) {
   const colors = {
-    'Open': '#dc3545',
-    'New': '#dc3545', 
-    'In Progress': '#ffc107',
-    'Resolved': '#28a745'
+    Open: "#dc3545",
+    New: "#dc3545",
+    "In Progress": "#ffc107",
+    Resolved: "#28a745",
   };
-  
-  const color = colors[status] || '#6c757d';
-  
+
+  const color = colors[status] || "#6c757d";
+
   return {
-    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+    url:
+      "data:image/svg+xml;charset=UTF-8," +
+      encodeURIComponent(`
       <svg width="32" height="40" viewBox="0 0 32 40" xmlns="http://www.w3.org/2000/svg">
         <path d="M16 0C7.163 0 0 7.163 0 16c0 16 16 24 16 24s16-8 16-24C32 7.163 24.837 0 16 0z" fill="${color}"/>
         <circle cx="16" cy="16" r="8" fill="#fff"/>
@@ -553,76 +568,79 @@ function getMarkerIcon(type, status) {
       </svg>
     `),
     scaledSize: new google.maps.Size(32, 40),
-    anchor: new google.maps.Point(16, 40)
+    anchor: new google.maps.Point(16, 40),
   };
 }
 
 function createInfoWindowContent(report) {
-  const img = report.image ? 
-    `<div class="mb-2"><img src="${report.image}" alt="${report.type || ''}" style="max-width:200px;max-height:150px;border-radius:4px;"/></div>` : 
-    '';
-  
+  const img = report.image
+    ? `<div class="mb-2"><img src="${report.image}" alt="${report.type || ""}" style="max-width:200px;max-height:150px;border-radius:4px;"/></div>`
+    : "";
+
   return `
     <div style="max-width: 250px; font-family: 'Poppins', sans-serif;">
       ${img}
       <h6 class="mb-2"><strong>Report #${report.id}</strong></h6>
       <p class="mb-1"><strong>Type:</strong> ${formatType(report.type)}</p>
       <p class="mb-1"><strong>Status:</strong> <span style="background-color:${getStatusColor(report.status)}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 12px;">${report.status}</span></p>
-      <p class="mb-1"><strong>Location:</strong> ${report.location || 'Unknown'}</p>
-      <p class="mb-0"><strong>Time:</strong> ${report.time ? new Date(report.time).toLocaleString() : 'Unknown'}</p>
+      <p class="mb-1"><strong>Location:</strong> ${report.location || "Unknown"}</p>
+      <p class="mb-0"><strong>Time:</strong> ${report.time ? new Date(report.time).toLocaleString() : "Unknown"}</p>
     </div>
   `;
 }
 
 function formatType(type) {
-  if (!type) return 'Unknown';
-  return type.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  if (!type) return "Unknown";
+  return type
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function getStatusColor(status) {
   const colors = {
-    'Open': '#dc3545',
-    'New': '#dc3545',
-    'In Progress': '#ffc107', 
-    'Resolved': '#28a745'
+    Open: "#dc3545",
+    New: "#dc3545",
+    "In Progress": "#ffc107",
+    Resolved: "#28a745",
   };
-  return colors[status] || '#6c757d';
+  return colors[status] || "#6c757d";
 }
 
 function createDensityPolygons(points, threshold = 5) {
   if (points.length === 0) return;
-  
+
   const GRID = 0.01; // Grid size for density calculation
   const cells = new Map();
-  
+
   for (const point of points) {
     const key = `${Math.floor(point.lat / GRID)},${Math.floor(point.lng / GRID)}`;
     cells.set(key, (cells.get(key) || 0) + 1);
   }
-  
+
   for (const [key, count] of cells.entries()) {
     if (count >= threshold) {
-      const [latIdx, lngIdx] = key.split(',').map(Number);
+      const [latIdx, lngIdx] = key.split(",").map(Number);
       const latMin = latIdx * GRID;
       const lngMin = lngIdx * GRID;
       const latMax = latMin + GRID;
       const lngMax = lngMin + GRID;
-      
+
       const polygon = new google.maps.Polygon({
         paths: [
           { lat: latMin, lng: lngMin },
           { lat: latMin, lng: lngMax },
           { lat: latMax, lng: lngMax },
-          { lat: latMax, lng: lngMin }
+          { lat: latMax, lng: lngMin },
         ],
-        strokeColor: '#FF7800',
+        strokeColor: "#FF7800",
         strokeOpacity: 0.8,
         strokeWeight: 1,
-        fillColor: '#FF7800',
+        fillColor: "#FF7800",
         fillOpacity: 0.2,
-        map: map
+        map: map,
       });
-      
+
       densityPolygons.push(polygon);
     }
   }
