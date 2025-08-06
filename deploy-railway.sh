@@ -42,9 +42,9 @@ echo "API URL: https://hazard-api-production-production.up.railway.app"
 
 echo "🧪 Testing API connectivity..."
 
-# Test public API
-echo "Testing public API endpoint..."
-PUBLIC_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://hazard-api-production-production.up.railway.app/health)
+# Test public API health endpoint
+echo "Testing public API health endpoint..."
+PUBLIC_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://hazard-api-production-production.up.railway.app/api/v1/health)
 if [ "$PUBLIC_STATUS" -eq 200 ]; then
     echo "✅ Public API service is responding (HTTP $PUBLIC_STATUS)"
 else
