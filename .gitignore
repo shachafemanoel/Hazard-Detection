@@ -50,17 +50,9 @@ venv/
 # Exclude: large duplicate models
 
 # Exclude large duplicate model files
-public/object_detecion_model/last_model_train12052025.pt
-public/object_detecion_model/last_model_train12052025.onnx  
-public/object_detecion_model/best_yolo12m.pt
-server/public/object_detecion_model/last_model_train12052025.pt
-server/public/object_detecion_model/last_model_train12052025.onnx
-server/public/object_detecion_model/best_yolo12m.pt
 
-# Logs
 server/server.log
 *.log
 
 # Large directories
 /patchs.v2i.yolov12/
-/public/object_detecion_model/public/object_detecion_model/dashcamera.zip
