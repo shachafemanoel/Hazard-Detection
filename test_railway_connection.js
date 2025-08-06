@@ -1,6 +1,19 @@
 // Test Railway API Connection
 // Test script to verify full Railway integration
 
+// Configure fetch to use proxy when defined (Node.js environment)
+if (typeof process !== 'undefined' && process.release?.name === 'node') {
+  const proxyUrl =
+    process.env.HTTPS_PROXY ||
+    process.env.https_proxy ||
+    process.env.HTTP_PROXY ||
+    process.env.http_proxy;
+  if (proxyUrl) {
+    const { setGlobalDispatcher, ProxyAgent } = await import('undici');
+    setGlobalDispatcher(new ProxyAgent(proxyUrl));
+  }
+}
+
 const API_CONFIG = {
   baseUrl: 'https://hazard-api-production-production.up.railway.app',
   healthEndpoint: '/health',
@@ -28,9 +41,15 @@ async function testRailwayConnection() {
       const health = await healthResponse.json();
       console.log('✅ Health check passed');
       console.log(`   Status: ${health.status}`);
-      console.log(`   Model: ${health.model_status}`);
-      console.log(`   Backend: ${health.backend_type}`);
-      console.log(`   Model Input: ${health.device_info.input_shape.join('x')}`);
+      if (health.model_status) {
+        console.log(`   Model: ${health.model_status}`);
+      }
+      if (health.backend_type) {
+        console.log(`   Backend: ${health.backend_type}`);
+      }
+      if (health.device_info?.input_shape) {
+        console.log(`   Model Input: ${health.device_info.input_shape.join('x')}`);
+      }
     } else {
       throw new Error(`Health check failed: ${healthResponse.status}`);
     }

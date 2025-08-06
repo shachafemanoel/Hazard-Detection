@@ -17,13 +17,13 @@ A comprehensive road hazard detection system with intelligent AI backend selecti
 ┌─────────────────────────────────────────────────────────────┐
 │                    Docker Container                         │
 │  ┌─────────────┐                    ┌─────────────────────┐ │
-│  │   Web UI    │◄──── Port 8080 ────┤   Express Server    │ │
+│  │   Web UI    │◄──── Port 3000 ────┤   Express Server    │ │
 │  │ (HTML/CSS/JS)│                   │   (Node.js)         │ │
 │  └─────────────┘                    └─────────────────────┘ │
 │         │                                       │           │
 │         ▼                                       ▼           │
 │  ┌─────────────────────────────────────────────────────────┐ │
-│  │              FastAPI Backend (Port 8000)               │ │
+│  │              FastAPI Backend (Port 8080)               │ │
 │  │  ┌─────────────────┐    ┌─────────────────────────────┐ │ │
 │  │  │  CPU Detection  │───►│    Model Selection Logic    │ │ │
 │  │  │   & Selection   │    │                             │ │ │
@@ -66,7 +66,7 @@ docker build -f Dockerfile.unified.slim -t hazard-detection-unified .
 
 **Simple run:**
 ```bash
-docker run -p 8080:8080 hazard-detection-unified
+docker run -p 3000:3000 hazard-detection-unified
 ```
 
 **With Docker Compose:**
@@ -76,7 +76,7 @@ docker-compose -f docker-compose.unified.yml up -d
 
 **With custom configuration:**
 ```bash
-docker run -p 8080:8080 \
+docker run -p 3000:3000 \
   -e MODEL_BACKEND=pytorch \
   -e SESSION_SECRET=your-secret-key \
   hazard-detection-unified
@@ -84,9 +84,9 @@ docker run -p 8080:8080 \
 
 ### 3. Access the Application
 
-- 🌐 **Web Interface**: http://localhost:8080
-- 🤖 **API Docs**: http://localhost:8080 (API calls are internally routed)
-- 🏥 **Health Check**: http://localhost:8080/health
+- 🌐 **Web Interface**: http://localhost:3000
+- 🤖 **API Docs**: http://localhost:3000 (API calls are internally routed)
+- 🏥 **Health Check**: http://localhost:3000/health
 
 ## 🔧 Configuration Options
 
@@ -96,7 +96,7 @@ docker run -p 8080:8080 \
 |----------|-------------|---------|---------|
 | `MODEL_BACKEND` | Force specific AI backend | `auto` | `auto`, `openvino`, `pytorch` |
 | `MODEL_DIR` | Custom model directory | `/app/models` | Any path |
-| `PORT` | Web interface port | `8080` | Any port |
+| `PORT` | Web interface port | `3000` | Any port |
 | `NODE_ENV` | Environment mode | `production` | `production`, `development` |
 
 ### Authentication & Integrations
@@ -140,7 +140,7 @@ The system searches for models in this order:
 Mount your own models:
 ```bash
 docker run -v /path/to/your/models:/app/models/custom \
-  -p 8080:8080 hazard-detection-unified
+  -p 3000:3000 hazard-detection-unified
 ```
 
 ## 🏥 Health & Monitoring
@@ -154,7 +154,7 @@ The container includes comprehensive health monitoring:
 docker exec <container-id> /app/health-check.sh
 
 # View service status
-curl http://localhost:8080/health
+curl http://localhost:3000/health
 ```
 
 ### Logs & Debugging
@@ -182,7 +182,7 @@ The system provides detailed performance metrics:
 
 ### Development
 ```bash
-docker run -p 8080:8080 \
+docker run -p 3000:3000 \
   -e NODE_ENV=development \
   -v $(pwd):/app/src \
   hazard-detection-unified
@@ -195,7 +195,7 @@ docker-compose -f docker-compose.unified.yml --profile redis up -d
 
 ### High-Performance Setup
 ```bash
-docker run -p 8080:8080 \
+docker run -p 3000:3000 \
   -e MODEL_BACKEND=openvino \
   --cpus=2 \
   --memory=4g \
@@ -205,9 +205,9 @@ docker run -p 8080:8080 \
 ### Multi-Instance Load Balancing
 ```bash
 # Run multiple instances behind a load balancer
-docker run -p 8081:8080 --name hazard-1 hazard-detection-unified
-docker run -p 8082:8080 --name hazard-2 hazard-detection-unified
-docker run -p 8083:8080 --name hazard-3 hazard-detection-unified
+docker run -p 3001:3000 --name hazard-1 hazard-detection-unified
+docker run -p 3002:3000 --name hazard-2 hazard-detection-unified
+docker run -p 3003:3000 --name hazard-3 hazard-detection-unified
 ```
 
 ## 🛠️ Troubleshooting
@@ -233,7 +233,7 @@ docker exec <container-id> ls -la /app/models/
 docker exec <container-id> cat /app/model-config.json
 
 # Test specific backend
-docker run -e MODEL_BACKEND=pytorch -p 8080:8080 hazard-detection-unified
+docker run -e MODEL_BACKEND=pytorch -p 3000:3000 hazard-detection-unified
 ```
 
 **Performance issues:**
@@ -249,7 +249,7 @@ docker stats <container-id>
 
 Run with verbose logging:
 ```bash
-docker run -p 8080:8080 \
+docker run -p 3000:3000 \
   -e NODE_ENV=development \
   -e LOG_LEVEL=debug \
   hazard-detection-unified
@@ -270,7 +270,7 @@ docker run -p 8080:8080 \
 ### Production Tuning
 ```bash
 # High-performance configuration
-docker run -p 8080:8080 \
+docker run -p 3000:3000 \
   --cpus=4 \
   --memory=8g \
   -e OV_CPU_THREADS=4 \
@@ -288,7 +288,7 @@ docker run -p 8080:8080 \
 
 ### Production Security
 ```bash
-docker run -p 8080:8080 \
+docker run -p 3000:3000 \
   -e SESSION_SECRET=$(openssl rand -hex 32) \
   --read-only \
   --tmpfs /tmp \

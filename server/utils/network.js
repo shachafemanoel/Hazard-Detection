@@ -1,6 +1,19 @@
 // network.js - Consolidated networking utilities for Hazard Detection API
 // Provides private-first connectivity with local-dev override
 
+// Configure global fetch to respect HTTPS proxy when running in Node.js
+if (typeof process !== 'undefined' && process.release?.name === 'node') {
+  const proxyUrl =
+    process.env.HTTPS_PROXY ||
+    process.env.https_proxy ||
+    process.env.HTTP_PROXY ||
+    process.env.http_proxy;
+  if (proxyUrl) {
+    const { setGlobalDispatcher, ProxyAgent } = await import('undici');
+    setGlobalDispatcher(new ProxyAgent(proxyUrl));
+  }
+}
+
 /**
  * Cross-browser compatible timeout utility for fetch requests
  * Replaces AbortSignal.timeout which isn't supported in all browsers
@@ -71,7 +84,7 @@ async function resolveBaseUrl(options = {}) {
     'http://ideal-learning.railway.internal:8080';
   const publicUrl =
     process.env.HAZARD_API_URL_PUBLIC ||
-    'https://hazard-api-production.up.railway.app';
+    'https://hazard-api-production-production.up.railway.app';
   const localUrl = process.env.HAZARD_API_URL_LOCAL || 'http://localhost:8080';
 
   // Local-Dev Override - highest priority

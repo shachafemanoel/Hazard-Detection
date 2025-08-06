@@ -3,7 +3,7 @@ set -e
 
 # Define ports (must match start-unified.sh)
 WEB_PORT=${WEB_PORT:-3000}
-API_PORT=${API_PORT:-8000}
+API_PORT=${API_PORT:-8080}
 
 # Function to cleanup on exit
 cleanup() {

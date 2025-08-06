@@ -33,7 +33,7 @@ hazard-detection/
 ./build-unified.sh
 
 # Run the application
-docker run -p 8080:8080 hazard-detection-unified:latest
+docker run -p 3000:3000 hazard-detection-unified:latest
 
 # Or use Docker Compose
 docker-compose -f docker-compose.unified.yml up -d
@@ -41,9 +41,9 @@ docker-compose -f docker-compose.unified.yml up -d
 
 ### 2. Access the Application
 
-- 🌐 **Web Interface**: http://localhost:8080
-- 🤖 **API Documentation**: http://localhost:8080/docs (FastAPI auto-docs)
-- 🏥 **Health Check**: http://localhost:8080/health
+- 🌐 **Web Interface**: http://localhost:3000
+- 🤖 **API Documentation**: http://localhost:3000/docs (FastAPI auto-docs)
+- 🏥 **Health Check**: http://localhost:3000/health
 
 ## 🧠 AI Features
 

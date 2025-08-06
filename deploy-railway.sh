@@ -38,13 +38,13 @@ railway status
 
 echo "🌐 Getting service URLs..."
 echo "Frontend URL: https://hazard-detection-production.up.railway.app"
-echo "API URL: https://hazard-api-production.up.railway.app"
+echo "API URL: https://hazard-api-production-production.up.railway.app"
 
 echo "🧪 Testing API connectivity..."
 
 # Test public API
 echo "Testing public API endpoint..."
-PUBLIC_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://hazard-api-production.up.railway.app/health)
+PUBLIC_STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://hazard-api-production-production.up.railway.app/health)
 if [ "$PUBLIC_STATUS" -eq 200 ]; then
     echo "✅ Public API service is responding (HTTP $PUBLIC_STATUS)"
 else
@@ -57,8 +57,8 @@ echo "   (Private network testing requires deployment environment)"
 
 echo "🔄 Realtime client will automatically select best endpoint:"
 echo "   1. Private: http://ideal-learning.railway.internal:8080 (preferred)"
-echo "   2. Public: https://hazard-api-production.up.railway.app (fallback)"
+echo "   2. Public: https://hazard-api-production-production.up.railway.app (fallback)"
 
 echo "🎉 Deployment complete! Check your Railway dashboard for details."
 echo "📱 Frontend: https://hazard-detection-production.up.railway.app"
-echo "🔧 API: https://hazard-api-production.up.railway.app"
+echo "🔧 API: https://hazard-api-production-production.up.railway.app"
