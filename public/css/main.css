@@ -313,6 +313,15 @@ table {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+#reports-blocks-container .report-card {
+  background-color: var(--panel-bg);
+}
+
+#reports-blocks-container .report-card .card-footer {
+  border-top: none;
+  background: transparent;
+}
+
 th {
   background: rgba(0, 229, 255, 0.1);
   color: var(--accent);

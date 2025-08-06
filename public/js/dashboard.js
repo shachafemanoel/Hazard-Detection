@@ -39,6 +39,7 @@ const elements = {
   activeUsersCount: document.getElementById("active-users-count"),
   // Table
   tableBody: document.getElementById("reports-table-body"),
+  blocksContainer: document.getElementById("reports-blocks-container"),
   selectAllCheckbox: document.getElementById("select-all-reports"),
   // Filters & Sort
   searchInput: document.getElementById("report-search-input"),
@@ -58,6 +59,27 @@ const elements = {
 };
 
 // --- RENDER FUNCTIONS ---
+
+const formatTime = (timeStr) =>
+  timeStr ? new Date(timeStr).toLocaleString() : "Unknown";
+const truncate = (text, length = 30) =>
+  text && text.length > length ? text.substring(0, length) + "..." : text || "Unknown";
+const getStatusBadge = (status) => {
+  const statusMap = {
+    Open: "bg-danger",
+    New: "bg-danger",
+    "In Progress": "bg-warning",
+    Resolved: "bg-success",
+  };
+  return `<span class="badge ${statusMap[status] || "bg-secondary"}">${status || "Unknown"}</span>`;
+};
+const formatType = (type) =>
+  type
+    ? type
+        .replace(/_/g, " ")
+        .toLowerCase()
+        .replace(/\b\w/g, (c) => c.toUpperCase())
+    : "Unknown";
 
 function renderStats() {
   const { total, open, resolved, users } = state.metrics;
@@ -91,28 +113,7 @@ function renderTable() {
     row.dataset.reportId = report.id;
     row.classList.toggle("selected", state.selectedReportIds.has(report.id));
 
-    const formatTime = (timeStr) =>
-      timeStr ? new Date(timeStr).toLocaleString() : "Unknown";
-    const truncate = (text, length = 30) =>
-      text && text.length > length
-        ? text.substring(0, length) + "..."
-        : text || "Unknown";
-    const getStatusBadge = (status) => {
-      const statusMap = {
-        Open: "bg-danger",
-        New: "bg-danger",
-        "In Progress": "bg-warning",
-        Resolved: "bg-success",
-      };
-      return `<span class="badge ${statusMap[status] || "bg-secondary"}">${status || "Unknown"}</span>`;
-    };
-    const formatType = (type) =>
-      type
-        ? type
-            .replace(/_/g, " ")
-            .toLowerCase()
-            .replace(/\b\w/g, (c) => c.toUpperCase())
-        : "Unknown";
+    
 
     row.innerHTML = `
       <td><input type="checkbox" class="report-checkbox" data-report-id="${report.id}" ${state.selectedReportIds.has(report.id) ? "checked" : ""}></td>
@@ -130,6 +131,43 @@ function renderTable() {
       </td>
     `;
     elements.tableBody.appendChild(row);
+  });
+}
+
+function renderReportCards() {
+  if (!elements.blocksContainer) return;
+
+  elements.blocksContainer.innerHTML = "";
+
+  const reportsToRender = state.reports;
+
+  if (reportsToRender.length === 0) {
+    elements.blocksContainer.innerHTML =
+      '<p class="text-center">No reports found.</p>';
+    return;
+  }
+
+  reportsToRender.forEach((report) => {
+    const col = document.createElement("div");
+    col.className = "col";
+    col.innerHTML = `
+      <div class="card report-card h-100" data-report-id="${report.id}">
+        <div class="card-body">
+          <div class="d-flex justify-content-between mb-2">
+            <span class="badge bg-primary">${formatType(report.type)}</span>
+            ${getStatusBadge(report.status)}
+          </div>
+          <h6 class="card-title mb-1">ID: ${report.id || "N/A"}</h6>
+          <p class="card-text mb-2" title="${report.location || ""}">${truncate(report.location)}</p>
+          <small class="text-muted">${formatTime(report.time)}</small>
+        </div>
+        <div class="card-footer d-flex justify-content-end gap-2">
+          <button class="btn btn-sm btn-outline-info view-report-btn" title="View Details"><i class="fas fa-eye"></i></button>
+          <button class="btn btn-sm btn-outline-warning edit-report-btn" title="Edit"><i class="fas fa-edit"></i></button>
+          <button class="btn btn-sm btn-outline-danger delete-report-btn" title="Delete"><i class="fas fa-trash"></i></button>
+        </div>
+      </div>`;
+    elements.blocksContainer.appendChild(col);
   });
 }
 
@@ -151,6 +189,7 @@ function renderPagination() {
 function renderAll() {
   renderStats();
   renderTable();
+  renderReportCards();
   renderPagination();
 }
 
@@ -206,6 +245,7 @@ async function loadPaginatedReports() {
     state.reports = reports;
     state.pagination.total = pagination.total;
     renderTable();
+    renderReportCards();
     renderPagination();
   } catch (error) {
     console.error("Failed to load paginated reports:", error);
@@ -319,12 +359,12 @@ function handlePageSizeChange(e) {
   loadPaginatedReports();
 }
 
-function handleTableAction(e) {
+function handleReportAction(e) {
   const target = e.target.closest("button");
   if (!target) return;
-
-  const row = e.target.closest("tr");
-  const reportId = row.dataset.reportId;
+  const container = e.target.closest("tr, .report-card");
+  if (!container) return;
+  const reportId = container.dataset.reportId;
   const report = state.reports.find((r) => r.id == reportId);
 
   if (!report) return;
@@ -414,7 +454,8 @@ function initializeEventListeners() {
   elements.sortHeaders.forEach((h) =>
     h.addEventListener("click", handleSortChange),
   );
-  elements.tableBody?.addEventListener("click", handleTableAction);
+  elements.tableBody?.addEventListener("click", handleReportAction);
+  elements.blocksContainer?.addEventListener("click", handleReportAction);
 
   const editForm = document.getElementById("edit-report-form");
   editForm?.addEventListener("submit", handleFormSubmit);
