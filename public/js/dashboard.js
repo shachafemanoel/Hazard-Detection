@@ -25,6 +25,11 @@ const state = {
   selectedReportIds: new Set(),
 };
 
+// Polling configuration for detecting new reports
+const REPORT_POLL_INTERVAL = 60000; // 1 minute
+let latestReportTime = null;
+let pollTimer = null;
+
 // --- DOM ELEMENTS ---
 const elements = {
   // Stats
@@ -162,6 +167,12 @@ async function loadAllReportsForStatsAndMap() {
     };
     const { reports, metrics } = await fetchReports(params);
     state.metrics = metrics;
+    if (reports.length > 0) {
+      latestReportTime = reports.reduce((latest, r) => {
+        const time = new Date(r.time);
+        return !latest || time > latest ? time : latest;
+      }, null);
+    }
     await plotReports(reports);
     renderStats();
   } catch (error) {
@@ -204,10 +215,10 @@ async function loadPaginatedReports() {
   }
 }
 
-async function updateDashboard() {
+async function updateDashboard({ silent = false } = {}) {
   state.isLoading = true;
-  showMetricsLoading();
-  const loadingToast = notify("Loading reports...", "info", true);
+  if (!silent) showMetricsLoading();
+  const loadingToast = silent ? null : notify("Loading reports...", "info", true);
 
   try {
     // Load all reports for stats and map
@@ -223,8 +234,40 @@ async function updateDashboard() {
     renderAll();
   } finally {
     state.isLoading = false;
-    loadingToast.remove();
+    if (loadingToast) loadingToast.remove();
   }
+}
+
+// Periodically check for newly added reports
+async function pollForNewReports() {
+  if (state.isLoading) return;
+  try {
+    const params = new URLSearchParams({ limit: 1, sort: 'time', order: 'desc' });
+    const response = await fetch(`/api/reports?${params.toString()}`, {
+      mode: 'cors',
+      credentials: 'include',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!response.ok) throw new Error('Failed to check reports');
+    const data = await response.json();
+    const latest = Array.isArray(data.reports) ? data.reports[0] : null;
+    if (latest) {
+      const newest = new Date(latest.time);
+      if (!latestReportTime || newest > latestReportTime) {
+        await updateDashboard({ silent: true });
+      }
+    }
+  } catch (err) {
+    console.error('Failed to check for new reports:', err);
+  }
+}
+
+function startReportPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(pollForNewReports, REPORT_POLL_INTERVAL);
 }
 
 // --- EVENT HANDLERS ---
@@ -414,6 +457,7 @@ async function init() {
     setupMobileDrawer();
 
     await updateDashboard();
+    startReportPolling();
     notify("Dashboard loaded.", "success");
   } catch (err) {
     console.error("Dashboard initialization failed:", err);

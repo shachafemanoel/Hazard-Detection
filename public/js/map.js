@@ -447,7 +447,13 @@ export async function plotReports(reports) {
     let coords;
     if (report.lat && report.lon) {
       coords = { lat: Number(report.lat), lng: Number(report.lon) };
-    } else if (report.location) {
+    } else if (
+      Array.isArray(report.location) &&
+      report.location.length >= 2
+    ) {
+      const [lat, lon] = report.location;
+      coords = { lat: Number(lat), lng: Number(lon) };
+    } else if (typeof report.location === "string") {
       const geocodedCoords = await geocode(report.location);
       if (geocodedCoords) {
         coords = { lat: geocodedCoords[0], lng: geocodedCoords[1] };
