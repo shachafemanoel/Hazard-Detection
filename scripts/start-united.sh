@@ -27,7 +27,7 @@ if [ ! -f /app/server/routes/server.js ]; then
 fi
 
 # Start API
-uvicorn api.app:app --host 0.0.0.0 --port 8000 &
+uvicorn api.app:app --host 0.0.0.0 --port 8080 &
 API_PID=$!
 
 # Wait a moment
@@ -35,7 +35,7 @@ sleep 5
 
 # Start web server
 cd /app/server/routes
-PORT=${PORT:-8080} API_URL=http://localhost:8000 node server.js &
+PORT=${PORT:-3000} API_URL=http://localhost:8080 node server.js &
 WEB_PID=$!
 
 wait $API_PID $WEB_PID

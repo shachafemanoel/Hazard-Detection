@@ -120,14 +120,14 @@ echo ""
 
 # Quick container test
 echo -e "${YELLOW}🧪 Running quick container test...${NC}"
-if docker run --rm --name="${IMAGE_NAME}-test" -d -p 8081:8080 "$FULL_IMAGE_NAME" >/dev/null; then
+if docker run --rm --name="${IMAGE_NAME}-test" -d -p 3001:3000 "$FULL_IMAGE_NAME" >/dev/null; then
     echo -e "${GREEN}✅ Container started successfully${NC}"
     
     # Wait a moment for services to start
     sleep 10
     
     # Test web interface
-    if curl -f http://localhost:8081/health >/dev/null 2>&1; then
+    if curl -f http://localhost:3001/health >/dev/null 2>&1; then
         echo -e "${GREEN}✅ Web interface responding${NC}"
     else
         echo -e "${YELLOW}⚠️ Web interface not responding (this may be normal during startup)${NC}"
@@ -146,24 +146,24 @@ echo ""
 echo -e "${BLUE}📚 Usage Examples:${NC}"
 echo ""
 echo "  # Run with Docker:"
-echo "  docker run -p 8080:8080 $FULL_IMAGE_NAME"
+echo "  docker run -p 3000:3000 $FULL_IMAGE_NAME"
 echo ""
 echo "  # Run with Docker Compose:"
 echo "  docker-compose -f docker-compose.unified.yml up -d"
 echo ""
 echo "  # Run with custom port:"
-echo "  docker run -p 3000:8080 -e PORT=8080 $FULL_IMAGE_NAME"
+echo "  docker run -p 8080:8080 -e PORT=8080 $FULL_IMAGE_NAME"
 echo ""
 echo "  # Access the application:"
-echo "  🌐 Web Interface: http://localhost:8080"
-echo "  🤖 API Interface: http://localhost:8080 (internal routing)"
+echo "  🌐 Web Interface: http://localhost:3000"
+echo "  🤖 API Interface: http://localhost:3000 (internal routing)"
 echo ""
 echo -e "${BLUE}🔧 Advanced Options:${NC}"
 echo "  # Force specific AI backend:"
-echo "  docker run -e MODEL_BACKEND=pytorch -p 8080:8080 $FULL_IMAGE_NAME"
-echo "  docker run -e MODEL_BACKEND=openvino -p 8080:8080 $FULL_IMAGE_NAME"
+echo "  docker run -e MODEL_BACKEND=pytorch -p 3000:3000 $FULL_IMAGE_NAME"
+echo "  docker run -e MODEL_BACKEND=openvino -p 3000:3000 $FULL_IMAGE_NAME"
 echo ""
 echo "  # Mount custom models:"
-echo "  docker run -v /path/to/models:/app/models/custom -p 8080:8080 $FULL_IMAGE_NAME"
+echo "  docker run -v /path/to/models:/app/models/custom -p 3000:3000 $FULL_IMAGE_NAME"
 echo ""
 echo -e "${GREEN}Build complete! ✨${NC}"

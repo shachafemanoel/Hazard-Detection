@@ -6,7 +6,7 @@ This comprehensive guide shows you how to interact with the Hazard Detection API
 
 ```javascript
 // Production (Railway)
-const API_BASE_URL = "https://hazard-api-production.up.railway.app/";
+const API_BASE_URL = "https://hazard-api-production-production.up.railway.app/";
 
 // Local Development
 const API_BASE_URL = "http://localhost:8080";
@@ -36,7 +36,7 @@ const checkHealth = async () => {
 
 ```bash
 # cURL Example
-curl -X GET "https://hazard-api-production.up.railway.app//health"
+curl -X GET "https://hazard-api-production-production.up.railway.app//health"
 ```
 
 **Response:**
@@ -79,7 +79,7 @@ const startSession = async () => {
 ```
 
 ```bash
-curl -X POST "https://hazard-api-production.up.railway.app/session/start" \
+curl -X POST "https://hazard-api-production-production.up.railway.app/session/start" \
   -H "Content-Type: application/json"
 ```
 
@@ -128,7 +128,7 @@ const detectHazards = async (sessionId, imageFile) => {
 ```
 
 ```bash
-curl -X POST "https://hazard-api-production.up.railway.app/" \
+curl -X POST "https://hazard-api-production-production.up.railway.app/" \
   -F "file=@road_image.jpg"
 ```
 
@@ -494,7 +494,7 @@ class HazardDetectionClient:
 
 # Usage example
 async def process_road_images(image_paths: List[str]):
-    client = HazardDetectionClient("https://hazard-api-production.up.railway.app/")
+    client = HazardDetectionClient("https://hazard-api-production-production.up.railway.app/")
     
     try:
         # Check health

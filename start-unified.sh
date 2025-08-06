@@ -3,7 +3,7 @@ set -e
 
 # Respect Railway's provided PORT if WEB_PORT isn't explicitly set
 WEB_PORT=${WEB_PORT:-${PORT:-3000}}
-API_PORT=${API_PORT:-8000}
+API_PORT=${API_PORT:-8080}
 
 echo "🚀 Starting Unified Hazard Detection Service..."
 echo "🐳 Container Environment: ${NODE_ENV:-production}"

@@ -36,7 +36,7 @@ class QATestRunner {
       env: { 
         ...process.env, 
         NODE_ENV: 'development',
-        PORT: '8080',
+        PORT: '3000',
         DEBUG_ENV: 'true'
       }
     });
@@ -61,7 +61,7 @@ class QATestRunner {
     
     // Verify server is running
     try {
-      const response = await fetch('http://localhost:8080/health');
+      const response = await fetch('http://localhost:3000/health');
       if (response.ok) {
         console.log('✅ Server health check passed');
         return true;

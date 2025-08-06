@@ -26,7 +26,7 @@ describe('Post-Refactor QA: Hazard Detection System', () => {
   let browser;
   let context;
   let serverProcess;
-  const TEST_SERVER_URL = 'http://localhost:8080';
+  const TEST_SERVER_URL = 'http://localhost:3000';
   const TEST_TIMEOUT = 30000;
   
   before(async () => {
@@ -394,7 +394,7 @@ describe('Post-Refactor QA: Hazard Detection System', () => {
         if (typeof window.probeHealth === 'function') {
           try {
             // Test with localhost (should work)
-            const result = await window.probeHealth('http://localhost:8080', 2000);
+            const result = await window.probeHealth('http://localhost:3000', 2000);
             return { success: true, result };
           } catch (error) {
             return { success: false, error: error.message };

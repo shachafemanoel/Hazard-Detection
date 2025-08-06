@@ -3,7 +3,7 @@
 
 // Global test utilities
 global.TEST_CONFIG = {
-  SERVER_URL: 'http://localhost:8080',
+  SERVER_URL: 'http://localhost:3000',
   TIMEOUT: 30000,
   RETRY_ATTEMPTS: 3
 };

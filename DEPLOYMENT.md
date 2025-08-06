@@ -8,7 +8,7 @@ This guide explains how to deploy the Hazard Detection system as two separate se
 ┌─────────────────────┐    HTTP/API    ┌─────────────────────┐
 │   Web Frontend      │◄──────────────►│   API Backend       │
 │   (Node.js/Express) │                │   (Python/FastAPI)  │
-│   Port: 3000        │                │   Port: 8000        │
+│   Port: 3000        │                │   Port: 8080        │
 │                     │                │                     │
 │ • HTML/CSS/JS       │                │ • AI Models         │
 │ • Authentication    │                │ • Image Processing  │
@@ -32,11 +32,11 @@ This guide explains how to deploy the Hazard Detection system as two separate se
    ```
 
 2. **Set Environment Variables in Railway Dashboard:**
-   - `PORT=8000`
+   - `PORT=8080`
    - `MODEL_BACKEND=auto`
    - `MODEL_DIR=/app/models`
 
-3. **Note the Railway URL** (e.g., `https://hazard-api-production.up.railway.app`)
+3. **Note the Railway URL** (e.g., `https://hazard-api-production-production.up.railway.app`)
 
 ### Option B: Render Deployment
 
@@ -140,7 +140,7 @@ Visit: `https://your-web-frontend.railway.app`
 
 ### API Backend (`api/`)
 ```env
-PORT=8000
+PORT=8080
 MODEL_BACKEND=auto
 MODEL_DIR=/app/models
 FRONTEND_URL=https://your-web-frontend.railway.app
