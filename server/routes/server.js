@@ -104,9 +104,10 @@ app.use(express.static(path.join(__dirname, '../../public'), {
 // Specific route for ONNX model files
 app.get('/object_detection_model/*.onnx', (req, res) => {
     const modelName = decodeURIComponent(req.params[0]);
-    const modelPath = path.join(
-      __dirname,
-      '../../public/object_detection_model',
+    const modelPath = path.resolve(
+      process.cwd(),
+      'public',
+      'object_detection_model',
       `${modelName}.onnx`
     );
     
@@ -122,6 +123,7 @@ app.get('/object_detection_model/*.onnx', (req, res) => {
     // Set proper headers for ONNX files
     res.setHeader('Content-Type', 'application/octet-stream');
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
     
     console.log(`✅ Serving ONNX model: ${modelName}.onnx`);
