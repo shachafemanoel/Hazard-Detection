@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   const ctx = canvas ? canvas.getContext("2d") : null; // Check if canvas exists
   const logoutBtn = document.getElementById("logout-btn");
   const saveBtn = document.getElementById("save-detection");
+  const tooltip = document.getElementById("tooltip");
   const uploadingModal = document.getElementById("uploading-modal");
   const uploadingModalBootstrap = new bootstrap.Modal(document.getElementById('uploading-modal'));
 
@@ -261,7 +262,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   try {
     // Prioritized model paths - using available ONNX models
     const modelPaths = [
-      './object_detection_model/best0408.onnx',          // Primary model
+      '/object_detection_model/best0408.onnx',          // Primary model
     ]
     
     let modelPath = null;
@@ -804,7 +805,6 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
 
     hasHazard = false;
-    const tooltip = document.getElementById("tooltip");
     
     // Enhanced color scheme for different road damage types
     const hazardColors = {
