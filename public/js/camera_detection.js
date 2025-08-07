@@ -42,6 +42,18 @@ let detectionSession = {
   detectionCount: 0
 };
 
+// New state for persistent detections
+let persistentDetections = [];
+const DETECTION_LIFETIME = 2000; // Detections stay on screen for 2 seconds
+let detectedObjectCount = 0;
+let uniqueHazardTypes = new Set();
+
+// Global state for alert
+let lastHazardAlertTime = 0;
+const HAZARD_ALERT_COOLDOWN = 5000; // 5 seconds cooldown
+
+
+
 // Global coordinate transformation parameters
 let coordinateScale = {
   // Model input size to video display scaling
@@ -55,7 +67,7 @@ let coordinateScale = {
 // DOM elements
 let video, canvas, ctx, loadingOverlay, startButton, stopButton, captureButton, settingsButton;
 let loadingStatus, detectionCountBadge, fpsBadge, hazardTypesDisplay, hazardTypesList;
-let confidenceSlider, confidenceValue, settingsPanel, hazardModal, detectionModeInfo;
+let confidenceSlider, confidenceValue, settingsPanel, hazardToastElement, detectionModeInfo;
 
 // Offscreen canvas for processing (will be resized based on model)
 const offscreen = document.createElement("canvas");
@@ -84,7 +96,7 @@ function initialize() {
   confidenceSlider = document.getElementById("confidence-threshold");
   confidenceValue = document.getElementById("confidence-value");
   settingsPanel = document.getElementById("settings-panel");
-  hazardModal = document.getElementById("hazard-alert-modal");
+  hazardToastElement = document.getElementById("hazardToast");
   detectionModeInfo = document.getElementById("detection-mode-info");
 
   // Validate required elements
@@ -146,7 +158,10 @@ function setupEventListeners() {
   document.addEventListener('shown.bs.modal', function (e) {
     if (e.target.id === 'detection-summary-modal') {
       updateRecentDetectionsList();
-      saveSessionButton.disabled = detectionSession.detectionCount === 0;
+      const saveSessionButton = document.getElementById('save-session-report');
+      if (saveSessionButton) {
+        saveSessionButton.disabled = detectionSession.detectionCount === 0;
+      }
     }
   });
   
@@ -259,11 +274,11 @@ async function loadLocalModel() {
         
         console.log('✅ ONNX session created successfully');
 
-        // Determine model input size from session metadata (falls back to 640)
+        // Determine model input size from session metadata (falls back to 480)
         const inputName = cameraState.session.inputNames[0];
         const inputMeta = cameraState.session.inputMetadata?.[inputName];
         const dims = inputMeta?.dimensions || inputMeta?.shape;
-        cameraState.modelInputSize = Array.isArray(dims) && dims.length >= 4 ? dims[2] : 640;
+        cameraState.modelInputSize = Array.isArray(dims) && dims.length >= 4 ? dims[2] : 480;
         console.log(`📐 Using model input size: ${cameraState.modelInputSize}x${cameraState.modelInputSize}`);
 
         // Log session info for debugging
@@ -340,7 +355,7 @@ async function startCamera() {
     cameraState.stream = await navigator.mediaDevices.getUserMedia({
       video: { 
         facingMode: "environment",
-        width: { ideal: 640 }, 
+        width: { ideal: 480 }, 
         height: { ideal: 480 } 
       }
     });
@@ -552,115 +567,150 @@ async function captureFrame() {
   }
 }
 
-async function detectionLoop() {
-  if (!cameraState.detecting) return;
-  
-  const startTime = performance.now();
-  let waitTime = 100; // Default wait time
-  
-  try {
-    // Draw video frame first, even if no detections
-    if (video.videoWidth && video.videoHeight) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+function showHazardAlert(detection) {
+    if (!hazardToastElement) return;
+
+    const now = Date.now();
+    if (now - lastHazardAlertTime < HAZARD_ALERT_COOLDOWN) {
+        return; // Too soon to show another alert
     }
-    
-    // Process frame
-    const inputTensor = preprocessFrame();
-    if (!inputTensor) {
-      // Still draw video even if processing failed
-      // Wait before next frame to sync with model processing speed
-      setTimeout(() => {
-        if (cameraState.detecting) {
-          cameraState.animationFrameId = requestAnimationFrame(detectionLoop);
-        }
-      }, 33); // ~30 FPS max
-      return;
+
+    lastHazardAlertTime = now;
+
+    const hazardType = classNames[detection.classId] || `Class ${detection.classId}`;
+    const confidence = (detection.score * 100).toFixed(0);
+
+    const toastBody = hazardToastElement.querySelector('#toast-hazard-details');
+    if (toastBody) {
+        toastBody.textContent = `Hazard Detected: ${hazardType} (${confidence}%)`;
     }
-    
-    let detections = [];
-    
-    if (cameraState.detectionMode === 'api') {
-      // Use external API for detection
-      detections = await runAPIDetection();
-    } else {
-      // Use local model for detection
-      detections = await runLocalDetection(inputTensor);
+
+    const toast = new bootstrap.Toast(hazardToastElement, {
+        autohide: true,
+        delay: 3000 // Auto-dismiss after 3 seconds
+    });
+
+    toast.show();
+
+    const alertSound = document.querySelector('audio');
+    if (alertSound) {
+        alertSound.play().catch(e => console.warn("Could not play alert sound:", e));
     }
-    
-    if (!detections) {
-      console.warn('⚠️ No detections received');
-      cameraState.animationFrameId = requestAnimationFrame(detectionLoop);
-      return;
-    }
-    
-    console.log(`✅ Received ${detections.length} detections from ${cameraState.detectionMode} mode`);
-    
-    // Draw detections on overlay canvas
-    drawDetections(detections);
-    
-    // Log detection summary every 30 frames
-    if (cameraState.frameCount % 30 === 0 && detections.length > 0) {
-      const avgConf = detections.reduce((sum, d) => sum + d.score, 0) / detections.length;
-      console.log(`🎯 Frame ${cameraState.frameCount}: ${detections.length} detections, avg confidence: ${(avgConf * 100).toFixed(1)}%`);
-    }
-    
-    // Log processing speed every 60 frames (will be calculated at the end)
-    if (cameraState.frameCount % 60 === 0) {
-      const currentProcessingTime = performance.now() - startTime;
-      console.log(`📊 Processing: ${currentProcessingTime.toFixed(1)}ms per frame, effective FPS: ${(1000/Math.max(currentProcessingTime, 100)).toFixed(1)}`);
-    }
-    
-    // Update session tracking
-    detectionSession.totalFrames++;
-    if (detections.length > 0) {
-      detectionSession.detectionFrames++;
-      
-      // Add detections to session
-      detections.forEach(detection => {
-        const label = classNames[detection.classId] || `Class ${detection.classId}`;
-        addDetectionToSession({
-          type: label,
-          confidence: detection.score,
-          coordinates: detection,
-          frame: cameraState.frameCount
-        });
-      });
-      
-      // Update session summary
-      updateDetectionSessionSummary();
-    }
-    
-    // Update UI
-    updateDetectionCount(detections.length);
-    updateHazardTypes(detections);
-    updateFPS();
-    
-    // Save significant detections every 3 seconds (90 frames at 30 FPS)
-    if (detections.length > 0 && cameraState.frameCount % 90 === 0) {
-      await saveDetections(detections);
-    }
-    
-    cameraState.frameCount++;
-    
-    // Calculate processing time and sync with model speed
-    const processingTime = performance.now() - startTime;
-    const minFrameTime = 100; // Minimum 100ms between frames (max 10 FPS)
-    waitTime = Math.max(0, minFrameTime - processingTime);
-    
-  } catch (err) {
-    console.error("❌ Error in detection loop:", err);
-    // Keep default wait time in case of error
-    waitTime = 100;
-  }
-  
-  // Schedule next frame with appropriate delay
-  setTimeout(() => {
-    if (cameraState.detecting) {
-      cameraState.animationFrameId = requestAnimationFrame(detectionLoop);
-    }
-  }, waitTime);
 }
+
+function updatePersistentDetections(newDetections) {
+  const now = Date.now();
+  persistentDetections = persistentDetections.filter(d => (now - d.timestamp) < DETECTION_LIFETIME);
+  const existingDetectionsMap = new Map(persistentDetections.map(d => [d.id, d]));
+
+  newDetections.forEach(newDet => {
+    const id = `${newDet.classId}-${Math.round(newDet.x1 / 20)}-${Math.round(newDet.y1 / 20)}`;
+    if (existingDetectionsMap.has(id)) {
+      const existing = existingDetectionsMap.get(id);
+      existing.timestamp = now;
+      existing.score = newDet.score;
+      existing.x1 = newDet.x1;
+      existing.y1 = newDet.y1;
+      existing.x2 = newDet.x2;
+      existing.y2 = newDet.y2;
+    } else {
+      const detectionToAdd = { ...newDet, id, timestamp: now };
+      persistentDetections.push(detectionToAdd);
+      if (detectionToAdd.score > 0.8) {
+        showHazardAlert(detectionToAdd);
+      }
+    }
+  });
+}
+
+function updateUniqueHazardTypesFromPersistent() {
+  if (!hazardTypesDisplay || !hazardTypesList) return;
+  uniqueHazardTypes.clear();
+  persistentDetections.forEach(d => {
+    uniqueHazardTypes.add(classNames[d.classId] || `Class ${d.classId}`);
+  });
+  if (uniqueHazardTypes.size === 0) {
+    hideHazardTypes();
+    return;
+  }
+  hazardTypesList.textContent = [...uniqueHazardTypes].join(', ');
+  hazardTypesDisplay.hidden = false;
+}
+
+async function detectionLoop() {
+    if (!cameraState.detecting) {
+        return;
+    }
+
+    const startTime = performance.now();
+    let waitTime = 100;
+
+    try {
+        const inputTensor = preprocessFrame();
+        if (!inputTensor) {
+            waitTime = 33;
+            setTimeout(() => {
+                if (cameraState.detecting) {
+                    cameraState.animationFrameId = requestAnimationFrame(detectionLoop);
+                }
+            }, waitTime);
+            return;
+        }
+
+        let detections = [];
+        if (cameraState.detectionMode === 'api') {
+            detections = await runAPIDetection();
+        } else {
+            detections = await runLocalDetection(inputTensor);
+        }
+
+        if (!cameraState.detecting) {
+            return;
+        }
+
+        updatePersistentDetections(detections || []);
+        detectedObjectCount = persistentDetections.length;
+        updateUniqueHazardTypesFromPersistent();
+        drawPersistentDetections();
+
+        if (cameraState.frameCount % 30 === 0 && detections && detections.length > 0) {
+            const avgConf = detections.reduce((sum, d) => sum + d.score, 0) / detections.length;
+            console.log(`🎯 Frame ${cameraState.frameCount}: ${detections.length} new, ${persistentDetections.length} persistent. Avg conf: ${(avgConf * 100).toFixed(1)}%`);
+        }
+
+        detectionSession.totalFrames++;
+        if (detections && detections.length > 0) {
+            detectionSession.detectionFrames++;
+            detections.forEach(detection => {
+                const label = classNames[detection.classId] || `Class ${detection.classId}`;
+                addDetectionToSession({ type: label, confidence: detection.score, coordinates: detection, frame: cameraState.frameCount });
+            });
+            updateDetectionSessionSummary();
+        }
+
+        updateDetectionCount(detectedObjectCount);
+        updateFPS();
+
+        if (detections && detections.length > 0 && cameraState.frameCount % 90 === 0) {
+            await saveDetections(detections);
+        }
+
+        cameraState.frameCount++;
+        const processingTime = performance.now() - startTime;
+        waitTime = Math.max(0, 100 - processingTime);
+
+    } catch (err) {
+        console.error("❌ Error in detection loop:", err);
+        waitTime = 100;
+    }
+
+    setTimeout(() => {
+        if (cameraState.detecting) {
+            cameraState.animationFrameId = requestAnimationFrame(detectionLoop);
+        }
+    }, waitTime);
+}
+
 
 function preprocessFrame() {
   if (!video.videoWidth || !video.videoHeight) return null;
@@ -693,144 +743,62 @@ function preprocessFrame() {
   return new ort.Tensor('float32', data, [1, 3, inputSize, inputSize]);
 }
 
-function drawDetections(detections) {
-  // Clear previous detections and draw current video frame
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  
-  // Ensure video is ready and has valid dimensions
-  if (!video.videoWidth || !video.videoHeight) {
-    console.warn('⚠️ Video not ready for drawing');
-    return;
-  }
-  
-  // Draw the current video frame as background
-  try {
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  } catch (error) {
-    console.error('❌ Failed to draw video to canvas:', error);
-    return;
-  }
-  
-  if (detections.length === 0) {
-    // Draw a test indicator when no detections
-    ctx.save();
-    ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
-    ctx.fillRect(10, 10, 100, 30);
-    ctx.fillStyle = '#00FF00';
-    ctx.font = '14px Arial';
-    ctx.fillText('No detections', 15, 30);
-    ctx.restore();
-    return;
-  }
-  
-  console.log(`🔍 Drawing ${detections.length} detections`);
-  
-  // Draw test indicator when we have detections
-  ctx.save();
-  ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
-  ctx.fillRect(10, 50, 150, 30);
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = '14px Arial';
-  ctx.fillText(`${detections.length} detections`, 15, 70);
-  ctx.restore();
-  
-  const hazardColors = {
-    'Alligator Crack': '#FF4444',
-    'Block Crack': '#FF6600',
-    'Construction Joint Crack': '#FF8844',
-    'Crosswalk Blur': '#4444FF',
-    'Lane Blur': '#6644FF',
-    'Longitudinal Crack': '#FF8844',
-    'Manhole': '#888888',
-    'Patch Repair': '#44FF88',
-    'Pothole': '#FF0088',
-    'Transverse Crack': '#FFAA44',
-    'Wheel Mark Crack': '#AA4444'
-  };
-  
-  detections.forEach((detection, index) => {
-    const { x1, y1, x2, y2, score, classId } = detection;
-    
-    // Coordinate transformation depends on detection source
-    let canvasX1, canvasY1, canvasX2, canvasY2;
-    
-    if (cameraState.detectionMode === 'api') {
-      // API returns coordinates in original image space, scale to canvas
-      canvasX1 = x1 * coordinateScale.videoToDisplayX;
-      canvasY1 = y1 * coordinateScale.videoToDisplayY;
-      canvasX2 = x2 * coordinateScale.videoToDisplayX;
-      canvasY2 = y2 * coordinateScale.videoToDisplayY;
-    } else {
-      // Local model returns coordinates in model input space, scale to canvas  
-      canvasX1 = x1 * coordinateScale.modelToDisplayX;
-      canvasY1 = y1 * coordinateScale.modelToDisplayY;
-      canvasX2 = x2 * coordinateScale.modelToDisplayX;
-      canvasY2 = y2 * coordinateScale.modelToDisplayY;
+function drawPersistentDetections() {
+    if (!video.videoWidth || !video.videoHeight) {
+        console.warn('⚠️ Video not ready for drawing, skipping persistent draw.');
+        return;
     }
-    
-    const width = canvasX2 - canvasX1;
-    const height = canvasY2 - canvasY1;
-    
-    const coordSource = cameraState.detectionMode === 'api' ? 'image' : 'model';
-    console.log(`📦 Detection ${index}: ${coordSource}(${x1.toFixed(1)},${y1.toFixed(1)}) → canvas(${canvasX1.toFixed(1)},${canvasY1.toFixed(1)}) size=${width.toFixed(1)}x${height.toFixed(1)}`);
-    
-    // Debug: Always draw first few detections for testing
-    const isDebugMode = index < 3; // Show first 3 detections for debugging
-    
-    // Skip detections that are too small or outside bounds (but not in debug mode)
-    if (!isDebugMode && (width < 5 || height < 5 || canvasX1 < 0 || canvasY1 < 0 || canvasX2 > canvas.width || canvasY2 > canvas.height)) {
-      console.warn(`⚠️ Skipping invalid detection: ${width.toFixed(1)}x${height.toFixed(1)} at (${canvasX1.toFixed(1)},${canvasY1.toFixed(1)})`);
-      return;
-    }
-    
-    // Ensure detection is visible for debugging  
-    if (isDebugMode && (width < 20 || height < 20)) {
-      console.log(`🔍 Debug: Expanding small detection from ${width.toFixed(1)}x${height.toFixed(1)} to 20x20`);
-      const centerX = (canvasX1 + canvasX2) / 2;
-      const centerY = (canvasY1 + canvasY2) / 2;
-      canvasX1 = centerX - 10;
-      canvasY1 = centerY - 10;
-      canvasX2 = centerX + 10;
-      canvasY2 = centerY + 10;
-    }
-    
-    const label = classNames[classId] || `Class ${classId}`;
-    const color = hazardColors[label] || '#00FF00';
-    
-    // Draw professional bounding box  
+
     try {
-      drawProfessionalBoundingBox(ctx, {
-        x1: canvasX1,
-        y1: canvasY1,
-        x2: canvasX2,
-        y2: canvasY2,
-        label: label,
-        confidence: score,
-        detectionIndex: index + 1,
-        color: color
-      });
-      
-      console.log(`✅ Drew detection ${index + 1}: ${label} at (${canvasX1.toFixed(1)},${canvasY1.toFixed(1)})`);
+        if (cameraState.detecting) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        }
     } catch (error) {
-      console.error(`❌ Failed to draw professional box, using fallback:`, error);
-      
-      // Fallback: draw simple rectangle
-      ctx.save();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 3;
-      ctx.globalAlpha = 0.8;
-      ctx.strokeRect(canvasX1, canvasY1, canvasX2 - canvasX1, canvasY2 - canvasY1);
-      
-      // Simple label
-      ctx.fillStyle = color;
-      ctx.font = '14px Arial';
-      ctx.fillText(`${label} ${(score * 100).toFixed(0)}%`, canvasX1, canvasY1 - 5);
-      ctx.restore();
-      
-      console.log(`✅ Drew fallback detection ${index + 1}: ${label}`);
+        console.error('❌ Failed to draw video to canvas:', error);
+        return;
     }
-  });
+
+    const hazardColors = {
+        'Alligator Crack': '#FF4444',
+        'Block Crack': '#FF6600',
+        'Construction Joint Crack': '#FF8844',
+        'Crosswalk Blur': '#4444FF',
+        'Lane Blur': '#6644FF',
+        'Longitudinal Crack': '#FF8844',
+        'Manhole': '#888888',
+        'Patch Repair': '#44FF88',
+        'Pothole': '#FF0088',
+        'Transverse Crack': '#FFAA44',
+        'Wheel Mark Crack': '#AA4444'
+    };
+
+    persistentDetections.forEach((detection, index) => {
+        const { x1, y1, x2, y2, score, classId } = detection;
+        let canvasX1, canvasY1, canvasX2, canvasY2;
+
+        if (cameraState.detectionMode === 'api') {
+            canvasX1 = x1 * coordinateScale.videoToDisplayX;
+            canvasY1 = y1 * coordinateScale.videoToDisplayY;
+            canvasX2 = x2 * coordinateScale.videoToDisplayX;
+            canvasY2 = y2 * coordinateScale.videoToDisplayY;
+        } else {
+            canvasX1 = x1 * coordinateScale.modelToDisplayX;
+            canvasY1 = y1 * coordinateScale.modelToDisplayY;
+            canvasX2 = x2 * coordinateScale.modelToDisplayX;
+            canvasY2 = y2 * coordinateScale.modelToDisplayY;
+        }
+
+        const label = classNames[classId] || `Class ${classId}`;
+        const color = hazardColors[label] || '#00FF00';
+
+        drawProfessionalBoundingBox(ctx, {
+            x1: canvasX1, y1: canvasY1, x2: canvasX2, y2: canvasY2,
+            label: label, confidence: score, detectionIndex: index + 1, color: color
+        });
+    });
 }
+
 
 function updateStatus(message) {
   if (loadingStatus) {
@@ -869,19 +837,6 @@ function updateFPS() {
     }
   }
   cameraState.lastFrameTime = now;
-}
-
-function updateHazardTypes(detections) {
-  if (!hazardTypesDisplay || !hazardTypesList) return;
-  
-  if (detections.length === 0) {
-    hideHazardTypes();
-    return;
-  }
-  
-  const uniqueTypes = [...new Set(detections.map(d => classNames[d.classId] || `Class ${d.classId}`))];
-  hazardTypesList.textContent = uniqueTypes.join(', ');
-  hazardTypesDisplay.hidden = false;
 }
 
 function hideHazardTypes() {
@@ -1028,7 +983,8 @@ async function saveSessionReport() {
       totalFrames: detectionSession.totalFrames,
       detectionFrames: detectionSession.detectionFrames,
       uniqueHazards: Array.from(detectionSession.uniqueHazards),
-      avgConfidence: detectionSession.confidenceSum / detectionSession.detectionCount,
+      avgConfidence: detectionSession.detectionCount > 0 ? 
+    detectionSession.confidenceSum / detectionSession.detectionCount : 0,
       detections: detectionSession.detections,
       location: await getCurrentLocation()
     };
@@ -1072,7 +1028,7 @@ function drawProfessionalBoundingBox(ctx, options) {
   
   const boxW = x2 - x1;
   const boxH = y2 - y1;
-  const scorePerc = (confidence * 100).toFixed(1);
+  const scorePerc = (Math.min(1, Math.max(0, confidence)) * 100).toFixed(1);
   
   // Save current context state
   ctx.save();
@@ -1236,9 +1192,9 @@ async function runAPIDetection() {
     const captureCanvas = document.createElement('canvas');
     const captureCtx = captureCanvas.getContext('2d');
     
-    // Use video dimensions for better quality (not the model input size)
-    captureCanvas.width = video.videoWidth;
-    captureCanvas.height = video.videoHeight;
+    // Resize to 480x480 for the API model
+    captureCanvas.width = 480;
+    captureCanvas.height = 480;
     
     // Draw current video frame
     captureCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);

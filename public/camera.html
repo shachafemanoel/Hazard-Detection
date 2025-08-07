@@ -85,17 +85,15 @@
         </div>
       </section>
 
-      <!-- Hazard alert modal -->
-      <div class="modal" id="hazard-alert-modal" style="display: none;">
-        <div class="modal-dialog">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title">Hazard Detected</h5>
-              <button type="button" class="btn-close" onclick="document.getElementById('hazard-alert-modal').style.display='none'"></button>
+      <!-- Toast Container for Hazard Alerts -->
+      <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1100">
+        <div id="hazardToast" class="toast align-items-center text-white bg-danger border-0" role="alert" aria-live="assertive" aria-atomic="true">
+          <div class="d-flex">
+            <div class="toast-body">
+              <i class="fas fa-exclamation-triangle me-2"></i>
+              <span id="toast-hazard-details"></span>
             </div>
-            <div class="modal-body">
-              <p id="hazard-details">Multiple hazards detected in the current frame.</p>
-            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
           </div>
         </div>
       </div>
@@ -208,9 +206,9 @@
                         document.getElementById('settings-btn').setAttribute('aria-expanded', 'false');
                     }
                     
-                    const alertModal = document.getElementById('hazard-alert-modal');
-                    if (alertModal.style.display !== 'none') {
-                        alertModal.style.display = 'none';
+                    const alertToast = document.getElementById('hazardToast');
+                    if (alertToast && bootstrap.Toast.getInstance(alertToast)) {
+                        bootstrap.Toast.getInstance(alertToast).hide();
                     }
                 }
                 
