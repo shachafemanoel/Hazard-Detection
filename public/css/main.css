@@ -24,6 +24,7 @@
   --text-secondary: #849fb4;
   --glow-primary: rgba(0, 229, 255, 0.4);
   --glow-danger: rgba(255, 82, 82, 0.4);
+  --background-gradient: linear-gradient(135deg, rgba(0,229,255,0.15), rgba(255,152,0,0.15), rgba(0,230,118,0.15));
   --gradient-primary: linear-gradient(45deg, var(--accent), #00b8d4);
   --primary-rgb: 0, 229, 255;
   --font-body: 'Roboto', sans-serif;
@@ -39,7 +40,8 @@ body {
   padding: 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-image: radial-gradient(circle at top left, rgba(0, 229, 255, 0.05), transparent 30%),
+  background-image: var(--background-gradient),
+                    radial-gradient(circle at top left, rgba(0, 229, 255, 0.05), transparent 30%),
                     radial-gradient(circle at bottom right, rgba(255, 152, 0, 0.05), transparent 30%);
 }
 
@@ -665,6 +667,11 @@ tr:hover {
   min-height: calc(100vh - 90px);
 }
 
+.main-content .card {
+  max-width: 600px;
+  width: 100%;
+}
+
 /* --- Responsive Adjustments --- */
 @media (max-width: 768px) {
   .container, .card, .dashboard-panel {
@@ -684,6 +691,9 @@ tr:hover {
 }
 
 @media (max-width: 576px) {
+  .main-content .card {
+    padding: 2rem 1.5rem;
+  }
   .login-container {
     padding: 25px;
   }
