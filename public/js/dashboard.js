@@ -122,14 +122,27 @@ function renderTable() {
     `;
     // Checkbox event
     const checkbox = row.querySelector('.report-checkbox');
-    checkbox.addEventListener('change', (e) => {
-      if (e.target.checked) {
-        state.selectedReportIds.add(report.id);
-      } else {
-        state.selectedReportIds.delete(report.id);
-      }
-      renderBulkDeleteButton();
-    });
+    if (checkbox) {
+      checkbox.addEventListener('change', (e) => {
+        console.log('Report checkbox clicked:', report.id);
+        if (e.target.checked) {
+          state.selectedReportIds.add(report.id);
+          console.log('Report selected:', report.id);
+        } else {
+          state.selectedReportIds.delete(report.id);
+          console.log('Report deselected:', report.id);
+        }
+        renderBulkDeleteButton();
+      });
+      
+      // Make sure checkbox is clickable
+      checkbox.style.pointerEvents = 'auto';
+      checkbox.style.cursor = 'pointer';
+      checkbox.style.position = 'relative';
+      checkbox.style.zIndex = '10';
+    } else {
+      console.error('Checkbox not found for report:', report.id);
+    }
     elements.tableBody.appendChild(row);
   });
   renderBulkDeleteButton();
@@ -285,10 +298,18 @@ function startReportPolling() {
 // --- EVENT HANDLERS ---
 
 function handleFilterChange() {
-  state.filters.search = elements.searchInput.value;
-  state.filters.status = elements.statusFilter.value;
-  state.filters.type = elements.typeFilter.value;
-  state.filters.my_reports = elements.myReportsFilter.checked;
+  console.log("Filter change event triggered!");
+  
+  const oldFilters = { ...state.filters };
+  
+  state.filters.search = elements.searchInput?.value || "";
+  state.filters.status = elements.statusFilter?.value || "";
+  state.filters.type = elements.typeFilter?.value || "";
+  state.filters.my_reports = elements.myReportsFilter?.checked || false;
+  
+  console.log("Old filters:", oldFilters);
+  console.log("New filters:", state.filters);
+  
   updateDashboard();
 }
 
@@ -391,10 +412,92 @@ function showEditModal(report) {
 // --- INITIALIZATION ---
 
 function initializeEventListeners() {
-  elements.searchInput?.addEventListener("input", handleFilterChange);
-  elements.statusFilter?.addEventListener("change", handleFilterChange);
-  elements.typeFilter?.addEventListener("change", handleFilterChange);
-  elements.myReportsFilter?.addEventListener("change", handleFilterChange);
+  // Debug logging for filter elements
+  console.log("Initializing event listeners...");
+  console.log("Search input:", elements.searchInput);
+  console.log("Status filter:", elements.statusFilter);
+  console.log("Type filter:", elements.typeFilter);
+  console.log("My reports filter:", elements.myReportsFilter);
+  console.log("Select all checkbox:", elements.selectAllCheckbox);
+
+  // Add event listeners with debug logging and multiple event types
+  if (elements.searchInput) {
+    elements.searchInput.addEventListener("input", handleFilterChange);
+    elements.searchInput.addEventListener("keyup", handleFilterChange);
+    elements.searchInput.addEventListener("change", handleFilterChange);
+    // Make sure it's clickable
+    elements.searchInput.style.pointerEvents = 'auto';
+    elements.searchInput.style.cursor = 'text';
+    console.log("✅ Search input event listener added");
+  } else {
+    console.error("❌ Search input not found");
+  }
+  
+  if (elements.statusFilter) {
+    elements.statusFilter.addEventListener("change", handleFilterChange);
+    elements.statusFilter.addEventListener("click", handleFilterChange);
+    // Make sure it's clickable
+    elements.statusFilter.style.pointerEvents = 'auto';
+    elements.statusFilter.style.cursor = 'pointer';
+    console.log("✅ Status filter event listener added");
+  } else {
+    console.error("❌ Status filter not found");
+  }
+  
+  if (elements.typeFilter) {
+    elements.typeFilter.addEventListener("change", handleFilterChange);
+    elements.typeFilter.addEventListener("click", handleFilterChange);
+    // Make sure it's clickable
+    elements.typeFilter.style.pointerEvents = 'auto';
+    elements.typeFilter.style.cursor = 'pointer';
+    console.log("✅ Type filter event listener added");
+  } else {
+    console.error("❌ Type filter not found");
+  }
+  
+  if (elements.myReportsFilter) {
+    elements.myReportsFilter.addEventListener("change", handleFilterChange);
+    elements.myReportsFilter.addEventListener("click", handleFilterChange);
+    // Make sure it's clickable
+    elements.myReportsFilter.style.pointerEvents = 'auto';
+    elements.myReportsFilter.style.cursor = 'pointer';
+    console.log("✅ My reports filter event listener added");
+  } else {
+    console.error("❌ My reports filter not found");
+  }
+
+  // Select all checkbox
+  if (elements.selectAllCheckbox) {
+    elements.selectAllCheckbox.addEventListener("change", (e) => {
+      console.log('Select all checkbox clicked:', e.target.checked);
+      const checkboxes = document.querySelectorAll('.report-checkbox');
+      console.log('Found checkboxes:', checkboxes.length);
+      
+      checkboxes.forEach(checkbox => {
+        checkbox.checked = e.target.checked;
+        const reportId = checkbox.dataset.reportId;
+        if (e.target.checked) {
+          state.selectedReportIds.add(reportId);
+        } else {
+          state.selectedReportIds.delete(reportId);
+        }
+      });
+      
+      console.log('Selected report IDs:', Array.from(state.selectedReportIds));
+      renderBulkDeleteButton();
+    });
+    
+    // Make sure it's clickable
+    elements.selectAllCheckbox.style.pointerEvents = 'auto';
+    elements.selectAllCheckbox.style.cursor = 'pointer';
+    elements.selectAllCheckbox.style.position = 'relative';
+    elements.selectAllCheckbox.style.zIndex = '10';
+    
+    console.log("✅ Select all checkbox event listener added");
+  } else {
+    console.error("❌ Select all checkbox not found");
+  }
+
   elements.sortHeaders.forEach((h) =>
     h.addEventListener("click", handleSortChange),
   );
@@ -429,10 +532,48 @@ function setupMobileDrawer() {
   toggle.addEventListener("click", () => sidebar.classList.toggle("open"));
 }
 
+// Add global click listener for debugging
+function addGlobalDebugListener() {
+  document.addEventListener('click', (e) => {
+    console.log('Global click detected:', e.target);
+    console.log('Target classes:', e.target.className);
+    console.log('Target id:', e.target.id);
+    
+    // Check if click is on filter controls
+    if (e.target.id === 'report-search-input' || 
+        e.target.id === 'table-status-filter' || 
+        e.target.id === 'hazard-type-filter' || 
+        e.target.id === 'my-reports-filter' ||
+        e.target.id === 'select-all-reports') {
+      console.log('🎯 Click on filter control detected:', e.target.id);
+    }
+    
+    // Check if click is on report checkbox
+    if (e.target.classList.contains('report-checkbox')) {
+      console.log('🎯 Click on report checkbox detected');
+    }
+  });
+  
+  // Also listen for change events
+  document.addEventListener('change', (e) => {
+    console.log('Global change detected:', e.target);
+    if (e.target.id === 'report-search-input' || 
+        e.target.id === 'table-status-filter' || 
+        e.target.id === 'hazard-type-filter' || 
+        e.target.id === 'my-reports-filter' ||
+        e.target.id === 'select-all-reports') {
+      console.log('🎯 Change on filter control detected:', e.target.id);
+    }
+  });
+}
+
 async function init() {
   if (typeof window.initializeNotifications === "function") {
     window.initializeNotifications();
   }
+
+  // Add global debug listener
+  addGlobalDebugListener();
 
   try {
     // Wait for Google Maps to initialize
