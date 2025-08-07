@@ -124,6 +124,7 @@ async function startSession() {
         Accept: 'application/json',
         'User-Agent': 'Hazard-Detection-API/1.0',
       },
+      signal: withTimeout(DEFAULT_TIMEOUT),
     });
 
     if (!res.ok) {
@@ -179,6 +180,7 @@ async function detectHazards(sessionId, imageBlob) {
         // aligned with spec: POST /detect/{session_id}, multipart/form-data, field name "file"
         'User-Agent': 'Hazard-Detection-API/1.0',
       },
+      signal: withTimeout(DEFAULT_TIMEOUT),
     });
 
     if (res.status === 400) {
@@ -244,6 +246,7 @@ async function detectSingle(imageBlob) {
       headers: {
         'User-Agent': 'Hazard-Detection-API/1.0',
       },
+      signal: withTimeout(DEFAULT_TIMEOUT),
     });
 
     if (!res.ok) {
@@ -291,6 +294,7 @@ async function detectBatch(imageBlobs) {
       headers: {
         'User-Agent': 'Hazard-Detection-API/1.0',
       },
+      signal: withTimeout(DEFAULT_TIMEOUT),
     });
 
     if (!res.ok) {
@@ -374,6 +378,7 @@ async function getSessionSummary(sessionId) {
         Accept: 'application/json',
         'User-Agent': 'Hazard-Detection-API/1.0',
       },
+      signal: withTimeout(DEFAULT_TIMEOUT),
     });
 
     if (!res.ok) {
@@ -411,6 +416,7 @@ async function endSession(sessionId) {
         Accept: 'application/json',
         'User-Agent': 'Hazard-Detection-API/1.0',
       },
+      signal: withTimeout(DEFAULT_TIMEOUT),
     });
 
     if (res.ok) {
@@ -456,6 +462,7 @@ async function confirmReport(sessionId, reportId) {
           Accept: 'application/json',
           'User-Agent': 'Hazard-Detection-API/1.0',
         },
+        signal: withTimeout(DEFAULT_TIMEOUT),
       }
     );
 
@@ -496,6 +503,7 @@ async function dismissReport(sessionId, reportId) {
           Accept: 'application/json',
           'User-Agent': 'Hazard-Detection-API/1.0',
         },
+        signal: withTimeout(DEFAULT_TIMEOUT),
       }
     );
 
@@ -536,6 +544,7 @@ async function getReportImage(sessionId, reportId) {
         headers: {
           'User-Agent': 'Hazard-Detection-API/1.0',
         },
+        signal: withTimeout(DEFAULT_TIMEOUT),
       }
     );
 
@@ -574,6 +583,7 @@ async function getReportPlot(sessionId, reportId) {
         headers: {
           'User-Agent': 'Hazard-Detection-API/1.0',
         },
+        signal: withTimeout(DEFAULT_TIMEOUT),
       }
     );
 
