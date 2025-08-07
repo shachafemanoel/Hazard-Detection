@@ -382,8 +382,15 @@ const formatType = (type) => {
 const getTypeClass = (type) => {
   if (!type) return "";
   
-  // Convert to lowercase and replace spaces/underscores for class name
-  return type.toLowerCase().replace(/[\s_]/g, "_");
+  // Normalize the type for consistent class names
+  const normalizedType = type.toLowerCase().replace(/[\s_]/g, "_");
+  
+  // Map all crack variations to 'crack' class
+  if (normalizedType.includes('crack')) {
+    return 'crack';
+  }
+  
+  return normalizedType;
 };
 
 function renderStats() {

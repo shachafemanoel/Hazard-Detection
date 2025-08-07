@@ -485,10 +485,10 @@ export async function plotReports(reports) {
     console.log(`🔥 Updated heatmap with ${heatmapData.length} points`);
   }
 
-  // Create density polygons
-  createDensityPolygons(
-    heatmapData.map((point) => ({ lat: point.lat(), lng: point.lng() })),
-  );
+  // Create density polygons (disabled for cleaner look)
+  // createDensityPolygons(
+  //   heatmapData.map((point) => ({ lat: point.lat(), lng: point.lng() })),
+  // );
 
   // Auto-fit map bounds if there are reports
   if (markers.length > 0) {
@@ -521,7 +521,6 @@ function getMarkerIcon(type, status) {
     'knocked': '#ffc107',        // Yellow
     'surface damage': '#007bff', // Blue
     'surface_damage': '#007bff', // Blue (alternative format)
-    'alligator crack': '#28a745' // Green (specific crack type)
   };
   
   // Pink color for any other hazard types not specifically defined
@@ -538,8 +537,14 @@ function getMarkerIcon(type, status) {
   // Normalize type for comparison
   const normalizedType = type ? type.toLowerCase().replace(/[\s_]/g, ' ') : '';
   
-  // Use type color first, then status color, then default pink for unknown types
-  const color = typeColors[normalizedType] || statusColors[status] || defaultTypeColor;
+  // Check if it's any type of crack first
+  let color;
+  if (normalizedType.includes('crack')) {
+    color = typeColors['crack'];
+  } else {
+    // Use type color first, then status color, then default pink for unknown types
+    color = typeColors[normalizedType] || statusColors[status] || defaultTypeColor;
+  }
   
   // Create SVG data URL for the marker icon
   const svgIcon = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
@@ -618,11 +623,11 @@ function createDensityPolygons(points, threshold = 5) {
           { lat: latMax, lng: lngMax },
           { lat: latMax, lng: lngMin },
         ],
-        strokeColor: "#FF7800",
-        strokeOpacity: 0.8,
+        strokeColor: "#007bff",
+        strokeOpacity: 0.3,
         strokeWeight: 1,
-        fillColor: "#FF7800",
-        fillOpacity: 0.2,
+        fillColor: "#007bff",
+        fillOpacity: 0.1,
         map: map,
       });
 

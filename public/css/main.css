@@ -240,7 +240,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 .reports-table-container th, .reports-table-container td {
-    padding: 1rem;
+    padding: 0.75rem 0.5rem;
 }
 
 /* Allow location column to wrap if needed */
@@ -382,6 +382,36 @@ input:focus, select:focus, textarea:focus {
   color: white !important;
 }
 
+/* Alternative approach - set pink as default and override specific types */
+.type-badge {
+  background-color: #e91e63 !important; /* Pink as default */
+  color: white !important;
+}
+
+/* Override with specific colors for defined types */
+.type-badge.pothole {
+  background-color: #dc3545 !important; /* Red */
+  color: white !important;
+}
+
+.type-badge.crack,
+.type-badge.alligator_crack,
+.type-badge.alligator-crack {
+  background-color: #28a745 !important; /* Green */
+  color: white !important;
+}
+
+.type-badge.knocked {
+  background-color: #ffc107 !important; /* Yellow */
+  color: #212529 !important;
+}
+
+.type-badge.surface_damage,
+.type-badge.surface-damage {
+  background-color: #007bff !important; /* Blue */
+  color: white !important;
+}
+
 /* Status badges styling */
 .status-badge {
   padding: 0.5rem 1rem;
@@ -412,57 +442,58 @@ table {
   text-overflow: ellipsis;
   font-size: 1.15rem;
   line-height: 1.5;
+  padding: 0.75rem 0.5rem;
 }
 
 /* Specific column widths for better alignment */
 #reports-management-table th:nth-child(1),
 #reports-management-table td:nth-child(1) {
-  width: 50px; /* Checkbox column */
+  width: 40px; /* Checkbox column */
   text-align: center;
 }
 
 #reports-management-table th:nth-child(2),
 #reports-management-table td:nth-child(2) {
-  width: 140px; /* ID column */
+  width: 120px; /* ID column */
   text-align: center;
   font-size: 1.1rem;
 }
 
 #reports-management-table th:nth-child(3),
 #reports-management-table td:nth-child(3) {
-  width: 130px; /* Type column */
+  width: 110px; /* Type column */
   text-align: center;
 }
 
 #reports-management-table th:nth-child(4),
 #reports-management-table td:nth-child(4) {
-  width: 110px; /* Status column */
+  width: 90px; /* Status column */
   text-align: center;
 }
 
 #reports-management-table th:nth-child(5),
 #reports-management-table td:nth-child(5) {
-  width: 280px; /* Location column - fixed width */
+  width: 250px; /* Location column - fixed width */
   text-align: left;
-  min-width: 250px;
-  max-width: 300px;
+  min-width: 220px;
+  max-width: 280px;
 }
 
 #reports-management-table th:nth-child(6),
 #reports-management-table td:nth-child(6) {
-  width: 160px; /* Time column */
+  width: 140px; /* Time column */
   text-align: center;
   font-size: 1.1rem;
 }
 
 #reports-management-table th:nth-child(7),
 #reports-management-table td:nth-child(7) {
-  width: 150px; /* Actions column */
+  width: 120px; /* Actions column */
   text-align: center;
 }
 
 #reports-management-table thead th {
-  padding: 1rem;
+  padding: 0.75rem 0.5rem;
   text-align: center;
   vertical-align: middle;
   position: relative;
@@ -511,16 +542,21 @@ table {
 #reports-management-table .btn-group {
   position: relative;
   z-index: 3;
+  display: flex;
+  gap: 0.15rem;
 }
 
 #reports-management-table .btn-group .btn {
   pointer-events: auto;
   cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.9rem;
 }
 
 #reports-management-table td,
 #reports-management-table th {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-spacing: 0;
 }
 
 #reports-blocks-container {
