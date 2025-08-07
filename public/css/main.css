@@ -313,8 +313,42 @@ table {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+#reports-blocks-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.5rem;
+}
+
+@media (orientation: landscape) {
+  #reports-blocks-container {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+}
+
 #reports-blocks-container .report-card {
   background-color: var(--panel-bg);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  flex-direction: column;
+}
+
+#reports-blocks-container .report-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+#reports-blocks-container .report-card .card-body,
+#reports-blocks-container .report-card .card-footer {
+  position: relative;
+  z-index: 1;
 }
 
 #reports-blocks-container .report-card .card-footer {
