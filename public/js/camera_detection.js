@@ -258,15 +258,18 @@ async function loadLocalModel() {
         });
         
         console.log('✅ ONNX session created successfully');
-        
-        // Use 480x480 as indicated by the error message
-        cameraState.modelInputSize = 640;
+
+        // Determine model input size from session metadata (falls back to 640)
+        const inputName = cameraState.session.inputNames[0];
+        const inputMeta = cameraState.session.inputMetadata?.[inputName];
+        const dims = inputMeta?.dimensions || inputMeta?.shape;
+        cameraState.modelInputSize = Array.isArray(dims) && dims.length >= 4 ? dims[2] : 640;
         console.log(`📐 Using model input size: ${cameraState.modelInputSize}x${cameraState.modelInputSize}`);
-        
+
         // Log session info for debugging
         console.log('📋 Input names:', cameraState.session.inputNames);
         console.log('📋 Output names:', cameraState.session.outputNames);
-        
+
         // Resize offscreen canvas to match model requirements
         offscreen.width = cameraState.modelInputSize;
         offscreen.height = cameraState.modelInputSize;
