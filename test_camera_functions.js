@@ -152,12 +152,8 @@ function testAccessibility() {
   }
 }
 
-// Run all tests when DOM is loaded
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', runAllTests);
-} else {
-  runAllTests();
-}
+// Run all tests after camera initialization is complete
+document.addEventListener('cameraReady', runAllTests, { once: true });
 
 function runAllTests() {
   console.log('🚀 Starting camera detection function tests...');

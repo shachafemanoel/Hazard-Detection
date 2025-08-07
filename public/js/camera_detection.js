@@ -95,15 +95,21 @@ function initialize() {
 
   ctx = canvas.getContext("2d");
 
+  // Start button disabled until initialization completes
+  startButton.disabled = true;
+
   // Set up event listeners
   setupEventListeners();
-  
+
   // Add window resize listener to update canvas scaling
   window.addEventListener('resize', debounce(updateCanvasSize, 100));
-  
-  // Initialize detection (API or local model)
-  initializeDetection();
-  
+
+  // Initialize detection (API or local model) then signal readiness
+  initializeDetection()
+    .finally(() => {
+      document.dispatchEvent(new Event('cameraReady'));
+    });
+
   console.log('📷 Camera detection system initialized');
 }
 
@@ -112,11 +118,21 @@ function setupEventListeners() {
   startButton.addEventListener("click", startCamera);
   stopButton.addEventListener("click", stopCamera);
   captureButton.addEventListener("click", captureFrame);
-  
+
   // Settings
   if (settingsButton) {
     settingsButton.addEventListener("click", toggleSettings);
   }
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && settingsPanel && settingsPanel.classList.contains('show')) {
+      settingsPanel.classList.remove('show');
+      if (settingsButton) {
+        settingsButton.setAttribute('aria-expanded', 'false');
+      }
+    }
+  });
   
   // Summary modal
   const summaryButton = document.getElementById('summary-btn');
@@ -1255,6 +1271,12 @@ async function runAPIDetection() {
   } catch (error) {
     console.error('❌ API detection attempt failed:', error.message);
     cameraState.apiAvailable = false;
+    cameraState.detectionMode = 'local';
+    updateDetectionModeInfo('local');
+    updateStatus('API error - switched to local model');
+    if (!cameraState.session) {
+      await loadLocalModel();
+    }
     // Return empty array instead of throwing to prevent endless error loop
     return [];
   }
