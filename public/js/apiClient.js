@@ -56,12 +56,13 @@ function setApiUrl(url) {
 /**
  * Health check - calls exactly /health endpoint
  */
-async function checkHealth() {
+async function checkHealth(timeoutMs = 10000) {
   await ensureInitialized();
 
   try {
     const res = await fetch(`${baseUrl}/health`, {
-      signal: withTimeout(DEFAULT_TIMEOUT),
+      // Use shorter timeout for quicker availability checks
+      signal: withTimeout(timeoutMs),
       method: 'GET',
       headers: {
         Accept: 'application/json',

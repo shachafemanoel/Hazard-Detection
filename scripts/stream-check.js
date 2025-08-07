@@ -11,29 +11,35 @@ console.log('🚀 Starting Real-time Client Verification Script...');
 
 const client = createRealtimeClient();
 let messageCounter = 0;
+const REQUIRED_MESSAGES = 3;
+const TEST_PAYLOADS = 3;
 
-const SCRIPT_TIMEOUT = 45000; // 45 seconds
+const SCRIPT_TIMEOUT = 20000; // 20 seconds
 const scriptTimeout = setTimeout(() => {
   console.error('❌ ERROR: Script timed out. Could not complete verification.');
   process.exit(1);
 }, SCRIPT_TIMEOUT);
 
-client.onStatus(status => {
+client.onStatus(async status => {
   console.log(`[STATUS] Client status changed to: ${status}`);
   if (status === 'connected') {
-    console.log('✅ Client connected successfully. Sending a test payload...');
+    console.log(`✅ Client connected successfully. Sending ${TEST_PAYLOADS} test payloads...`);
     const dummyPayload = new Blob(['dummy frame data']);
-    client.send(dummyPayload).catch(err => {
-        console.error('Error sending payload', err)
-    });
+    try {
+      await Promise.all(
+        Array.from({ length: TEST_PAYLOADS }, () => client.send(dummyPayload))
+      );
+    } catch (err) {
+      console.error('Error sending payload', err);
+    }
   }
 });
 
 client.onMessage(message => {
   console.log('[MESSAGE] Received message from server:', message);
   messageCounter++;
-  if (messageCounter >= 3) {
-    console.log('🎉 Received 3 messages. Verification successful!');
+  if (messageCounter >= REQUIRED_MESSAGES) {
+    console.log(`🎉 Received ${REQUIRED_MESSAGES} messages. Verification successful!`);
     client.disconnect();
     clearTimeout(scriptTimeout);
     process.exit(0);
