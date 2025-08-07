@@ -201,27 +201,29 @@ document.addEventListener("DOMContentLoaded", async function () {
     }, "image/jpeg", 0.95);
   });
   
-  // Enhanced Road Damage Detection Model Configuration
-  const FIXED_SIZE = 640; // Optimized for road_damage_detection_last_version.onnx
+  // YOLOv12n Road Damage Detection Model Configuration
+  const FIXED_SIZE = 480; // from YAML imgsz
   
-  // Road Damage Classes (mapping to model's 4 classes)
-  const classNames = [
-    'crack',
-    'knocked',
-    'pothole',
-    'surface damage'
-  ];
+  // YOLOv12n Road Damage Classes (4 classes)
+  const classNames = ['crack', 'knocked', 'pothole', 'surface damage'];
   
+  // Hazard colors for YOLOv12n classes
+  const hazardColors = {
+    crack:'#FF8844', 
+    knocked:'#FFD400', 
+    pothole:'#FF4444', 
+    'surface damage':'#44D7B6'
+  };
 
-  // Detection configuration for upload processing
+  // Detection configuration for YOLOv12n processing
   const DETECTION_CONFIG = {
-    minConfidence: 0.35,          // Lower for batch processing
+    minConfidence: 0.25,          // Updated for YOLOv12n
     nmsThreshold: 0.4,            // Lower for better precision
     maxDetections: 50,            // Higher limit for batch processing
     minBoxSize: 4,                // Smaller for crack detection
     aspectRatioFilter: 30.0,      // Allow longer shapes for cracks/markings
-    // Class-specific minimum confidences for upload processing (4 classes)
-    classThresholds: {}
+    // Class-specific minimum confidences for YOLOv12n (4 classes)
+    classThresholds: { 0:0.25, 1:0.25, 2:0.25, 3:0.25 }
   };
   let session = null;
   let runtime = 'onnx';
@@ -375,7 +377,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     
     // Check if this is NMS-ready output (like [1, 300, 6] or [N, 6])
     if (dims.length >= 2 && dims[dims.length - 1] === 6) {
-      console.log('📦 Detected NMS-ready format [N, 6] - parsing directly');
+      console.log('📦 Detected NMS-ready format [N, 6] - parsing directly as [x1,y1,x2,y2,score,classId]');
       
       // Parse direct [x1, y1, x2, y2, score, classId] format
       for (let i = 0; i < outputData.length; i += 6) {
@@ -514,7 +516,8 @@ document.addEventListener("DOMContentLoaded", async function () {
       const outputKey = Object.keys(results)[0];
       const output = results[outputKey];
       
-      // Log output shape for debugging
+      // Enhanced debug logging after model inference
+      console.log('🧪 ONNX output dims:', output.dims, 'len:', output.data.length);
       console.log('Output dims:', output.dims, 'Output data length:', output.data.length);
       console.log("Raw outputData sample:", output.data.slice(0, 20));
 
@@ -528,6 +531,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       const filteredBoxes = applyDetectionFilters(rawBoxes);
       
       console.log(`Detection Results: ${rawBoxes.length} raw → ${filteredBoxes.length} filtered`);
+      console.log('✅ parsed detections:', parsed.slice(0,5));
       console.log("Top detections:", filteredBoxes.slice(0, 5));
       
       drawResults(filteredBoxes);
@@ -959,14 +963,6 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     hasHazard = false;
     
-    // Color scheme for 4 road damage types
-    const hazardColors = {
-      'crack': '#FF8844',           // Orange - Various crack types
-      'knocked': '#FFD400',         // Yellow - Infrastructure damage
-      'pothole': '#FF4444',         // Red - Critical surface damage
-      'surface damage': '#44D7B6'   // Teal - General surface issues
-    };
-
     let detectionCount = 0;
     boxes.forEach((box, index) => {
       let [x1, y1, x2, y2, score, classId] = box;

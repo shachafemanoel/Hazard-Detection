@@ -18,6 +18,8 @@ RUN apt-get update && apt-get install -y \
 # Copy Node.js dependencies and install
 COPY package*.json ./
 RUN npm install --omit=dev
+# Install ONNX dependencies for Node.js server
+RUN npm install onnxruntime-node@1.19.2 onnxruntime-web@1.19.2 onnx@1.15.0
 
 # Copy Python requirements and install
 COPY unified-requirements.txt ./

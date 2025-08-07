@@ -1,5 +1,32 @@
+import fetch, { Headers, Request, Response } from 'node-fetch';
+import { TextDecoder, TextEncoder } from 'util';
+
 // Test setup file for Node.js built-in test runner
 // Global test configuration and utilities
+
+global.fetch = fetch;
+global.Headers = Headers;
+global.Request = Request;
+global.Response = Response;
+global.TextDecoder = TextDecoder;
+global.TextEncoder = TextEncoder;
+// global.Blob = Blob; // Ensure global Blob is from node-fetch
+
+// Mock HTMLCanvasElement for JSDOM environment
+global.HTMLCanvasElement.prototype.getContext = function () {
+  return {
+    clearRect: jest.fn(),
+    drawImage: jest.fn(),
+    getImageData: jest.fn(() => ({ data: new Uint8ClampedArray(640 * 640 * 4) })),
+    putImageData: jest.fn(),
+  };
+};
+
+global.HTMLCanvasElement.prototype.toBlob = function (callback, type, quality) {
+  // Simulate a blob for testing purposes
+  const mockBlob = new Blob(['mock image data'], { type: type || 'image/jpeg' });
+  callback(mockBlob);
+};
 
 // Global test utilities
 global.TEST_CONFIG = {

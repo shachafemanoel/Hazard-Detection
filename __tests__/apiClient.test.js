@@ -45,17 +45,16 @@ beforeAll(() => {
     res.status(405).send('Method Not Allowed');
   });
 
-  const imgPath = path.join(__dirname, '../scripts/sample-image.png');
-  const imgBuffer = fs.readFileSync(imgPath);
-
   app.get('/session/:sessionId/report/:reportId/image', (req, res) => {
     res.set('Content-Type', 'image/jpeg');
-    res.send(imgBuffer);
+    const blob = new Blob(['mock image data'], { type: 'image/jpeg' });
+    res.status(200).send(blob);
   });
 
   app.get('/session/:sessionId/report/:reportId/plot', (req, res) => {
     res.set('Content-Type', 'image/jpeg');
-    res.send(imgBuffer);
+    const blob = new Blob(['mock plot data'], { type: 'image/jpeg' });
+    res.status(200).send(blob);
   });
 
   server = http.createServer(app);
@@ -85,25 +84,32 @@ test('session start returns id', async () => {
 
 test('detect hazards returns detections array', async () => {
   const id = await startSession();
-  const imgPath = path.join(__dirname, '../scripts/sample-image.png');
-  const buffer = fs.readFileSync(imgPath);
-  const blob = new Blob([buffer]);
-  const result = await detectHazards(id, blob);
+  // Create a mock canvas element
+  const mockCanvas = {
+    toBlob: (callback) => {
+      const mockBlob = new Blob(['mock image data'], { type: 'image/jpeg' });
+      callback(mockBlob);
+    },
+  };
+  const result = await detectHazards(id, mockCanvas);
   expect(Array.isArray(result.detections)).toBe(true);
 });
 
 test('fetch report image and plot', async () => {
   const img = await getReportImage('test-session', 'r1');
-  expect(img.byteLength).toBeGreaterThan(0);
+  expect(img.size).toBeGreaterThan(0);
   const plot = await getReportPlot('test-session', 'r1');
-  expect(plot.byteLength).toBeGreaterThan(0);
+  expect(plot.size).toBeGreaterThan(0);
 });
 
 test('detect hazards handles error codes', async () => {
-  const imgPath = path.join(__dirname, '../scripts/sample-image.png');
-  const buffer = fs.readFileSync(imgPath);
-  const blob = new Blob([buffer]);
-  await expect(detectHazards('400', blob)).rejects.toThrow('Bad Request');
-  await expect(detectHazards('404', blob)).rejects.toThrow('Endpoint Not Found');
-  await expect(detectHazards('405', blob)).rejects.toThrow('Method Not Allowed');
+  const mockCanvas = {
+    toBlob: (callback) => {
+      const mockBlob = new Blob(['mock image data'], { type: 'image/jpeg' });
+      callback(mockBlob);
+    },
+  };
+  await expect(detectHazards('400', mockCanvas)).rejects.toThrow('Bad Request');
+  await expect(detectHazards('404', mockCanvas)).rejects.toThrow('Endpoint Not Found');
+  await expect(detectHazards('405', mockCanvas)).rejects.toThrow('Method Not Allowed');
 });

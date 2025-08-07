@@ -15,6 +15,14 @@ try {
   console.warn('⚠️ connect-redis module not found or incompatible:', err.message);
   RedisStore = null;
 }
+
+// 🧠 ONNX Runtime logging
+try {
+  const ort = require('onnxruntime-node');
+  console.log('ONNX Runtime:', ort.version);
+} catch (err) {
+  console.warn('⚠️ ONNX Runtime Node.js not available:', err.message);
+}
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import dotenv from 'dotenv';

@@ -1,5 +1,5 @@
 export default {
-  testEnvironment: 'node',
+  testEnvironment: 'jsdom',
   testTimeout: 30000,
   verbose: true,
   collectCoverage: false,

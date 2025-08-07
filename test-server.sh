@@ -8,9 +8,8 @@ API_PORT=${API_PORT:-8080}
 # Function to cleanup on exit
 cleanup() {
     echo "🛑 Shutting down test services..."
-    pkill -f "uvicorn" 2>/dev/null || true
-    pkill -f "node server.js" 2>/dev/null || true
-    pkill -f "node simple-server.js" 2>/dev/null || true
+    lsof -ti tcp:${WEB_PORT} | xargs kill -9 2>/dev/null || true
+    lsof -ti tcp:${API_PORT} | xargs kill -9 2>/dev/null || true
     exit 0
 }
 
@@ -38,7 +37,7 @@ done
 
 echo "Running tests..."
 # Run the actual tests
-npm run test:run
+npm test
 
 echo "Tests finished. Cleaning up..."
 cleanup
