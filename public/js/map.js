@@ -180,95 +180,6 @@ async function initGoogleMap() {
     center: DEFAULT_CENTER,
     zoom: DEFAULT_ZOOM,
     mapTypeId: "roadmap",
-    styles: [
-      {
-        elementType: "geometry",
-        stylers: [{ color: "#242f3e" }],
-      },
-      {
-        elementType: "labels.text.stroke",
-        stylers: [{ color: "#242f3e" }],
-      },
-      {
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#746855" }],
-      },
-      {
-        featureType: "administrative.locality",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#d59563" }],
-      },
-      {
-        featureType: "poi",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#d59563" }],
-      },
-      {
-        featureType: "poi.park",
-        elementType: "geometry",
-        stylers: [{ color: "#263c3f" }],
-      },
-      {
-        featureType: "poi.park",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#6b9a76" }],
-      },
-      {
-        featureType: "road",
-        elementType: "geometry",
-        stylers: [{ color: "#38414e" }],
-      },
-      {
-        featureType: "road",
-        elementType: "geometry.stroke",
-        stylers: [{ color: "#212a37" }],
-      },
-      {
-        featureType: "road",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#9ca5b3" }],
-      },
-      {
-        featureType: "road.highway",
-        elementType: "geometry",
-        stylers: [{ color: "#746855" }],
-      },
-      {
-        featureType: "road.highway",
-        elementType: "geometry.stroke",
-        stylers: [{ color: "#1f2835" }],
-      },
-      {
-        featureType: "road.highway",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#f3d19c" }],
-      },
-      {
-        featureType: "transit",
-        elementType: "geometry",
-        stylers: [{ color: "#2f3948" }],
-      },
-      {
-        featureType: "transit.station",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#d59563" }],
-      },
-      {
-        featureType: "water",
-        elementType: "geometry",
-        stylers: [{ color: "#17263c" }],
-      },
-      {
-        featureType: "water",
-        elementType: "labels.text.fill",
-        stylers: [{ color: "#515c6d" }],
-      },
-      {
-        featureType: "water",
-        elementType: "labels.text.stroke",
-        stylers: [{ color: "#17263c" }],
-      },
-    ],
     zoomControl: !isMobile,
     mapTypeControl: false,
     scaleControl: true,
@@ -568,9 +479,9 @@ function createInfoWindowContent(report) {
     : "";
 
   return `
-    <div style="max-width: 250px; font-family: 'Poppins', sans-serif;">
+    <div style="max-width: 250px; font-family: 'Poppins', sans-serif; color:#212529; background:#fff;">
       ${img}
-      <h6 class="mb-2"><strong>Report #${report.id}</strong></h6>
+      <h6 class="mb-2" style="color:#212529;"><strong>Report #${report.id}</strong></h6>
       <p class="mb-1"><strong>Type:</strong> ${formatType(report.type)}</p>
       <p class="mb-1"><strong>Status:</strong> <span style="background-color:${getStatusColor(report.status)}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 12px;">${report.status}</span></p>
       <p class="mb-1"><strong>Location:</strong> ${report.location || "Unknown"}</p>

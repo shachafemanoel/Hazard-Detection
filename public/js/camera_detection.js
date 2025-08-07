@@ -665,9 +665,28 @@ function drawDetections(detections) {
     return;
   }
   
-  if (detections.length === 0) return;
+  if (detections.length === 0) {
+    // Draw a test indicator when no detections
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 255, 0, 0.3)';
+    ctx.fillRect(10, 10, 100, 30);
+    ctx.fillStyle = '#00FF00';
+    ctx.font = '14px Arial';
+    ctx.fillText('No detections', 15, 30);
+    ctx.restore();
+    return;
+  }
   
   console.log(`🔍 Drawing ${detections.length} detections`);
+  
+  // Draw test indicator when we have detections
+  ctx.save();
+  ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+  ctx.fillRect(10, 50, 150, 30);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = '14px Arial';
+  ctx.fillText(`${detections.length} detections`, 15, 70);
+  ctx.restore();
   
   const hazardColors = {
     'Alligator Crack': '#FF4444',
@@ -686,37 +705,84 @@ function drawDetections(detections) {
   detections.forEach((detection, index) => {
     const { x1, y1, x2, y2, score, classId } = detection;
     
-    // Simple coordinate transformation: model space directly to canvas display space
-    const canvasX1 = x1 * coordinateScale.modelToDisplayX;
-    const canvasY1 = y1 * coordinateScale.modelToDisplayY;
-    const canvasX2 = x2 * coordinateScale.modelToDisplayX;
-    const canvasY2 = y2 * coordinateScale.modelToDisplayY;
+    // Coordinate transformation depends on detection source
+    let canvasX1, canvasY1, canvasX2, canvasY2;
+    
+    if (cameraState.detectionMode === 'api') {
+      // API returns coordinates in original image space, scale to canvas
+      canvasX1 = x1 * coordinateScale.videoToDisplayX;
+      canvasY1 = y1 * coordinateScale.videoToDisplayY;
+      canvasX2 = x2 * coordinateScale.videoToDisplayX;
+      canvasY2 = y2 * coordinateScale.videoToDisplayY;
+    } else {
+      // Local model returns coordinates in model input space, scale to canvas  
+      canvasX1 = x1 * coordinateScale.modelToDisplayX;
+      canvasY1 = y1 * coordinateScale.modelToDisplayY;
+      canvasX2 = x2 * coordinateScale.modelToDisplayX;
+      canvasY2 = y2 * coordinateScale.modelToDisplayY;
+    }
     
     const width = canvasX2 - canvasX1;
     const height = canvasY2 - canvasY1;
     
-    console.log(`📦 Detection ${index}: model(${x1.toFixed(1)},${y1.toFixed(1)}) → canvas(${canvasX1.toFixed(1)},${canvasY1.toFixed(1)}) size=${width.toFixed(1)}x${height.toFixed(1)}`);
+    const coordSource = cameraState.detectionMode === 'api' ? 'image' : 'model';
+    console.log(`📦 Detection ${index}: ${coordSource}(${x1.toFixed(1)},${y1.toFixed(1)}) → canvas(${canvasX1.toFixed(1)},${canvasY1.toFixed(1)}) size=${width.toFixed(1)}x${height.toFixed(1)}`);
     
-    // Skip detections that are too small or outside bounds
-    if (width < 5 || height < 5 || canvasX1 < 0 || canvasY1 < 0 || canvasX2 > canvas.width || canvasY2 > canvas.height) {
+    // Debug: Always draw first few detections for testing
+    const isDebugMode = index < 3; // Show first 3 detections for debugging
+    
+    // Skip detections that are too small or outside bounds (but not in debug mode)
+    if (!isDebugMode && (width < 5 || height < 5 || canvasX1 < 0 || canvasY1 < 0 || canvasX2 > canvas.width || canvasY2 > canvas.height)) {
       console.warn(`⚠️ Skipping invalid detection: ${width.toFixed(1)}x${height.toFixed(1)} at (${canvasX1.toFixed(1)},${canvasY1.toFixed(1)})`);
       return;
+    }
+    
+    // Ensure detection is visible for debugging  
+    if (isDebugMode && (width < 20 || height < 20)) {
+      console.log(`🔍 Debug: Expanding small detection from ${width.toFixed(1)}x${height.toFixed(1)} to 20x20`);
+      const centerX = (canvasX1 + canvasX2) / 2;
+      const centerY = (canvasY1 + canvasY2) / 2;
+      canvasX1 = centerX - 10;
+      canvasY1 = centerY - 10;
+      canvasX2 = centerX + 10;
+      canvasY2 = centerY + 10;
     }
     
     const label = classNames[classId] || `Class ${classId}`;
     const color = hazardColors[label] || '#00FF00';
     
-    // Draw professional bounding box
-    drawProfessionalBoundingBox(ctx, {
-      x1: canvasX1,
-      y1: canvasY1,
-      x2: canvasX2,
-      y2: canvasY2,
-      label: label,
-      confidence: score,
-      detectionIndex: index + 1,
-      color: color
-    });
+    // Draw professional bounding box  
+    try {
+      drawProfessionalBoundingBox(ctx, {
+        x1: canvasX1,
+        y1: canvasY1,
+        x2: canvasX2,
+        y2: canvasY2,
+        label: label,
+        confidence: score,
+        detectionIndex: index + 1,
+        color: color
+      });
+      
+      console.log(`✅ Drew detection ${index + 1}: ${label} at (${canvasX1.toFixed(1)},${canvasY1.toFixed(1)})`);
+    } catch (error) {
+      console.error(`❌ Failed to draw professional box, using fallback:`, error);
+      
+      // Fallback: draw simple rectangle
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3;
+      ctx.globalAlpha = 0.8;
+      ctx.strokeRect(canvasX1, canvasY1, canvasX2 - canvasX1, canvasY2 - canvasY1);
+      
+      // Simple label
+      ctx.fillStyle = color;
+      ctx.font = '14px Arial';
+      ctx.fillText(`${label} ${(score * 100).toFixed(0)}%`, canvasX1, canvasY1 - 5);
+      ctx.restore();
+      
+      console.log(`✅ Drew fallback detection ${index + 1}: ${label}`);
+    }
   });
 }
 

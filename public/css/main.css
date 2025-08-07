@@ -333,9 +333,12 @@ table {
   color: #fff;
   position: relative;
   overflow: hidden;
+<<<<<<< ours
+=======
   aspect-ratio: 1 / 1;
   display: flex;
   flex-direction: column;
+>>>>>>> theirs
 }
 
 #reports-blocks-container .report-card::before {
