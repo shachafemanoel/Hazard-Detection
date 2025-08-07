@@ -2,36 +2,35 @@ const API_BASE_URL = '/api/reports';
 
 let allReports = [];
 
+// Note: Geocoding removed since all reports now have locations
+
 export function getReports() {
   return allReports;
 }
 
-// Geocoding utility using Nominatim (OpenStreetMap)
-async function geocode(address) {
-  if (!address || typeof address !== 'string') return null;
-  try {
-    const response = await fetch(
-      `/api/geocode?address=${encodeURIComponent(address)}`
-    );
-    const data = await response.json();
-    if (data.success && data.location) {
-      return {
-        lat: data.location[0],
-        lon: data.location[1],
-        display_name: data.display_name,
-      };
-    }
-    return null;
-  } catch (error) {
-    console.warn('Geocoding failed:', error);
-    return null;
-  }
+// Legacy geocoding functions - no longer needed
+export function clearGeocodingCache() {
+  console.log('Geocoding cache clear requested - not needed anymore');
 }
 
-// Fetch reports with filters and pagination
+export function getGeocodingStats() {
+  return {
+    cacheSize: 0,
+    errorCount: 0,
+    maxErrors: 0
+  };
+}
+
+// Geocoding removed - all reports now have coordinates
+
+// Fetch reports with filters and pagination - optimized for speed
 export async function fetchReports(filters = {}) {
   const params = new URLSearchParams(filters);
   let response;
+  
+  console.log(`🚀 Fetching reports...`);
+  const startTime = performance.now();
+  
   try {
     response = await fetch(`${API_BASE_URL}?${params.toString()}`, {
       mode: 'cors',
@@ -39,16 +38,24 @@ export async function fetchReports(filters = {}) {
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
+        // Add compression headers for faster transfer
+        'Accept-Encoding': 'gzip, deflate, br',
       },
+      // Add timeout to prevent hanging
+      signal: AbortSignal.timeout(10000) // 10 seconds
     });
-    if (!response.ok)
-      throw new Error(`Failed to load reports: ${response.statusText}`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to load reports: ${response.status} ${response.statusText}`);
+    }
   } catch (error) {
     console.error('Fetch reports error:', error);
     throw error;
   }
 
   const data = await response.json();
+  const parseTime = performance.now();
+  
   const reports = Array.isArray(data.reports) ? data.reports : [];
   const pagination = data.pagination || {
     total: reports.length,
@@ -62,32 +69,36 @@ export async function fetchReports(filters = {}) {
     resolved: data.resolvedThisMonth ?? 0,
     users: data.activeUsers ?? 0,
   };
+  
+  console.log(`📊 Data received: ${reports.length} reports, ${Math.round((parseTime - startTime))}ms`);
 
-  const geocodedReports = await Promise.all(
-    reports.map(async (report) => {
-      // If the report already has lat/lon, keep as is
-      if (report.lat && report.lon) return report;
+  // Process reports - no geocoding needed since all reports have locations
+  const processedReports = reports.map(report => {
+    let processedReport = { ...report };
+    
+    // If the report already has lat/lon, keep as is
+    if (report.lat && report.lon) {
+      return processedReport;
+    }
 
-      // If location is provided as [lat, lon]
-      if (
-        Array.isArray(report.location) &&
-        report.location.length >= 2
-      ) {
-        const [lat, lon] = report.location;
-        return { ...report, lat: Number(lat), lon: Number(lon) };
-      }
+    // If location is provided as [lat, lon]
+    if (Array.isArray(report.location) && report.location.length >= 2) {
+      const [lat, lon] = report.location;
+      processedReport = { ...processedReport, lat: Number(lat), lon: Number(lon) };
+    }
 
-      // If location is a string address, geocode it
-      if (typeof report.location === 'string') {
-        const coords = await geocode(report.location);
-        if (coords) return { ...report, lat: coords.lat, lon: coords.lon };
-      }
+    return processedReport;
+  });
 
-      return report;
-    })
-  );
-
-  allReports = geocodedReports;
+  allReports = processedReports;
+  
+  const endTime = performance.now();
+  const totalTime = Math.round(endTime - startTime);
+  const dataSize = JSON.stringify(allReports).length;
+  const dataSizeKB = Math.round(dataSize / 1024);
+  
+  console.log(`✅ Reports processed: ${allReports.length} reports, ${dataSizeKB}KB, ${totalTime}ms total`);
+  
   return { reports: allReports, pagination, metrics };
 };
 

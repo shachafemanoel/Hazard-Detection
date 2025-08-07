@@ -367,10 +367,8 @@ export async function plotReports(reports) {
       const [lat, lon] = report.location;
       coords = { lat: Number(lat), lng: Number(lon) };
     } else if (typeof report.location === "string") {
-      const geocodedCoords = await geocode(report.location);
-      if (geocodedCoords) {
-        coords = { lat: geocodedCoords[0], lng: geocodedCoords[1] };
-      }
+      // Skip string addresses since all reports should now have coordinates
+      console.warn(`Report ${report.id} has string location instead of coordinates: ${report.location}`);
     }
 
     if (coords) {

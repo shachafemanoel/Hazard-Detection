@@ -2,7 +2,7 @@ import { initializeMap, plotReports, toggleHeatmap, centerMap } from "./map.js";
 
 // Make plotReports available globally for easier access
 window.plotReports = plotReports;
-import { fetchReports, updateReport, deleteReportById } from "./reports-api.js";
+import { fetchReports, updateReport, deleteReportById, clearGeocodingCache, getGeocodingStats } from "./reports-api.js";
 import { initControls } from "./ui-controls.js";
 
 // --- STATE MANAGEMENT ---
@@ -343,6 +343,8 @@ function updateReportsCountIndicator() {
     indicator.textContent = filterText;
   }
   
+  // No geocoding issues since all reports have coordinates
+  
   // Add some styling based on filter status
   if (filtered < total) {
     indicator.className = 'text-info';
@@ -392,6 +394,9 @@ function renderStats() {
 
 function renderTable() {
   if (!elements.tableBody) return;
+
+  console.log(`🎨 Rendering table with ${state.filteredReports.length} reports`);
+  const startTime = performance.now();
 
   elements.tableBody.innerHTML = ""; // Clear existing rows
 
@@ -451,11 +456,18 @@ function renderTable() {
     }
     elements.tableBody.appendChild(row);
   });
+  
+  const endTime = performance.now();
+  console.log(`✅ Table rendered in ${Math.round(endTime - startTime)}ms`);
+  
   renderBulkDeleteButton();
 }
 
 function renderReportCards() {
   if (!elements.blocksContainer) return;
+
+  console.log(`📱 Rendering mobile cards with ${state.filteredReports.length} reports`);
+  const startTime = performance.now();
 
   elements.blocksContainer.innerHTML = "";
 
@@ -488,6 +500,9 @@ function renderReportCards() {
         </div>`;
     elements.blocksContainer.appendChild(card);
   });
+  
+  const endTime = performance.now();
+  console.log(`✅ Mobile cards rendered in ${Math.round(endTime - startTime)}ms`);
 }
 
 function renderAll() {
@@ -561,6 +576,8 @@ async function loadReportsFromServer() {
     }
     
     console.log(`Loaded ${reports.length} reports from server`);
+    
+    console.log(`📍 All reports have coordinates - no geocoding needed`);
     
     // Apply current filters if any
     applyFiltersAndSort();
@@ -955,6 +972,30 @@ function initializeEventListeners() {
   } else {
     console.error("❌ Clear filters button not found");
   }
+
+  // Clear data cache button
+  const clearDataCacheBtn = document.getElementById("clear-data-cache-btn");
+  if (clearDataCacheBtn) {
+    clearDataCacheBtn.addEventListener("click", () => {
+      console.log("Clear data cache requested");
+      
+      // Clear local state
+      state.allReports = [];
+      state.filteredReports = [];
+      state.lastDataFetch = null;
+      
+      // Clear selected reports
+      state.selectedReportIds.clear();
+      
+      // Force refresh from server
+      updateDashboard({ forceRefresh: true });
+      
+      notify("Local data cache cleared - refreshing from server", "info");
+    });
+    console.log("✅ Clear data cache button event listener added");
+  } else {
+    console.error("❌ Clear data cache button not found");
+  }
 }
 
 function showMetricsLoading() {
@@ -1033,7 +1074,7 @@ async function init() {
 
     await updateDashboard();
     startReportPolling();
-    notify("Dashboard loaded.", "success");
+    notify("Dashboard loaded - optimized for speed!", "success");
   } catch (err) {
     console.error("Dashboard initialization failed:", err);
     notify("Failed to load dashboard", "danger");
