@@ -368,15 +368,23 @@ const getStatusBadge = (status) => {
     "In Progress": "bg-warning",
     Resolved: "bg-success",
   };
-  return `<span class="badge ${statusMap[status] || "bg-secondary"}">${status || "Unknown"}</span>`;
+  return `<span class="badge ${statusMap[status] || "bg-secondary"} status-badge">${status || "Unknown"}</span>`;
 };
-const formatType = (type) =>
-  type
-    ? type
-        .replace(/_/g, " ")
-        .toLowerCase()
-        .replace(/\b\w/g, (c) => c.toUpperCase())
-    : "Unknown";
+const formatType = (type) => {
+  if (!type) return "Unknown";
+  
+  return type
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+};
+
+const getTypeClass = (type) => {
+  if (!type) return "";
+  
+  // Convert to lowercase and replace spaces/underscores for class name
+  return type.toLowerCase().replace(/[\s_]/g, "_");
+};
 
 function renderStats() {
   const { total, open, resolved, users } = state.metrics;
@@ -419,7 +427,7 @@ function renderTable() {
     row.innerHTML = `
       <td><input type="checkbox" class="report-checkbox" data-report-id="${report.id}" ${state.selectedReportIds.has(report.id) ? "checked" : ""}></td>
       <td>${report.id || "N/A"}</td>
-      <td><span class="badge bg-primary type-badge">${formatType(report.type)}</span></td>
+      <td><span class="badge type-badge ${getTypeClass(report.type)}">${formatType(report.type)}</span></td>
       <td>${getStatusBadge(report.status)}</td>
       <td title="${report.location || ""}">${truncate(report.location)}</td>
       <td>${formatTime(report.time)}</td>
@@ -486,7 +494,7 @@ function renderReportCards() {
     card.innerHTML = `
         <div class="card-body">
           <div class="d-flex justify-content-between mb-2">
-            <span class="badge bg-primary">${formatType(report.type)}</span>
+            <span class="badge type-badge ${getTypeClass(report.type)}">${formatType(report.type)}</span>
             ${getStatusBadge(report.status)}
           </div>
           <h6 class="card-title mb-1">ID: ${report.id || "N/A"}</h6>

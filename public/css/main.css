@@ -226,6 +226,7 @@ input:focus, select:focus, textarea:focus {
 
 .reports-table-container {
     height: 100%;
+    overflow-x: auto;
     overflow-y: auto;
     scroll-behavior: smooth;
     border: 1px solid var(--border-color);
@@ -234,12 +235,18 @@ input:focus, select:focus, textarea:focus {
 
 .reports-table-container table {
     width: 100%;
+    min-width: 800px;
     table-layout: auto;
 }
 
 .reports-table-container th, .reports-table-container td {
-    padding: 0.75rem;
-    white-space: nowrap;
+    padding: 1rem;
+}
+
+/* Allow location column to wrap if needed */
+.reports-table-container td:nth-child(5) {
+    white-space: normal;
+    word-break: break-word;
 }
 
 .dashboard-panel, .stat-card {
@@ -335,8 +342,42 @@ input:focus, select:focus, textarea:focus {
 }
 
 #reports-management-table .type-badge {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.875rem;
+  padding: 0.4rem 0.8rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: var(--radius);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Specific colors for each hazard type */
+.type-badge.pothole {
+  background-color: #dc3545 !important;
+  color: white !important;
+}
+
+.type-badge.crack {
+  background-color: #28a745 !important;
+  color: white !important;
+}
+
+.type-badge.knocked {
+  background-color: #ffc107 !important;
+  color: #212529 !important;
+}
+
+.type-badge.surface_damage,
+.type-badge.surface-damage {
+  background-color: #007bff !important;
+  color: white !important;
+}
+
+/* Status badges styling */
+.status-badge {
+  padding: 0.4rem 0.8rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: var(--radius);
 }
 
 table {
@@ -344,19 +385,85 @@ table {
   background: transparent;
   color: var(--text);
   border-collapse: collapse;
+  table-layout: auto;
+}
+
+#reports-management-table {
+  width: 100%;
+  margin: 0;
+}
+
+#reports-management-table th,
+#reports-management-table td {
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 1.1rem;
+  line-height: 1.4;
+}
+
+/* Specific column widths for better alignment */
+#reports-management-table th:nth-child(1),
+#reports-management-table td:nth-child(1) {
+  width: 40px; /* Checkbox column */
+  text-align: center;
+}
+
+#reports-management-table th:nth-child(2),
+#reports-management-table td:nth-child(2) {
+  width: 120px; /* ID column */
+  text-align: center;
+}
+
+#reports-management-table th:nth-child(3),
+#reports-management-table td:nth-child(3) {
+  width: 120px; /* Type column */
+  text-align: center;
+}
+
+#reports-management-table th:nth-child(4),
+#reports-management-table td:nth-child(4) {
+  width: 120px; /* Status column */
+  text-align: center;
+}
+
+#reports-management-table th:nth-child(5),
+#reports-management-table td:nth-child(5) {
+  width: auto; /* Location column - flexible */
+  text-align: left;
+  max-width: 300px;
+}
+
+#reports-management-table th:nth-child(6),
+#reports-management-table td:nth-child(6) {
+  width: 180px; /* Time column */
+  text-align: center;
+}
+
+#reports-management-table th:nth-child(7),
+#reports-management-table td:nth-child(7) {
+  width: 140px; /* Actions column */
+  text-align: center;
 }
 
 #reports-management-table thead th {
-  padding: 0.75rem;
+  padding: 1rem;
+  text-align: center;
+  vertical-align: middle;
+  position: relative;
+  font-size: 1.2rem;
+  font-weight: 700;
 }
 
-#reports-management-table thead th[data-sort="id"],
-#reports-management-table thead th[data-sort="type"] {
-  text-align: center;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 0.25rem;
+#reports-management-table thead th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+#reports-management-table thead th.sortable:hover {
+  background-color: rgba(0, 229, 255, 0.1);
 }
 
 #reports-management-table tbody tr {
@@ -427,7 +534,24 @@ table {
   aspect-ratio: 1 / 1;
   display: flex;
   flex-direction: column;
+}
 
+#reports-blocks-container .card {
+  font-size: 1.1rem;
+}
+
+#reports-blocks-container .card-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+#reports-blocks-container .card-text {
+  font-size: 1rem;
+}
+
+#reports-blocks-container .type-badge {
+  font-size: 0.9rem;
+  padding: 0.3rem 0.6rem;
 }
 
 #reports-blocks-container .report-card::before {
@@ -763,6 +887,14 @@ tr:hover {
 @media (max-width: 992px) {
     .dashboard-main-content {
         height: auto;
+    }
+    
+    .reports-table-container {
+        overflow-x: scroll;
+    }
+    
+    #reports-management-table {
+        min-width: 700px;
     }
 }
 
