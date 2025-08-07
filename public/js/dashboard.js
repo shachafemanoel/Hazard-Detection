@@ -1,4 +1,7 @@
 import { initializeMap, plotReports, toggleHeatmap, centerMap } from "./map.js";
+
+// Make plotReports available globally for easier access
+window.plotReports = plotReports;
 import { fetchReports, updateReport, deleteReportById } from "./reports-api.js";
 import { initControls } from "./ui-controls.js";
 
@@ -22,10 +25,12 @@ const state = {
   lastDataFetch: null, // Track when we last fetched data
 };
 
-// Polling configuration for detecting new reports
-const REPORT_POLL_INTERVAL = 60000; // 1 minute
+// Polling configuration for detecting new reports - Reduced frequency to minimize server load
+const REPORT_POLL_INTERVAL = 300000; // 5 minutes (reduced from 1 minute)
 let latestReportTime = null;
 let pollTimer = null;
+let pollErrorCount = 0;
+const MAX_POLL_ERRORS = 3;
 
 // Debouncing for search
 let searchDebounceTimer = null;
@@ -61,55 +66,87 @@ function applyFiltersAndSort() {
   
   let filtered = [...state.allReports];
   
-  // Apply search filter (search in multiple fields)
+  // Apply search filter (search in multiple fields) - Case insensitive
   if (state.filters.search && state.filters.search.trim()) {
     const searchTerm = state.filters.search.toLowerCase().trim();
     console.log("Searching for:", searchTerm);
     
     filtered = filtered.filter(report => {
-      // Search in multiple fields
+      // Search in multiple fields - all converted to lowercase for case-insensitive search
       const searchFields = [
-        report.id?.toString() || "",
-        report.location || "",
-        report.reportedBy || "",
-        report.type || "",
-        report.status || "",
-        report.address || "",
-        report.user || "",
-        report.username || ""
+        (report.id?.toString() || "").toLowerCase(),
+        (report.location || "").toLowerCase(),
+        (report.reportedBy || "").toLowerCase(),
+        (report.type || "").toLowerCase(),
+        (report.status || "").toLowerCase(),
+        (report.address || "").toLowerCase(),
+        (report.user || "").toLowerCase(),
+        (report.username || "").toLowerCase(),
+        (report.email || "").toLowerCase(),
+        (report.description || "").toLowerCase()
       ];
       
-      return searchFields.some(field => 
-        field.toLowerCase().includes(searchTerm)
-      );
+      return searchFields.some(field => field.includes(searchTerm));
     });
     
     console.log(`Filtered by search: ${filtered.length} results`);
   }
   
-  // Apply status filter
+  // Apply status filter - Case insensitive
   if (state.filters.status && state.filters.status !== "") {
-    filtered = filtered.filter(report => report.status === state.filters.status);
+    filtered = filtered.filter(report => 
+      (report.status || "").toLowerCase() === state.filters.status.toLowerCase()
+    );
     console.log(`Filtered by status: ${filtered.length} results`);
   }
   
-  // Apply type filter
+  // Apply type filter - Case insensitive
   if (state.filters.type && state.filters.type !== "") {
-    filtered = filtered.filter(report => report.type === state.filters.type);
+    filtered = filtered.filter(report => 
+      (report.type || "").toLowerCase() === state.filters.type.toLowerCase()
+    );
     console.log(`Filtered by type: ${filtered.length} results`);
   }
   
-  // Apply "my reports" filter
+  // Apply "my reports" filter - Case insensitive matching
   if (state.filters.my_reports) {
-    // Get current user (you might need to adjust this based on your auth system)
-    const currentUser = getCurrentUser(); // We'll implement this
+    const currentUser = getCurrentUser();
     if (currentUser) {
-      filtered = filtered.filter(report => 
-        report.reportedBy === currentUser || 
-        report.user === currentUser ||
-        report.username === currentUser
-      );
-      console.log(`Filtered by my reports: ${filtered.length} results`);
+      console.log("Filtering by current user:", currentUser);
+      filtered = filtered.filter(report => {
+        // Check multiple fields for user identification - all case insensitive
+        const reportUsers = [
+          (report.reportedBy || "").toLowerCase(),
+          (report.user || "").toLowerCase(),
+          (report.username || "").toLowerCase(),
+          (report.email || "").toLowerCase(),
+          (report.userId || "").toLowerCase(),
+          (report.uid || "").toLowerCase()
+        ];
+        
+        const isMyReport = reportUsers.some(user => user === currentUser);
+        if (isMyReport) {
+          console.log("Found my report:", report.id, "matched user:", reportUsers.find(u => u === currentUser));
+        }
+        return isMyReport;
+      });
+      console.log(`Filtered by my reports for user "${currentUser}": ${filtered.length} results`);
+    } else {
+      console.warn("My Reports filter enabled but no current user found");
+      
+      // Show notification to user
+      if (window.notify) {
+        notify("Please log in to view your reports", "warning");
+      }
+      
+      // Automatically uncheck the "My Reports" filter
+      if (elements.myReportsFilter) {
+        elements.myReportsFilter.checked = false;
+        state.filters.my_reports = false;
+      }
+      
+      // Don't filter - show all reports instead of empty list
+      console.log("Showing all reports since user is not logged in");
     }
   }
   
@@ -145,30 +182,104 @@ function applyFiltersAndSort() {
   renderReportCards();
   updateFilteredMetrics();
   updateReportsCountIndicator();
+  
+  // Update map with filtered reports
+  updateMapWithFilteredReports();
+}
+
+// Update map to show only filtered reports
+async function updateMapWithFilteredReports() {
+  try {
+    console.log(`🗺️ Updating map with ${state.filteredReports.length} filtered reports`);
+    
+    if (typeof window.plotReports === 'function') {
+      await window.plotReports(state.filteredReports);
+      console.log('✅ Map updated successfully with filtered reports');
+    } else if (typeof plotReports === 'function') {
+      await plotReports(state.filteredReports);
+      console.log('✅ Map updated successfully with filtered reports');
+    } else {
+      console.warn('❌ plotReports function not available - map not updated');
+    }
+    
+  } catch (error) {
+    console.error('❌ Failed to update map with filtered reports:', error);
+  }
 }
 
 function getCurrentUser() {
   // Try to get current user from various sources
   try {
-    // Check localStorage or sessionStorage
-    const user = localStorage.getItem('currentUser') || 
-                 sessionStorage.getItem('currentUser') ||
-                 localStorage.getItem('user') ||
-                 sessionStorage.getItem('user');
+    // Check localStorage or sessionStorage for different user formats
+    const userSources = [
+      'currentUser',
+      'user', 
+      'authUser',
+      'firebaseUser',
+      'loggedInUser'
+    ];
     
-    if (user) {
-      const parsed = JSON.parse(user);
-      return parsed.email || parsed.username || parsed.name || parsed.uid;
+    for (const source of userSources) {
+      const localUser = localStorage.getItem(source);
+      const sessionUser = sessionStorage.getItem(source);
+      
+      if (localUser) {
+        try {
+          const parsed = JSON.parse(localUser);
+          const userId = parsed.email || parsed.username || parsed.name || parsed.uid || parsed.id;
+          if (userId) {
+            console.log("Found current user from localStorage:", userId);
+            return userId.toLowerCase(); // Make case insensitive
+          }
+        } catch (e) {
+          // If not JSON, maybe it's just a string
+          if (localUser.includes('@') || localUser.length > 2) {
+            console.log("Found current user (string) from localStorage:", localUser);
+            return localUser.toLowerCase();
+          }
+        }
+      }
+      
+      if (sessionUser) {
+        try {
+          const parsed = JSON.parse(sessionUser);
+          const userId = parsed.email || parsed.username || parsed.name || parsed.uid || parsed.id;
+          if (userId) {
+            console.log("Found current user from sessionStorage:", userId);
+            return userId.toLowerCase();
+          }
+        } catch (e) {
+          if (sessionUser.includes('@') || sessionUser.length > 2) {
+            console.log("Found current user (string) from sessionStorage:", sessionUser);
+            return sessionUser.toLowerCase();
+          }
+        }
+      }
     }
     
     // Check if there's a global user variable
     if (window.currentUser) {
-      return window.currentUser.email || window.currentUser.username || window.currentUser.name;
+      const userId = window.currentUser.email || window.currentUser.username || window.currentUser.name;
+      if (userId) {
+        console.log("Found current user from window.currentUser:", userId);
+        return userId.toLowerCase();
+      }
     }
     
+    // Check for Firebase user
+    if (window.firebase && window.firebase.auth && window.firebase.auth().currentUser) {
+      const firebaseUser = window.firebase.auth().currentUser;
+      const userId = firebaseUser.email || firebaseUser.displayName || firebaseUser.uid;
+      if (userId) {
+        console.log("Found current user from Firebase:", userId);
+        return userId.toLowerCase();
+      }
+    }
+    
+    console.warn("No current user found in any storage location");
     return null;
   } catch (e) {
-    console.warn("Could not get current user:", e);
+    console.warn("Error getting current user:", e);
     return null;
   }
 }
@@ -216,14 +327,29 @@ function updateReportsCountIndicator() {
   if (filtered === total) {
     indicator.textContent = `Showing all ${total} reports`;
   } else {
-    indicator.textContent = `Showing ${filtered} of ${total} reports`;
+    let filterText = `Showing ${filtered} of ${total} reports`;
+    
+    // Add info about active filters
+    const activeFilters = [];
+    if (state.filters.search) activeFilters.push(`search: "${state.filters.search}"`);
+    if (state.filters.status) activeFilters.push(`status: ${state.filters.status}`);
+    if (state.filters.type) activeFilters.push(`type: ${state.filters.type}`);
+    if (state.filters.my_reports) activeFilters.push('my reports');
+    
+    if (activeFilters.length > 0) {
+      filterText += ` (filtered by: ${activeFilters.join(', ')})`;
+    }
+    
+    indicator.textContent = filterText;
   }
   
   // Add some styling based on filter status
   if (filtered < total) {
     indicator.className = 'text-info';
+    indicator.style.fontWeight = '500';
   } else {
     indicator.className = 'text-muted';
+    indicator.style.fontWeight = 'normal';
   }
 }
 
@@ -399,13 +525,8 @@ function renderBulkDeleteButton() {
       state.allReports = state.allReports.filter(r => !deletedIds.includes(r.id));
       state.selectedReportIds.clear();
       
-      // Re-apply filters
+      // Re-apply filters (this will also update the map)
       applyFiltersAndSort();
-      
-      // Update map
-      if (window.plotReports) {
-        plotReports(state.filteredReports);
-      }
       
       if (deletedIds.length > 0) {
         notify(`Successfully deleted ${deletedIds.length} reports`, 'success');
@@ -444,10 +565,7 @@ async function loadReportsFromServer() {
     // Apply current filters if any
     applyFiltersAndSort();
     
-    // Update map
-    await plotReports(state.filteredReports);
-    
-    // Render stats
+    // Render stats (before map update)
     renderStats();
     
   } catch (error) {
@@ -489,6 +607,8 @@ async function updateDashboard({ silent = false, forceRefresh = false } = {}) {
 // Periodically check for newly added reports
 async function pollForNewReports() {
   if (state.isLoading) return;
+  
+  // Reduce polling frequency and add error handling
   try {
     const params = new URLSearchParams({ limit: 1, sort: 'time', order: 'desc' });
     const response = await fetch(`/api/reports?${params.toString()}`, {
@@ -498,8 +618,16 @@ async function pollForNewReports() {
         Accept: 'application/json',
         'Content-Type': 'application/json',
       },
+      // Add timeout to prevent hanging requests
+      signal: AbortSignal.timeout(5000)
     });
-    if (!response.ok) throw new Error('Failed to check reports');
+    
+    if (!response.ok) {
+      // Don't throw error for server issues, just log
+      console.warn(`Polling failed with status ${response.status}`);
+      return;
+    }
+    
     const data = await response.json();
     const latest = Array.isArray(data.reports) ? data.reports[0] : null;
     if (latest) {
@@ -508,8 +636,26 @@ async function pollForNewReports() {
         await updateDashboard({ silent: true });
       }
     }
+    
+    // Reset error count on successful poll
+    pollErrorCount = 0;
   } catch (err) {
-    console.error('Failed to check for new reports:', err);
+    // Don't spam console with polling errors
+    if (err.name !== 'AbortError') {
+      pollErrorCount++;
+      console.warn(`Polling check failed (${pollErrorCount}/${MAX_POLL_ERRORS}):`, err.message);
+      
+      // If too many errors, stop polling temporarily
+      if (pollErrorCount >= MAX_POLL_ERRORS) {
+        console.warn("Too many polling errors, stopping polling for 10 minutes");
+        clearInterval(pollTimer);
+        setTimeout(() => {
+          console.log("Resuming polling after error cooldown");
+          pollErrorCount = 0;
+          startReportPolling();
+        }, 600000); // 10 minutes
+      }
+    }
   }
 }
 
@@ -551,10 +697,7 @@ function handleFilterChange() {
   // Apply filters immediately without server call
   applyFiltersAndSort();
   
-  // Update map with filtered results
-  if (window.plotReports) {
-    plotReports(state.filteredReports);
-  }
+  // Map will be updated by applyFiltersAndSort()
 }
 
 function handleSortChange(e) {
@@ -600,13 +743,8 @@ function handleReportAction(e) {
           state.allReports = state.allReports.filter(r => r.id !== report.id);
           state.selectedReportIds.delete(report.id);
           
-          // Re-apply filters
+          // Re-apply filters (this will also update the map)
           applyFiltersAndSort();
-          
-          // Update map
-          if (window.plotReports) {
-            plotReports(state.filteredReports);
-          }
         })
         .catch((err) => notify(`Error: ${err.message}`, "danger"));
     }
@@ -636,13 +774,8 @@ function handleFormSubmit(e) {
         state.allReports[reportIndex] = { ...state.allReports[reportIndex], ...updatedData };
       }
       
-      // Re-apply filters
+      // Re-apply filters (this will also update the map)
       applyFiltersAndSort();
-      
-      // Update map
-      if (window.plotReports) {
-        plotReports(state.filteredReports);
-      }
     })
     .catch((err) => notify(`Error: ${err.message}`, "danger"));
 }
@@ -792,6 +925,36 @@ function initializeEventListeners() {
   } else {
     console.error("❌ Refresh button not found");
   }
+
+  // Clear filters button
+  const clearFiltersBtn = document.getElementById("clear-filters-btn");
+  if (clearFiltersBtn) {
+    clearFiltersBtn.addEventListener("click", () => {
+      console.log("Clear filters requested");
+      
+      // Reset all filter values
+      if (elements.searchInput) elements.searchInput.value = "";
+      if (elements.statusFilter) elements.statusFilter.value = "";
+      if (elements.typeFilter) elements.typeFilter.value = "";
+      if (elements.myReportsFilter) elements.myReportsFilter.checked = false;
+      
+      // Reset state filters
+      state.filters = {
+        search: "",
+        status: "",
+        type: "",
+        my_reports: false,
+      };
+      
+      // Apply filters (will show all reports and update map)
+      applyFiltersAndSort();
+      
+      notify("All filters cleared", "info");
+    });
+    console.log("✅ Clear filters button event listener added");
+  } else {
+    console.error("❌ Clear filters button not found");
+  }
 }
 
 function showMetricsLoading() {
@@ -864,7 +1027,7 @@ async function init() {
   try {
     // Wait for Google Maps to initialize
     await initializeMap();
-    initControls({ toggleHeatmap, centerMap, plotReports });
+    initControls({ toggleHeatmap, centerMap, plotReports: window.plotReports });
     initializeEventListeners();
     setupMobileDrawer();
 
