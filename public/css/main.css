@@ -247,6 +247,10 @@ input:focus, select:focus, textarea:focus {
 .reports-table-container td:nth-child(5) {
     white-space: normal;
     word-break: break-word;
+    max-width: 300px;
+    min-width: 250px;
+    font-size: 1.15rem;
+    line-height: 1.5;
 }
 
 .dashboard-panel, .stat-card {
@@ -342,8 +346,8 @@ input:focus, select:focus, textarea:focus {
 }
 
 #reports-management-table .type-badge {
-  padding: 0.4rem 0.8rem;
-  font-size: 1rem;
+  padding: 0.5rem 1rem;
+  font-size: 1.1rem;
   font-weight: 600;
   border-radius: var(--radius);
   text-transform: uppercase;
@@ -372,10 +376,16 @@ input:focus, select:focus, textarea:focus {
   color: white !important;
 }
 
+/* Pink color for any other hazard types not specifically defined */
+.type-badge:not(.pothole):not(.crack):not(.knocked):not(.surface_damage):not(.surface-damage) {
+  background-color: #e91e63 !important;
+  color: white !important;
+}
+
 /* Status badges styling */
 .status-badge {
-  padding: 0.4rem 0.8rem;
-  font-size: 1rem;
+  padding: 0.5rem 1rem;
+  font-size: 1.1rem;
   font-weight: 600;
   border-radius: var(--radius);
 }
@@ -400,51 +410,54 @@ table {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 1.1rem;
-  line-height: 1.4;
+  font-size: 1.15rem;
+  line-height: 1.5;
 }
 
 /* Specific column widths for better alignment */
 #reports-management-table th:nth-child(1),
 #reports-management-table td:nth-child(1) {
-  width: 40px; /* Checkbox column */
+  width: 50px; /* Checkbox column */
   text-align: center;
 }
 
 #reports-management-table th:nth-child(2),
 #reports-management-table td:nth-child(2) {
-  width: 120px; /* ID column */
+  width: 140px; /* ID column */
   text-align: center;
+  font-size: 1.1rem;
 }
 
 #reports-management-table th:nth-child(3),
 #reports-management-table td:nth-child(3) {
-  width: 120px; /* Type column */
+  width: 130px; /* Type column */
   text-align: center;
 }
 
 #reports-management-table th:nth-child(4),
 #reports-management-table td:nth-child(4) {
-  width: 120px; /* Status column */
+  width: 110px; /* Status column */
   text-align: center;
 }
 
 #reports-management-table th:nth-child(5),
 #reports-management-table td:nth-child(5) {
-  width: auto; /* Location column - flexible */
+  width: 280px; /* Location column - fixed width */
   text-align: left;
+  min-width: 250px;
   max-width: 300px;
 }
 
 #reports-management-table th:nth-child(6),
 #reports-management-table td:nth-child(6) {
-  width: 180px; /* Time column */
+  width: 160px; /* Time column */
   text-align: center;
+  font-size: 1.1rem;
 }
 
 #reports-management-table th:nth-child(7),
 #reports-management-table td:nth-child(7) {
-  width: 140px; /* Actions column */
+  width: 150px; /* Actions column */
   text-align: center;
 }
 
@@ -453,7 +466,7 @@ table {
   text-align: center;
   vertical-align: middle;
   position: relative;
-  font-size: 1.2rem;
+  font-size: 1.3rem;
   font-weight: 700;
 }
 

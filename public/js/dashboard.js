@@ -1,8 +1,8 @@
-import { initializeMap, plotReports, toggleHeatmap, centerMap } from "./map.js";
+import { initializeMap, plotReports, toggleHeatmap, centerMap, clearGeocodingCache, getGeocodingCacheStats } from "./map.js";
 
 // Make plotReports available globally for easier access
 window.plotReports = plotReports;
-import { fetchReports, updateReport, deleteReportById, clearGeocodingCache, getGeocodingStats } from "./reports-api.js";
+import { fetchReports, updateReport, deleteReportById } from "./reports-api.js";
 import { initControls } from "./ui-controls.js";
 
 // --- STATE MANAGEMENT ---
@@ -985,7 +985,7 @@ function initializeEventListeners() {
   const clearDataCacheBtn = document.getElementById("clear-data-cache-btn");
   if (clearDataCacheBtn) {
     clearDataCacheBtn.addEventListener("click", () => {
-      console.log("Clear data cache requested");
+      console.log("🗑️ Clearing all data cache...");
       
       // Clear local state
       state.allReports = [];
@@ -995,15 +995,22 @@ function initializeEventListeners() {
       // Clear selected reports
       state.selectedReportIds.clear();
       
+      // Clear geocoding cache
+      const geocodingCacheSize = clearGeocodingCache();
+      
       // Force refresh from server
       updateDashboard({ forceRefresh: true });
       
-      notify("Local data cache cleared - refreshing from server", "info");
+      notify(`Data cache cleared (${geocodingCacheSize} geocoding entries) - refreshing from server`, "info");
     });
     console.log("✅ Clear data cache button event listener added");
   } else {
     console.error("❌ Clear data cache button not found");
   }
+
+  // Add geocoding cache stats to console for debugging
+  const geocodingStats = getGeocodingCacheStats();
+  console.log("🗺️ Geocoding cache stats:", geocodingStats);
 }
 
 function showMetricsLoading() {

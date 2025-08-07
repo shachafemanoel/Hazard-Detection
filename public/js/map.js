@@ -6,6 +6,7 @@ let userLocation;
 let markers = [];
 let densityPolygons = [];
 let mapInitialized = false;
+let geocodingCache = new Map(); // Cache for geocoded addresses
 
 const DEFAULT_CENTER = { lat: 32.0, lng: 34.8 }; // Israel center
 const DEFAULT_ZOOM = 8;
@@ -318,16 +319,47 @@ export function centerMap() {
   }
 }
 
+export function clearGeocodingCache() {
+  const cacheSize = geocodingCache.size;
+  geocodingCache.clear();
+  console.log(`🗑️ Cleared geocoding cache (${cacheSize} entries)`);
+  return cacheSize;
+}
+
+export function getGeocodingCacheStats() {
+  return {
+    size: geocodingCache.size,
+    entries: Array.from(geocodingCache.entries()).map(([address, coords]) => ({
+      address,
+      hasCoords: coords !== null
+    }))
+  };
+}
+
 export async function geocode(address) {
+  // Check cache first
+  if (geocodingCache.has(address)) {
+    console.log(`📋 Using cached geocoding result for: "${address}"`);
+    return geocodingCache.get(address);
+  }
+
   return new Promise((resolve) => {
     const geocoder = new google.maps.Geocoder();
 
     geocoder.geocode({ address: address }, (results, status) => {
       if (status === "OK" && results[0]) {
         const location = results[0].geometry.location;
-        resolve([location.lat(), location.lng()]);
+        const coords = [location.lat(), location.lng()];
+        
+        // Cache the result
+        geocodingCache.set(address, coords);
+        console.log(`💾 Cached geocoding result for: "${address}" → ${coords[0]}, ${coords[1]}`);
+        
+        resolve(coords);
       } else {
-        console.error("Geocoding failed:", status);
+        console.error(`Geocoding failed for "${address}":`, status);
+        // Cache null result to avoid repeated failed attempts
+        geocodingCache.set(address, null);
         resolve(null);
       }
     });
@@ -339,6 +371,8 @@ export async function plotReports(reports) {
     console.warn("Map not initialized yet");
     return;
   }
+
+  console.log(`🗺️ Starting to plot ${reports.length} reports on map...`);
 
   // Clear existing markers and data
   if (
@@ -367,8 +401,35 @@ export async function plotReports(reports) {
       const [lat, lon] = report.location;
       coords = { lat: Number(lat), lng: Number(lon) };
     } else if (typeof report.location === "string") {
-      // Skip string addresses since all reports should now have coordinates
-      console.warn(`Report ${report.id} has string location instead of coordinates: ${report.location}`);
+      // Parse coordinate string format: "Lat: 32.092, Long: 34.822"
+      const latMatch = report.location.match(/Lat:\s*([-+]?\d*\.?\d+)/i);
+      const lonMatch = report.location.match(/Long:\s*([-+]?\d*\.?\d+)/i);
+      
+      if (latMatch && lonMatch) {
+        const lat = Number(latMatch[1]);
+        const lng = Number(lonMatch[1]);
+        
+        if (!isNaN(lat) && !isNaN(lng)) {
+          coords = { lat, lng };
+          console.log(`✅ Parsed coordinates for report ${report.id}: ${lat}, ${lng}`);
+        } else {
+          console.warn(`❌ Invalid coordinates for report ${report.id}: lat=${lat}, lng=${lng}`);
+        }
+      } else {
+        // Try to geocode the address
+        console.log(`🌍 Attempting to geocode address for report ${report.id}: "${report.location}"`);
+        try {
+          const geocodedCoords = await geocode(report.location);
+          if (geocodedCoords) {
+            coords = { lat: geocodedCoords[0], lng: geocodedCoords[1] };
+            console.log(`✅ Geocoded address for report ${report.id}: ${coords.lat}, ${coords.lng}`);
+          } else {
+            console.warn(`❌ Failed to geocode address for report ${report.id}: "${report.location}"`);
+          }
+        } catch (geocodeError) {
+          console.warn(`❌ Geocoding error for report ${report.id}:`, geocodeError);
+        }
+      }
     }
 
     if (coords) {
@@ -403,20 +464,25 @@ export async function plotReports(reports) {
     }
   }
 
+  console.log(`✅ Successfully created ${markers.length} markers from ${reports.length} reports`);
+
   // Update marker clusterer
   if (
     window.markerClustererInstance &&
     window.markerClustererInstance.addMarkers
   ) {
     window.markerClustererInstance.addMarkers(markers);
+    console.log('📍 Added markers to clusterer');
   } else {
     // Set map for all markers if no clusterer
     markers.forEach((marker) => marker.setMap(map));
+    console.log('📍 Added markers directly to map (no clusterer)');
   }
 
   // Update custom heatmap
   if (customHeatLayer) {
     customHeatLayer.setData(heatmapData);
+    console.log(`🔥 Updated heatmap with ${heatmapData.length} points`);
   }
 
   // Create density polygons
@@ -448,14 +514,32 @@ export async function plotReports(reports) {
 }
 
 function getMarkerIcon(type, status) {
-  const colors = {
+  // Type-based colors (primary)
+  const typeColors = {
+    'pothole': '#dc3545',        // Red
+    'crack': '#28a745',          // Green  
+    'knocked': '#ffc107',        // Yellow
+    'surface damage': '#007bff', // Blue
+    'surface_damage': '#007bff', // Blue (alternative format)
+    'alligator crack': '#28a745' // Green (specific crack type)
+  };
+  
+  // Pink color for any other hazard types not specifically defined
+  const defaultTypeColor = '#e91e63'; // Pink
+  
+  // Status-based colors (fallback)
+  const statusColors = {
     Open: "#dc3545",
-    New: "#dc3545",
+    New: "#dc3545", 
     "In Progress": "#ffc107",
     Resolved: "#28a745",
   };
 
-  const color = colors[status] || "#6c757d";
+  // Normalize type for comparison
+  const normalizedType = type ? type.toLowerCase().replace(/[\s_]/g, ' ') : '';
+  
+  // Use type color first, then status color, then default pink for unknown types
+  const color = typeColors[normalizedType] || statusColors[status] || defaultTypeColor;
   
   // Create SVG data URL for the marker icon
   const svgIcon = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
