@@ -21,7 +21,9 @@ let cameraState = {
 // External API configuration - Railway Production
 const API_CONFIG = {
   baseUrl: 'https://hazard-api-production-production.up.railway.app',
+  // Separate timeout for detection requests and health checks
   timeout: 10000, // Increased timeout for Railway
+  healthTimeout: 5000,
   retryAttempts: 3,
   retryDelay: 1000
 };
@@ -211,7 +213,7 @@ async function initializeDetection() {
 async function checkAPIAvailability() {
   try {
     setApiUrl(API_CONFIG.baseUrl);
-    const health = await checkHealth(); // aligned with spec: GET /health
+    const health = await checkHealth(API_CONFIG.healthTimeout); // aligned with spec: GET /health
     if (health.status === 'healthy') {
       updateDetectionModeInfo('api');
       return true;
