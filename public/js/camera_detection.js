@@ -73,6 +73,10 @@ let confidenceSlider, confidenceValue, settingsPanel, hazardToastElement, detect
 const offscreen = document.createElement("canvas");
 const offCtx = offscreen.getContext("2d", { willReadFrequently: true });
 
+// Reusable buffer for frame preprocessing to avoid per-frame allocations
+let preprocessBuffer = null;
+let preprocessBufferSize = 0;
+
 document.addEventListener("DOMContentLoaded", initialize);
 
 function initialize() {
@@ -721,25 +725,33 @@ function preprocessFrame() {
   // This ensures model coordinates map directly to the processed image
   offCtx.drawImage(video, 0, 0, inputSize, inputSize);
   
+  // Allocate reusable buffer if needed
+  if (!preprocessBuffer || preprocessBufferSize !== inputSize) {
+    preprocessBuffer = new Float32Array(3 * inputSize * inputSize);
+    preprocessBufferSize = inputSize;
+  }
+
   // Get image data and convert to tensor
   const imageData = offCtx.getImageData(0, 0, inputSize, inputSize);
-  const data = new Float32Array(3 * inputSize * inputSize);
-  
+  const data = preprocessBuffer;
+
   // Convert RGBA to RGB and normalize to [0, 1]
-  for (let i = 0; i < imageData.data.length; i += 4) {
-    const pixelIndex = i / 4;
+  for (let i = 0, j = 0; i < imageData.data.length; i += 4, j++) {
     const r = imageData.data[i] / 255.0;
     const g = imageData.data[i + 1] / 255.0;
     const b = imageData.data[i + 2] / 255.0;
-    
+
     // Pack in CHW format (channels, height, width)
-    data[pixelIndex] = r;                                    // R channel
-    data[pixelIndex + inputSize * inputSize] = g;           // G channel
-    data[pixelIndex + 2 * inputSize * inputSize] = b;       // B channel
+    data[j] = r;                                   // R channel
+    data[j + inputSize * inputSize] = g;          // G channel
+    data[j + 2 * inputSize * inputSize] = b;      // B channel
   }
-  
-  console.log(`🎯 Preprocessed frame: ${inputSize}x${inputSize}, tensor shape: [1, 3, ${inputSize}, ${inputSize}]`);
-  
+
+  // Throttle logging to reduce console overhead
+  if (cameraState.frameCount % 60 === 0) {
+    console.log(`🎯 Preprocessed frame: ${inputSize}x${inputSize}`);
+  }
+
   return new ort.Tensor('float32', data, [1, 3, inputSize, inputSize]);
 }
 
