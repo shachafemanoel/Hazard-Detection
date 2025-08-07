@@ -51,7 +51,7 @@ const elements = {
   searchInput: document.getElementById("report-search-input"),
   statusFilter: document.getElementById("table-status-filter"),
   typeFilter: document.getElementById("hazard-type-filter"),
-  myReportsFilter: document.getElementById("my-reports-filter"),
+
   sortHeaders: document.querySelectorAll("#reports-management-table .sortable"),
   // Modals
   editModal: document.getElementById("editReportModal"),

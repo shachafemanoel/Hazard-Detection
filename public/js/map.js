@@ -8,8 +8,8 @@ let densityPolygons = [];
 let mapInitialized = false;
 let geocodingCache = new Map(); // Cache for geocoded addresses
 
-const DEFAULT_CENTER = { lat: 32.0, lng: 34.8 }; // Israel center
-const DEFAULT_ZOOM = 8;
+const DEFAULT_CENTER = { lat: 31.7683, lng: 35.2137 }; // Israel center (Jerusalem)
+const DEFAULT_ZOOM = 8.5; // Zoom level to show most of Israel
 const RADIUS_METERS = 30000;
 
 // Custom heatmap implementation since Google's is deprecated
@@ -310,13 +310,9 @@ export function toggleHeatmap() {
 export function centerMap() {
   if (!map) return;
 
-  if (userLocation) {
-    map.setCenter(userLocation);
-    map.setZoom(12);
-  } else {
-    map.setCenter(DEFAULT_CENTER);
-    map.setZoom(DEFAULT_ZOOM);
-  }
+  // Always center on Israel
+  map.setCenter(DEFAULT_CENTER);
+  map.setZoom(DEFAULT_ZOOM);
 }
 
 export function clearGeocodingCache() {
@@ -502,12 +498,12 @@ export async function plotReports(reports) {
 
     map.fitBounds(bounds);
 
-    // Ensure reasonable zoom level
+    // Ensure reasonable zoom level for Israel
     google.maps.event.addListenerOnce(map, "bounds_changed", () => {
       if (map.getZoom() > 15) {
         map.setZoom(15);
-      } else if (map.getZoom() < 8) {
-        map.setZoom(8);
+      } else if (map.getZoom() < 7.5) {
+        map.setZoom(7.5);
       }
     });
   }
