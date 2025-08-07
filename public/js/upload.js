@@ -3,7 +3,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   const confidenceSlider = document.getElementById("confidence-slider");
   const confValueSpan = document.getElementById("conf-value");
   const canvas = document.getElementById("preview-canvas");
-  const ctx = canvas ? canvas.getContext("2d") : null; // Check if canvas exists
+  let ctx = null; // Will be initialized after setting canvas dimensions
   const logoutBtn = document.getElementById("logout-btn");
   const saveBtn = document.getElementById("save-detection");
   const tooltip = document.getElementById("tooltip");
@@ -43,8 +43,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     boxes.forEach((box, index) => {
       let [x1, y1, x2, y2, score, classId] = box;
-      const correctedClassId = Math.floor(classId) - 1;
-      const classIndex = Math.max(0, correctedClassId);
+      const classIndex = Math.floor(classId);
       const labelName = classNames[classIndex] || `Unknown Class ${classIndex}`;
       const scorePerc = (score * 100).toFixed(1);
 
@@ -205,7 +204,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   // Enhanced Road Damage Detection Model Configuration
   const FIXED_SIZE = 640; // Optimized for road_damage_detection_last_version.onnx
   
-  // Road Damage Classes (mapping to model's 10 classes)
+  // Road Damage Classes (mapping to model's 4 classes)
   const classNames = [
     'crack',
     'knocked',
@@ -221,19 +220,8 @@ document.addEventListener("DOMContentLoaded", async function () {
     maxDetections: 50,            // Higher limit for batch processing
     minBoxSize: 4,                // Smaller for crack detection
     aspectRatioFilter: 30.0,      // Allow longer shapes for cracks/markings
-    // Class-specific minimum confidences for upload processing
-    classThresholds: {
-      0: 0.30, // Alligator Crack
-      1: 0.35, // Block Crack
-      2: 0.40, // Crosswalk Blur
-      3: 0.40, // Lane Blur
-      4: 0.30, // Longitudinal Crack
-      5: 0.45, // Manhole
-      6: 0.35, // Patch Repair
-      7: 0.30, // Pothole
-      8: 0.30, // Transverse Crack
-      9: 0.35  // Wheel Mark Crack
-    }
+    // Class-specific minimum confidences for upload processing (4 classes)
+    classThresholds: {}
   };
   let session = null;
   let runtime = 'onnx';
@@ -262,7 +250,8 @@ document.addEventListener("DOMContentLoaded", async function () {
   try {
     // Prioritized model paths - using available ONNX models
     const modelPaths = [
-      '/object_detection_model/best0408.onnx',          // Primary model
+      '/object_detection_model/best0608.onnx',          // Primary model - latest version
+      '/object_detection_model/best0408.onnx'           // Fallback model
     ]
     
     let modelPath = null;
@@ -336,14 +325,38 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
   });
 
-  // 2. תמיד תציג תצוגה ותריץ את המודל
+  // 2. Set canvas dimensions and reinitialize context
+  canvas.width  = FIXED_SIZE;
+  canvas.height = FIXED_SIZE;
+  ctx = canvas.getContext("2d"); // Re-initialize context after resizing
+
+  // 3. תמיד תציג תצוגה ותריץ את המודל
   const reader = new FileReader();
   reader.onload = e => {
     const img = new Image();
     img.onload = async () => {
       currentImage = img;
-      canvas.width  = FIXED_SIZE;
-      canvas.height = FIXED_SIZE;
+      
+      // Draw image immediately for instant preview
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "black";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Calculate letterbox parameters for preview
+      const imgW = img.width;
+      const imgH = img.height;
+      const scale = Math.min(FIXED_SIZE / imgW, FIXED_SIZE / imgH);
+      const newW = Math.round(imgW * scale);
+      const newH = Math.round(imgH * scale);
+      const offsetX = Math.floor((FIXED_SIZE - newW) / 2);
+      const offsetY = Math.floor((FIXED_SIZE - newH) / 2);
+      
+      letterboxParams = { offsetX, offsetY, newW, newH };
+      
+      // Draw the image for immediate visual feedback
+      ctx.drawImage(img, offsetX, offsetY, newW, newH);
+      
+      // Run inference in background
       await runInferenceOnImage(img);  // כאן מציירים את המסגרות
     };
     img.src = e.target.result;
@@ -352,9 +365,104 @@ document.addEventListener("DOMContentLoaded", async function () {
 });
   }
 
+  // Auto-detect and parse different YOLO output formats
+  function parseDetectionsAuto(output, imgSize, confidenceThreshold) {
+    const outputData = output.data;
+    const dims = output.dims;
+    console.log('🔍 Parsing detections with dims:', dims);
+    
+    const detections = [];
+    
+    // Check if this is NMS-ready output (like [1, 300, 6] or [N, 6])
+    if (dims.length >= 2 && dims[dims.length - 1] === 6) {
+      console.log('📦 Detected NMS-ready format [N, 6] - parsing directly');
+      
+      // Parse direct [x1, y1, x2, y2, score, classId] format
+      for (let i = 0; i < outputData.length; i += 6) {
+        const [x1, y1, x2, y2, score, classId] = outputData.slice(i, i + 6);
+        
+        if (score >= confidenceThreshold && x1 < x2 && y1 < y2) {
+          detections.push({
+            x1: Math.max(0, Math.min(x1, imgSize)),
+            y1: Math.max(0, Math.min(y1, imgSize)),
+            x2: Math.max(0, Math.min(x2, imgSize)),
+            y2: Math.max(0, Math.min(y2, imgSize)),
+            score: score,
+            classId: Math.floor(classId)
+          });
+        }
+      }
+    }
+    // Check if this is raw YOLO format (like [1, 25200, 9] for 4 classes + 5 coords)
+    else if (dims.length >= 2 && dims[dims.length - 1] >= 9) {
+      console.log('📦 Detected raw YOLO format - converting from [cx,cy,w,h,obj,class_probs...]');
+      
+      const numClasses = dims[dims.length - 1] - 5; // 5 = cx,cy,w,h,obj
+      const numAnchors = outputData.length / dims[dims.length - 1];
+      
+      for (let i = 0; i < numAnchors; i++) {
+        const offset = i * dims[dims.length - 1];
+        const cx = outputData[offset];
+        const cy = outputData[offset + 1];
+        const w = outputData[offset + 2];
+        const h = outputData[offset + 3];
+        const objectness = outputData[offset + 4];
+        
+        // Skip if objectness is too low
+        if (objectness < 0.1) continue;
+        
+        // Find best class
+        let bestClassId = 0;
+        let bestClassProb = 0;
+        
+        for (let c = 0; c < numClasses; c++) {
+          const classProb = outputData[offset + 5 + c];
+          if (classProb > bestClassProb) {
+            bestClassProb = classProb;
+            bestClassId = c;
+          }
+        }
+        
+        const finalScore = objectness * bestClassProb;
+        
+        if (finalScore >= confidenceThreshold) {
+          // Convert from center format to corner format
+          const x1 = cx - w / 2;
+          const y1 = cy - h / 2;
+          const x2 = cx + w / 2;
+          const y2 = cy + h / 2;
+          
+          if (x1 < x2 && y1 < y2) {
+            detections.push({
+              x1: Math.max(0, Math.min(x1, imgSize)),
+              y1: Math.max(0, Math.min(y1, imgSize)),
+              x2: Math.max(0, Math.min(x2, imgSize)),
+              y2: Math.max(0, Math.min(y2, imgSize)),
+              score: finalScore,
+              classId: bestClassId
+            });
+          }
+        }
+      }
+    }
+    else {
+      console.warn('⚠️ Unknown output format with dims:', dims);
+      return [];
+    }
+    
+    console.log(`✅ Parsed ${detections.length} detections from output`);
+    return detections;
+  }
+
   async function runInferenceOnImage(imageElement) {
     if (!session) {
-      console.warn("Model not loaded yet or canvas not found.");
+      console.warn("Model not loaded yet.");
+      showToast("⚠️ Model not loaded yet, please wait...", "warning");
+      return;
+    }
+    
+    if (!ctx) {
+      console.warn("Canvas context not available.");
       return;
     }
 
@@ -404,17 +512,18 @@ document.addEventListener("DOMContentLoaded", async function () {
 
       const results = await session.run(feeds);
       const outputKey = Object.keys(results)[0];
-      const outputData = results[outputKey].data;
+      const output = results[outputKey];
+      
+      // Log output shape for debugging
+      console.log('Output dims:', output.dims, 'Output data length:', output.data.length);
+      console.log("Raw outputData sample:", output.data.slice(0, 20));
 
-      console.log("Raw outputData:", outputData);
-
-      // Enhanced detection parsing with filtering
-      const rawBoxes = [];
-      for (let i = 0; i < outputData.length; i += 6) {
-        const box = outputData.slice(i, i + 6);
-        rawBoxes.push(box);
-      }
-
+      // Use auto-detection parser to handle different output formats
+      const parsed = parseDetectionsAuto(output, FIXED_SIZE, confidenceThreshold);
+      
+      // Convert parsed detections to the format expected by applyDetectionFilters
+      const rawBoxes = parsed.map(det => [det.x1, det.y1, det.x2, det.y2, det.score, det.classId]);
+      
       // Apply intelligent filtering for road damage detection
       const filteredBoxes = applyDetectionFilters(rawBoxes);
       
@@ -483,9 +592,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     for (const box of boxes) {
       let [x1, y1, x2, y2, score, classId] = box;
       
-      // Fix class ID mapping - model outputs class_id + 1, so subtract 1
-      const correctedClassId = Math.floor(classId) - 1;
-      const classIndex = Math.max(0, correctedClassId); // Ensure non-negative
+      const classIndex = Math.floor(classId);
       
       // Use class-specific confidence thresholds if available
       const minThreshold = DETECTION_CONFIG.classThresholds[classIndex] || DETECTION_CONFIG.minConfidence;
@@ -603,8 +710,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       // Show detected hazards with confidence ranges
       const hazardDetails = hazardTypes.map(hazardType => {
         const hazardBoxes = validBoxes.filter(box => {
-          const correctedClassId = Math.floor(box[5]) - 1;
-          const classIndex = Math.max(0, correctedClassId);
+          const classIndex = Math.floor(box[5]);
           return classNames[classIndex] === hazardType;
         });
         
@@ -789,6 +895,53 @@ document.addEventListener("DOMContentLoaded", async function () {
     return (usePound ? '#' : '') + (r << 16 | g << 8 | b).toString(16).padStart(6, '0');
   }
 
+  // Function to draw "No hazard detected" message on canvas
+  function drawNoHazardMessage(ctx) {
+    ctx.save();
+    
+    // Draw a message banner instead of full overlay to keep image visible
+    const bannerHeight = 80;
+    const bannerY = FIXED_SIZE - bannerHeight - 20;
+    
+    // Draw banner background
+    ctx.fillStyle = "rgba(0, 100, 0, 0.85)";
+    ctx.fillRect(20, bannerY, FIXED_SIZE - 40, bannerHeight);
+    
+    // Draw banner border
+    ctx.strokeStyle = "#00FF88";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(20, bannerY, FIXED_SIZE - 40, bannerHeight);
+    
+    // Main message styling
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "bold 20px Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    
+    // Add text shadow
+    ctx.shadowColor = "rgba(0, 0, 0, 0.8)";
+    ctx.shadowBlur = 2;
+    ctx.shadowOffsetX = 1;
+    ctx.shadowOffsetY = 1;
+    
+    // Draw main message
+    const centerX = FIXED_SIZE / 2;
+    const centerY = bannerY + bannerHeight / 2 - 10;
+    ctx.fillText("✅ No Hazards Detected", centerX, centerY);
+    
+    // Subtitle message
+    ctx.font = "14px Arial, sans-serif";
+    ctx.fillText("Road surface appears safe", centerX, centerY + 25);
+    
+    // Reset shadow
+    ctx.shadowColor = "transparent";
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+    
+    ctx.restore();
+  }
+
   function drawResults(boxes) {
     if (!ctx) return; // Check if context exists
 
@@ -806,27 +959,19 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     hasHazard = false;
     
-    // Enhanced color scheme for different road damage types
+    // Color scheme for 4 road damage types
     const hazardColors = {
-      'Alligator Crack': '#FF4444',    // Red - Critical structural damage
-      'Block Crack': '#FF6600',        // Red-Orange - Significant cracking
-      'Crosswalk Blur': '#4444FF',     // Blue - Safety marking issues
-      'Lane Blur': '#6644FF',          // Purple - Traffic marking issues  
-      'Longitudinal Crack': '#FF8844', // Orange - Directional cracking
-      'Manhole': '#888888',            // Gray - Infrastructure elements
-      'Patch Repair': '#44FF88',       // Green - Previous repairs
-      'Pothole': '#FF0088',            // Pink - Critical surface damage
-      'Transverse Crack': '#FFAA44',   // Light Orange - Cross cracking
-      'Wheel Mark Crack': '#AA4444'    // Dark Red - Load-induced damage
+      'crack': '#FF8844',           // Orange - Various crack types
+      'knocked': '#FFD400',         // Yellow - Infrastructure damage
+      'pothole': '#FF4444',         // Red - Critical surface damage
+      'surface damage': '#44D7B6'   // Teal - General surface issues
     };
 
     let detectionCount = 0;
     boxes.forEach((box, index) => {
       let [x1, y1, x2, y2, score, classId] = box;
       
-      // Fix class ID mapping - model outputs class_id + 1, so subtract 1
-      const correctedClassId = Math.floor(classId) - 1;
-      const classIndex = Math.max(0, correctedClassId); // Ensure non-negative
+      const classIndex = Math.floor(classId);
       
       // Use class-specific confidence threshold or dynamic threshold
       const classThreshold = DETECTION_CONFIG.classThresholds[classIndex] || DETECTION_CONFIG.minConfidence;
@@ -878,12 +1023,17 @@ document.addEventListener("DOMContentLoaded", async function () {
     // Update detection modal with filtered results
     updateDetectionModal(boxes.filter(box => {
       let [x1, y1, x2, y2, score, classId] = box;
-      const correctedClassId = Math.floor(classId) - 1;
-      const classIndex = Math.max(0, correctedClassId);
+      const classIndex = Math.floor(classId);
       const classThreshold = DETECTION_CONFIG.classThresholds[classIndex] || DETECTION_CONFIG.minConfidence;
       const threshold = Math.max(confidenceThreshold, classThreshold);
       return score >= threshold;
     }), hazardTypes);
+    
+    // Draw "No hazard detected" message if no detections found
+    if (detectionCount === 0) {
+      drawNoHazardMessage(ctx);
+      showToast("🟢 No hazards detected in this image", "success");
+    }
     
     // Log detection summary
     console.log(`✅ Detected ${detectionCount} hazards:`, hazardTypes);

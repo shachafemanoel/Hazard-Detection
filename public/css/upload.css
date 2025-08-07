@@ -88,6 +88,18 @@
   }
 }
 
+/* Preview canvas styling */
+#preview-canvas {
+  width: 100%;
+  max-width: 560px;
+  aspect-ratio: 1 / 1;
+  background-color: #111;
+  display: block;
+  margin: auto;
+  border: 2px solid #333;
+  border-radius: 8px;
+}
+
 @media (max-width: 768px) {
   #upload-page {
     max-width: 100%;
