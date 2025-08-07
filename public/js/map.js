@@ -356,7 +356,9 @@ export async function plotReports(reports) {
 
   for (const report of reports) {
     let coords;
-    if (report.lat && report.lon) {
+    if (report.coordinates && report.coordinates.lat && report.coordinates.lon) {
+      coords = { lat: Number(report.coordinates.lat), lng: Number(report.coordinates.lon) };
+    } else if (report.lat && report.lon) {
       coords = { lat: Number(report.lat), lng: Number(report.lon) };
     } else if (
       Array.isArray(report.location) &&

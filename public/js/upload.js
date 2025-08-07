@@ -202,7 +202,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   });
   
   // Enhanced Road Damage Detection Model Configuration
-  const FIXED_SIZE = 480; // Optimized for road_damage_detection_last_version.onnx
+  const FIXED_SIZE = 640; // Optimized for road_damage_detection_last_version.onnx
   
   // Road Damage Classes (mapping to model's 10 classes)
   const classNames = [

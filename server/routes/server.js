@@ -765,6 +765,23 @@ app.post('/api/reports', async (req, res) => {
         reportedBy,
         locationNote: req.body.locationNote || 'GPS'
     };
+
+    // Geocode location to add coordinates
+    if (location) {
+        try {
+            const geocodeUrl = `http://localhost:${port}/api/geocode?address=${encodeURIComponent(location)}`;
+            const response = await axios.get(geocodeUrl);
+            if (response.data && response.data.success) {
+                report.coordinates = {
+                    lat: response.data.location[0],
+                    lon: response.data.location[1]
+                };
+            }
+        } catch (error) {
+            console.error('Geocoding failed for new report:', error.message);
+            // Continue without coordinates
+        }
+    }
     
     const reportKey = `report:${report.id}`;  // יצירת המפתח הייחודי לכל דיווח
     

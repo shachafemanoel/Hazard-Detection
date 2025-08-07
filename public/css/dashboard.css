@@ -1,0 +1,42 @@
+/* Dashboard Layout */
+.stats-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.stat-card {
+    flex: 1 1 200px; /* Flex-grow, flex-shrink, and basis */
+}
+
+.dashboard-main-content {
+    height: calc(100vh - 220px);
+}
+
+#map {
+    position: relative;
+    height: 100%;
+}
+
+.map-controls {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    z-index: 10;
+}
+
+.reports-table-container {
+    height: 100%;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+}
+
+.reports-table-container table {
+    width: 100%;
+    table-layout: fixed;
+}
+
+.reports-table-container th, .reports-table-container td {
+    padding: 8px;
+    white-space: nowrap;
+}

@@ -254,7 +254,7 @@ async function loadLocalModel() {
         console.log('✅ ONNX session created successfully');
         
         // Use 480x480 as indicated by the error message
-        cameraState.modelInputSize = 480;
+        cameraState.modelInputSize = 640;
         console.log(`📐 Using model input size: ${cameraState.modelInputSize}x${cameraState.modelInputSize}`);
         
         // Log session info for debugging

@@ -14,7 +14,7 @@
 </head>
 <body>
     <main class="container-fluid main-content">
-    <section id="overview-section" class="summary-grid mb-4">
+    <section id="overview-section" class="stats-container mb-4">
       <article class="stat-card card h-100">
         <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
         <div class="stat-content">
@@ -44,11 +44,13 @@
         </div>
       </article>
     </section>
-    <div class="row g-4">
-      <section class="col-lg-8">
+    <div class="row g-4 dashboard-main-content">
+      <section class="col-lg-6">
         <div class="dashboard-panel card h-100 d-flex flex-column">
           <div class="card-header d-flex justify-content-between align-items-center">
             <h5 class="mb-0"><i class="fas fa-map me-2"></i>Hazard Map</h5>
+          </div>
+          <div id="map" class="card-body flex-grow-1" role="region" aria-label="Hazard map" tabindex="0">
             <div class="map-controls">
               <button id="toggle-heatmap" class="btn btn-sm me-2" aria-label="Toggle Heatmap" type="button">
                 <i class="fas fa-fire"></i> Heatmap
@@ -58,15 +60,14 @@
               </button>
             </div>
           </div>
-          <div id="map" class="card-body flex-grow-1" style="min-height: 500px;" role="region" aria-label="Hazard map" tabindex="0"></div>
         </div>
       </section>
-      <aside class="col-lg-4">
+      <aside class="col-lg-6">
         <section class="dashboard-panel card h-100 d-flex flex-column">
           <div class="card-header">
             <h5 class="mb-0"><i class="fas fa-table me-2"></i>Reports Management</h5>
           </div>
-          <div class="card-body">
+          <div class="card-body d-flex flex-column">
             <div class="table-controls mb-3">
               <input type="text" id="report-search-input" class="form-control" placeholder="Search reports..." aria-label="Search reports">
               <select id="table-status-filter" class="form-select" aria-label="Filter by status">
@@ -90,7 +91,7 @@
               </div>
             </div>
             <div id="reports-blocks-container" class="d-lg-none"></div>
-            <div class="table-responsive flex-grow-1 d-none d-lg-block">
+            <div class="reports-table-container flex-grow-1 d-none d-lg-block">
               <table id="reports-management-table" class="table table-hover">
                 <thead>
                   <tr>
@@ -105,19 +106,6 @@
                 </thead>
                 <tbody id="reports-table-body"></tbody>
               </table>
-            </div>
-          </div>
-          <div class="card-footer d-flex justify-content-between align-items-center">
-            <span id="table-showing-info"></span>
-            <div class="pagination-controls d-flex align-items-center gap-2">
-              <button id="table-prev-btn" class="btn btn-sm" aria-label="Previous page"><i class="fas fa-chevron-left"></i></button>
-              <span id="table-page-info"></span>
-              <button id="table-next-btn" class="btn btn-sm" aria-label="Next page"><i class="fas fa-chevron-right"></i></button>
-              <select id="table-page-size" class="form-select form-select-sm" style="width: auto;" aria-label="Reports per page">
-                <option value="10">10</option>
-                <option value="25">25</option>
-                <option value="50">50</option>
-              </select>
             </div>
           </div>
         </section>
