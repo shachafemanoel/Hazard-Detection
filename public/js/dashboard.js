@@ -4,7 +4,8 @@ import { initControls } from "./ui-controls.js";
 
 // --- STATE MANAGEMENT ---
 const state = {
-  reports: [],
+  allReports: [], // Store all reports from server
+  filteredReports: [], // Store filtered reports for display
   metrics: { total: null, open: null, resolved: null, users: null },
   filters: {
     search: "",
@@ -18,12 +19,17 @@ const state = {
   },
   isLoading: true,
   selectedReportIds: new Set(),
+  lastDataFetch: null, // Track when we last fetched data
 };
 
 // Polling configuration for detecting new reports
 const REPORT_POLL_INTERVAL = 60000; // 1 minute
 let latestReportTime = null;
 let pollTimer = null;
+
+// Debouncing for search
+let searchDebounceTimer = null;
+const SEARCH_DEBOUNCE_DELAY = 300; // 300ms
 
 // --- DOM ELEMENTS ---
 const elements = {
@@ -46,6 +52,180 @@ const elements = {
   editModal: document.getElementById("editReportModal"),
   detailsModal: document.getElementById("reportDetailsModal"),
 };
+
+// --- FILTERING & SEARCH FUNCTIONS ---
+
+function applyFiltersAndSort() {
+  console.log("Applying filters and sort...");
+  console.log("Current filters:", state.filters);
+  
+  let filtered = [...state.allReports];
+  
+  // Apply search filter (search in multiple fields)
+  if (state.filters.search && state.filters.search.trim()) {
+    const searchTerm = state.filters.search.toLowerCase().trim();
+    console.log("Searching for:", searchTerm);
+    
+    filtered = filtered.filter(report => {
+      // Search in multiple fields
+      const searchFields = [
+        report.id?.toString() || "",
+        report.location || "",
+        report.reportedBy || "",
+        report.type || "",
+        report.status || "",
+        report.address || "",
+        report.user || "",
+        report.username || ""
+      ];
+      
+      return searchFields.some(field => 
+        field.toLowerCase().includes(searchTerm)
+      );
+    });
+    
+    console.log(`Filtered by search: ${filtered.length} results`);
+  }
+  
+  // Apply status filter
+  if (state.filters.status && state.filters.status !== "") {
+    filtered = filtered.filter(report => report.status === state.filters.status);
+    console.log(`Filtered by status: ${filtered.length} results`);
+  }
+  
+  // Apply type filter
+  if (state.filters.type && state.filters.type !== "") {
+    filtered = filtered.filter(report => report.type === state.filters.type);
+    console.log(`Filtered by type: ${filtered.length} results`);
+  }
+  
+  // Apply "my reports" filter
+  if (state.filters.my_reports) {
+    // Get current user (you might need to adjust this based on your auth system)
+    const currentUser = getCurrentUser(); // We'll implement this
+    if (currentUser) {
+      filtered = filtered.filter(report => 
+        report.reportedBy === currentUser || 
+        report.user === currentUser ||
+        report.username === currentUser
+      );
+      console.log(`Filtered by my reports: ${filtered.length} results`);
+    }
+  }
+  
+  // Apply sorting
+  filtered.sort((a, b) => {
+    let aVal = a[state.sort.field];
+    let bVal = b[state.sort.field];
+    
+    // Handle different data types
+    if (state.sort.field === "time") {
+      aVal = new Date(aVal || 0);
+      bVal = new Date(bVal || 0);
+    } else if (state.sort.field === "id") {
+      aVal = parseInt(aVal) || 0;
+      bVal = parseInt(bVal) || 0;
+    } else {
+      aVal = (aVal || "").toString().toLowerCase();
+      bVal = (bVal || "").toString().toLowerCase();
+    }
+    
+    if (state.sort.direction === "asc") {
+      return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+    } else {
+      return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+    }
+  });
+  
+  state.filteredReports = filtered;
+  console.log(`Final filtered results: ${state.filteredReports.length}`);
+  
+  // Update display
+  renderTable();
+  renderReportCards();
+  updateFilteredMetrics();
+  updateReportsCountIndicator();
+}
+
+function getCurrentUser() {
+  // Try to get current user from various sources
+  try {
+    // Check localStorage or sessionStorage
+    const user = localStorage.getItem('currentUser') || 
+                 sessionStorage.getItem('currentUser') ||
+                 localStorage.getItem('user') ||
+                 sessionStorage.getItem('user');
+    
+    if (user) {
+      const parsed = JSON.parse(user);
+      return parsed.email || parsed.username || parsed.name || parsed.uid;
+    }
+    
+    // Check if there's a global user variable
+    if (window.currentUser) {
+      return window.currentUser.email || window.currentUser.username || window.currentUser.name;
+    }
+    
+    return null;
+  } catch (e) {
+    console.warn("Could not get current user:", e);
+    return null;
+  }
+}
+
+function updateFilteredMetrics() {
+  const filtered = state.filteredReports;
+  const total = filtered.length;
+  const open = filtered.filter(r => r.status === 'Open' || r.status === 'New').length;
+  
+  // Calculate resolved this month
+  const thisMonth = new Date();
+  thisMonth.setDate(1);
+  thisMonth.setHours(0, 0, 0, 0);
+  
+  const resolved = filtered.filter(r => {
+    if (r.status !== 'Resolved') return false;
+    const reportDate = new Date(r.time);
+    return reportDate >= thisMonth;
+  }).length;
+  
+  // Count unique users
+  const uniqueUsers = new Set();
+  filtered.forEach(r => {
+    if (r.reportedBy) uniqueUsers.add(r.reportedBy);
+    if (r.user) uniqueUsers.add(r.user);
+    if (r.username) uniqueUsers.add(r.username);
+  });
+  
+  // Update metrics display (but don't overwrite if we're showing all data)
+  if (state.filters.search || state.filters.status || state.filters.type || state.filters.my_reports) {
+    elements.totalReportsCount.innerHTML = total;
+    elements.openHazardsCount.innerHTML = open;
+    elements.resolvedThisMonthCount.innerHTML = resolved;
+    elements.activeUsersCount.innerHTML = uniqueUsers.size;
+  }
+}
+
+function updateReportsCountIndicator() {
+  const indicator = document.getElementById('reports-count-indicator');
+  if (!indicator) return;
+  
+  const filtered = state.filteredReports.length;
+  const total = state.allReports.length;
+  
+  if (filtered === total) {
+    indicator.textContent = `Showing all ${total} reports`;
+  } else {
+    indicator.textContent = `Showing ${filtered} of ${total} reports`;
+  }
+  
+  // Add some styling based on filter status
+  if (filtered < total) {
+    indicator.className = 'text-info';
+  } else {
+    indicator.className = 'text-muted';
+  }
+}
 
 // --- RENDER FUNCTIONS ---
 
@@ -89,7 +269,7 @@ function renderTable() {
 
   elements.tableBody.innerHTML = ""; // Clear existing rows
 
-  const reportsToRender = state.reports;
+  const reportsToRender = state.filteredReports;
 
   if (reportsToRender.length === 0) {
     elements.tableBody.innerHTML =
@@ -153,7 +333,7 @@ function renderReportCards() {
 
   elements.blocksContainer.innerHTML = "";
 
-  const reportsToRender = state.reports;
+  const reportsToRender = state.filteredReports;
 
   if (reportsToRender.length === 0) {
     elements.blocksContainer.innerHTML =
@@ -203,15 +383,33 @@ function renderBulkDeleteButton() {
     btn.addEventListener('click', async () => {
       if (state.selectedReportIds.size === 0) return;
       if (!confirm(`Delete ${state.selectedReportIds.size} selected reports?`)) return;
+      
+      const deletedIds = [];
+      
       for (const id of state.selectedReportIds) {
         try {
           await deleteReportById(id);
+          deletedIds.push(id);
         } catch (err) {
           notify(`Error deleting report #${id}: ${err.message}`, 'danger');
         }
       }
+      
+      // Remove deleted reports from local cache
+      state.allReports = state.allReports.filter(r => !deletedIds.includes(r.id));
       state.selectedReportIds.clear();
-      updateDashboard();
+      
+      // Re-apply filters
+      applyFiltersAndSort();
+      
+      // Update map
+      if (window.plotReports) {
+        plotReports(state.filteredReports);
+      }
+      
+      if (deletedIds.length > 0) {
+        notify(`Successfully deleted ${deletedIds.length} reports`, 'success');
+      }
     });
   }
   btn.style.display = state.selectedReportIds.size > 0 ? '' : 'none';
@@ -219,47 +417,72 @@ function renderBulkDeleteButton() {
 
 // --- API & DATA HANDLING ---
 
-async function loadReportsForTable() {
+async function loadReportsFromServer() {
   try {
+    console.log("Loading reports from server...");
     const params = {
-      ...state.filters,
-      limit: 10000, // Fetch all reports
-      sort: state.sort.field,
-      order: state.sort.direction,
+      limit: 10000, // Fetch all reports without filters - we'll filter client-side
+      sort: 'time',
+      order: 'desc',
     };
     const { reports, metrics } = await fetchReports(params);
-    state.reports = reports;
+    
+    state.allReports = reports;
+    state.filteredReports = reports; // Initially show all reports
     state.metrics = metrics;
+    state.lastDataFetch = new Date();
+    
     if (reports.length > 0) {
       latestReportTime = reports.reduce((latest, r) => {
         const time = new Date(r.time);
         return !latest || time > latest ? time : latest;
       }, null);
     }
-    renderAll();
-    await plotReports(reports);
+    
+    console.log(`Loaded ${reports.length} reports from server`);
+    
+    // Apply current filters if any
+    applyFiltersAndSort();
+    
+    // Update map
+    await plotReports(state.filteredReports);
+    
+    // Render stats
+    renderStats();
+    
   } catch (error) {
     console.error("Failed to load reports:", error);
     notify("Failed to load report data", "danger");
   }
 }
 
-async function updateDashboard({ silent = false } = {}) {
-  state.isLoading = true;
-  if (!silent) showMetricsLoading();
-  const loadingToast = silent ? null : notify("Loading reports...", "info", true);
+async function updateDashboard({ silent = false, forceRefresh = false } = {}) {
+  // Only load from server if we don't have data or force refresh is requested
+  const needsServerData = !state.lastDataFetch || forceRefresh || 
+                         (Date.now() - state.lastDataFetch.getTime()) > 300000; // 5 minutes
+  
+  if (needsServerData) {
+    state.isLoading = true;
+    if (!silent) showMetricsLoading();
+    const loadingToast = silent ? null : notify("Loading reports...", "info", true);
 
-  try {
-    await loadReportsForTable();
-  } catch (error) {
-    console.error("Failed to update dashboard:", error);
-    notify("Failed to load dashboard", "danger");
-    state.reports = [];
-    state.metrics = { total: null, open: null, resolved: null, users: null };
-    renderAll();
-  } finally {
-    state.isLoading = false;
-    if (loadingToast) loadingToast.remove();
+    try {
+      await loadReportsFromServer();
+    } catch (error) {
+      console.error("Failed to update dashboard:", error);
+      notify("Failed to load dashboard", "danger");
+      state.allReports = [];
+      state.filteredReports = [];
+      state.metrics = { total: null, open: null, resolved: null, users: null };
+      renderAll();
+    } finally {
+      state.isLoading = false;
+      if (loadingToast) loadingToast.remove();
+    }
+  } else {
+    // Just apply filters and re-render with existing data
+    console.log("Using cached data, applying filters...");
+    applyFiltersAndSort();
   }
 }
 
@@ -297,6 +520,21 @@ function startReportPolling() {
 
 // --- EVENT HANDLERS ---
 
+function handleSearchInput() {
+  console.log("Search input detected, debouncing...");
+  
+  // Clear existing timer
+  if (searchDebounceTimer) {
+    clearTimeout(searchDebounceTimer);
+  }
+  
+  // Set new timer
+  searchDebounceTimer = setTimeout(() => {
+    console.log("Search debounce completed, applying filter");
+    handleFilterChange();
+  }, SEARCH_DEBOUNCE_DELAY);
+}
+
 function handleFilterChange() {
   console.log("Filter change event triggered!");
   
@@ -310,7 +548,13 @@ function handleFilterChange() {
   console.log("Old filters:", oldFilters);
   console.log("New filters:", state.filters);
   
-  updateDashboard();
+  // Apply filters immediately without server call
+  applyFiltersAndSort();
+  
+  // Update map with filtered results
+  if (window.plotReports) {
+    plotReports(state.filteredReports);
+  }
 }
 
 function handleSortChange(e) {
@@ -328,7 +572,8 @@ function handleSortChange(e) {
   e.currentTarget.querySelector("i").className =
     `fas fa-sort-${state.sort.direction === "asc" ? "up" : "down"}`;
 
-  updateDashboard();
+  // Apply sort immediately without server call
+  applyFiltersAndSort();
 }
 
 function handleReportAction(e) {
@@ -337,7 +582,7 @@ function handleReportAction(e) {
   const container = e.target.closest("tr, .report-card");
   if (!container) return;
   const reportId = container.dataset.reportId;
-  const report = state.reports.find((r) => r.id == reportId);
+  const report = state.allReports.find((r) => r.id == reportId);
 
   if (!report) return;
 
@@ -350,7 +595,18 @@ function handleReportAction(e) {
       deleteReportById(report.id)
         .then(() => {
           notify("Report deleted successfully.", "success");
-          updateDashboard();
+          
+          // Remove from local cache
+          state.allReports = state.allReports.filter(r => r.id !== report.id);
+          state.selectedReportIds.delete(report.id);
+          
+          // Re-apply filters
+          applyFiltersAndSort();
+          
+          // Update map
+          if (window.plotReports) {
+            plotReports(state.filteredReports);
+          }
         })
         .catch((err) => notify(`Error: ${err.message}`, "danger"));
     }
@@ -373,7 +629,20 @@ function handleFormSubmit(e) {
       notify("Report updated successfully.", "success");
       const modal = bootstrap.Modal.getInstance(elements.editModal);
       modal.hide();
-      updateDashboard();
+      
+      // Update local cache
+      const reportIndex = state.allReports.findIndex(r => r.id == reportId);
+      if (reportIndex !== -1) {
+        state.allReports[reportIndex] = { ...state.allReports[reportIndex], ...updatedData };
+      }
+      
+      // Re-apply filters
+      applyFiltersAndSort();
+      
+      // Update map
+      if (window.plotReports) {
+        plotReports(state.filteredReports);
+      }
     })
     .catch((err) => notify(`Error: ${err.message}`, "danger"));
 }
@@ -420,11 +689,10 @@ function initializeEventListeners() {
   console.log("My reports filter:", elements.myReportsFilter);
   console.log("Select all checkbox:", elements.selectAllCheckbox);
 
-  // Add event listeners with debug logging and multiple event types
+  // Add event listeners with debug logging and debouncing for search
   if (elements.searchInput) {
-    elements.searchInput.addEventListener("input", handleFilterChange);
-    elements.searchInput.addEventListener("keyup", handleFilterChange);
-    elements.searchInput.addEventListener("change", handleFilterChange);
+    elements.searchInput.addEventListener("input", handleSearchInput);
+    elements.searchInput.addEventListener("keyup", handleSearchInput);
     // Make sure it's clickable
     elements.searchInput.style.pointerEvents = 'auto';
     elements.searchInput.style.cursor = 'text';
@@ -506,6 +774,24 @@ function initializeEventListeners() {
 
   const editForm = document.getElementById("edit-report-form");
   editForm?.addEventListener("submit", handleFormSubmit);
+
+  // Refresh button
+  const refreshBtn = document.getElementById("refresh-reports-btn");
+  if (refreshBtn) {
+    refreshBtn.addEventListener("click", () => {
+      console.log("Manual refresh requested");
+      refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+      refreshBtn.disabled = true;
+      
+      updateDashboard({ forceRefresh: true }).finally(() => {
+        refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh';
+        refreshBtn.disabled = false;
+      });
+    });
+    console.log("✅ Refresh button event listener added");
+  } else {
+    console.error("❌ Refresh button not found");
+  }
 }
 
 function showMetricsLoading() {
