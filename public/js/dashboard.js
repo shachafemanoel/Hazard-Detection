@@ -148,8 +148,10 @@ function renderReportCards() {
   }
 
   reportsToRender.forEach((report) => {
-
-
+    const card = document.createElement("div");
+    card.className = "card mb-3";
+    card.dataset.id = report.id;
+    card.innerHTML = `
         <div class="card-body">
           <div class="d-flex justify-content-between mb-2">
             <span class="badge bg-primary">${formatType(report.type)}</span>
