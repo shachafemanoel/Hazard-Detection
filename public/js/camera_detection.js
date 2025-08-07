@@ -28,7 +28,7 @@ const API_CONFIG = {
 
 const DEFAULT_SIZE = 320;
 const pendingDetections = [];
-const classNames = ['Alligator Crack', 'Block Crack', 'Construction Joint Crack', 'Crosswalk Blur', 'Lane Blur', 'Longitudinal Crack', 'Manhole', 'Patch Repair', 'Pothole', 'Transverse Crack', 'Wheel Mark Crack'];
+const classNames = ['crack', 'knocked', 'pothole', 'surface damage']; // Updated for best0408 model
 
 // Detection session tracking
 let detectionSession = {
