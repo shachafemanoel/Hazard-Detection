@@ -148,10 +148,11 @@ function renderReportCards() {
   }
 
   reportsToRender.forEach((report) => {
-    const col = document.createElement("div");
-    col.className = "col";
-    col.innerHTML = `
-      <div class="card report-card h-100" data-report-id="${report.id}">
+    const card = document.createElement("div");
+    card.className = "card report-card";
+    card.dataset.reportId = report.id;
+    card.style.backgroundImage = `url('${report.image || ""}')`;
+    card.innerHTML = `
         <div class="card-body">
           <div class="d-flex justify-content-between mb-2">
             <span class="badge bg-primary">${formatType(report.type)}</span>
@@ -165,9 +166,8 @@ function renderReportCards() {
           <button class="btn btn-sm btn-outline-info view-report-btn" title="View Details"><i class="fas fa-eye"></i></button>
           <button class="btn btn-sm btn-outline-warning edit-report-btn" title="Edit"><i class="fas fa-edit"></i></button>
           <button class="btn btn-sm btn-outline-danger delete-report-btn" title="Delete"><i class="fas fa-trash"></i></button>
-        </div>
-      </div>`;
-    elements.blocksContainer.appendChild(col);
+        </div>`;
+    elements.blocksContainer.appendChild(card);
   });
 }
 
