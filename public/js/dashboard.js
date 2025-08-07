@@ -151,7 +151,7 @@ function renderReportCards() {
     const col = document.createElement("div");
     col.className = "col";
     col.innerHTML = `
-      <div class="card report-card h-100" data-report-id="${report.id}">
+      <div class="card report-card h-100" data-report-id="${report.id}" style="background-image: url('${report.image || ""}");">
         <div class="card-body">
           <div class="d-flex justify-content-between mb-2">
             <span class="badge bg-primary">${formatType(report.type)}</span>
