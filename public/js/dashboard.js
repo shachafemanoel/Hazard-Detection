@@ -94,6 +94,7 @@ function renderTable() {
   if (reportsToRender.length === 0) {
     elements.tableBody.innerHTML =
       '<tr><td colspan="7" class="text-center">No reports found.</td></tr>';
+    renderBulkDeleteButton();
     return;
   }
 
@@ -119,8 +120,19 @@ function renderTable() {
         </div>
       </td>
     `;
+    // Checkbox event
+    const checkbox = row.querySelector('.report-checkbox');
+    checkbox.addEventListener('change', (e) => {
+      if (e.target.checked) {
+        state.selectedReportIds.add(report.id);
+      } else {
+        state.selectedReportIds.delete(report.id);
+      }
+      renderBulkDeleteButton();
+    });
     elements.tableBody.appendChild(row);
   });
+  renderBulkDeleteButton();
 }
 
 function renderReportCards() {
@@ -163,6 +175,33 @@ function renderAll() {
   renderStats();
   renderTable();
   renderReportCards();
+}
+
+// Add bulk delete button above the table
+function renderBulkDeleteButton() {
+  let btn = document.getElementById('bulk-delete-btn');
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = 'bulk-delete-btn';
+    btn.className = 'btn btn-danger mb-2';
+    btn.textContent = 'Delete Selected Reports';
+    btn.style.display = 'none';
+    elements.tableBody.parentElement.parentElement.insertBefore(btn, elements.tableBody.parentElement);
+    btn.addEventListener('click', async () => {
+      if (state.selectedReportIds.size === 0) return;
+      if (!confirm(`Delete ${state.selectedReportIds.size} selected reports?`)) return;
+      for (const id of state.selectedReportIds) {
+        try {
+          await deleteReportById(id);
+        } catch (err) {
+          notify(`Error deleting report #${id}: ${err.message}`, 'danger');
+        }
+      }
+      state.selectedReportIds.clear();
+      updateDashboard();
+    });
+  }
+  btn.style.display = state.selectedReportIds.size > 0 ? '' : 'none';
 }
 
 // --- API & DATA HANDLING ---
