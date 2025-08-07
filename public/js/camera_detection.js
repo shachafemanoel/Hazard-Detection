@@ -99,17 +99,7 @@ function initialize() {
   setupEventListeners();
   
   // Add window resize listener to update canvas scaling
-  window.addEventListener('resize', () => {
-    if (cameraState.detecting && video.videoWidth && video.videoHeight) {
-      const videoRect = video.getBoundingClientRect();
-      canvas.width = videoRect.width;
-      canvas.height = videoRect.height;
-      canvas.style.width = videoRect.width + 'px';
-      canvas.style.height = videoRect.height + 'px';
-      updateCoordinateScaling();
-      console.log('📐 Canvas resized for window resize');
-    }
-  });
+  window.addEventListener('resize', debounce(updateCanvasSize, 100));
   
   // Initialize detection (API or local model)
   initializeDetection();
@@ -423,6 +413,43 @@ function updateCoordinateScaling() {
     videoSize: `${video.videoWidth}x${video.videoHeight}`,
     displaySize: `${canvas.width}x${canvas.height}`
   });
+}
+
+function updateCanvasSize() {
+  if (!cameraState.detecting || !video.videoWidth || !video.videoHeight) {
+    return;
+  }
+  
+  // Get video element's current display size
+  const videoRect = video.getBoundingClientRect();
+  
+  // Update canvas dimensions to match video display
+  const newWidth = Math.floor(videoRect.width);
+  const newHeight = Math.floor(videoRect.height);
+  
+  if (canvas.width !== newWidth || canvas.height !== newHeight) {
+    canvas.width = newWidth;
+    canvas.height = newHeight;
+    canvas.style.width = newWidth + 'px';
+    canvas.style.height = newHeight + 'px';
+    
+    // Update coordinate scaling
+    updateCoordinateScaling();
+    
+    console.log(`📐 Canvas resized to ${newWidth}x${newHeight} to match video display`);
+  }
+}
+
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
 }
 
 function stopCamera() {
@@ -1186,9 +1213,27 @@ function updateDetectionSessionSummary() {
 
 async function runAPIDetection() {
   try {
+    // Create a high-quality capture from the video stream for API detection
+    const captureCanvas = document.createElement('canvas');
+    const captureCtx = captureCanvas.getContext('2d');
+    
+    // Use video dimensions for better quality (not the model input size)
+    captureCanvas.width = video.videoWidth;
+    captureCanvas.height = video.videoHeight;
+    
+    // Draw current video frame
+    captureCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+    
+    // Create blob with optimized quality for API
     const blob = await new Promise((resolve) =>
-      offscreen.toBlob(resolve, 'image/jpeg', 0.8)
+      captureCanvas.toBlob(resolve, 'image/jpeg', 0.9)
     );
+    
+    // Validate blob before sending
+    if (!blob || blob.size === 0) {
+      throw new Error('Failed to create image blob from video frame');
+    }
+    
     const result = await detectHazards(
       cameraState.apiSessionId,
       blob
