@@ -21,6 +21,15 @@ import {
   monitorMemoryUsage,
   performanceMonitor 
 } from './onnx-runtime-loader.js';
+import { 
+  startDetectionSession, 
+  endDetectionSession, 
+  addDetectionToSession, 
+  recordFrameProcessed,
+  updateSessionSummaryModal,
+  getCurrentSessionStatus,
+  createSessionReport
+} from './session-manager.js';
 
 // Global state
 let cameraState = {
@@ -187,7 +196,47 @@ function setupEventListeners() {
   const saveSessionButton = document.getElementById('save-session-report');
   
   if (saveSessionButton) {
-    saveSessionButton.addEventListener('click', saveSessionReport);
+    saveSessionButton.addEventListener('click', async () => {
+      try {
+        saveSessionButton.disabled = true;
+        saveSessionButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+        
+        const report = await createSessionReport();
+        
+        saveSessionButton.innerHTML = '<i class="fas fa-check"></i> Saved!';
+        saveSessionButton.classList.remove('btn-success');
+        saveSessionButton.classList.add('btn-success');
+        
+        // Show success message
+        if (typeof notify === 'function') {
+          notify(`Session report saved successfully! Report ID: ${report.id || 'unknown'}`, 'success');
+        }
+        
+        setTimeout(() => {
+          saveSessionButton.disabled = false;
+          saveSessionButton.innerHTML = '<i class="fas fa-save"></i> Save Session Report';
+          saveSessionButton.classList.remove('btn-success');
+          saveSessionButton.classList.add('btn-success');
+        }, 2000);
+        
+      } catch (error) {
+        console.error('❌ Failed to save session report:', error);
+        saveSessionButton.disabled = false;
+        saveSessionButton.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Save Failed';
+        saveSessionButton.classList.remove('btn-success');
+        saveSessionButton.classList.add('btn-danger');
+        
+        if (typeof notify === 'function') {
+          notify('Failed to save session report. Please try again.', 'error');
+        }
+        
+        setTimeout(() => {
+          saveSessionButton.innerHTML = '<i class="fas fa-save"></i> Save Session Report';
+          saveSessionButton.classList.remove('btn-danger');
+          saveSessionButton.classList.add('btn-success');
+        }, 3000);
+      }
+    });
   }
   
   // Update summary modal when opened
@@ -267,8 +316,14 @@ async function checkAPIAvailability() {
 
 async function startAPISession() {
   try {
-    cameraState.apiSessionId = await startSession(); // aligned with spec: POST /session/start
-    console.log('📋 API Session created:', cameraState.apiSessionId);
+    // Use new session manager for comprehensive session handling
+    cameraState.apiSessionId = await startDetectionSession({
+      confidenceThreshold: cameraState.confidenceThreshold,
+      source: 'web_camera',
+      location: await getCurrentLocation().catch(() => null)
+    });
+    
+    console.log('📋 Detection session created:', cameraState.apiSessionId);
     updateStatus("Connected to cloud AI - Session active");
     return true;
   } catch (error) {
@@ -605,6 +660,23 @@ function stopCamera() {
   // Monitor memory usage after cleanup
   monitorMemoryUsage();
   
+  // End detection session and show summary
+  try {
+    const sessionSummary = await endDetectionSession();
+    if (sessionSummary) {
+      // Update modal with final session data
+      updateSessionSummaryModal();
+      
+      // Show session summary modal
+      const summaryModal = new bootstrap.Modal(document.getElementById('detection-summary-modal'));
+      summaryModal.show();
+      
+      console.log('📊 Session summary:', sessionSummary);
+    }
+  } catch (error) {
+    console.error('❌ Error ending session:', error);
+  }
+  
   // Reset performance metrics
   performanceMonitor.reset();
   
@@ -811,7 +883,15 @@ async function detectionLoop() {
                     detectionSession.detectionFrames++;
                     detections.forEach(detection => {
                         const label = classNames[detection.classId] || `Class ${detection.classId}`;
-                        addDetectionToSession({ type: label, confidence: detection.score, coordinates: detection, frame: cameraState.frameCount });
+                        // Use new session manager for detection tracking
+                        addDetectionToSession({
+                            hazards: [{
+                                class: label,
+                                confidence: detection.score,
+                                bbox: detection
+                            }],
+                            confidence: detection.score
+                        }, canvas);
                     });
                     updateDetectionSessionSummary();
                 }
@@ -845,6 +925,9 @@ async function detectionLoop() {
         isUploading = false; // Reset on error
     }
 
+    // Record frame processing for session manager
+    recordFrameProcessed();
+    
     // Periodic memory monitoring (every 100 frames)
     if (cameraState.frameCount % 100 === 0) {
         monitorMemoryUsage();
@@ -1023,12 +1106,15 @@ function handleApiDetections(detections, processingTime) {
     detectionSession.detectionFrames++;
     parsedDetections.forEach(detection => {
       const label = classNames[detection.classId] || `Class ${detection.classId}`;
-      addDetectionToSession({ 
-        type: label, 
-        confidence: detection.score, 
-        coordinates: detection, 
-        frame: cameraState.frameCount 
-      });
+      // Use new session manager for detection tracking
+      addDetectionToSession({
+        hazards: [{
+          class: label,
+          confidence: detection.score,
+          bbox: detection
+        }],
+        confidence: detection.score
+      }, canvas);
     });
     updateDetectionSessionSummary();
   }
