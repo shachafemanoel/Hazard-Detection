@@ -184,20 +184,6 @@ document.addEventListener("DOMContentLoaded", async function () {
             hideUploadingModal();
         }
 
-      // נמחק את התמונה אחרי 5 שניות
-      setTimeout(() => {
-          const imageInput = document.getElementById('image-upload');
-          const imagePreview = document.getElementById('preview-canvas');
-
-          if (imageInput) {
-              imageInput.value = ''; // מנקה את שדה העלאת התמונה
-          }
-
-          if (imagePreview) {
-              const ctx = imagePreview.getContext('2d'); 
-              ctx.clearRect(0, 0, imagePreview.width, imagePreview.height);           // נמחק את התמונה המוצגת ב-canvas
-          }
-      }, 2500);
     }, "image/jpeg", 0.95);
   });
   
@@ -300,17 +286,20 @@ document.addEventListener("DOMContentLoaded", async function () {
     console.error("❌ Failed to load model:", err);
   }
 
+  // --- State for active image and detections ---
   let confidenceThreshold = parseFloat(confidenceSlider.value);
+  let currentImage = null;
+  let letterboxParams = { offsetX: 0, offsetY: 0, newW: FIXED_SIZE, newH: FIXED_SIZE };
+  let lastRawBoxes = []; // Store raw detections to avoid re-running model on slider change
+
   confidenceSlider.addEventListener("input", (e) => {
     confidenceThreshold = parseFloat(e.target.value);
     confValueSpan.textContent = confidenceThreshold;
     if (currentImage) {
-      runInferenceOnImage(currentImage);
+      // Re-filter and draw existing detections without re-running the model
+      updateAndDrawDetections();
     }
   });
-
-  let currentImage = null;
-  let letterboxParams = { offsetX: 0, offsetY: 0, newW: FIXED_SIZE, newH: FIXED_SIZE };
 
   if (imageUpload) {
     imageUpload.addEventListener("change", async (event) => {
@@ -509,8 +498,10 @@ document.addEventListener("DOMContentLoaded", async function () {
 
       const dims = [1, 3, height, width];
       const tensor = new ort.Tensor("float32", chwData, dims);
-      const feeds = { images: tensor };
 
+      // Dynamically get the input nam from the model for robustness
+      const inputName = session.inputNames[0];
+      const feeds = { [inputName]: tensor };
       const results = await session.run(feeds);
       const outputKey = Object.keys(results)[0];
       const output = results[outputKey];
@@ -520,20 +511,13 @@ document.addEventListener("DOMContentLoaded", async function () {
       console.log('Output dims:', output.dims, 'Output data length:', output.data.length);
       console.log("Raw outputData sample:", output.data.slice(0, 20));
 
-      // Use auto-detection parser to handle different output formats
-      const parsed = parseDetectionsAuto(output, FIXED_SIZE, confidenceThreshold);
+      // Use auto-detection parser with a low threshold to get all potential boxes
+      const parsed = parseDetectionsAuto(output, FIXED_SIZE, 0.01);
       
       // Convert parsed detections to the format expected by applyDetectionFilters
-      const rawBoxes = parsed.map(det => [det.x1, det.y1, det.x2, det.y2, det.score, det.classId]);
+      lastRawBoxes = parsed.map(det => [det.x1, det.y1, det.x2, det.y2, det.score, det.classId]);
       
-      // Apply intelligent filtering for road damage detection
-      const filteredBoxes = applyDetectionFilters(rawBoxes);
-      
-      console.log(`Detection Results: ${rawBoxes.length} raw → ${filteredBoxes.length} filtered`);
-      console.log('✅ parsed detections:', parsed.slice(0,5));
-      console.log("Top detections:", filteredBoxes.slice(0, 5));
-      
-      drawResults(filteredBoxes);
+      updateAndDrawDetections();
     } catch (err) {
       console.error("Error in inference:", err);
     }
@@ -587,6 +571,17 @@ document.addEventListener("DOMContentLoaded", async function () {
   // Initialize session summary on page load
   updateDetectionSessionSummary();
 
+  // Central function to filter raw boxes and draw them
+  function updateAndDrawDetections() {
+    if (!currentImage) return;
+
+    // Apply intelligent filtering for road damage detection using the current confidence threshold
+    const filteredBoxes = applyDetectionFilters(lastRawBoxes);
+    
+    console.log(`Detection Results: ${lastRawBoxes.length} raw → ${filteredBoxes.length} filtered by confidence ${confidenceThreshold}`);
+    drawResults(filteredBoxes);
+  }
+
   // Enhanced detection filtering for road damage
   function applyDetectionFilters(boxes) {
     let validBoxes = [];
@@ -598,7 +593,8 @@ document.addEventListener("DOMContentLoaded", async function () {
       const classIndex = Math.floor(classId);
       
       // Use class-specific confidence thresholds if available
-      const minThreshold = DETECTION_CONFIG.classThresholds[classIndex] || DETECTION_CONFIG.minConfidence;
+      const classMinThreshold = DETECTION_CONFIG.classThresholds[classIndex] || DETECTION_CONFIG.minConfidence;
+      const minThreshold = Math.max(confidenceThreshold, classMinThreshold);
       
       // Skip low confidence detections
       if (score < minThreshold) continue;
@@ -964,14 +960,8 @@ document.addEventListener("DOMContentLoaded", async function () {
     
     let detectionCount = 0;
     boxes.forEach((box, index) => {
-      let [x1, y1, x2, y2, score, classId] = box;
-      
+      let [x1, y1, x2, y2, score, classId] = box;      
       const classIndex = Math.floor(classId);
-      
-      // Use class-specific confidence threshold or dynamic threshold
-      const classThreshold = DETECTION_CONFIG.classThresholds[classIndex] || DETECTION_CONFIG.minConfidence;
-      const threshold = Math.max(confidenceThreshold, classThreshold);
-      if (score < threshold) return;
 
       const boxW = x2 - x1;
       const boxH = y2 - y1;
@@ -1016,13 +1006,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     updateDetectionInfoPanel(boxes, detectionCount, hazardTypes);
     
     // Update detection modal with filtered results
-    updateDetectionModal(boxes.filter(box => {
-      let [x1, y1, x2, y2, score, classId] = box;
-      const classIndex = Math.floor(classId);
-      const classThreshold = DETECTION_CONFIG.classThresholds[classIndex] || DETECTION_CONFIG.minConfidence;
-      const threshold = Math.max(confidenceThreshold, classThreshold);
-      return score >= threshold;
-    }), hazardTypes);
+    updateDetectionModal(boxes, hazardTypes);
     
     // Draw "No hazard detected" message if no detections found
     if (detectionCount === 0) {

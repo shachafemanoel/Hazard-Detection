@@ -26,7 +26,7 @@ async function testIntegration() {
         
         // 3. Test model file exists
         console.log('3️⃣ Testing model file...');
-        const modelExists = await fetch('./public/object_detection_model/best0608.onnx', { method: 'HEAD' })
+        const modelExists = await fetch('/object_detection_model/best0608.onnx', { method: 'HEAD' })
             .then(r => r.ok)
             .catch(() => false);
         

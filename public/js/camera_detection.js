@@ -342,7 +342,7 @@ async function loadLocalModel() {
     updateStatus("Loading local AI model...");
     
     const modelPaths = [
-      'object_detection_model/best0608.onnx'  // Primary model (migrated from best0408)
+      '/object_detection_model/best0608.onnx'  // Primary model (migrated from best0408)
     ];
 
     let loaded = false;
@@ -626,7 +626,7 @@ function debounce(func, wait) {
   };
 }
 
-function stopCamera() {
+async function stopCamera() {
   if (!cameraState.detecting) return;
   
   cameraState.detecting = false;
@@ -946,8 +946,7 @@ async function detectionLoop() {
     }, waitTime);
 }
 
-
-function preprocessFrame() {
+async function preprocessFrame() {
   if (!video.videoWidth || !video.videoHeight) return null;
   
   const inputSize = cameraState.modelInputSize;
