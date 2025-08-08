@@ -1,6 +1,5 @@
 // camera_detection.js - Refactored for camera.html
-import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js";
-import { storage } from "./firebaseConfig.js";
+// Firebase imports removed - now using Cloudinary via API
 import { setApiUrl, checkHealth, startSession, detectHazards, detectSingleWithRetry } from './apiClient.js';
 import { resolveBaseUrl, probeHealth } from './network.js';
 import { RealtimeClient } from './realtime-client.js';
@@ -9,7 +8,10 @@ import {
   mapModelToCanvas, 
   centerToCornerBox, 
   validateMappingAccuracy,
-  debugDrawMapping 
+  debugDrawMapping,
+  computeContainMapping,
+  computeCoverMapping,
+  modelToCanvasBox
 } from './utils/coordsMap.js';
 import { uploadDetectionReport, generateSummaryModalData } from './report-upload-service.js';
 import { 
@@ -58,7 +60,7 @@ const API_CONFIG = {
 
 const DEFAULT_SIZE = 320;
 const pendingDetections = [];
-const classNames = ['crack', 'knocked', 'pothole', 'surface damage']; // Updated for best0408 model
+const classNames = ['crack', 'knocked', 'pothole', 'surface damage']; // Updated for best0608 model
 
 // Detection session tracking
 let detectionSession = {
@@ -282,11 +284,13 @@ async function initializeDetection() {
     console.log('✅ Using external API for detection');
     return true;
   } else {
-    console.log('⚠️ External API not available, falling back to local model');
+    console.log('⚠️ External API not available, will use local model (lazy loaded on camera start)');
     cameraState.detectionMode = 'local';
     cameraState.apiAvailable = false;
     updateDetectionModeInfo('local');
-    return await loadLocalModel();
+    updateStatus("Local AI model ready - Will load on camera start");
+    startButton.disabled = false;
+    return true; // Ready to start, model will load lazily
   }
 }
 
@@ -338,8 +342,7 @@ async function loadLocalModel() {
     updateStatus("Loading local AI model...");
     
     const modelPaths = [
-      'object_detection_model/best0608.onnx',  // Primary model - latest version
-      'object_detection_model/best0408.onnx'  // Fallback model
+      'object_detection_model/best0608.onnx'  // Primary model (migrated from best0408)
     ];
 
     let loaded = false;
@@ -423,13 +426,16 @@ async function loadLocalModel() {
 async function startCamera() {
   if (cameraState.detecting) return;
   
-  // Check if detection system is ready
+  // Check if detection system is ready (lazy load local model if needed)
   if (cameraState.detectionMode === 'local' && !cameraState.session) {
-    console.warn("Local model not loaded yet.");
-    if (typeof notify === "function") {
-      notify("Local model not loaded. Cannot start detection.", "warning");
+    console.log("🚀 Lazy loading local model on first camera start...");
+    const modelLoaded = await loadLocalModel();
+    if (!modelLoaded) {
+      if (typeof notify === "function") {
+        notify("Failed to load local model. Cannot start detection.", "error");
+      }
+      return;
     }
-    return;
   }
   
   // For API mode, create session if needed

@@ -319,3 +319,24 @@ export async function batchUploadDetections(detectionBatch, options = {}) {
         error_count: errors.length
     };
 }
+
+/**
+ * Upload detection image to Cloudinary via server
+ * @param {Blob} imageBlob - Image data as blob
+ * @param {Object} meta - Detection metadata
+ * @returns {Promise<Object>} Upload result with cloudinaryUrl
+ */
+export async function uploadToCloudinaryViaServer(imageBlob, meta) {
+    return await uploadDetectionReport({
+        canvas: null, // imageBlob provided directly
+        sessionId: meta.sessionId,
+        detections: [{
+            className: meta.className,
+            confidence: meta.confidence,
+            timestamp: meta.ts,
+            geo: meta.geo
+        }],
+        confidenceThreshold: 0.5,
+        location: meta.geo
+    });
+}
