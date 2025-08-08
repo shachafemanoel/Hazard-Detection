@@ -1,9 +1,17 @@
 // camera_detection.js - Refactored for camera.html
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js";
 import { storage } from "./firebaseConfig.js";
-import { setApiUrl, checkHealth, startSession, detectHazards } from './apiClient.js';
+import { setApiUrl, checkHealth, startSession, detectHazards, detectSingleWithRetry } from './apiClient.js';
 import { resolveBaseUrl, probeHealth } from './network.js';
 import { RealtimeClient } from './realtime-client.js';
+import { 
+  getVideoDisplayRect, 
+  mapModelToCanvas, 
+  centerToCornerBox, 
+  validateMappingAccuracy,
+  debugDrawMapping 
+} from './utils/coordsMap.js';
+import { uploadDetectionReport, generateSummaryModalData } from './report-upload-service.js';
 
 // Global state
 let cameraState = {
@@ -461,57 +469,56 @@ function updateCoordinateScaling() {
     return;
   }
   
-  // For both API and local modes, we use the same scaling approach:
-  // Model coordinates are relative to the processed image size (480x480 for API, modelInputSize for local)
-  // We need to scale these to the canvas display size while maintaining aspect ratio
+  // Use new coordinate mapping system for accurate video-canvas alignment
+  const videoDisplayRect = getVideoDisplayRect(video);
   
-  // Lock overlay canvas aspect ratio to match the video source
-  const videoAspectRatio = video.videoWidth / video.videoHeight;
-  const canvasAspectRatio = canvas.width / canvas.height;
+  // Store video display rectangle for use in detection rendering
+  coordinateScale.videoDisplayRect = videoDisplayRect;
+  coordinateScale.canvasSize = {
+    width: canvas.width,
+    height: canvas.height
+  };
   
-  // Calculate effective display area within canvas (letterboxing if needed)
-  let effectiveDisplayWidth = canvas.width;
-  let effectiveDisplayHeight = canvas.height;
-  let offsetX = 0;
-  let offsetY = 0;
-  
-  if (Math.abs(videoAspectRatio - canvasAspectRatio) > 0.01) {
-    if (videoAspectRatio > canvasAspectRatio) {
-      // Video is wider than canvas - letterbox top/bottom
-      effectiveDisplayHeight = canvas.width / videoAspectRatio;
-      offsetY = (canvas.height - effectiveDisplayHeight) / 2;
-    } else {
-      // Video is taller than canvas - letterbox left/right
-      effectiveDisplayWidth = canvas.height * videoAspectRatio;
-      offsetX = (canvas.width - effectiveDisplayWidth) / 2;
-    }
-  }
-  
-  // For API mode: coordinates come from a square image (480x480 typically) 
-  // For local mode: coordinates come from model input size (square)
+  // Model processing size (square input for both API and local modes)
   const processingSize = cameraState.detectionMode === 'api' ? 480 : cameraState.modelInputSize;
+  coordinateScale.modelInputSize = processingSize;
   
-  // Single coordinate scaling that works for both modes
-  coordinateScale.modelToDisplayX = effectiveDisplayWidth / processingSize;
-  coordinateScale.modelToDisplayY = effectiveDisplayHeight / processingSize;
-  
-  // Store offset for centering
-  coordinateScale.offsetX = offsetX;
-  coordinateScale.offsetY = offsetY;
-  
-  // Legacy scaling (keeping for compatibility)
+  // Legacy scaling (keeping for compatibility with existing code)
+  coordinateScale.modelToDisplayX = videoDisplayRect.width / processingSize;
+  coordinateScale.modelToDisplayY = videoDisplayRect.height / processingSize;
+  coordinateScale.offsetX = videoDisplayRect.x;
+  coordinateScale.offsetY = videoDisplayRect.y;
   coordinateScale.videoToDisplayX = canvas.width / video.videoWidth;
   coordinateScale.videoToDisplayY = canvas.height / video.videoHeight;
   
-  console.log(`📏 Unified coordinate scaling:`, {
+  console.log(`📏 Enhanced coordinate mapping:`, {
     mode: cameraState.detectionMode,
     processingSize: `${processingSize}x${processingSize}`,
-    effectiveDisplay: `${effectiveDisplayWidth.toFixed(1)}x${effectiveDisplayHeight.toFixed(1)}`,
-    offset: `${offsetX.toFixed(1)}, ${offsetY.toFixed(1)}`,
-    scale: `${coordinateScale.modelToDisplayX.toFixed(3)}, ${coordinateScale.modelToDisplayY.toFixed(3)}`,
-    videoSize: `${video.videoWidth}x${video.videoHeight}`,
-    canvasSize: `${canvas.width}x${canvas.height}`
+    videoDisplay: `${videoDisplayRect.width.toFixed(1)}x${videoDisplayRect.height.toFixed(1)} at (${videoDisplayRect.x.toFixed(1)}, ${videoDisplayRect.y.toFixed(1)})`,
+    videoSource: `${video.videoWidth}x${video.videoHeight}`,
+    canvasSize: `${canvas.width}x${canvas.height}`,
+    objectFit: window.getComputedStyle(video).objectFit
   });
+  
+  // Validate mapping accuracy for quality assurance
+  const testDetection = {
+    x: 0.5, // Center of image
+    y: 0.5,
+    width: 0.2,
+    height: 0.3
+  };
+  
+  const mappedCoords = mapModelToCanvas(
+    testDetection,
+    processingSize,
+    coordinateScale.canvasSize,
+    videoDisplayRect
+  );
+  
+  const isAccurate = validateMappingAccuracy(testDetection, mappedCoords);
+  if (!isAccurate) {
+    console.warn('⚠️ Coordinate mapping validation failed for test detection');
+  }
 }
 
 function updateCanvasSize() {
@@ -889,11 +896,35 @@ function drawPersistentDetections() {
         const { x1, y1, x2, y2, score, classId } = detection;
         let canvasX1, canvasY1, canvasX2, canvasY2;
 
-        // Use unified coordinate scaling for both API and local modes
-        canvasX1 = x1 * coordinateScale.modelToDisplayX + (coordinateScale.offsetX || 0);
-        canvasY1 = y1 * coordinateScale.modelToDisplayY + (coordinateScale.offsetY || 0);
-        canvasX2 = x2 * coordinateScale.modelToDisplayX + (coordinateScale.offsetX || 0);
-        canvasY2 = y2 * coordinateScale.modelToDisplayY + (coordinateScale.offsetY || 0);
+        // Use enhanced coordinate mapping for ±2px accuracy
+        if (coordinateScale.videoDisplayRect && coordinateScale.canvasSize) {
+            // Convert corner coordinates to center+size format for mapping
+            const centerDetection = {
+                x: (x1 + x2) / 2 / coordinateScale.modelInputSize,
+                y: (y1 + y2) / 2 / coordinateScale.modelInputSize,
+                width: (x2 - x1) / coordinateScale.modelInputSize,
+                height: (y2 - y1) / coordinateScale.modelInputSize
+            };
+            
+            const mappedCoords = mapModelToCanvas(
+                centerDetection,
+                coordinateScale.modelInputSize,
+                coordinateScale.canvasSize,
+                coordinateScale.videoDisplayRect
+            );
+            
+            const cornerBox = centerToCornerBox(mappedCoords);
+            canvasX1 = cornerBox.x;
+            canvasY1 = cornerBox.y;
+            canvasX2 = cornerBox.x + cornerBox.width;
+            canvasY2 = cornerBox.y + cornerBox.height;
+        } else {
+            // Fallback to legacy coordinate scaling
+            canvasX1 = x1 * coordinateScale.modelToDisplayX + (coordinateScale.offsetX || 0);
+            canvasY1 = y1 * coordinateScale.modelToDisplayY + (coordinateScale.offsetY || 0);
+            canvasX2 = x2 * coordinateScale.modelToDisplayX + (coordinateScale.offsetX || 0);
+            canvasY2 = y2 * coordinateScale.modelToDisplayY + (coordinateScale.offsetY || 0);
+        }
 
         const label = classNames[classId] || `Class ${classId}`;
         const color = hazardColors[label] || '#00FF00';
