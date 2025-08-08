@@ -15,8 +15,8 @@ describe('Post-Refactor Integration Tests', () => {
   });
 
   test('object detection model exists', () => {
-    const modelPath = path.join(projectRoot, 'public', 'object_detection_model', 'best0408.onnx');
-    assert.ok(fs.existsSync(modelPath), 'best0408.onnx model missing');
+    const modelPath = path.join(projectRoot, 'public', 'object_detection_model', 'best0608.onnx');
+    assert.ok(fs.existsSync(modelPath), 'best0608.onnx model missing');
   });
 
   test('ONNX runtime assets present', () => {
