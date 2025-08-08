@@ -224,7 +224,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       console.error('ONNX Runtime not loaded. Please ensure ort.wasm.min.js is included in the HTML.');
       // Create a script element to load ONNX Runtime dynamically
       const script = document.createElement('script');
-      script.src = './ort/ort.wasm.min.js';
+      script.src = 'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.wasm.min.js';
       script.onload = () => {
         console.log('ONNX Runtime loaded dynamically');
         // Retry model loading after ONNX Runtime is loaded

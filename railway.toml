@@ -8,8 +8,7 @@ buildCommand = "npm install"
 
 [deploy]
 # This command starts your Node.js server after the build is complete.
-# IMPORTANT: If your main server file is not 'server.js', change it here (e.g., 'index.js').
-# Alternatively, if you have a "start" script in your package.json, you can use "npm start".
-startCommand = "node server.js"
+# Use the start script from package.json which runs server/routes/server.js
+startCommand = "npm start"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10
