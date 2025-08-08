@@ -12,6 +12,15 @@ import {
   debugDrawMapping 
 } from './utils/coordsMap.js';
 import { uploadDetectionReport, generateSummaryModalData } from './report-upload-service.js';
+import { 
+  loadONNXRuntime, 
+  createInferenceSession, 
+  getInferenceSession, 
+  createTensor, 
+  disposeInferenceSession,
+  monitorMemoryUsage,
+  performanceMonitor 
+} from './onnx-runtime-loader.js';
 
 // Global state
 let cameraState = {
@@ -302,14 +311,12 @@ async function loadLocalModel() {
         const contentLength = headResp.headers.get('Content-Length');
         console.log(`📦 Model found (size: ${contentLength || 'unknown'} bytes)`);
 
-        console.log('🔄 Creating ONNX inference session...');
+        console.log('🔄 Creating optimized ONNX inference session...');
         
-        // Create session with only WASM provider to avoid WebGL issues
-        cameraState.session = await ort.InferenceSession.create(path, { 
-          executionProviders: ['wasm'] 
-        });
+        // Use optimized ONNX Runtime loader with automatic device detection
+        cameraState.session = await createInferenceSession(path);
         
-        console.log('✅ ONNX session created successfully');
+        console.log('✅ Optimized ONNX session created successfully');
 
         // Determine model input size from session metadata (falls back to 480)
         const inputName = cameraState.session.inputNames[0];
@@ -585,6 +592,22 @@ function stopCamera() {
   stopButton.hidden = true;
   captureButton.hidden = true;
   
+  // Clean up ONNX Runtime resources
+  if (cameraState.session) {
+    try {
+      disposeInferenceSession();
+      console.log('🗑️ ONNX Runtime session disposed');
+    } catch (error) {
+      console.warn('⚠️ Error disposing ONNX session:', error);
+    }
+  }
+  
+  // Monitor memory usage after cleanup
+  monitorMemoryUsage();
+  
+  // Reset performance metrics
+  performanceMonitor.reset();
+  
   // Reset status
   updateStatus("Camera stopped");
   updateDetectionCount(0);
@@ -822,6 +845,11 @@ async function detectionLoop() {
         isUploading = false; // Reset on error
     }
 
+    // Periodic memory monitoring (every 100 frames)
+    if (cameraState.frameCount % 100 === 0) {
+        monitorMemoryUsage();
+    }
+    
     setTimeout(() => {
         if (cameraState.detecting) {
             cameraState.animationFrameId = requestAnimationFrame(detectionLoop);
@@ -866,7 +894,7 @@ function preprocessFrame() {
     console.log(`🎯 Preprocessed frame: ${inputSize}x${inputSize}`);
   }
 
-  return new ort.Tensor('float32', data, [1, 3, inputSize, inputSize]);
+  return await createTensor(data, [1, 3, inputSize, inputSize]);
 }
 
 function drawPersistentDetections() {
@@ -1569,7 +1597,18 @@ async function runLocalDetection(inputTensor) {
     const feeds = {};
     feeds[inputName] = inputTensor;
     console.log(`🔄 Running local inference with input: ${inputName}`);
+    
+    // Monitor inference performance
+    const inferenceStart = performance.now();
     const results = await cameraState.session.run(feeds);
+    const inferenceDuration = performance.now() - inferenceStart;
+    
+    performanceMonitor.recordInference(inferenceDuration);
+    
+    if (cameraState.frameCount % 30 === 0) {
+        const metrics = performanceMonitor.getMetrics();
+        console.log(`📊 Inference metrics: avg=${metrics.avgInferenceTime.toFixed(1)}ms, max=${metrics.maxInferenceTime.toFixed(1)}ms, count=${metrics.inferenceCount}`);
+    }
     
     // Get output tensor
     const outputKey = Object.keys(results)[0];

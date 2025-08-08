@@ -159,17 +159,8 @@
     <!-- Core Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/layout.js" defer></script>
-    <!-- ONNX Runtime for Web -->
-    <script src="ort/ort.min.js"></script>
-    <script>
-        // Configure ONNX Runtime for optimal web performance
-        if (typeof ort !== 'undefined') {
-            ort.env.wasm.wasmPaths = '/ort/';
-            // Disable multi-threading to avoid crossOriginIsolated requirements
-            ort.env.wasm.numThreads = 1;
-            ort.env.logLevel = 'error'; // Reduce logging
-        }
-    </script>
+    <!-- Optimized ONNX Runtime Loader (lazy loading) -->
+    <!-- ONNX Runtime will be loaded dynamically by onnx-runtime-loader.js -->
     <script src="js/notifications.js"></script>
     <!-- Camera hotfix for Railway deployment -->
     <script src="js/camera-hotfix.js"></script>
