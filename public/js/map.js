@@ -393,6 +393,21 @@ export async function plotReports(reports) {
     window.markerClustererInstance.clearMarkers();
   }
 
+  // Fully reset clusterer instance to avoid any stale internal state
+  try {
+    if (
+      window.markerClustererInstance &&
+      typeof window.markerClustererInstance.setMap === 'function'
+    ) {
+      window.markerClustererInstance.setMap(null);
+    }
+  } catch (e) {
+    console.warn('Warning while detaching clusterer from map:', e);
+  }
+
+  // Recreate a fresh clusterer bound to current map
+  await initMarkerClusterer();
+
   // Reset local collections
   markers = [];
   const heatmapData = [];
