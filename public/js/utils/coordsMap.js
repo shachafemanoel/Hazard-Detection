@@ -239,3 +239,85 @@ export function debugDrawMapping(debugCanvas, detection, mappedCoords, color = '
     
     ctx.setLineDash([]);
 }
+
+// Contract-required exports (aliases for compatibility)
+export function computeContainMapping({ videoW, videoH, viewportW, viewportH, dpr = window.devicePixelRatio || 1 }) {
+    // Compute contain mapping (video fits inside viewport, maintains aspect ratio)
+    const videoAspectRatio = videoW / videoH;
+    const viewportAspectRatio = viewportW / viewportH;
+    
+    let displayWidth, displayHeight, offsetX, offsetY;
+    
+    if (videoAspectRatio > viewportAspectRatio) {
+        // Video is wider - fit to width
+        displayWidth = viewportW;
+        displayHeight = viewportW / videoAspectRatio;
+        offsetX = 0;
+        offsetY = (viewportH - displayHeight) / 2;
+    } else {
+        // Video is taller - fit to height
+        displayWidth = viewportH * videoAspectRatio;
+        displayHeight = viewportH;
+        offsetX = (viewportW - displayWidth) / 2;
+        offsetY = 0;
+    }
+    
+    return {
+        displayWidth,
+        displayHeight,
+        offsetX,
+        offsetY,
+        scale: displayWidth / videoW,
+        dpr
+    };
+}
+
+export function computeCoverMapping({ videoW, videoH, viewportW, viewportH, dpr = window.devicePixelRatio || 1 }) {
+    // Compute cover mapping (video fills entire viewport, may crop)
+    const videoAspectRatio = videoW / videoH;
+    const viewportAspectRatio = viewportW / viewportH;
+    
+    let displayWidth, displayHeight, offsetX, offsetY;
+    
+    if (videoAspectRatio > viewportAspectRatio) {
+        // Video is wider - fit to height, crop sides
+        displayWidth = viewportH * videoAspectRatio;
+        displayHeight = viewportH;
+        offsetX = (viewportW - displayWidth) / 2;
+        offsetY = 0;
+    } else {
+        // Video is taller - fit to width, crop top/bottom
+        displayWidth = viewportW;
+        displayHeight = viewportW / videoAspectRatio;
+        offsetX = 0;
+        offsetY = (viewportH - displayHeight) / 2;
+    }
+    
+    return {
+        displayWidth,
+        displayHeight,
+        offsetX,
+        offsetY,
+        scale: displayWidth / videoW,
+        dpr
+    };
+}
+
+export function modelToCanvasBox(modelBox, mapping, inputSize = 480) {
+    // Convert model-space box (x1,y1,x2,y2 in inputSize x inputSize) to canvas-space box
+    const [x1, y1, x2, y2] = modelBox;
+    
+    // Normalize from model input size to [0,1]
+    const normalizedX1 = x1 / inputSize;
+    const normalizedY1 = y1 / inputSize;
+    const normalizedX2 = x2 / inputSize;
+    const normalizedY2 = y2 / inputSize;
+    
+    // Apply mapping to canvas space
+    const canvasX1 = mapping.offsetX + (normalizedX1 * mapping.displayWidth);
+    const canvasY1 = mapping.offsetY + (normalizedY1 * mapping.displayHeight);
+    const canvasX2 = mapping.offsetX + (normalizedX2 * mapping.displayWidth);
+    const canvasY2 = mapping.offsetY + (normalizedY2 * mapping.displayHeight);
+    
+    return [canvasX1, canvasY1, canvasX2, canvasY2];
+}
