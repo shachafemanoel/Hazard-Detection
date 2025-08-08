@@ -349,13 +349,11 @@ async function loadLocalModel() {
     for (const path of modelPaths) {
       console.log(`🔍 Attempting to load model from: ${path}`);
       try {
-        // Check if ONNX Runtime is available
-        if (typeof ort === 'undefined') {
-          console.error('❌ ONNX Runtime (ort) is not available');
-          throw new Error('ONNX Runtime not loaded');
-        }
+        // Load ONNX Runtime using the loader module
+        console.log('🔄 Loading ONNX Runtime...');
+        await loadONNXRuntime();
         
-        console.log('✅ ONNX Runtime available, checking model file...');
+        console.log('✅ ONNX Runtime loaded, checking model file...');
         
         // Check if model exists
         const headResp = await fetch(path, { method: 'HEAD' });
@@ -1593,17 +1591,7 @@ function drawRoundedRect(ctx, x, y, width, height, radius) {
   ctx.fill();
 }
 
-// Function to add detection to session
-function addDetectionToSession(detection) {
-  detectionSession.detections.push({
-    ...detection,
-    timestamp: Date.now(),
-    id: Date.now() + Math.random()
-  });
-  detectionSession.detectionCount++;
-  detectionSession.uniqueHazards.add(detection.type);
-  detectionSession.confidenceSum += detection.confidence;
-}
+// addDetectionToSession is imported from session-manager.js
 
 // Function to update session summary display
 function updateDetectionSessionSummary() {
