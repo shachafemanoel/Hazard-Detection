@@ -88,6 +88,50 @@ const port = process.env.PORT || process.env.WEB_PORT || 3000;
 
 // Simple mode detection (for testing without Redis/complex features)
 const isSimpleMode = process.env.SIMPLE_MODE === 'true' || !process.env.REDIS_HOST;
+// In-memory store for password reset tokens in simple mode or when Redis/SENDGRID are unavailable
+const simpleResetTokens = new Map();
+
+// --- Simple user store (file-based) for environments without Redis ---
+const userStorePath = path.resolve(process.cwd(), 'server', 'data', 'users.json');
+async function ensureUserStoreDir() {
+    const dir = path.dirname(userStorePath);
+    try { await fs.promises.mkdir(dir, { recursive: true }); } catch (_) {}
+}
+async function loadUsers() {
+    try {
+        const data = await fs.promises.readFile(userStorePath, 'utf8');
+        return JSON.parse(data);
+    } catch (err) {
+        if (err.code === 'ENOENT') return [];
+        throw err;
+    }
+}
+async function saveUsers(users) {
+    await ensureUserStoreDir();
+    await fs.promises.writeFile(userStorePath, JSON.stringify(users, null, 2), 'utf8');
+}
+async function findUserByEmailSimple(email) {
+    const users = await loadUsers();
+    return users.find(u => u.email === email) || null;
+}
+async function createUserSimple({ email, username, password }) {
+    const users = await loadUsers();
+    if (users.some(u => u.email === email)) {
+        return { error: 'User already registered with this email.' };
+    }
+    const newUser = { id: `user:${Date.now()}`, email, username, password, type: 'user' };
+    users.push(newUser);
+    await saveUsers(users);
+    return { user: newUser };
+}
+async function updateUserPasswordSimple(email, newPassword) {
+    const users = await loadUsers();
+    const idx = users.findIndex(u => u.email === email);
+    if (idx === -1) return false;
+    users[idx].password = newPassword;
+    await saveUsers(users);
+    return true;
+}
 
 // Serving static files from the "public" directory
 // Make sure to set index: false to prevent serving index.html by default
@@ -1307,25 +1351,31 @@ app.post('/register', async (req, res) => {
     }  
 
     // בדוק אם המייל קיים בעזרת פונקציה שנבנתה קודם
-    const existingUser = await emailExists(email);  
-    if (existingUser) {  
-        return res.status(400).json({ error: 'User already registered with this email.' }); // הודעת שגיאה  
-    }  
+    if (client && redisConnected) {
+        const existingUser = await emailExists(email);  
+        if (existingUser) {  
+            return res.status(400).json({ error: 'User already registered with this email.' });
+        }  
 
-    const userId = `user:${Date.now()}`;  // יצירת מזהה ייחודי למשתמש
-    const newUser = {  
-        email,  
-        username,  
-        password,  
-        type: 'user'  
-    };  
-
-    // שמירה ב-Redis כ-string
-    try {
-        await client.set(userId, JSON.stringify(newUser));  // שמירה כ-string
-    } catch (err) {
-        console.error('Error saving user to Redis:', err);
-        return res.status(500).json({ error: 'Internal server error' });
+        const userId = `user:${Date.now()}`;  
+        const newUser = {  
+            email,  
+            username,  
+            password,  
+            type: 'user'  
+        };  
+        try {
+            await client.set(userId, JSON.stringify(newUser));
+        } catch (err) {
+            console.error('Error saving user to Redis:', err);
+            return res.status(500).json({ error: 'Internal server error' });
+        }
+    } else {
+        // Simple mode: save to file store
+        const result = await createUserSimple({ email, username, password });
+        if (result.error) {
+            return res.status(400).json({ error: result.error });
+        }
     }
 
     // Use Passport login to properly authenticate the new user
@@ -1435,105 +1485,164 @@ app.post('/login', async (req, res) => {
 
 // שליחה למייל של קישור לאיפוס סיסמה
 app.post('/forgot-password', async (req, res) => {
-    const { email } = req.body;
-    if (!email) {
-        return res.status(400).json({ error: 'Email is required' });
-    }
-
-    const userKeys = await client.keys('user:*');
-    let userId = null;
-    let userData = null;
-    for (const key of userKeys) {
-        const data = JSON.parse(await client.get(key));
-        if (data.email === email) {
-            userId = key;
-            userData = data;
-            break;
-        }
-    }
-
-    if (!userId || !userData) {
-        return res.status(404).json({ error: 'Email not found' });
-    }
-
-    if (!userData.password) {
-        return res.status(400).json({ error: 'This account uses Google login and cannot reset password.' });
-    }
-
-
-    // ✅ מחיקת טוקנים קודמים של אותו משתמש אם קיימים
-    const existingTokens = await client.keys('reset:*');
-    for (const key of existingTokens) {
-        const value = await client.get(key);
-        if (value === userId) {
-            await client.del(key);
-        }
-    }
-
-    // יצירת טוקן ייחודי
-    const token = crypto.randomBytes(20).toString('hex');
-    const tokenKey = `reset:${token}`;
-
-    // שמירת הטוקן עם תוקף של 10 דקות
-    await client.setEx(tokenKey, 600, userId); // 600 שניות = 10 דקות
-
-    const externalBase = process.env.RENDER_EXTERNAL_URL || process.env.RAILWAY_STATIC_URL || process.env.RAILWAY_PUBLIC_DOMAIN || 'http://localhost:3000';
-    const resetUrl = `${externalBase}/reset-password.html?token=${token}`;
-
-    const message = {
-        to: email,
-        from: 'hazard.reporter@outlook.com', // כתובת שנרשמה ואושרה ב-SendGrid
-        subject: 'Password Reset Request',
-        html: `
-            <h3>Hello,</h3>
-            <p>You requested to reset your password. Click the link below to reset it:</p>
-            <a href="${resetUrl}">${resetUrl}</a>
-            <p>This link will expire in 10 minutes.</p>
-        `
-    };
-
     try {
-        await sgMail.send(message); 
-        console.log("Reset email sent successfully to", email);
-        res.status(200).json({ message: 'Reset link sent to your email' });
-    } catch (error) {
-        console.error("Error sending email: ", error);
-        res.status(500).json({ error: 'Failed to send email' });
-    } 
+        const { email } = req.body;
+        if (!email) {
+            return res.status(400).json({ error: 'Email is required' });
+        }
+
+        // Try to find the user when Redis is available; otherwise allow silent success
+        let userId = null;
+        let userData = null;
+        const canUseRedis = client && redisConnected;
+    if (canUseRedis) {
+            const userKeys = await client.keys('user:*');
+            for (const key of userKeys) {
+                const dataStr = await client.get(key);
+                if (!dataStr) continue;
+                const data = JSON.parse(dataStr);
+                if (data.email === email) {
+                    userId = key;
+                    userData = data;
+                    break;
+                }
+            }
+
+            // If user not found or Google-only account, return generic success to avoid email enumeration
+            if (!userId || !userData || !userData.password) {
+                return res.status(200).json({ message: 'If the email is registered, you will receive a password reset link shortly.' });
+            }
+
+            // Remove previous tokens for this user
+            const existingTokens = await client.keys('reset:*');
+            for (const key of existingTokens) {
+                const value = await client.get(key);
+                if (value === userId) {
+                    await client.del(key);
+                }
+            }
+        } else {
+            // Simple mode: find user by email in file store
+            const simpleUser = await findUserByEmailSimple(email);
+            if (!simpleUser || !simpleUser.password) {
+                return res.status(200).json({ message: 'If the email is registered, you will receive a password reset link shortly.' });
+            }
+        }
+
+        // Create token
+        const token = crypto.randomBytes(20).toString('hex');
+        const tokenKey = `reset:${token}`;
+
+        // Save token for 10 minutes
+        if (canUseRedis) {
+            await client.setEx(tokenKey, 600, userId);
+        } else {
+            // Simple mode: store mapping to email in-memory
+            simpleResetTokens.set(token, { email, createdAt: Date.now(), ttlMs: 10 * 60 * 1000 });
+        }
+
+        const externalBase =
+            process.env.RENDER_EXTERNAL_URL ||
+            process.env.RAILWAY_STATIC_URL ||
+            process.env.RAILWAY_PUBLIC_DOMAIN ||
+            `${req.protocol}://${req.get('host')}` ||
+            'http://localhost:3000';
+        const resetUrl = `${externalBase}/reset-password.html?token=${token}`;
+
+        const sendgridConfigured = !!process.env.SENDGRID_API_KEY;
+        if (sendgridConfigured) {
+            const message = {
+                to: email,
+                from: 'hazard.reporter@outlook.com',
+                subject: 'Password Reset Request',
+                html: `
+                    <h3>Hello,</h3>
+                    <p>You requested to reset your password. Click the link below to reset it:</p>
+                    <a href="${resetUrl}">${resetUrl}</a>
+                    <p>This link will expire in 10 minutes.</p>
+                `
+            };
+            try {
+                await sgMail.send(message);
+                console.log('Reset email sent successfully to', email);
+                return res.status(200).json({ message: 'Reset link sent to your email' });
+            } catch (error) {
+                console.error('Error sending email via SendGrid:', error.message || error);
+                // Fall through to dev-friendly response including resetUrl
+            }
+        }
+
+        // Dev/simple-mode fallback: respond with reset URL so the client can display it
+        console.warn('Email not sent (SendGrid not configured or Redis unavailable). Returning reset URL in response for dev.');
+        return res.status(200).json({ message: 'Reset link generated', resetUrl });
+    } catch (err) {
+        console.error('Forgot password error:', err);
+        return res.status(500).json({ error: 'Server error' });
+    }
 });
 
 
 // איפוס סיסמה לפי טוקן
 app.post('/reset-password', async (req, res) => {
-    const { token, password } = req.body;
-    if (!token || !password) {
-        return res.status(400).json({ error: 'Missing token or password' });
+    try {
+        const { token, password } = req.body;
+        if (!token || !password) {
+            return res.status(400).json({ error: 'Missing token or password' });
+        }
+
+        const valid = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/.test(password);
+        if (!valid) {
+            return res.status(400).json({ error: 'Invalid password format' });
+        }
+
+        const canUseRedis = client && redisConnected;
+        if (canUseRedis) {
+            const tokenKey = `reset:${token}`;
+            const userKey = await client.get(tokenKey);
+            if (!userKey) {
+                return res.status(400).json({ error: 'Token expired or invalid' });
+            }
+
+            const userDataStr = await client.get(userKey);
+            if (!userDataStr) {
+                return res.status(404).json({ error: 'User not found' });
+            }
+            const userData = JSON.parse(userDataStr);
+            userData.password = password;
+
+            await client.set(userKey, JSON.stringify(userData));
+            await client.del(tokenKey);
+
+            req.session.user = {
+                email: userData.email,
+                username: userData.username
+            };
+            return res.status(200).json({ message: 'Password reset successfully' });
+        }
+
+        // Simple mode: validate token from memory, cannot persist password across restarts
+        const tokenEntry = simpleResetTokens.get(token);
+        if (!tokenEntry) {
+            return res.status(400).json({ error: 'Token expired or invalid' });
+        }
+        // TTL check (10 minutes)
+        const expired = Date.now() - tokenEntry.createdAt > (tokenEntry.ttlMs || 600000);
+        if (expired) {
+            simpleResetTokens.delete(token);
+            return res.status(400).json({ error: 'Token expired or invalid' });
+        }
+        // Update password in simple file store
+        const updated = await updateUserPasswordSimple(tokenEntry.email, password);
+        simpleResetTokens.delete(token);
+        if (!updated) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        req.session.user = { email: tokenEntry.email, username: tokenEntry.email.split('@')[0] };
+        return res.status(200).json({ message: 'Password reset successfully' });
+    } catch (err) {
+        console.error('Reset password error:', err);
+        return res.status(500).json({ error: 'Server error' });
     }
-
-    const valid = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/.test(password);
-    if (!valid) {
-        return res.status(400).json({ error: 'Invalid password format' });
-    }
-
-    const tokenKey = `reset:${token}`;
-    const userKey = await client.get(tokenKey);
-
-    if (!userKey) {
-        return res.status(400).json({ error: 'Token expired or invalid' });
-    }
-
-    const userData = JSON.parse(await client.get(userKey));
-    userData.password = password;
-
-    await client.set(userKey, JSON.stringify(userData));
-    await client.del(tokenKey);
-
-    req.session.user = {
-        email: userData.email,
-        username: userData.username
-    };
-
-    res.status(200).json({ message: 'Password reset successfully' });
 });
 
 
