@@ -371,12 +371,44 @@ export async function plotReports(reports) {
   console.log(`🗺️ Starting to plot ${reports.length} reports on map...`);
 
   // Clear existing markers and data
+  // Always remove existing markers from the map to avoid leftovers
+  if (Array.isArray(markers) && markers.length > 0) {
+    markers.forEach((marker) => {
+      try {
+        if (marker.infoWindow) {
+          marker.infoWindow.close();
+        }
+        marker.setMap(null);
+      } catch (e) {
+        console.warn('Error clearing marker:', e);
+      }
+    });
+  }
+
+  // Also clear the clusterer if present
   if (
     window.markerClustererInstance &&
-    window.markerClustererInstance.clearMarkers
+    typeof window.markerClustererInstance.clearMarkers === 'function'
   ) {
     window.markerClustererInstance.clearMarkers();
   }
+
+  // Fully reset clusterer instance to avoid any stale internal state
+  try {
+    if (
+      window.markerClustererInstance &&
+      typeof window.markerClustererInstance.setMap === 'function'
+    ) {
+      window.markerClustererInstance.setMap(null);
+    }
+  } catch (e) {
+    console.warn('Warning while detaching clusterer from map:', e);
+  }
+
+  // Recreate a fresh clusterer bound to current map
+  await initMarkerClusterer();
+
+  // Reset local collections
   markers = [];
   const heatmapData = [];
 
@@ -429,10 +461,9 @@ export async function plotReports(reports) {
     }
 
     if (coords) {
-      // Create marker using simple Marker
+      // Create marker (do not attach to map directly; let clusterer manage it)
       const marker = new google.maps.Marker({
         position: coords,
-        map,
         title: `${report.type} - ${report.status}`,
         icon: getMarkerIcon(report.type, report.status),
       });
