@@ -10,6 +10,28 @@ const metaApiBase = document.querySelector('meta[name="api-base"]')?.content;
 let API_URL = '';
 const FALLBACK_BASES = [window.__API_BASE__, metaApiBase, BASE_API_URL].filter(Boolean);
 
+// Standardised error types for consumers
+export class TransportError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = 'TransportError';
+    }
+}
+
+export class ModelError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = 'ModelError';
+    }
+}
+
+export class ParseError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = 'ParseError';
+    }
+}
+
 async function apiFetch(path, options = {}) {
     const bases = [API_URL || '', ...FALLBACK_BASES].filter(Boolean);
     let lastError;
@@ -131,20 +153,19 @@ export async function detectHazards(sessionId, payload) {
  * @returns {Promise<Object>} Detection results
  */
 export async function detectSingleWithRetry(sessionId, payload, retryAttempts = 3) {
+    let lastError;
     for (let attempt = 1; attempt <= retryAttempts; attempt++) {
         try {
             return await detectFrame(sessionId, payload);
         } catch (error) {
+            lastError = error;
             if (attempt < retryAttempts) {
                 console.warn(`[api] Detection attempt ${attempt} failed: ${error.message}, retrying...`);
-                // Wait before retry with exponential backoff
                 await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 500));
             }
         }
     }
-    
-    throw new Error(`Detection failed after ${retryAttempts} attempts: ${error.message}`);
-    }
+    throw new ModelError(`Detection failed after ${retryAttempts} attempts: ${lastError?.message || 'unknown'}`);
 }
 
 /**
@@ -259,10 +280,15 @@ export async function detectFrame(sessionId, payload) {
     let attemptDelay = 300;
     // Exponential backoff for rate limiting
     while (true) {
-        const response = await apiFetch(path, {
-            method: 'POST',
-            body: formData
-        });
+        let response;
+        try {
+            response = await apiFetch(path, {
+                method: 'POST',
+                body: formData
+            });
+        } catch (err) {
+            throw new TransportError(err.message);
+        }
 
         if (response.status === 429 || response.status === 503) {
             console.log(`[api] Rate limited (${response.status}), backing off for ${attemptDelay}ms`);
@@ -273,8 +299,19 @@ export async function detectFrame(sessionId, payload) {
         }
 
         ensureOk(response);
-        const json = await getJsonOrThrow(response);
+        let json;
+        try {
+            json = await getJsonOrThrow(response);
+        } catch (err) {
+            throw new ParseError(err.message);
+        }
         const norm = normalizeApiResult(json);
+        if (norm.error) {
+            throw new ModelError(norm.error.message || 'Model returned error');
+        }
+        if (!Array.isArray(norm.detections)) {
+            throw new ParseError('Invalid detections format');
+        }
         if (norm.session_id) {
             currentSessionId = norm.session_id;
             sessionStorage.setItem('hazard_session_id', currentSessionId);
