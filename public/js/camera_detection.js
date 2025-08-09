@@ -653,18 +653,6 @@ async function checkAPIAvailability() {
   try {
     const baseUrl = await resolveBaseUrl();
     setApiUrl(baseUrl);
-<<<<<<< HEAD
-    useExternalApi = true;
-    console.log('✅ Using external API:', baseUrl);
-    return true;
-  } catch (e) {
-    console.warn('⚠️ API health check failed:', e?.message || e);
-    useExternalApi = false;
-    await loadLocalModel().catch(err => {
-      console.error('❌ Failed to load local ONNX model:', err);
-      updateStatus('Local model load failed');
-    });
-=======
     const health = await checkHealth(API_CONFIG.healthTimeout); // aligned with spec: GET /health
     
     if (health.status === 'healthy') {
@@ -680,7 +668,6 @@ async function checkAPIAvailability() {
   } catch (error) {
     console.warn('❌ API health check failed:', error.message);
     switchToFallback('health check error');
->>>>>>> 739ab0d3cbed4c4b28b4b65823b1557b816f2aca
     return false;
   }
 }
@@ -747,14 +734,9 @@ async function loadLocalModel() {
           ort.env.wasm.wasmPaths = './ort/';
         }
         
-        // Create ONNX session with provider fallbacks
-        const providers = [];
-        if ('gpu' in navigator) providers.push('webgpu');
-        providers.push('webgl', 'wasm');
-        cameraState.session = await ort.InferenceSession.create(path, {
-          executionProviders: providers,
-          graphOptimizationLevel: 'all'
-        });
+        // Use the centralized createInferenceSession from the loader
+        // It automatically handles providers and optimization levels
+        cameraState.session = await createInferenceSession(path);
         localModelLoaded = true;
         onnxSession = cameraState.session;
         

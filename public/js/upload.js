@@ -1,4 +1,4 @@
-import { loadONNXRuntime, createInferenceSession } from './onnx-runtime-loader.js';
+import { loadONNXRuntime, createInferenceSession, createTensor } from './onnx-runtime-loader.js';
 import { BASE_API_URL } from './config.js';
 import { fetchWithTimeout } from './utils/fetchWithTimeout.js';
 import { ensureOk, getJsonOrThrow } from './utils/http.js';
@@ -542,7 +542,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       }
 
       const dims = [1, 3, height, width];
-      const tensor = new ort.Tensor("float32", chwData, dims);
+      const tensor = await createTensor(chwData, dims);
 
       // Dynamically get the input nam from the model for robustness
       const inputName = session.inputNames[0];
