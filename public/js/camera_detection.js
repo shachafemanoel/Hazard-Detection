@@ -46,7 +46,7 @@ let cameraState = {
   frameCount: 0,
   lastFrameTime: 0,
   animationFrameId: null,
-  confidenceThreshold: 0.5,
+  confidenceThreshold: window.CONFIDENCE_THRESHOLD || 0.5,
   modelInputSize: 320, // Will be detected from model
   detectionMode: 'api', // 'api' or 'local'
   apiSessionId: null,
@@ -72,6 +72,9 @@ const CLASS_NAMES = [
   'pothole',
   'surface damage'
 ];
+
+const GLOBAL_CONFIDENCE_THRESHOLD = window.CONFIDENCE_THRESHOLD || 0.5;
+const CLASS_THRESHOLDS = window.CLASS_THRESHOLDS || {};
 
 // Class-specific confidence thresholds and geometric filters
 // Reducing false positives (faces detected as crack) with higher thresholds
@@ -1863,9 +1866,15 @@ async function saveSessionReport() {
 // Professional bounding box drawing function
 function drawProfessionalBoundingBox(ctx, options) {
   const { x1, y1, x2, y2, label, confidence, detectionIndex, color } = options;
-  
-  const boxW = x2 - x1;
-  const boxH = y2 - y1;
+
+  const canvasW = ctx.canvas.width;
+  const canvasH = ctx.canvas.height;
+  const cx1 = Math.max(0, Math.min(canvasW, x1));
+  const cy1 = Math.max(0, Math.min(canvasH, y1));
+  const cx2 = Math.max(0, Math.min(canvasW, x2));
+  const cy2 = Math.max(0, Math.min(canvasH, y2));
+  const boxW = Math.max(0, cx2 - cx1);
+  const boxH = Math.max(0, cy2 - cy1);
   const scorePerc = (Math.min(1, Math.max(0, confidence)) * 100).toFixed(1);
   
   // Save current context state
@@ -1886,7 +1895,7 @@ function drawProfessionalBoundingBox(ctx, options) {
   ctx.globalAlpha = alpha;
   ctx.strokeStyle = color;
   ctx.lineWidth = lineWidth;
-  ctx.strokeRect(x1, y1, boxW, boxH);
+  ctx.strokeRect(cx1, cy1, boxW, boxH);
   
   // Reset shadow for corner markers
   ctx.shadowColor = 'transparent';
@@ -1902,20 +1911,20 @@ function drawProfessionalBoundingBox(ctx, options) {
   const cornerLength = cornerSize;
   
   // Top-left corner
-  ctx.fillRect(x1 - cornerThickness, y1 - cornerThickness, cornerLength, cornerThickness);
-  ctx.fillRect(x1 - cornerThickness, y1 - cornerThickness, cornerThickness, cornerLength);
+  ctx.fillRect(cx1 - cornerThickness, cy1 - cornerThickness, cornerLength, cornerThickness);
+  ctx.fillRect(cx1 - cornerThickness, cy1 - cornerThickness, cornerThickness, cornerLength);
   
   // Top-right corner
-  ctx.fillRect(x2 - cornerLength + cornerThickness, y1 - cornerThickness, cornerLength, cornerThickness);
-  ctx.fillRect(x2, y1 - cornerThickness, cornerThickness, cornerLength);
+  ctx.fillRect(cx2 - cornerLength + cornerThickness, cy1 - cornerThickness, cornerLength, cornerThickness);
+  ctx.fillRect(cx2, cy1 - cornerThickness, cornerThickness, cornerLength);
   
   // Bottom-left corner
-  ctx.fillRect(x1 - cornerThickness, y2, cornerLength, cornerThickness);
-  ctx.fillRect(x1 - cornerThickness, y2 - cornerLength + cornerThickness, cornerThickness, cornerLength);
+  ctx.fillRect(cx1 - cornerThickness, cy2, cornerLength, cornerThickness);
+  ctx.fillRect(cx1 - cornerThickness, cy2 - cornerLength + cornerThickness, cornerThickness, cornerLength);
   
   // Bottom-right corner
-  ctx.fillRect(x2 - cornerLength + cornerThickness, y2, cornerLength, cornerThickness);
-  ctx.fillRect(x2, y2 - cornerLength + cornerThickness, cornerThickness, cornerLength);
+  ctx.fillRect(cx2 - cornerLength + cornerThickness, cy2, cornerLength, cornerThickness);
+  ctx.fillRect(cx2, cy2 - cornerLength + cornerThickness, cornerThickness, cornerLength);
   
   // Professional label design
   ctx.font = 'bold 12px "Inter", "Segoe UI", Arial, sans-serif';
@@ -1933,15 +1942,15 @@ function drawProfessionalBoundingBox(ctx, options) {
   const labelHeight = 22;
   
   // Smart label positioning
-  let labelX = x1;
-  let labelY = y1 - labelHeight - 4;
+  let labelX = cx1;
+  let labelY = cy1 - labelHeight - 4;
   
   // Adjust if label goes outside canvas bounds
   if (labelX + totalLabelWidth > canvas.width) {
     labelX = canvas.width - totalLabelWidth - 4;
   }
   if (labelY < 0) {
-    labelY = y2 + 4;
+    labelY = cy2 + 4;
   }
   
   // Draw label background
@@ -2040,21 +2049,19 @@ async function runAPIDetection() {
     const result = await detectHazards(
       cameraState.apiSessionId,
       blob
-    ); // aligned with spec: POST /detect/{session_id}, multipart/form-data, field name "file"
-    
-    cameraState.apiAvailable = true;
-    
-    // Validate API response
-    if (!result || typeof result !== 'object') {
-      console.warn('⚠️ Invalid API response format:', result);
+    );
+
+    cameraState.apiAvailable = result.ok;
+
+    if (!result.ok) {
+      console.warn('⚠️ Invalid API response format:', result.error);
       return [];
     }
-    
-    // Check for detections array
-    const detections = result.detections || [];
+
+    const detections = parseAPIDetections(result.detections);
     console.log(`🔍 API returned ${detections.length} detections`);
-    
-    return parseAPIDetections(detections);
+
+    return detections;
   } catch (error) {
     console.error('❌ API detection attempt failed:', error.message);
     cameraState.apiAvailable = false;
@@ -2207,126 +2214,38 @@ async function runLocalDetection(inputTensor) {
 }
 
 /**
- * Parse and normalize API detections with comprehensive validation
- * @param {Array<Object>} apiDetections - Raw API detection responses
- * @returns {Array<DetectionResult>} Normalized and filtered detections
- * 
- * @typedef {Object} DetectionResult
- * @property {number} x1 - Top-left X coordinate (model space)
- * @property {number} y1 - Top-left Y coordinate (model space)
- * @property {number} x2 - Bottom-right X coordinate (model space)
- * @property {number} y2 - Bottom-right Y coordinate (model space)
- * @property {number} score - Confidence score [0-1], clamped and normalized
- * @property {number} classId - Class index [0-3]
- * @property {string} className - Human-readable class name
- * @property {boolean} isNew - Whether this is a newly detected object
- * @property {string|null} reportId - Server-assigned report ID if saved
- * @property {number} area - Bounding box area (width * height)
- * @property {number} aspectRatio - Width/height ratio for geometry validation
- * @property {boolean} passedGeometryCheck - Whether detection passed class-specific geometry filters
+ * Parse and normalize API detections
+ * @param {Array<import('./result_normalizer.js').NormalizedDetection>} apiDetections
+ * @returns {Array<DetectionResult>} Normalized detections in model space
  */
 function parseAPIDetections(apiDetections) {
+  if (!Array.isArray(apiDetections)) return [];
   const detections = [];
-  
-  if (!Array.isArray(apiDetections)) {
-    console.warn('⚠️ API detections is not an array:', apiDetections);
-    return [];
-  }
-  
-  console.log(`📝 Parsing ${apiDetections.length} API detections`);
-  if (apiDetections.length > 0 && apiDetections.length <= 3) {
-    console.log('📦 Sample detection format:', JSON.stringify(apiDetections[0], null, 2));
-  }
-  
-  for (const detection of apiDetections) {
-    if (!detection) {
-      console.warn('⚠️ Empty detection object, skipping');
-      continue;
-    }
-    
-    // Handle the API response format: bbox array [x1, y1, x2, y2]
-    let x1, y1, x2, y2, score, classId;
-    
-    if (detection.bbox && Array.isArray(detection.bbox) && detection.bbox.length >= 4) {
-      // API Detection model format: {bbox: [x1, y1, x2, y2], confidence: float, class_id: int}
-      [x1, y1, x2, y2] = detection.bbox;
-      score = detection.confidence;
-      classId = detection.class_id;
-    } else if (detection.x1 !== undefined && detection.y1 !== undefined) {
-      // Alternative format: {x1, y1, x2, y2, score, classId}
-      x1 = detection.x1;
-      y1 = detection.y1;
-      x2 = detection.x2;
-      y2 = detection.y2;
-      score = detection.score || detection.confidence;
-      classId = detection.classId || detection.class_id;
-    } else {
-      console.warn('⚠️ Unrecognized detection format:', detection);
-      continue;
-    }
-    
-    // Normalize coordinates and confidence
-    const normalizedScore = Math.min(1.0, Math.max(0.0, parseFloat(score) || 0));
-    const clampedClassId = Math.max(0, Math.min(parseInt(classId || 0), CLASS_NAMES.length - 1));
-    const detectedClassName = CLASS_NAMES[clampedClassId];
-    
-    // Calculate geometry properties
-    const width = parseFloat(x2) - parseFloat(x1);
-    const height = parseFloat(y2) - parseFloat(y1);
-    const area = width * height;
-    const aspectRatio = height > 0 ? width / height : 0;
-    
-    // Apply class-specific geometry validation
-    const classConfig = CLASS_CONFIG[detectedClassName];
-    const passedGeometryCheck = validateDetectionGeometry({
-      width, height, area, aspectRatio, className: detectedClassName
+  for (const det of apiDetections) {
+    if (!det || !det.box) continue;
+    const x1 = det.box.x;
+    const y1 = det.box.y;
+    const x2 = det.box.x + det.box.w;
+    const y2 = det.box.y + det.box.h;
+    if (x2 <= x1 || y2 <= y1) continue;
+    const className = det.class_name || 'unknown';
+    const classId = CLASS_NAMES.indexOf(className);
+    const score = det.confidence || 0;
+    const classThreshold = CLASS_THRESHOLDS[className] ?? GLOBAL_CONFIDENCE_THRESHOLD;
+    if (score < classThreshold) continue;
+    detections.push({
+      x1, y1, x2, y2,
+      score,
+      classId: classId >= 0 ? classId : 0,
+      className,
+      area: det.box.w * det.box.h,
+      aspectRatio: det.box.h > 0 ? det.box.w / det.box.h : 0,
+      passedGeometryCheck: true,
+      isNew: false,
+      reportId: null
     });
-    
-    const parsed = {
-      x1: parseFloat(x1),
-      y1: parseFloat(y1),
-      x2: parseFloat(x2),
-      y2: parseFloat(y2),
-      score: normalizedScore, // Clamped to [0-1]
-      classId: clampedClassId,
-      className: detectedClassName,
-      // Enhanced tracking fields
-      isNew: detection.is_new || false,
-      reportId: detection.report_id || null,
-      area: area,
-      aspectRatio: aspectRatio,
-      passedGeometryCheck: passedGeometryCheck
-    };
-    
-    // Enhanced validation with class-specific thresholds and geometry checks
-    const classThreshold = CLASS_CONFIG[detectedClassName]?.threshold || cameraState.confidenceThreshold;
-    
-    if (parsed.score >= classThreshold &&
-        parsed.x1 < parsed.x2 && parsed.y1 < parsed.y2 &&
-        parsed.passedGeometryCheck &&
-        !isInCooldown(detectedClassName)) {
-      detections.push(parsed);
-      
-      // Log significant detections for monitoring
-      if (parsed.score >= 0.7) {
-        console.log(`🎯 High confidence detection: ${detectedClassName} (${(parsed.score * 100).toFixed(1)}%), area: ${parsed.area.toFixed(0)}, ratio: ${parsed.aspectRatio.toFixed(2)}`);
-      }
-    } else {
-      // Log filtered detections for debugging false positives
-      const reasons = [];
-      if (parsed.score < classThreshold) reasons.push(`conf<${(classThreshold*100).toFixed(0)}%`);
-      if (!parsed.passedGeometryCheck) reasons.push('geometry');
-      if (isInCooldown(detectedClassName)) reasons.push('cooldown');
-      
-      console.log(`🚫 Filtered ${detectedClassName}: ${reasons.join(', ')} (conf: ${(parsed.score*100).toFixed(1)}%, area: ${parsed.area.toFixed(0)})`);
-    }
   }
-  
-  // Apply NMS and limit detections before returning
-  const filteredDetections = applyNMS(detections, 0.4, 8);
-  
-  console.log(`📝 Parsed ${detections.length} API detections, ${filteredDetections.length} after NMS`);
-  return filteredDetections;
+  return detections;
 }
 
 function tensorToImageData(tensor) {
