@@ -43,6 +43,23 @@ if (process.env.NODE_ENV !== 'production' && fs.existsSync(envPath)) {
   console.log('Loaded environment from process.env');
 }
 
+// Attempt to load variables from Railway's environment configuration if present
+try {
+  const railwayEnvPath = path.resolve(__dirname, '../../railway.json');
+  if (fs.existsSync(railwayEnvPath)) {
+    const railwayConfig = JSON.parse(fs.readFileSync(railwayEnvPath, 'utf8'));
+    const vars = railwayConfig?.variables || {};
+    for (const [key, value] of Object.entries(vars)) {
+      if (!process.env[key]) {
+        process.env[key] = String(value);
+      }
+    }
+    console.log('Loaded environment from', railwayEnvPath);
+  }
+} catch (err) {
+  console.warn('⚠️ Failed to load railway.json env:', err.message);
+}
+
 // הדפסה לבדיקת טעינת משתני סביבה
 console.log("Attempting to load environment variables...");
 if (process.env.DEBUG_ENV === 'true') {
