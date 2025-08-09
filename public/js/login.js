@@ -49,7 +49,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (targetElement) {
             targetElement.textContent = message;
-            targetElement.classList.remove('hidden'); // Make sure the element is visible
+            // Remove Bootstrap's d-none to reveal the element
+            targetElement.classList.remove('d-none');
             targetElement.classList.remove('alert-success'); // Ensure no conflicting classes
             targetElement.classList.add('alert-danger'); // Ensure it's styled as an error
 
@@ -80,19 +81,20 @@ document.addEventListener('DOMContentLoaded', function () {
     
         // Reset error message
         errorElement.textContent = '';
-        errorElement.classList.add('hidden');
+        // Hide element using Bootstrap's d-none utility
+        errorElement.classList.add('d-none');
         errorElement.classList.remove('alert-success', 'alert-danger');
     
         if (!validateEmail(email)) {
             errorElement.textContent = 'Invalid email address.';
             errorElement.classList.add('alert-danger');
-            errorElement.classList.remove('hidden');
+            errorElement.classList.remove('d-none');
             return;
         }
         if (!validatePassword(password)) {
             errorElement.textContent = 'Password must be at least 8 characters long and contain both letters and numbers.';
             errorElement.classList.add('alert-danger');
-            errorElement.classList.remove('hidden');
+            errorElement.classList.remove('d-none');
             return;
         }
     
@@ -110,7 +112,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 errorElement.classList.remove('alert-danger');
                 errorElement.classList.add('alert-success');
                 errorElement.textContent = 'Registration successful! Logging you in...';
-                errorElement.classList.remove('hidden');
+                errorElement.classList.remove('d-none');
     
                 // המתנה של 5 שניות ואז מעבר לדף upload
                 setTimeout(() => {
@@ -122,14 +124,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 errorElement.classList.add('alert-danger');
                 errorElement.classList.remove('alert-success');
                 errorElement.textContent = data.error || 'Registration failed.';
-                errorElement.classList.remove('hidden');
+                errorElement.classList.remove('d-none');
             }
         } catch (err) {
             console.error('Error registering user:', err);
             errorElement.classList.add('alert-danger');
             errorElement.classList.remove('alert-success');
             errorElement.textContent = 'Server error. Please try again.';
-            errorElement.classList.remove('hidden');
+            errorElement.classList.remove('d-none');
         }
     });
     
@@ -145,13 +147,13 @@ document.addEventListener('DOMContentLoaded', function () {
     
         // Reset error message
         errorElement.textContent = '';
-        errorElement.classList.add('hidden');
+        errorElement.classList.add('d-none');
         errorElement.classList.remove('alert-success', 'alert-danger');
     
         if (!validateEmail(email)) {
             errorElement.textContent = 'Invalid email format.';
             errorElement.classList.add('alert-danger');
-            errorElement.classList.remove('hidden');
+            errorElement.classList.remove('d-none');
             return;
         }
     
@@ -169,7 +171,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 errorElement.classList.remove('alert-danger');
                 errorElement.classList.add('alert-success');
                 errorElement.textContent = 'Login successful! Redirecting...';
-                errorElement.classList.remove('hidden');
+                errorElement.classList.remove('d-none');
     
                 setTimeout(() => {
                     window.location.href = '/upload.html';
@@ -178,14 +180,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 errorElement.classList.add('alert-danger');
                 errorElement.classList.remove('alert-success');
                 errorElement.textContent = data.error || 'Login failed.';
-                errorElement.classList.remove('hidden');
+                errorElement.classList.remove('d-none');
             }
         } catch (err) {
             console.error('Login error:', err);
             errorElement.classList.add('alert-danger');
             errorElement.classList.remove('alert-success');
             errorElement.textContent = 'Server error. Please try again.';
-            errorElement.classList.remove('hidden');
+            errorElement.classList.remove('d-none');
         }
     });
 
@@ -198,13 +200,13 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Reset error message
         errorElement.textContent = '';
-        errorElement.classList.add('hidden');
+        errorElement.classList.add('d-none');
         errorElement.classList.remove('alert-success', 'alert-danger');
 
         if (!validateEmail(email)) {
             errorElement.textContent = 'Invalid email address.';
             errorElement.classList.add('alert-danger');
-            errorElement.classList.remove('hidden');
+            errorElement.classList.remove('d-none');
             return;
         }
 
@@ -228,21 +230,21 @@ document.addEventListener('DOMContentLoaded', function () {
                 } else {
                     errorElement.textContent = 'If the email is registered, you will receive a password reset link shortly.';
                 }
-                errorElement.classList.remove('hidden');
+                errorElement.classList.remove('d-none');
                 document.getElementById('reset-password-form').reset();
             } else {
                 // הצגת הודעת שגיאה
                 errorElement.classList.add('alert-danger');
                 errorElement.classList.remove('alert-success');
                 errorElement.textContent = data.error || 'Something went wrong. Please try again.';
-                errorElement.classList.remove('hidden');
+                errorElement.classList.remove('d-none');
             }
         } catch (err) {
             console.error('Error during password reset request:', err);
             errorElement.classList.add('alert-danger');
             errorElement.classList.remove('alert-success');
             errorElement.textContent = 'Server error. Please try again later.';
-            errorElement.classList.remove('hidden');
+            errorElement.classList.remove('d-none');
         }
     });
 });
