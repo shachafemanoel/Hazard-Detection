@@ -8,10 +8,10 @@ import { fetchWithTimeout } from './utils/fetchWithTimeout.js';
 import { ensureOk, getJsonOrThrow } from './utils/http.js';
 import { stopStream } from './utils/cameraCleanup.js';
 import { startLoop, stopLoop } from './utils/rafLoop.js';
-import { 
-  getVideoDisplayRect, 
-  mapModelToCanvas, 
-  centerToCornerBox, 
+import {
+  getVideoDisplayRect,
+  mapModelToCanvas,
+  centerToCornerBox,
   validateMappingAccuracy,
   debugDrawMapping,
   computeContainMapping,
@@ -19,6 +19,8 @@ import {
   modelToCanvasBox
 } from './utils/coordsMap.js';
 import { uploadDetectionReport, generateSummaryModalData } from './report-upload-service.js';
+import { pendingReportsQueue } from './pendingReportsQueue.js';
+import { FallbackDetectionProvider } from './fallbackDetectionProvider.js';
 import { 
   loadONNXRuntime, 
   createInferenceSession, 
@@ -48,7 +50,7 @@ let cameraState = {
   animationFrameId: null,
   confidenceThreshold: window.CONFIDENCE_THRESHOLD || 0.5,
   modelInputSize: 320, // Will be detected from model
-  detectionMode: 'api', // 'api' or 'local'
+  detectionMode: 'api', // 'api', 'local', 'fallback'
   apiSessionId: null,
   apiAvailable: false
 };
@@ -57,6 +59,10 @@ let cameraState = {
 let useExternalApi = true;
 let localModelLoaded = false;
 let onnxSession = null;
+
+// Fallback detection provider
+window.HAZARD_FALLBACK = false;
+const fallbackProvider = new FallbackDetectionProvider();
 
 // External API configuration - Railway Production
 const API_CONFIG = {
@@ -185,6 +191,29 @@ let detectionSession = {
 
 // New state for persistent detections
 let persistentDetections = [];
+
+function switchToFallback(reason) {
+  window.HAZARD_FALLBACK = true;
+  cameraState.detectionMode = 'fallback';
+  updateDetectionModeInfo('fallback');
+  if (typeof window.showWarning === 'function') {
+    window.showWarning(`Fallback mode active: ${reason}`);
+  } else {
+    console.warn('Fallback mode active:', reason);
+  }
+  updateStatus('Fallback mode active');
+  updateDebugPanel({ error: reason });
+}
+
+const debugPanel = typeof document !== 'undefined' ? document.getElementById('debug-panel') : null;
+function updateDebugPanel(info = {}) {
+  if (!debugPanel) return;
+  const parts = [];
+  parts.push(`mode: ${cameraState.detectionMode}`);
+  parts.push(`queue: ${pendingReportsQueue.size()}`);
+  if (info.error) parts.push(`err: ${info.error}`);
+  debugPanel.textContent = parts.join(' | ');
+}
 const DETECTION_LIFETIME = 2000; // Detections stay on screen for 2 seconds
 let detectedObjectCount = 0;
 let uniqueHazardTypes = new Set();
@@ -518,8 +547,8 @@ function setupEventListeners() {
         // Create check element safely
         const checkIcon = document.createElement('i');
         checkIcon.className = 'fas fa-check';
-        const text = document.createTextNode(' Saved!');
-        saveSessionButton.replaceChildren(checkIcon, text);
+        const textSaved = document.createTextNode(' Saved!');
+        saveSessionButton.replaceChildren(checkIcon, textSaved);
         saveSessionButton.classList.remove('btn-success');
         saveSessionButton.classList.add('btn-success');
         
@@ -533,8 +562,8 @@ function setupEventListeners() {
           // Create save element safely
           const saveIcon = document.createElement('i');
           saveIcon.className = 'fas fa-save';
-          const text = document.createTextNode(' Save Session Report');
-          saveSessionButton.replaceChildren(saveIcon, text);
+          const textSave = document.createTextNode(' Save Session Report');
+          saveSessionButton.replaceChildren(saveIcon, textSave);
           saveSessionButton.classList.remove('btn-success');
           saveSessionButton.classList.add('btn-success');
         }, 2000);
@@ -545,8 +574,8 @@ function setupEventListeners() {
         // Create warning element safely
         const warningIcon = document.createElement('i');
         warningIcon.className = 'fas fa-exclamation-triangle';
-        const text = document.createTextNode(' Save Failed');
-        saveSessionButton.replaceChildren(warningIcon, text);
+        const textFail = document.createTextNode(' Save Failed');
+        saveSessionButton.replaceChildren(warningIcon, textFail);
         saveSessionButton.classList.remove('btn-success');
         saveSessionButton.classList.add('btn-danger');
         
@@ -558,8 +587,8 @@ function setupEventListeners() {
           // Create save element safely
           const saveIcon = document.createElement('i');
           saveIcon.className = 'fas fa-save';
-          const text = document.createTextNode(' Save Session Report');
-          saveSessionButton.replaceChildren(saveIcon, text);
+          const textRestore = document.createTextNode(' Save Session Report');
+          saveSessionButton.replaceChildren(saveIcon, textRestore);
           saveSessionButton.classList.remove('btn-danger');
           saveSessionButton.classList.add('btn-success');
         }, 3000);
@@ -624,6 +653,7 @@ async function checkAPIAvailability() {
   try {
     const baseUrl = await resolveBaseUrl();
     setApiUrl(baseUrl);
+<<<<<<< HEAD
     useExternalApi = true;
     console.log('✅ Using external API:', baseUrl);
     return true;
@@ -634,6 +664,23 @@ async function checkAPIAvailability() {
       console.error('❌ Failed to load local ONNX model:', err);
       updateStatus('Local model load failed');
     });
+=======
+    const health = await checkHealth(API_CONFIG.healthTimeout); // aligned with spec: GET /health
+    
+    if (health.status === 'healthy') {
+      updateDetectionModeInfo('api');
+      cameraState.detectionMode = 'api';
+      console.log('✅ API health check passed with automatic endpoint resolution');
+      window.HAZARD_FALLBACK = false;
+      return true;
+    }
+    console.warn('❌ API health check returned non-healthy status:', health.status);
+    switchToFallback('health check failed');
+    return false;
+  } catch (error) {
+    console.warn('❌ API health check failed:', error.message);
+    switchToFallback('health check error');
+>>>>>>> 739ab0d3cbed4c4b28b4b65823b1557b816f2aca
     return false;
   }
 }
@@ -1193,32 +1240,41 @@ async function detectionLoop() {
             }
             
             // Note: API detections are handled asynchronously in handleApiDetections
+        } else if (cameraState.detectionMode === 'fallback') {
+            const detections = fallbackProvider.detect(video);
+            updatePersistentDetections(detections || []);
+            detectedObjectCount = persistentDetections.length;
+            updateUniqueHazardTypesFromPersistent();
+            detectionSession.totalFrames++;
+            if (detections && detections.length > 0) {
+                detectionSession.detectionFrames++;
+            }
         } else {
             // Optimized local detection mode
             const inputTensor = await preprocessFrame();
             if (inputTensor) {
                 const detections = await runLocalDetection(inputTensor);
-                
+
                 if (!cameraState.detecting) {
                     return;
                 }
-                
+
                 updatePersistentDetections(detections || []);
                 detectedObjectCount = persistentDetections.length;
                 updateUniqueHazardTypesFromPersistent();
-                
+
                 // Reduced logging frequency for better performance
                 if (cameraState.frameCount % 60 === 0 && detections && detections.length > 0) {
                     const avgConf = detections.reduce((sum, d) => sum + d.score, 0) / detections.length;
                     console.log(`🎯 Frame ${cameraState.frameCount}: ${detections.length} new, ${persistentDetections.length} persistent. Avg conf: ${(avgConf * 100).toFixed(1)}%`);
                 }
-                
+
                 detectionSession.totalFrames++;
                 if (detections && detections.length > 0) {
                     detectionSession.detectionFrames++;
                     detections.forEach(detection => {
                         const label = CLASS_NAMES[detection.classId] || `Class ${detection.classId}`;
-                        
+
                         // Update per-class cooldown to prevent spam
                         updateCooldown(label);
                         // Use new session manager for detection tracking
@@ -1240,9 +1296,14 @@ async function detectionLoop() {
         drawPersistentDetections();
         updateDetectionCount(detectedObjectCount);
         updateFPS();
+        updateDebugPanel();
         
         cameraState.frameCount++;
-        
+
+        if (cameraState.detectionMode === 'fallback' && cameraState.frameCount % 60 === 0) {
+            checkAPIAvailability();
+        }
+
         // Optimized adaptive throttle based on performance
         const processingTime = performance.now() - startTime;
         if (cameraState.detectionMode === 'api') {
@@ -1251,7 +1312,7 @@ async function detectionLoop() {
             const latencyFactor = Math.min(2.0, lastNetworkLatencyMs / 500); // Scale with latency
             const targetFrameMs = Math.min(200, Math.max(33, baseFrameMs * latencyFactor));
             waitTime = Math.max(0, targetFrameMs - processingTime);
-            
+
             // Performance logging every 2 seconds
             if (cameraState.frameCount % 120 === 0) {
                 const actualFps = (1000 / (targetFrameMs + processingTime)).toFixed(1);
@@ -1261,11 +1322,11 @@ async function detectionLoop() {
             // Local mode: maintain 15-30 FPS depending on device performance
             const targetFrameMs = processingTime > 50 ? 66 : 33; // Adaptive based on processing speed
             waitTime = Math.max(0, targetFrameMs - processingTime);
-            
+
             // Performance logging for local mode
             if (cameraState.frameCount % 120 === 0) {
                 const actualFps = (1000 / (targetFrameMs + processingTime)).toFixed(1);
-                console.log(`⏱️ Local Mode - FPS: ${actualFps}, Processing: ${processingTime.toFixed(1)}ms`);
+                console.log(`⏱️ ${cameraState.detectionMode === 'fallback' ? 'Fallback' : 'Local'} Mode - FPS: ${actualFps}, Processing: ${processingTime.toFixed(1)}ms`);
             }
         }
 
@@ -1481,8 +1542,13 @@ async function ensureRtConnected() {
 function handleApiDetections(detections, processingTime, sessionStats = null, response = null) {
   // Update timing for adaptive scheduler
   updateTiming(processingTime);
-  
+
   console.log(`⚡ Processing ${detections.length} API detections, inference: ${processingTime}ms`);
+
+  if (!Array.isArray(detections) || detections.length === 0) {
+    switchToFallback('empty detections');
+    return;
+  }
   
   // Parse server response fields if available
   if (response) {
@@ -1529,10 +1595,14 @@ function handleApiDetections(detections, processingTime, sessionStats = null, re
     });
     updateDetectionSessionSummary();
   }
-  
+
+  updateDebugPanel();
+
   // Reset inFlight flag (replaces isUploading)
   inFlight = false;
 }
+
+export { handleApiDetections, switchToFallback };
 
 function initializeWorker() {
   if (!preprocessWorker && typeof Worker !== 'undefined') {
@@ -1661,6 +1731,9 @@ function updateDetectionModeInfo(mode) {
   } else if (mode === 'local') {
     detectionModeInfo.textContent = '💻 Local Model';
     detectionModeInfo.style.color = '#ffa500';
+  } else if (mode === 'fallback') {
+    detectionModeInfo.textContent = '🛟 Fallback';
+    detectionModeInfo.style.color = '#ff4d4d';
   } else {
     detectionModeInfo.textContent = 'Initializing...';
     detectionModeInfo.style.color = '#ffffff';
@@ -2093,15 +2166,9 @@ async function runAPIDetection() {
   } catch (error) {
     console.error('❌ API detection attempt failed:', error.message);
     cameraState.apiAvailable = false;
-    cameraState.detectionMode = 'local';
-    updateDetectionModeInfo('local');
-    updateStatus('API error - switched to local model');
-    updateCoordinateScaling(); // Update scaling for local mode
-    if (!cameraState.session) {
-      await loadLocalModel();
-    }
-    // Return empty array instead of throwing to prevent endless error loop
-    return [];
+    switchToFallback(error.message);
+    // Return fallback detections
+    return fallbackProvider.detect(captureCanvas);
   }
 }
 

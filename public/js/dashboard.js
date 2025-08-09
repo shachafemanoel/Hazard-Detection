@@ -29,7 +29,7 @@ const state = {
 };
 
 // Polling configuration for detecting new reports - Reduced frequency to minimize server load
-const REPORT_POLL_INTERVAL = 300000; // 5 minutes (reduced from 1 minute)
+const REPORT_POLL_INTERVAL = 10000; // 10 seconds for near real-time updates
 let latestReportTime = null;
 let pollTimer = null;
 let pollErrorCount = 0;
@@ -651,13 +651,17 @@ async function pollForNewReports() {
   // Reduce polling frequency and add error handling
   try {
     const params = new URLSearchParams({ limit: 1, sort: 'time', order: 'desc' });
+    const headers = {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    };
+    if (state.lastDataFetch) {
+      headers['If-Modified-Since'] = state.lastDataFetch.toUTCString();
+    }
     const response = await fetchWithTimeout(`/api/reports?${params.toString()}`, {
       mode: 'cors',
       credentials: 'include',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
+      headers,
       // Add timeout to prevent hanging requests
       signal: AbortSignal.timeout(5000)
     });
@@ -668,6 +672,9 @@ async function pollForNewReports() {
       return;
     }
     
+    if (response.status === 304) {
+      return;
+    }
     const data = await response.json();
     const latest = Array.isArray(data.reports) ? data.reports[0] : null;
     if (latest) {

@@ -352,3 +352,15 @@ if (typeof document !== 'undefined') {
 }
 
 console.log('📱 Enhanced notification system loaded');
+
+export {
+  initializeNotifications,
+  notify,
+  showSuccess,
+  showError,
+  showWarning,
+  showInfo,
+  showDetection,
+  removeNotification,
+  clearAllNotifications
+};

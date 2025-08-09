@@ -3,7 +3,7 @@ export default {
   testTimeout: 30000,
   verbose: true,
   collectCoverage: false,
-  testMatch: ['<rootDir>/public/tests/**/*.test.js'],
+  testMatch: ['<rootDir>/public/tests/**/*.test.js', '<rootDir>/__tests__/client/**/*.test.js'],
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   moduleFileExtensions: ['js', 'json'],
   preset: null,
