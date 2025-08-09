@@ -2,6 +2,7 @@
 import express from 'express';
 import session from 'express-session';
 import { createRequire } from 'module';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 
 // Some environments bundle different versions of connect-redis. Use createRequire
 // so we can support both CommonJS and ESM variants gracefully.
@@ -49,16 +50,16 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // 📁 Load environment variables
-// Ensure environment variables are loaded before any use.
-// The project's documentation expects the `.env` file to live at the repo root,
-// but this file resides under `server/routes`. Resolve the path accordingly.
-const envPath = path.resolve(__dirname, '../../.env');
+// Load .env file from project root using absolute path resolution
+const projectRoot = path.resolve(process.cwd());
+const envPath = path.join(projectRoot, '.env');
+
 if (process.env.NODE_ENV !== 'production' && fs.existsSync(envPath)) {
   dotenv.config({ path: envPath });
-  console.log('Loaded environment from', envPath);
+  console.log('✅ Loaded environment from', envPath);
 } else {
   dotenv.config();
-  console.log('Loaded environment from process.env');
+  console.log('✅ Loaded environment from process.env');
 }
 
 // הדפסה לבדיקת טעינת משתני סביבה
@@ -85,6 +86,28 @@ const upload = multer();
 // 🚀 Initialize Express app
 const app = express();
 const port = process.env.PORT || process.env.WEB_PORT || 3000;
+
+// API proxy configuration
+const API_TARGET = process.env.API_TARGET || 'http://ideal-learning.railway.internal:8080';
+
+// Safety middleware to ensure no CSP is sent
+app.use((req, res, next) => {
+  res.removeHeader('Content-Security-Policy');
+  next();
+});
+
+// Add API proxy to avoid Mixed Content issues
+app.use('/api', createProxyMiddleware({
+  target: API_TARGET,
+  changeOrigin: true,
+  secure: false,
+  ws: false,
+  xfwd: true,
+  pathRewrite: { '^/api': '' }, // so /api/health -> /health
+  onProxyReq: (proxyReq) => {
+    proxyReq.removeHeader('Origin');
+  }
+}));
 
 // Simple mode detection (for testing without Redis/complex features)
 const isSimpleMode = process.env.SIMPLE_MODE === 'true' || !process.env.REDIS_HOST;
@@ -138,6 +161,7 @@ async function updateUserPasswordSimple(email, newPassword) {
 app.use(express.static(path.join(__dirname, '../../public'), { 
     index: false,
     extensions: ['html'], // This will allow serving .html files without the extension
+    fallthrough: true, // Ensure requests continue to other middleware if file not found
     setHeaders: (res, path) => {
         // Set proper MIME types for ML models and WASM files
         if (path.endsWith('.onnx')) {
@@ -179,6 +203,35 @@ app.get('/object_detection_model/*.onnx', (req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
     
     console.log(`✅ Serving ONNX model: ${modelName}.onnx`);
+    res.sendFile(modelPath);
+});
+
+// Specific route for web ONNX model files  
+app.get('/web/*.onnx', (req, res) => {
+    const modelName = decodeURIComponent(req.params[0]);
+    const modelPath = path.resolve(
+      process.cwd(),
+      'public',
+      'web',
+      `${modelName}.onnx`
+    );
+    
+    console.log(`📂 Requesting web ONNX model: ${modelName}.onnx`);
+    console.log(`📁 Full path: ${modelPath}`);
+    
+    // Check if file exists
+    if (!require('fs').existsSync(modelPath)) {
+        console.log(`❌ Web model not found: ${modelPath}`);
+        return res.status(404).json({ error: 'Web model not found' });
+    }
+    
+    // Set proper headers for ONNX files
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+    
+    console.log(`✅ Serving web ONNX model: ${modelName}.onnx`);
     res.sendFile(modelPath);
 });
 

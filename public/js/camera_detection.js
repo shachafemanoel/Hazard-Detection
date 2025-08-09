@@ -53,6 +53,11 @@ let cameraState = {
   apiAvailable: false
 };
 
+// Module-level variables for local model state
+let useExternalApi = true;
+let localModelLoaded = false;
+let onnxSession = null;
+
 // External API configuration - Railway Production
 const API_CONFIG = {
   baseUrl: BASE_API_URL,
@@ -65,12 +70,10 @@ const API_CONFIG = {
 
 const DEFAULT_SIZE = 320;
 const pendingDetections = [];
-// Class names for hazard detection model (best0608)
+// Class names for hazard detection model (best_web)
 const CLASS_NAMES = [
   'crack',
-  'knocked',
-  'pothole',
-  'surface damage'
+  'pothole'
 ];
 
 const GLOBAL_CONFIDENCE_THRESHOLD = window.CONFIDENCE_THRESHOLD || 0.5;
@@ -87,14 +90,6 @@ const CLASS_CONFIG = {
     maxAspectRatio: 8.0,  // Maximum width/height ratio
     geometryCheck: 'elongated' // Check for elongated shapes typical of cracks
   },
-  knocked: {
-    threshold: 0.55,
-    minArea: 20,
-    maxArea: 800,
-    minAspectRatio: 0.5,
-    maxAspectRatio: 4.0,
-    geometryCheck: 'compact'
-  },
   pothole: {
     threshold: 0.50,
     minArea: 30,
@@ -102,14 +97,6 @@ const CLASS_CONFIG = {
     minAspectRatio: 0.8,  // More circular/square shape
     maxAspectRatio: 2.5,
     geometryCheck: 'circular'
-  },
-  'surface damage': {
-    threshold: 0.60,
-    minArea: 40,
-    maxArea: 2000,
-    minAspectRatio: 0.4,
-    maxAspectRatio: 6.0,
-    geometryCheck: 'irregular'
   }
 };
 
@@ -635,24 +622,18 @@ async function initializeDetection() {
 
 async function checkAPIAvailability() {
   try {
-    console.log('🔍 Resolving API endpoint automatically...');
-    
-    // Use automatic endpoint resolution instead of hardcoded baseUrl
     const baseUrl = await resolveBaseUrl();
-    console.log(`📡 Using resolved endpoint: ${baseUrl}`);
-    
     setApiUrl(baseUrl);
-    const health = await checkHealth(API_CONFIG.healthTimeout); // aligned with spec: GET /health
-    
-    if (health.status === 'healthy') {
-      updateDetectionModeInfo('api');
-      console.log('✅ API health check passed with automatic endpoint resolution');
-      return true;
-    }
-    console.warn('❌ API health check returned non-healthy status:', health.status);
-    return false;
-  } catch (error) {
-    console.warn('❌ API health check failed:', error.message);
+    useExternalApi = true;
+    console.log('✅ Using external API:', baseUrl);
+    return true;
+  } catch (e) {
+    console.warn('⚠️ API health check failed:', e?.message || e);
+    useExternalApi = false;
+    await loadLocalModel().catch(err => {
+      console.error('❌ Failed to load local ONNX model:', err);
+      updateStatus('Local model load failed');
+    });
     return false;
   }
 }
@@ -676,12 +657,18 @@ async function startAPISession() {
   }
 }
 
+async function ensureModelReady() {
+  if (useExternalApi) return true;
+  if (!localModelLoaded) await loadLocalModel();
+  return localModelLoaded;
+}
+
 async function loadLocalModel() {
   try {
     updateStatus("Loading local AI model...");
     
     const modelPaths = [
-      'object_detection_model/best0608.onnx'  // Primary model (migrated from best0408)
+      './object_detection_model/best0608.onnx'  // Available local model
     ];
 
     let loaded = false;
@@ -708,8 +695,21 @@ async function loadLocalModel() {
 
         console.log('🔄 Creating optimized ONNX inference session...');
         
-        // Use optimized ONNX Runtime loader with automatic device detection
-        cameraState.session = await createInferenceSession(path);
+        // Set WASM paths if not already set
+        if (typeof ort !== 'undefined' && ort.env && ort.env.wasm && !ort.env.wasm.wasmPaths) {
+          ort.env.wasm.wasmPaths = './ort/';
+        }
+        
+        // Create ONNX session with provider fallbacks
+        const providers = [];
+        if ('gpu' in navigator) providers.push('webgpu');
+        providers.push('webgl', 'wasm');
+        cameraState.session = await ort.InferenceSession.create(path, {
+          executionProviders: providers,
+          graphOptimizationLevel: 'all'
+        });
+        localModelLoaded = true;
+        onnxSession = cameraState.session;
         
         console.log('✅ Optimized ONNX session created successfully');
 
@@ -763,16 +763,13 @@ async function loadLocalModel() {
 async function startCamera() {
   if (cameraState.detecting) return;
   
-  // Check if detection system is ready (lazy load local model if needed)
-  if (cameraState.detectionMode === 'local' && !cameraState.session) {
-    console.log("🚀 Lazy loading local model on first camera start...");
-    const modelLoaded = await loadLocalModel();
-    if (!modelLoaded) {
-      if (typeof notify === "function") {
-        notify("Failed to load local model. Cannot start detection.", "error");
-      }
-      return;
+  // Ensure model is ready
+  const modelReady = await ensureModelReady();
+  if (!modelReady) {
+    if (typeof notify === "function") {
+      notify("Failed to load model. Cannot start detection.", "error");
     }
+    return;
   }
   
   // For API mode, create session if needed
