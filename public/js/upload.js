@@ -15,6 +15,9 @@ document.addEventListener("DOMContentLoaded", async function () {
   const uploadingModal = document.getElementById("uploading-modal");
   const uploadingModalBootstrap = new bootstrap.Modal(document.getElementById('uploading-modal'));
 
+  const GLOBAL_CONFIDENCE_THRESHOLD = window.CONFIDENCE_THRESHOLD || 0.5;
+  const CLASS_THRESHOLDS = window.CLASS_THRESHOLDS || {};
+
   function showUploadingModal() {
     uploadingModalBootstrap.show();
   }
@@ -51,6 +54,10 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     boxes.forEach((box, index) => {
       let [x1, y1, x2, y2, score, classId] = box;
+      x1 = Math.max(0, Math.min(FIXED_SIZE, x1));
+      y1 = Math.max(0, Math.min(FIXED_SIZE, y1));
+      x2 = Math.max(0, Math.min(FIXED_SIZE, x2));
+      y2 = Math.max(0, Math.min(FIXED_SIZE, y2));
       const classIndex = Math.floor(classId);
       const labelName = classNames[classIndex] || `Unknown Class ${classIndex}`;
       const scorePerc = (score * 100).toFixed(1);
@@ -629,9 +636,9 @@ document.addEventListener("DOMContentLoaded", async function () {
       let [x1, y1, x2, y2, score, classId] = box;
       
       const classIndex = Math.floor(classId);
-      
-      // Use class-specific confidence thresholds if available
-      const classMinThreshold = DETECTION_CONFIG.classThresholds[classIndex] || DETECTION_CONFIG.minConfidence;
+      const className = classNames[classIndex] || 'unknown';
+
+      const classMinThreshold = CLASS_THRESHOLDS[className] ?? GLOBAL_CONFIDENCE_THRESHOLD;
       const minThreshold = Math.max(confidenceThreshold, classMinThreshold);
       
       // Skip low confidence detections
@@ -1004,7 +1011,11 @@ document.addEventListener("DOMContentLoaded", async function () {
     
     let detectionCount = 0;
     boxes.forEach((box, index) => {
-      let [x1, y1, x2, y2, score, classId] = box;      
+      let [x1, y1, x2, y2, score, classId] = box;
+      x1 = Math.max(0, Math.min(FIXED_SIZE, x1));
+      y1 = Math.max(0, Math.min(FIXED_SIZE, y1));
+      x2 = Math.max(0, Math.min(FIXED_SIZE, x2));
+      y2 = Math.max(0, Math.min(FIXED_SIZE, y2));
       const classIndex = Math.floor(classId);
 
       const boxW = x2 - x1;

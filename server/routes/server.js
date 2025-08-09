@@ -2,24 +2,46 @@
 import express from 'express';
 import session from 'express-session';
 import { createRequire } from 'module';
+
+// Some environments bundle different versions of connect-redis. Use createRequire
+// so we can support both CommonJS and ESM variants gracefully.
+const require = createRequire(import.meta.url);
+let RedisStore;
+try {
+  const pkg = require('connect-redis');
+  // Support both CommonJS and ESM exports
+  RedisStore = pkg.RedisStore || pkg.default || pkg;
+} catch (err) {
+  console.warn('⚠️ connect-redis module not found or incompatible:', err.message);
+  RedisStore = null;
+}
+
+// 🧠 ONNX Runtime logging
+try {
+  const ort = require('onnxruntime-node');
+  console.log('ONNX Runtime:', ort.version);
+} catch (err) {
+  console.warn('⚠️ ONNX Runtime Node.js not available:', err.message);
+}
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import dotenv from 'dotenv';
 import { createClient } from 'redis';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import sgMail from '@sendgrid/mail';
+import fs from 'fs'; // 👈 הוספת ייבוא של מודול fs
 import crypto from 'crypto';
 import axios from 'axios';
 import FormData from 'form-data';
 import cors from 'cors';
-import os from 'os';
-import fs from 'fs';
-import dotenv from 'dotenv';
+import os from 'os'; // מייבאים את המודול os
+
+// 📦 Firebase & Cloudinary
 import { v2 as cloudinary } from 'cloudinary';
 import multer from 'multer';
 import streamifier from 'streamifier';
 import { uploadReport } from '../services/reportUploadService.js';
-import { redisClient, isRedisConnected } from '../redis-client.js';
 const { keys } = Object;
 
 // 🌍 ES Modules __dirname polyfill
@@ -200,7 +222,7 @@ app.use(
       const allowedOrigins = [
         'https://hazard-detection.onrender.com',
         'https://hazard-detection-production.up.railway.app',
-        process.env.CLIENT_URL || 'http://localhost:3000',
+        'http://localhost:3000',
         'http://127.0.0.1:3000'
       ];
       
@@ -367,19 +389,63 @@ app.all('/api/v1/*', async (req, res) => {
     }
 });
 
-// Configure express-session middleware before Passport
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'hazard-detection-secret-key-change-in-production',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
-  }
-}));
+let client = null;
+let redisConnected = false;
 
-app.use(passport.initialize());
-app.use(passport.session());
+if (process.env.REDIS_HOST && process.env.REDIS_PASSWORD && RedisStore) {
+    // With modern `connect-redis` (v7+), it's a class, not a factory function.
+    // The old pattern `connectRedis(session)` is deprecated.
+    client = createClient({
+        username: process.env.REDIS_USERNAME || 'default',
+        password: process.env.REDIS_PASSWORD,
+        socket: {
+            host: process.env.REDIS_HOST,
+            port: parseInt(process.env.REDIS_PORT) || 6379,
+            connectTimeout: 10000
+        }
+    });
+
+    client.connect()
+        .then(() => {
+            redisConnected = true;
+            console.log('✅ Connected to Redis');
+        })
+        .catch(err => {
+            redisConnected = false;
+            console.error('🔥 Failed to connect to Redis:', err);
+        });
+
+    app.use(session({
+        store: new RedisStore({ client }),
+        secret: process.env.SESSION_SECRET || 'your-secret-key',
+        resave: false,
+        saveUninitialized: false,
+        cookie: {
+            secure: process.env.NODE_ENV === 'production',
+            httpOnly: true,
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            maxAge: 24 * 60 * 60 * 1000 // 24 hours
+        },
+        proxy: process.env.NODE_ENV === 'production'
+    }));
+} else {
+    console.log('⚠️ Redis not configured or connect-redis unavailable - using MemoryStore for sessions');
+    app.use(session({
+        secret: process.env.SESSION_SECRET || 'your-secret-key',
+        resave: false,
+        saveUninitialized: false,
+        cookie: {
+            secure: process.env.NODE_ENV === 'production',
+            httpOnly: true,
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            maxAge: 24 * 60 * 60 * 1000 // 24 hours
+        },
+        proxy: process.env.NODE_ENV === 'production'
+    }));
+}
+
+  app.use(passport.initialize());
+  app.use(passport.session());
 
 // 📨 SendGrid API
 if (process.env.SENDGRID_API_KEY) {
@@ -463,7 +529,7 @@ if (googleAuthConfigured) {
   passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.GOOGLE_CALLBACK_URL || `${process.env.CLIENT_URL || 'http://localhost:3000'}/auth/google/callback`
+    callbackURL: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/auth/google/callback'
 
     },
     async (accessToken, refreshToken, profile, done) => {
@@ -757,7 +823,7 @@ app.post('/api/reports', async (req, res) => {
     // Geocode location to add coordinates
     if (location) {
         try {
-            const geocodeUrl = `${process.env.CLIENT_URL || `http://localhost:${port}`}/api/geocode?address=${encodeURIComponent(location)}`;
+            const geocodeUrl = `http://localhost:${port}/api/geocode?address=${encodeURIComponent(location)}`;
             const response = await axios.get(geocodeUrl);
             if (response.data && response.data.success) {
                 report.coordinates = {
@@ -1605,8 +1671,6 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
             file: req.file,
             filename,
             metadata,
-            redisClient,
-            isRedisConnected
         });
 
         res.status(201).json({

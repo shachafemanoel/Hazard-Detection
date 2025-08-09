@@ -39,6 +39,23 @@ docker run -p 3000:3000 hazard-detection-unified:latest
 docker-compose -f docker-compose.unified.yml up -d
 ```
 
+### Client API Results
+
+Client utilities now normalize all detection responses into a stable shape:
+
+```js
+{
+  ok: boolean,
+  session_id: string|null,
+  processing_time_ms: number|null,
+  detections: [
+    { id, class_id, class_name, confidence, box: { x, y, w, h } }
+  ]
+}
+```
+
+Detections are filtered using a global confidence threshold (`window.CONFIDENCE_THRESHOLD`, default `0.5`) and optional per-class overrides via `window.CLASS_THRESHOLDS`.
+
 ### 2. Access the Application
 
 - 🌐 **Web Interface**: http://localhost:3000
