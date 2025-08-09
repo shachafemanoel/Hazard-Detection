@@ -5,6 +5,8 @@
  */
 
 import { uploadDetection, createReport, getSessionSummary } from './apiClient.js';
+import { pendingReportsQueue } from './pendingReportsQueue.js';
+import { showWarning, showSuccess } from './notifications.js';
 
 /**
  * Upload a single detection with image and metadata
@@ -47,12 +49,16 @@ export async function uploadDetectionReport(options) {
         
         // Upload via API client
         const uploadResult = await uploadDetection(detectionData);
-        
+
         console.log('Detection uploaded successfully:', uploadResult);
+        showSuccess('Report sent');
         return uploadResult;
-        
+
     } catch (error) {
         console.error('Failed to upload detection report:', error);
+        // Queue for later retry
+        pendingReportsQueue.enqueue(detectionData);
+        showWarning('Report queued (offline)');
         throw error;
     }
 }
