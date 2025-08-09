@@ -4,15 +4,51 @@
 import { BASE_API_URL } from './config.js';
 import { fetchWithTimeout } from './utils/fetchWithTimeout.js';
 import { ensureOk, getJsonOrThrow } from './utils/http.js';
+import { normalizeApiResult } from './result_normalizer.js';
 
-let API_URL = window.API_URL || BASE_API_URL;
+const metaApiBase = document.querySelector('meta[name="api-base"]')?.content;
+let API_URL = '';
+const FALLBACK_BASES = [window.__API_BASE__, metaApiBase, BASE_API_URL].filter(Boolean);
+
+async function apiFetch(path, options) {
+    const bases = [API_URL || '', ...FALLBACK_BASES];
+    let lastError;
+    for (const base of bases) {
+        const url = `${base}${path}`;
+        try {
+            const res = await fetchWithTimeout(url, options);
+            API_URL = base; // cache working base
+            return res;
+        } catch (err) {
+            lastError = err;
+        }
+    }
+    throw lastError;
+}
 
 /**
  * Sets the API URL for all subsequent requests.
  * @param {string} newApiUrl The new API URL.
  */
 export function setApiUrl(newApiUrl) {
-    API_URL = newApiUrl;
+    API_URL = newApiUrl || '';
+}
+
+let currentSessionId = sessionStorage.getItem('hazard_session_id') || null;
+
+export function getStoredSessionId() {
+    return currentSessionId;
+}
+
+export async function endSession() {
+    if (!currentSessionId) return;
+    try {
+        await apiFetch(`/session/${currentSessionId}/end`, { method: 'POST' });
+    } catch (e) {
+        console.warn('Failed to end session', e);
+    }
+    sessionStorage.removeItem('hazard_session_id');
+    currentSessionId = null;
 }
 
 /**
@@ -21,7 +57,7 @@ export function setApiUrl(newApiUrl) {
  */
 export async function checkHealth() {
     try {
-        const response = await fetchWithTimeout(`${API_URL}/health`, { timeout: 5000 });
+        const response = await apiFetch(`/health`, { timeout: 5000 });
         ensureOk(response);
         return await getJsonOrThrow(response);
     } catch (error) {
@@ -31,7 +67,7 @@ export async function checkHealth() {
 
 export async function getReportImage(reportId) {
     try {
-        const response = await fetchWithTimeout(`${API_URL}/report/image/${reportId}`);
+        const response = await apiFetch(`/report/image/${reportId}`);
         ensureOk(response);
         return await response.blob();
     } catch (error) {
@@ -41,7 +77,7 @@ export async function getReportImage(reportId) {
 
 export async function getReportPlot(reportId) {
     try {
-        const response = await fetchWithTimeout(`${API_URL}/report/plot/${reportId}`);
+        const response = await apiFetch(`/report/plot/${reportId}`);
         ensureOk(response);
         return await response.blob();
     } catch (error) {
@@ -51,10 +87,12 @@ export async function getReportPlot(reportId) {
 
 export async function startSession() {
     try {
-        const response = await fetchWithTimeout(`${API_URL}/session/start`, { method: 'POST' });
+        const response = await apiFetch(`/session/start`, { method: 'POST' });
         ensureOk(response);
         const data = await getJsonOrThrow(response);
-        return data.session_id;
+        currentSessionId = data.session_id;
+        sessionStorage.setItem('hazard_session_id', currentSessionId);
+        return currentSessionId;
     } catch (error) {
         throw new Error(`Failed to start session: ${error.message}`);
     }
@@ -117,7 +155,7 @@ export async function uploadDetection(detectionData) {
             location: detectionData.location || null
         }));
 
-        const response = await fetchWithTimeout(`${API_URL}/reports/upload`, {
+        const response = await apiFetch(`/reports/upload`, {
             method: 'POST',
             body: formData
         });
@@ -136,7 +174,7 @@ export async function uploadDetection(detectionData) {
  */
 export async function getSessionSummary(sessionId) {
     try {
-        const response = await fetchWithTimeout(`${API_URL}/session/${sessionId}/summary`);
+        const response = await apiFetch(`/session/${sessionId}/summary`);
         
         if (response.status === 404) {
             throw new Error('Session not found or expired');
@@ -156,7 +194,7 @@ export async function getSessionSummary(sessionId) {
  */
 export async function createReport(reportData) {
     try {
-        const response = await fetchWithTimeout(`${API_URL}/reports/create`, {
+        const response = await apiFetch(`/reports/create`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -180,6 +218,7 @@ export async function createReport(reportData) {
 }
 
 export async function detectFrame(sessionId, payload) {
+    sessionId = sessionId || currentSessionId;
     // Normalize payload to a Blob
     const toBlob = () => new Promise((resolve, reject) => {
         try {
@@ -201,17 +240,39 @@ export async function detectFrame(sessionId, payload) {
     const formData = new FormData();
     formData.append('file', blob, 'frame.jpg');
 
-    const response = await fetchWithTimeout(`${API_URL}/detect/${sessionId}`, {
-        method: 'POST',
-        body: formData
-    });
+    const path = sessionId ? `/detect/${sessionId}` : `/detect`;
+    let attemptDelay = 300;
+    // Exponential backoff for rate limiting
+    while (true) {
+        const response = await apiFetch(path, {
+            method: 'POST',
+            body: formData
+        });
 
-    ensureOk(response);
-    const data = await getJsonOrThrow(response);
+        if (response.status === 429 || response.status === 503) {
+            window.dispatchEvent(new CustomEvent('api-status', { detail: 'Rate-limited, retrying…' }));
+            await new Promise(res => setTimeout(res, attemptDelay + Math.random() * 100));
+            attemptDelay = Math.min(attemptDelay * 2, 5000);
+            continue;
+        }
 
-    if (Array.isArray(data.detections)) {
-        return data;
-    } else {
-        return { detections: [], ...data };
+        ensureOk(response);
+        const json = await getJsonOrThrow(response);
+        const norm = normalizeApiResult(json);
+        if (norm.session_id) {
+            currentSessionId = norm.session_id;
+            sessionStorage.setItem('hazard_session_id', currentSessionId);
+        }
+
+        if (window.DEBUG_CLIENT) {
+            const counts = {};
+            norm.detections.forEach(d => {
+                counts[d.class_name] = (counts[d.class_name] || 0) + 1;
+            });
+            const classesStr = Object.entries(counts).map(([k, v]) => `${k}(${v})`).join(', ');
+            console.log(`Detections: ${norm.detections.length} | time: ${norm.processing_time_ms || 0} | classes: ${classesStr}`);
+        }
+
+        return norm;
     }
 }
