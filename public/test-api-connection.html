@@ -59,9 +59,9 @@
     <h1>🚀 Railway API Connection Test</h1>
     <p>This test verifies that the camera detection app can connect to the Railway API.</p>
     
-    <button onclick="testConnection()">🧪 Test Railway Connection</button>
-    <button onclick="testCameraIntegration()">📷 Test Camera Integration</button>
-    <button onclick="clearResults()">🧹 Clear Results</button>
+    <button id="test-connection-btn">🧪 Test Railway Connection</button>
+    <button id="test-integration-btn">📷 Test Camera Integration</button>
+    <button id="clear-results-btn">🧹 Clear Results</button>
     
     <div id="results"></div>
 
@@ -215,6 +215,11 @@ Async Inference: ${health.device_info?.async_inference || 'N/A'}</pre>`, 'succes
         // Auto-run test on page load
         window.addEventListener('load', () => {
             addResult('🌐 Page loaded - Ready to test Railway connection', 'info');
+            
+            // Add event listeners for buttons
+            document.getElementById('test-connection-btn')?.addEventListener('click', testConnection);
+            document.getElementById('test-integration-btn')?.addEventListener('click', testCameraIntegration);
+            document.getElementById('clear-results-btn')?.addEventListener('click', clearResults);
         });
     </script>
 </body>

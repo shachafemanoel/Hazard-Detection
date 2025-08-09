@@ -392,8 +392,19 @@ if (process.env.REDIS_HOST && process.env.REDIS_PASSWORD && RedisStore) {
     }));
 }
 
-  app.use(passport.initialize());
-  app.use(passport.session());
+// Configure express-session middleware before Passport
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'hazard-detection-secret-key-change-in-production',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
 
 // 📨 SendGrid API
 if (process.env.SENDGRID_API_KEY) {

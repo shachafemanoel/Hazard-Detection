@@ -1,4 +1,7 @@
 // js/login.js
+import { fetchWithTimeout } from './utils/fetchWithTimeout.js';
+import { ensureOk, getJsonOrThrow } from './utils/http.js';
+
 document.addEventListener('DOMContentLoaded', function () {
     const params = new URLSearchParams(window.location.search);
     const error = params.get('error');
@@ -97,38 +100,39 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     
         try {
-            const res = await fetch('/register', {
+            const res = await fetchWithTimeout('/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify({ email, username, password })
+                body: JSON.stringify({ email, username, password }),
+                timeout: 10000
             });
     
-            const data = await res.json();
+            ensureOk(res);
+            const data = await getJsonOrThrow(res);
     
-            if (res.ok) {
-                errorElement.classList.remove('alert-danger');
-                errorElement.classList.add('alert-success');
-                errorElement.textContent = 'Registration successful! Logging you in...';
-                errorElement.classList.remove('hidden');
+            // If we get here, res was ok
+            errorElement.classList.remove('alert-danger');
+            errorElement.classList.add('alert-success');
+            errorElement.textContent = 'Registration successful! Logging you in...';
+            errorElement.classList.remove('hidden');
     
-                // המתנה של 5 שניות ואז מעבר לדף upload
-                setTimeout(() => {
-                    window.location.href = '/upload.html';
-                }, 3000);
-    
-                return;
-            } else {
-                errorElement.classList.add('alert-danger');
-                errorElement.classList.remove('alert-success');
-                errorElement.textContent = data.error || 'Registration failed.';
-                errorElement.classList.remove('hidden');
-            }
+            // המתנה של 5 שניות ואז מעבר לדף upload
+            setTimeout(() => {
+                window.location.href = '/upload.html';
+            }, 3000);
         } catch (err) {
-            console.error('Error registering user:', err);
             errorElement.classList.add('alert-danger');
             errorElement.classList.remove('alert-success');
-            errorElement.textContent = 'Server error. Please try again.';
+            
+            // Handle HTTP errors and network timeouts
+            if (err.message?.includes('HTTP')) {
+                errorElement.textContent = 'Registration failed. Please check your information.';
+            } else if (err.message?.includes('timeout') || err.name === 'AbortError') {
+                errorElement.textContent = 'Request timed out. Please try again.';
+            } else {
+                errorElement.textContent = 'Server error. Please try again.';
+            }
             errorElement.classList.remove('hidden');
         }
     });
@@ -156,35 +160,38 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     
         try {
-            const res = await fetch('/login', {
+            const res = await fetchWithTimeout('/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify({ email, password })
+                body: JSON.stringify({ email, password }),
+                timeout: 10000
             });
     
-            const data = await res.json();
+            ensureOk(res);
+            const data = await getJsonOrThrow(res);
     
-            if (res.ok) {
-                errorElement.classList.remove('alert-danger');
-                errorElement.classList.add('alert-success');
-                errorElement.textContent = 'Login successful! Redirecting...';
-                errorElement.classList.remove('hidden');
+            // If we get here, res was ok
+            errorElement.classList.remove('alert-danger');
+            errorElement.classList.add('alert-success');
+            errorElement.textContent = 'Login successful! Redirecting...';
+            errorElement.classList.remove('hidden');
     
-                setTimeout(() => {
-                    window.location.href = '/upload.html';
-                }, 3000);
-            } else {
-                errorElement.classList.add('alert-danger');
-                errorElement.classList.remove('alert-success');
-                errorElement.textContent = data.error || 'Login failed.';
-                errorElement.classList.remove('hidden');
-            }
+            setTimeout(() => {
+                window.location.href = '/upload.html';
+            }, 3000);
         } catch (err) {
-            console.error('Login error:', err);
             errorElement.classList.add('alert-danger');
             errorElement.classList.remove('alert-success');
-            errorElement.textContent = 'Server error. Please try again.';
+            
+            // Handle HTTP errors and network timeouts
+            if (err.message?.includes('HTTP')) {
+                errorElement.textContent = 'Login failed. Please check your credentials.';
+            } else if (err.message?.includes('timeout') || err.name === 'AbortError') {
+                errorElement.textContent = 'Request timed out. Please try again.';
+            } else {
+                errorElement.textContent = 'Server error. Please try again.';
+            }
             errorElement.classList.remove('hidden');
         }
     });
@@ -209,42 +216,53 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         try {
-            const res = await fetch('/forgot-password', {
+            const res = await fetchWithTimeout('/forgot-password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: JSON.stringify({ email })
+                body: JSON.stringify({ email }),
+                timeout: 10000
             });
 
-            const data = await res.json();
+            ensureOk(res);
+            const data = await getJsonOrThrow(res);
 
-            if (res.ok) {
-                // הצגת הודעת הצלחה
-                errorElement.classList.remove('alert-danger');
-                errorElement.classList.add('alert-success');
-                // אם בשרת הוחזר resetUrl (מצב DEV), נציג קישור לחיצה
-                if (data && data.resetUrl) {
-                    errorElement.innerHTML = `Reset link (dev): <a href="${data.resetUrl}">Click here</a>`;
-                } else {
-                    errorElement.textContent = 'If the email is registered, you will receive a password reset link shortly.';
-                }
-                errorElement.classList.remove('hidden');
-                document.getElementById('reset-password-form').reset();
+            // If we get here, res was ok - הצגת הודעת הצלחה
+            errorElement.classList.remove('alert-danger');
+            errorElement.classList.add('alert-success');
+            // אם בשרת הוחזר resetUrl (מצב DEV), נציג קישור לחיצה
+            if (data && data.resetUrl) {
+                errorElement.innerHTML = `Reset link (dev): <a href="${data.resetUrl}">Click here</a>`;
             } else {
-                // הצגת הודעת שגיאה
-                errorElement.classList.add('alert-danger');
-                errorElement.classList.remove('alert-success');
-                errorElement.textContent = data.error || 'Something went wrong. Please try again.';
-                errorElement.classList.remove('hidden');
+                errorElement.textContent = 'If the email is registered, you will receive a password reset link shortly.';
             }
+            errorElement.classList.remove('hidden');
+            document.getElementById('reset-password-form').reset();
         } catch (err) {
-            console.error('Error during password reset request:', err);
             errorElement.classList.add('alert-danger');
             errorElement.classList.remove('alert-success');
-            errorElement.textContent = 'Server error. Please try again later.';
+            
+            // Handle HTTP errors and network timeouts
+            if (err.message?.includes('HTTP')) {
+                errorElement.textContent = 'Reset request failed. Please try again.';
+            } else if (err.message?.includes('timeout') || err.name === 'AbortError') {
+                errorElement.textContent = 'Request timed out. Please try again.';
+            } else {
+                errorElement.textContent = 'Server error. Please try again later.';
+            }
             errorElement.classList.remove('hidden');
         }
     });
+
+    // Add event listeners for the buttons (replacing inline onclick handlers)
+    document.getElementById('email-toggle-btn')?.addEventListener('click', toggleForm);
+    document.getElementById('google-auth-btn')?.addEventListener('click', function() {
+        window.location.href = '/auth/google';
+    });
+    document.getElementById('signup-btn')?.addEventListener('click', showSignupForm);
+    document.getElementById('login-btn')?.addEventListener('click', showLoginForm);
+    document.getElementById('forgot-password-btn')?.addEventListener('click', toggleForgotPassword);
+    document.getElementById('back-options')?.addEventListener('click', backToMainScreen);
 });
 function toggleForm() {
     document.getElementById('buttons').classList.add('d-none');
