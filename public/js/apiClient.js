@@ -1,7 +1,11 @@
 // apiClient.js
 // Handles API requests for object detection
 
-let API_URL = window.API_URL || "https://hazard-api-production-production.up.railway.app";
+import { BASE_API_URL } from './config.js';
+import { fetchWithTimeout } from './utils/fetchWithTimeout.js';
+import { ensureOk, getJsonOrThrow } from './utils/http.js';
+
+let API_URL = window.API_URL || BASE_API_URL;
 
 /**
  * Sets the API URL for all subsequent requests.
@@ -9,7 +13,6 @@ let API_URL = window.API_URL || "https://hazard-api-production-production.up.rai
  */
 export function setApiUrl(newApiUrl) {
     API_URL = newApiUrl;
-    console.log(`API URL set to: ${API_URL}`);
 }
 
 /**
@@ -18,56 +21,42 @@ export function setApiUrl(newApiUrl) {
  */
 export async function checkHealth() {
     try {
-        const response = await fetch(`${API_URL}/health`);
-        if (!response.ok) {
-            throw new Error(`API error: ${response.status}`);
-        }
-        return await response.json();
+        const response = await fetchWithTimeout(`${API_URL}/health`, { timeout: 5000 });
+        ensureOk(response);
+        return await getJsonOrThrow(response);
     } catch (error) {
-        console.error("API health check failed:", error);
         return { status: 'error', message: error.message };
     }
 }
 
 export async function getReportImage(reportId) {
     try {
-        const response = await fetch(`${API_URL}/report/image/${reportId}`);
-        if (!response.ok) {
-            throw new Error(`API error: ${response.status}`);
-        }
-        const blob = await response.blob();
-        return blob;
+        const response = await fetchWithTimeout(`${API_URL}/report/image/${reportId}`);
+        ensureOk(response);
+        return await response.blob();
     } catch (error) {
-        console.error(`Failed to get report image for ${reportId}:`, error);
-        return new Blob(); // Return an empty Blob on error
+        throw new Error(`Failed to get report image: ${error.message}`);
     }
 }
 
 export async function getReportPlot(reportId) {
     try {
-        const response = await fetch(`${API_URL}/report/plot/${reportId}`);
-        if (!response.ok) {
-            throw new Error(`API error: ${response.status}`);
-        }
-        const blob = await response.blob();
-        return blob;
+        const response = await fetchWithTimeout(`${API_URL}/report/plot/${reportId}`);
+        ensureOk(response);
+        return await response.blob();
     } catch (error) {
-        console.error(`Failed to get report plot for ${reportId}:`, error);
-        return new Blob(); // Return an empty Blob on error
+        throw new Error(`Failed to get report plot: ${error.message}`);
     }
 }
 
 export async function startSession() {
     try {
-        const response = await fetch(`${API_URL}/session/start`, { method: 'POST' });
-        if (!response.ok) {
-            throw new Error(`API error: ${response.status}`);
-        }
-        const data = await response.json();
+        const response = await fetchWithTimeout(`${API_URL}/session/start`, { method: 'POST' });
+        ensureOk(response);
+        const data = await getJsonOrThrow(response);
         return data.session_id;
     } catch (error) {
-        console.error("Failed to start session:", error);
-        return null;
+        throw new Error(`Failed to start session: ${error.message}`);
     }
 }
 
@@ -76,8 +65,9 @@ export async function startSession() {
  * @param {HTMLCanvasElement} canvas 
  * @returns {Promise<Array>} Array of detections
  */
-export async function detectHazards(sessionId, canvas) {
-    return detectFrame(sessionId, canvas);
+export async function detectHazards(sessionId, payload) {
+    // Accepts either a Blob/File or an HTMLCanvasElement
+    return detectFrame(sessionId, payload);
 }
 
 /**
@@ -87,12 +77,12 @@ export async function detectHazards(sessionId, canvas) {
  * @param {number} retryAttempts - Number of retry attempts (default: 3)
  * @returns {Promise<Object>} Detection results
  */
-export async function detectSingleWithRetry(sessionId, canvas, retryAttempts = 3) {
+export async function detectSingleWithRetry(sessionId, payload, retryAttempts = 3) {
     for (let attempt = 1; attempt <= retryAttempts; attempt++) {
         try {
-            return await detectFrame(sessionId, canvas);
+            return await detectFrame(sessionId, payload);
         } catch (error) {
-            console.warn(`Detection attempt ${attempt} failed:`, error);
+            if (attempt < retryAttempts) {
             
             if (attempt === retryAttempts) {
                 throw new Error(`Detection failed after ${retryAttempts} attempts: ${error.message}`);
@@ -127,20 +117,15 @@ export async function uploadDetection(detectionData) {
             location: detectionData.location || null
         }));
 
-        const response = await fetch(`${API_URL}/reports/upload`, {
+        const response = await fetchWithTimeout(`${API_URL}/reports/upload`, {
             method: 'POST',
             body: formData
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Upload API error: ${response.status} - ${errorText}`);
-        }
-
-        return await response.json();
+        ensureOk(response);
+        return await getJsonOrThrow(response);
     } catch (error) {
-        console.error("Error uploading detection:", error);
-        throw error;
+        throw new Error(`Error uploading detection: ${error.message}`);
     }
 }
 
@@ -151,19 +136,16 @@ export async function uploadDetection(detectionData) {
  */
 export async function getSessionSummary(sessionId) {
     try {
-        const response = await fetch(`${API_URL}/session/${sessionId}/summary`);
+        const response = await fetchWithTimeout(`${API_URL}/session/${sessionId}/summary`);
         
-        if (!response.ok) {
-            if (response.status === 404) {
-                throw new Error('Session not found or expired');
-            }
-            throw new Error(`API error: ${response.status}`);
+        if (response.status === 404) {
+            throw new Error('Session not found or expired');
         }
+        ensureOk(response);
         
-        return await response.json();
+        return await getJsonOrThrow(response);
     } catch (error) {
-        console.error("Error getting session summary:", error);
-        throw error;
+        throw new Error(`Error getting session summary: ${error.message}`);
     }
 }
 
@@ -174,7 +156,7 @@ export async function getSessionSummary(sessionId) {
  */
 export async function createReport(reportData) {
     try {
-        const response = await fetch(`${API_URL}/reports/create`, {
+        const response = await fetchWithTimeout(`${API_URL}/reports/create`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -190,45 +172,46 @@ export async function createReport(reportData) {
             })
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Report creation error: ${response.status} - ${errorText}`);
-        }
-
-        return await response.json();
+        ensureOk(response);
+        return await getJsonOrThrow(response);
     } catch (error) {
-        console.error("Error creating report:", error);
-        throw error;
+        throw new Error(`Error creating report: ${error.message}`);
     }
 }
 
-export async function detectFrame(sessionId, canvas) {
-    return new Promise((resolve, reject) => {
-        canvas.toBlob(async blob => {
-            try {
-                const formData = new FormData();
-                formData.append('file', blob, 'frame.jpg');
-
-                const response = await fetch(`${API_URL}/detect/${sessionId}`, {
-                    method: 'POST',
-                    body: formData
-                });
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Detection API error: ${response.status} - ${errorText}`);
-                }
-
-                const data = await response.json();
-                if (Array.isArray(data.detections)) {
-                    resolve(data);
-                } else {
-                    resolve({ detections: [] });
-                }
-            } catch (err) {
-                console.error("Error in detectFrame:", err);
-                reject(err);
+export async function detectFrame(sessionId, payload) {
+    // Normalize payload to a Blob
+    const toBlob = () => new Promise((resolve, reject) => {
+        try {
+            if (payload instanceof Blob || payload instanceof File) {
+                return resolve(payload);
             }
-        }, 'image/jpeg', 0.8);
+            if (payload && typeof HTMLCanvasElement !== 'undefined' && payload instanceof HTMLCanvasElement) {
+                payload.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Failed to convert canvas to blob')), 'image/jpeg', 0.85);
+                return;
+            }
+            reject(new Error('Unsupported payload type for detectFrame'));
+        } catch (e) {
+            reject(e);
+        }
     });
+
+    const blob = await toBlob();
+
+    const formData = new FormData();
+    formData.append('file', blob, 'frame.jpg');
+
+    const response = await fetchWithTimeout(`${API_URL}/detect/${sessionId}`, {
+        method: 'POST',
+        body: formData
+    });
+
+    ensureOk(response);
+    const data = await getJsonOrThrow(response);
+
+    if (Array.isArray(data.detections)) {
+        return data;
+    } else {
+        return { detections: [], ...data };
+    }
 }

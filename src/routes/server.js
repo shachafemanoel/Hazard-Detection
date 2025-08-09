@@ -172,7 +172,7 @@ app.use(
       const allowedOrigins = [
         'https://hazard-detection.onrender.com',
         'https://hazard-detection-production.up.railway.app',
-        'http://localhost:3000',
+        process.env.CLIENT_URL || 'http://localhost:3000',
         'http://127.0.0.1:3000'
       ];
       
@@ -477,7 +477,7 @@ if (googleAuthConfigured) {
   passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/auth/google/callback'
+    callbackURL: process.env.GOOGLE_CALLBACK_URL || `${process.env.CLIENT_URL || 'http://localhost:3000'}/auth/google/callback`
 
     },
     async (accessToken, refreshToken, profile, done) => {
@@ -1441,7 +1441,7 @@ app.post('/forgot-password', async (req, res) => {
     // שמירת הטוקן עם תוקף של 10 דקות
     await client.setEx(tokenKey, 600, userId); // 600 שניות = 10 דקות
 
-    const externalBase = process.env.RENDER_EXTERNAL_URL || process.env.RAILWAY_STATIC_URL || process.env.RAILWAY_PUBLIC_DOMAIN || 'http://localhost:3000';
+    const externalBase = process.env.RENDER_EXTERNAL_URL || process.env.RAILWAY_STATIC_URL || process.env.RAILWAY_PUBLIC_DOMAIN || process.env.CLIENT_URL || 'http://localhost:3000';
     const resetUrl = `${externalBase}/reset-password.html?token=${token}`;
 
     const message = {

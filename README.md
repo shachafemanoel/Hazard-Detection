@@ -69,6 +69,32 @@ cp .env.example .env
 - `MODEL_BACKEND`: `auto` (default), `openvino`, `pytorch`
 - `GOOGLE_*`: OAuth and Maps integration
 - `REDIS_*`: Cache configuration
+- `CLIENT_URL`: Base URL for client connections (defaults to localhost:3000)
+- `BASE_API_URL`: Override API endpoint (configured in config.js)
+
+## 🔒 Security Improvements
+
+This version includes significant security enhancements:
+
+### Network Security
+- **Timeout Protection**: All fetch requests now have configurable timeouts
+- **AbortController**: Requests can be cancelled to prevent resource leaks
+- **Robust Error Handling**: Structured error responses without exposing internals
+
+### Content Security Policy (CSP)
+- CSP headers added to HTML pages to prevent XSS attacks
+- Removal of unsafe inline handlers and dynamic innerHTML usage
+- Safe DOM construction using `createElement` and `textContent`
+
+### Resource Management
+- **Camera Cleanup**: Proper cleanup of media streams and tracks
+- **Animation Frames**: Guaranteed cancellation of requestAnimationFrame loops
+- **Memory Management**: Improved ONNX runtime initialization with fallbacks
+
+### Configuration
+- Centralized API configuration through `config.js`
+- Environment-driven URLs instead of hardcoded values
+- Configurable BASE_API_URL for different deployment environments
 
 ## 📖 Documentation
 

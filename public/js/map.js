@@ -109,12 +109,16 @@ function setupMobileMapToolbar() {
 
   const zoomIn = document.createElement("button");
   zoomIn.id = "mobile-zoom-in";
-  zoomIn.innerHTML = '<i class="fas fa-plus"></i>';
+  const plusIcon = document.createElement('i');
+  plusIcon.className = 'fas fa-plus';
+  zoomIn.appendChild(plusIcon);
   zoomIn.setAttribute("aria-label", "Zoom in");
 
   const zoomOut = document.createElement("button");
   zoomOut.id = "mobile-zoom-out";
-  zoomOut.innerHTML = '<i class="fas fa-minus"></i>';
+  const minusIcon = document.createElement('i');
+  minusIcon.className = 'fas fa-minus';
+  zoomOut.appendChild(minusIcon);
   zoomOut.setAttribute("aria-label", "Zoom out");
 
   if (toggleBtn) toolbar.appendChild(toggleBtn);

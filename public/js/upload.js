@@ -1,3 +1,8 @@
+import { loadONNXRuntime, createInferenceSession } from './onnx-runtime-loader.js';
+import { BASE_API_URL } from './config.js';
+import { fetchWithTimeout } from './utils/fetchWithTimeout.js';
+import { ensureOk, getJsonOrThrow } from './utils/http.js';
+
 document.addEventListener("DOMContentLoaded", async function () {
   const imageUpload = document.getElementById("image-upload");
   const confidenceSlider = document.getElementById("confidence-slider");
@@ -27,7 +32,10 @@ document.addEventListener("DOMContentLoaded", async function () {
     const detectionResults = document.getElementById('detection-results');
     
     if (boxes.length === 0) {
-      detectionResults.innerHTML = '<p class="text-muted">No detections found in this image.</p>';
+      const noDets = document.createElement('p');
+      noDets.className = 'text-muted';
+      noDets.textContent = 'No detections found in this image.';
+      detectionResults.replaceChildren(noDets);
       return;
     }
 
@@ -58,7 +66,70 @@ document.addEventListener("DOMContentLoaded", async function () {
     });
 
     html += '</div>';
-    detectionResults.innerHTML = html;
+    // Create detection results safely
+    const summaryDiv = document.createElement('div');
+    summaryDiv.className = 'detection-summary mb-3';
+    
+    const summaryTitle = document.createElement('h6');
+    summaryTitle.textContent = 'Detection Summary';
+    summaryDiv.appendChild(summaryTitle);
+    
+    const totalP = document.createElement('p');
+    const totalStrong = document.createElement('strong');
+    totalStrong.textContent = 'Total Detections: ';
+    totalP.appendChild(totalStrong);
+    totalP.appendChild(document.createTextNode(boxes.length.toString()));
+    summaryDiv.appendChild(totalP);
+    
+    const hazardP = document.createElement('p');
+    const hazardStrong = document.createElement('strong');
+    hazardStrong.textContent = 'Hazard Types: ';
+    hazardP.appendChild(hazardStrong);
+    hazardP.appendChild(document.createTextNode(hazardTypes.join(', ')));
+    summaryDiv.appendChild(hazardP);
+    
+    const listDiv = document.createElement('div');
+    listDiv.className = 'detection-list';
+    
+    const listTitle = document.createElement('h6');
+    listTitle.textContent = 'Individual Detections';
+    listDiv.appendChild(listTitle);
+    
+    boxes.forEach((box, index) => {
+      let [x1, y1, x2, y2, score, classId] = box;
+      const classIndex = Math.floor(classId);
+      const labelName = classNames[classIndex] || `Unknown Class ${classIndex}`;
+      const scorePerc = (score * 100).toFixed(1);
+      
+      const detDiv = document.createElement('div');
+      detDiv.className = 'detection-item border rounded p-2 mb-2';
+      
+      const detNumber = document.createElement('strong');
+      detNumber.textContent = `Detection #${index + 1}`;
+      detDiv.appendChild(detNumber);
+      detDiv.appendChild(document.createElement('br'));
+      
+      const className = document.createElement('span');
+      className.className = 'text-info';
+      className.textContent = labelName;
+      detDiv.appendChild(className);
+      detDiv.appendChild(document.createElement('br'));
+      
+      const confSmall = document.createElement('small');
+      confSmall.className = 'text-muted';
+      confSmall.textContent = `Confidence: ${scorePerc}%`;
+      detDiv.appendChild(confSmall);
+      detDiv.appendChild(document.createElement('br'));
+      
+      const locSmall = document.createElement('small');
+      locSmall.className = 'text-muted';
+      locSmall.textContent = `Location: (${Math.round(x1)}, ${Math.round(y1)}) to (${Math.round(x2)}, ${Math.round(y2)})`;
+      detDiv.appendChild(locSmall);
+      
+      listDiv.appendChild(detDiv);
+    });
+    
+    detectionResults.replaceChildren(summaryDiv, listDiv);
   }
 
   let geoData = null;
@@ -152,7 +223,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       formData.append('locationNote', 'GPS');
 
         try {
-            const res = await fetch("/api/upload", {
+            const res = await fetchWithTimeout("/api/upload", {
                 method: "POST",
                 body: formData,
                 credentials: "include",
@@ -212,33 +283,17 @@ document.addEventListener("DOMContentLoaded", async function () {
     classThresholds: { 0:0.25, 1:0.25, 2:0.25, 3:0.25 }
   };
   let session = null;
-  let runtime = 'onnx';
-
-  // Detect available runtime
-  if (typeof ov !== 'undefined' && ov.InferenceSession) {
-    runtime = 'openvino';
-    console.log('✅ OpenVINO runtime detected');
-  } else {
-    console.log('✅ ONNX Runtime loaded, configuring for CPU execution...');
-    if (typeof ort === 'undefined') {
-      console.error('ONNX Runtime not loaded. Please ensure ort.wasm.min.js is included in the HTML.');
-      // Create a script element to load ONNX Runtime dynamically
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.wasm.min.js';
-      script.onload = () => {
-        console.log('ONNX Runtime loaded dynamically');
-        // Retry model loading after ONNX Runtime is loaded
-        setTimeout(() => location.reload(), 1000);
-      };
-      document.head.appendChild(script);
-      return;
-    }
-  }
+  let runtime = 'wasm';
+  
+  // Load ONNX Runtime using shared loader to ensure consistent env/config
+  // Loading ONNX Runtime via loader...
+  await loadONNXRuntime();
+  // ONNX Runtime loaded (WASM)
 
   try {
     // Prioritized model paths - using available ONNX models
     const modelPaths = [
-      '/object_detection_model/best0608.onnx'           // Primary model (migrated from best0408)
+      'object_detection_model/best0608.bak-20250809-013631.onnx'           // Primary model (migrated from best0408)
     ]
     
     let modelPath = null;
@@ -246,14 +301,14 @@ document.addEventListener("DOMContentLoaded", async function () {
       try {
         // URL encode the path to handle spaces in filenames
         const encodedPath = encodeURI(path);
-        const response = await fetch(encodedPath, { method: 'HEAD' });
+        const response = await fetchWithTimeout(encodedPath, { method: 'HEAD', timeout: 5000 });
         if (response.ok) {
           modelPath = encodedPath;
-          console.log(`✅ Found ONNX model at: ${path}`);
+          // Found ONNX model at path
           break;
         }
       } catch (e) {
-        console.log(`❌ Failed to access model at ${path}:`, e.message);
+        // Failed to access model at path
         // Continue to next path
       }
     }
@@ -262,26 +317,9 @@ document.addEventListener("DOMContentLoaded", async function () {
       throw new Error('No ONNX model found in any of the expected locations');
     }
 
-    // Initialize session based on selected runtime
-    if (runtime === 'openvino') {
-      session = await ov.InferenceSession.create(modelPath);
-      console.log('✅ YOLO model loaded with OpenVINO runtime!');
-    } else {
-      const executionProviders = ['cpu'];
-      console.log('✅ Using CPU execution provider');
-
-      session = await ort.InferenceSession.create(
-        modelPath,
-        {
-          executionProviders: executionProviders,
-          graphOptimizationLevel: 'disabled', // Disable optimizations for stability
-          enableCpuMemArena: false,
-          logSeverityLevel: 2 // Reduce logging
-        }
-      );
-
-      console.log("✅ YOLO model loaded with ONNX runtime!");
-    }
+    // Initialize session using shared loader (configures env and warmup)
+    session = await createInferenceSession(modelPath);
+    // YOLO model loaded with ONNX runtime!
   } catch (err) {
     console.error("❌ Failed to load model:", err);
   }
@@ -359,13 +397,13 @@ document.addEventListener("DOMContentLoaded", async function () {
   function parseDetectionsAuto(output, imgSize, confidenceThreshold) {
     const outputData = output.data;
     const dims = output.dims;
-    console.log('🔍 Parsing detections with dims:', dims);
+    // Parsing detections
     
     const detections = [];
     
     // Check if this is NMS-ready output (like [1, 300, 6] or [N, 6])
     if (dims.length >= 2 && dims[dims.length - 1] === 6) {
-      console.log('📦 Detected NMS-ready format [N, 6] - parsing directly as [x1,y1,x2,y2,score,classId]');
+      // Detected NMS-ready format
       
       // Parse direct [x1, y1, x2, y2, score, classId] format
       for (let i = 0; i < outputData.length; i += 6) {
@@ -385,7 +423,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
     // Check if this is raw YOLO format (like [1, 25200, 9] for 4 classes + 5 coords)
     else if (dims.length >= 2 && dims[dims.length - 1] >= 9) {
-      console.log('📦 Detected raw YOLO format - converting from [cx,cy,w,h,obj,class_probs...]');
+      // Detected raw YOLO format
       
       const numClasses = dims[dims.length - 1] - 5; // 5 = cx,cy,w,h,obj
       const numAnchors = outputData.length / dims[dims.length - 1];
@@ -440,7 +478,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       return [];
     }
     
-    console.log(`✅ Parsed ${detections.length} detections from output`);
+    // Parsed detections from output
     return detections;
   }
 
@@ -507,7 +545,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       const output = results[outputKey];
       
       // Enhanced debug logging after model inference
-      console.log('🧪 ONNX output dims:', output.dims, 'len:', output.data.length);
+      // ONNX output processed
       console.log('Output dims:', output.dims, 'Output data length:', output.data.length);
       console.log("Raw outputData sample:", output.data.slice(0, 20));
 
@@ -720,7 +758,13 @@ document.addEventListener("DOMContentLoaded", async function () {
         return `${hazardType}: ${count} detected (${Math.round(minConf * 100)}-${Math.round(maxConf * 100)}% confidence)`;
       });
       
-      detectedHazardsEl.innerHTML = hazardDetails.join('<br>');
+      // Create hazard details safely
+      const fragment = document.createDocumentFragment();
+      hazardDetails.forEach((detail, index) => {
+        if (index > 0) fragment.appendChild(document.createElement('br'));
+        fragment.appendChild(document.createTextNode(detail));
+      });
+      detectedHazardsEl.replaceChildren(fragment);
     } else {
       detectionInfo.classList.add('hidden');
     }
@@ -1077,7 +1121,7 @@ if (saveBtn && tooltip) { // Ensure elements exist before adding listeners
       // If logout is needed, it should be handled by a button in the sidebar
       // or another shared component.
       try {
-        const response = await fetch("/logout", { method: "GET" });
+        const response = await fetchWithTimeout("/logout", { method: "GET" });
         if (response.redirected) {
           window.location.href = response.url;
         }
@@ -1091,7 +1135,7 @@ if (saveBtn && tooltip) { // Ensure elements exist before adding listeners
     if (sidebarLogoutBtn) {
       sidebarLogoutBtn.addEventListener("click", async () => {
         try {
-          const response = await fetch("/logout", { method: "GET" });
+          const response = await fetchWithTimeout("/logout", { method: "GET" });
           if (response.redirected) {
             window.location.href = response.url;
           }

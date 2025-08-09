@@ -79,12 +79,23 @@ async function resolveBaseUrl(options = {}) {
   const localUrl = env.HAZARD_API_URL_LOCAL || 'http://localhost:8080';
 
   // Local-Dev Override - highest priority
-  if (env.NODE_ENV === 'development') {
-    if (env.DEBUG_ENV === 'true') {
-      console.log('🔧 NODE_ENV=development → using LOCAL endpoint');
-      console.log(`🔒 Private network selected: ${localUrl}`);
+  // Check if running on localhost
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    console.log('🔧 Local development detected → skipping private network');
+    
+    // For local development, go straight to public API
+    if (await probeHealth(publicUrl, 3000)) {
+      console.log(`🌐 Local dev using public API: ${publicUrl}`);
+      return publicUrl;
     }
-    return localUrl;
+    
+    // If public API fails, try local API server
+    if (await probeHealth(localUrl, 1000)) {
+      console.log(`🔒 Local dev using local API: ${localUrl}`);
+      return localUrl;
+    }
+    
+    throw new Error('No API endpoint available for local development');
   }
 
   // Get preference from options or environment

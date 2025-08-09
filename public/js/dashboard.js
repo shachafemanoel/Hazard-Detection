@@ -1,4 +1,7 @@
 import { initializeMap, plotReports, toggleHeatmap, centerMap, clearGeocodingCache, getGeocodingCacheStats } from "./map.js";
+import { BASE_API_URL } from './config.js';
+import { fetchWithTimeout } from './utils/fetchWithTimeout.js';
+import { ensureOk, getJsonOrThrow } from './utils/http.js';
 
 // Make plotReports available globally for easier access
 window.plotReports = plotReports;
@@ -310,10 +313,10 @@ function updateFilteredMetrics() {
   
   // Update metrics display (but don't overwrite if we're showing all data)
   if (state.filters.search || state.filters.status || state.filters.type || state.filters.my_reports) {
-    elements.totalReportsCount.innerHTML = total;
-    elements.openHazardsCount.innerHTML = open;
-    elements.resolvedThisMonthCount.innerHTML = resolved;
-    elements.activeUsersCount.innerHTML = uniqueUsers.size;
+    elements.totalReportsCount.textContent = total;
+    elements.openHazardsCount.textContent = open;
+    elements.resolvedThisMonthCount.textContent = resolved;
+    elements.activeUsersCount.textContent = uniqueUsers.size;
   }
 }
 
@@ -401,10 +404,10 @@ function renderStats() {
       : v === 0
         ? "—"
         : v;
-  elements.totalReportsCount.innerHTML = display(total);
-  elements.openHazardsCount.innerHTML = display(open);
-  elements.resolvedThisMonthCount.innerHTML = display(resolved);
-  elements.activeUsersCount.innerHTML = display(users);
+  elements.totalReportsCount.textContent = display(total);
+  elements.openHazardsCount.textContent = display(open);
+  elements.resolvedThisMonthCount.textContent = display(resolved);
+  elements.activeUsersCount.textContent = display(users);
 }
 
 function renderTable() {
@@ -413,13 +416,18 @@ function renderTable() {
   console.log(`🎨 Rendering table with ${state.filteredReports.length} reports`);
   const startTime = performance.now();
 
-  elements.tableBody.innerHTML = ""; // Clear existing rows
+  elements.tableBody.replaceChildren(); // Clear existing rows
 
   const reportsToRender = state.filteredReports;
 
   if (reportsToRender.length === 0) {
-    elements.tableBody.innerHTML =
-      '<tr><td colspan="7" class="text-center">No reports found.</td></tr>';
+    const emptyRow = document.createElement('tr');
+    const emptyCell = document.createElement('td');
+    emptyCell.colSpan = 7;
+    emptyCell.className = 'text-center';
+    emptyCell.textContent = 'No reports found.';
+    emptyRow.appendChild(emptyCell);
+    elements.tableBody.appendChild(emptyRow);
     renderBulkDeleteButton();
     return;
   }
@@ -643,7 +651,7 @@ async function pollForNewReports() {
   // Reduce polling frequency and add error handling
   try {
     const params = new URLSearchParams({ limit: 1, sort: 'time', order: 'desc' });
-    const response = await fetch(`/api/reports?${params.toString()}`, {
+    const response = await fetchWithTimeout(`/api/reports?${params.toString()}`, {
       mode: 'cors',
       credentials: 'include',
       headers: {
@@ -945,11 +953,15 @@ function initializeEventListeners() {
   if (refreshBtn) {
     refreshBtn.addEventListener("click", () => {
       console.log("Manual refresh requested");
-      refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+      const spinner = document.createElement('i');
+      spinner.className = 'fas fa-spinner fa-spin';
+      refreshBtn.replaceChildren(spinner, document.createTextNode(' Refreshing...'));
       refreshBtn.disabled = true;
       
       updateDashboard({ forceRefresh: true }).finally(() => {
-        refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh';
+        const syncIcon = document.createElement('i');
+        syncIcon.className = 'fas fa-sync-alt';
+        refreshBtn.replaceChildren(syncIcon, document.createTextNode(' Refresh'));
         refreshBtn.disabled = false;
       });
     });
@@ -1039,7 +1051,7 @@ function setupMobileDrawer() {
   if (!sidebar) return;
   const toggle = document.createElement("button");
   toggle.id = "mobile-drawer-toggle";
-  toggle.innerHTML = '<i class="fas fa-bars"></i>';
+  const barsIcon = document.createElement('i');\n  barsIcon.className = 'fas fa-bars';\n  toggle.appendChild(barsIcon);
   document.body.appendChild(toggle);
   toggle.addEventListener("click", () => sidebar.classList.toggle("open"));
 }

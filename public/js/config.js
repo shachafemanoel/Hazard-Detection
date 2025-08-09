@@ -1,0 +1,1 @@
+export const BASE_API_URL = window.__CONFIG__?.BASE_API_URL || 'https://hazard-api-production-production.up.railway.app';
