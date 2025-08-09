@@ -249,8 +249,39 @@ function updateTiming(procMs) {
  */
 function logSkip(now) {
   if (now - lastSkipLogAt > 3000) { 
-    console.debug('Upload busy, skipping frames'); 
+    console.debug('[perf] Upload busy, skipping frames'); 
     lastSkipLogAt = now; 
+  }
+}
+
+/**
+ * Process API request with proper error handling and backpressure
+ * @param {Blob} blob Image blob to send
+ * @param {number} startTime Request start timestamp
+ * @returns {Promise} Request promise
+ */
+async function processApiRequest(blob, startTime) {
+  try {
+    const controller = new AbortController();
+    const adaptiveTimeout = Math.min(8000, Math.max(3000, lastNetworkLatencyMs * 2));
+    const timeoutId = setTimeout(() => controller.abort(), adaptiveTimeout);
+    
+    console.log(`[api] Processing request with ${adaptiveTimeout}ms timeout`);
+    
+    const result = await rtClient.send(blob, { signal: controller.signal });
+    
+    clearTimeout(timeoutId);
+    inFlight = false;
+    
+    const processingTime = performance.now() - startTime;
+    console.log(`[perf] API request completed in ${processingTime.toFixed(1)}ms`);
+    
+    return result;
+    
+  } catch (error) {
+    inFlight = false;
+    console.error('[api] Failed to send frame:', error);
+    throw error;
   }
 }
 

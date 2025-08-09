@@ -10,19 +10,34 @@ const metaApiBase = document.querySelector('meta[name="api-base"]')?.content;
 let API_URL = '';
 const FALLBACK_BASES = [window.__API_BASE__, metaApiBase, BASE_API_URL].filter(Boolean);
 
-async function apiFetch(path, options) {
-    const bases = [API_URL || '', ...FALLBACK_BASES];
+async function apiFetch(path, options = {}) {
+    const bases = [API_URL || '', ...FALLBACK_BASES].filter(Boolean);
     let lastError;
+    
+    console.log(`[api] Attempting API call: ${path}`);
+    
     for (const base of bases) {
         const url = `${base}${path}`;
         try {
-            const res = await fetchWithTimeout(url, options);
-            API_URL = base; // cache working base
+            console.log(`[api] Trying base: ${base}`);
+            const res = await fetchWithTimeout(url, {
+                timeout: options.timeout || 8000,
+                ...options
+            });
+            
+            if (!API_URL || API_URL !== base) {
+                API_URL = base; // cache working base
+                console.log(`[api] Cached working base: ${base}`);
+            }
+            
             return res;
         } catch (err) {
+            console.warn(`[api] Failed with base ${base}: ${err.message}`);
             lastError = err;
         }
     }
+    
+    console.error(`[api] All bases failed for ${path}`);
     throw lastError;
 }
 
@@ -121,14 +136,14 @@ export async function detectSingleWithRetry(sessionId, payload, retryAttempts = 
             return await detectFrame(sessionId, payload);
         } catch (error) {
             if (attempt < retryAttempts) {
-            
-            if (attempt === retryAttempts) {
-                throw new Error(`Detection failed after ${retryAttempts} attempts: ${error.message}`);
+                console.warn(`[api] Detection attempt ${attempt} failed: ${error.message}, retrying...`);
+                // Wait before retry with exponential backoff
+                await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 500));
             }
-            
-            // Wait before retry with exponential backoff
-            await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 500));
         }
+    }
+    
+    throw new Error(`Detection failed after ${retryAttempts} attempts: ${error.message}`);
     }
 }
 
@@ -250,6 +265,7 @@ export async function detectFrame(sessionId, payload) {
         });
 
         if (response.status === 429 || response.status === 503) {
+            console.log(`[api] Rate limited (${response.status}), backing off for ${attemptDelay}ms`);
             window.dispatchEvent(new CustomEvent('api-status', { detail: 'Rate-limited, retrying…' }));
             await new Promise(res => setTimeout(res, attemptDelay + Math.random() * 100));
             attemptDelay = Math.min(attemptDelay * 2, 5000);

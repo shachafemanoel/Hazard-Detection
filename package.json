@@ -10,7 +10,9 @@
     "dev": "nodemon server/routes/server.js",
     "build": "echo 'No build step needed'",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
-    "stream:check": "node scripts/stream-check.js"
+    "stream:check": "node scripts/stream-check.js",
+    "live:test": "node public/js/live_test_harness.js",
+    "live:report": "node -e \"const results = require('./live-metrics.json'); console.log(JSON.stringify(results, null, 2));\""
   },
   "keywords": [],
   "author": "",
