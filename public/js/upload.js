@@ -300,7 +300,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   try {
     // Prioritized model paths - using available ONNX models
     const modelPaths = [
-      'object_detection_model/best0608.bak-20250809-013631.onnx'           // Primary model (migrated from best0408)
+      'web/best_web.onnx'           // Primary web-optimized model
     ]
     
     let modelPath = null;

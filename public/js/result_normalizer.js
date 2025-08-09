@@ -1,8 +1,6 @@
 export const CLASS_ID_NAME_MAP = {
-  0: 'pothole',
-  1: 'crack',
-  2: 'surface damage',
-  3: 'knocked'
+  0: 'crack',
+  1: 'pothole'
 };
 
 /**

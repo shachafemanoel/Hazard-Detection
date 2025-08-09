@@ -4,7 +4,8 @@
 [build]
 # This command installs your Node.js dependencies from package.json.
 # Railway runs this in your project's root directory before deploying.
-buildCommand = "npm install"
+# Also runs build script to copy web models to public directory
+buildCommand = "npm install && npm run build"
 
 [deploy]
 # This command starts your Node.js server after the build is complete.
