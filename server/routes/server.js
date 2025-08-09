@@ -1,10 +1,12 @@
 // 📦 External dependencies
 import express from 'express';
 import session from 'express-session';
+import cookieParser from 'cookie-parser';
+import { RedisStore } from 'connect-redis';
+import { createClient as createRedisClient } from 'redis';
 import { createRequire } from 'module';
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
-import { createClient } from 'redis';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import sgMail from '@sendgrid/mail';
@@ -19,8 +21,10 @@ import { v2 as cloudinary } from 'cloudinary';
 import multer from 'multer';
 import streamifier from 'streamifier';
 import { uploadReport } from '../services/reportUploadService.js';
-import { redisClient, isRedisConnected } from '../redis-client.js';
+import { redisClient as client, isRedisConnected } from '../redis-client.js';
+import '../auth/passport.js';
 const { keys } = Object;
+let redisConnected = isRedisConnected();
 
 // 🌍 ES Modules __dirname polyfill
 const __filename = fileURLToPath(import.meta.url);
@@ -367,10 +371,64 @@ app.all('/api/v1/*', async (req, res) => {
     }
 });
 
+// trust proxy when behind Railway/NGINX
+app.set('trust proxy', 1);
 
+// CORS for cross-domain client (optional)
+if (process.env.CLIENT_ORIGIN) {
+  app.use(cors({
+    origin: process.env.CLIENT_ORIGIN.split(',').map(s => s.trim()),
+    credentials: true,
+  }));
+}
 
-  app.use(passport.initialize());
-  app.use(passport.session());
+// Build Redis URL from env
+const redisUrl = process.env.REDIS_URL
+  || (process.env.REDIS_HOST
+      ? `redis://:${process.env.REDIS_PASSWORD || ''}@${process.env.REDIS_HOST}:${process.env.REDIS_PORT || 6379}`
+      : null);
+
+if (!redisUrl) {
+  console.error('Missing Redis configuration. Set REDIS_URL or REDIS_HOST/REDIS_PORT/REDIS_PASSWORD');
+  process.exit(1);
+}
+
+const redisClient = createRedisClient({ url: redisUrl });
+await redisClient.connect();
+console.log('✅ Session Redis connected');
+
+const SESSION_SECRET = process.env.SESSION_SECRET;
+if (!SESSION_SECRET) {
+  console.error('Missing SESSION_SECRET');
+  process.exit(1);
+}
+
+const CROSS_SITE = String(process.env.CROSS_SITE_COOKIES || 'false').toLowerCase() === 'true';
+const cookieOptions = {
+  httpOnly: true,
+  sameSite: CROSS_SITE ? 'none' : 'lax',
+  secure: process.env.NODE_ENV === 'production',
+  maxAge: 1000 * 60 * 60 * 24 * 7,
+  // domain: CROSS_SITE ? '.your-domain.com' : undefined,
+};
+
+app.use(cookieParser(SESSION_SECRET));
+app.use(session({
+  store: new RedisStore({ client: redisClient, prefix: 'sess:' }),
+  secret: SESSION_SECRET,
+  name: 'sid',
+  resave: false,
+  saveUninitialized: false,
+  cookie: cookieOptions,
+}));
+
+// Passport must come AFTER session
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Graceful shutdown
+process.on('SIGTERM', async () => { try { await redisClient.quit(); } catch {} process.exit(0); });
+process.on('SIGINT',  async () => { try { await redisClient.quit(); } catch {} process.exit(0); });
 
 // 📨 SendGrid API
 if (process.env.SENDGRID_API_KEY) {
@@ -1596,7 +1654,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
             file: req.file,
             filename,
             metadata,
-            redisClient,
+            redisClient: client,
             isRedisConnected
         });
 
