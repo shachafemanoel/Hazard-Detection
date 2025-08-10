@@ -36,6 +36,7 @@ import axios from 'axios';
 import FormData from 'form-data';
 import cors from 'cors';
 import os from 'os'; // מייבאים את המודול os
+import authRoutes from './auth.js';
 
 // 📦 Firebase & Cloudinary
 import { v2 as cloudinary } from 'cloudinary';
@@ -222,8 +223,11 @@ app.use(
       const allowedOrigins = [
         'https://hazard-detection.onrender.com',
         'https://hazard-detection-production.up.railway.app',
+        'https://hazard-detection-production-8735.up.railway.app',
         'http://localhost:3000',
-        'http://127.0.0.1:3000'
+        'http://localhost:5173',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:5173'
       ];
       
       // Check if the origin is in the allowed list or is Railway/Render URL
@@ -235,11 +239,15 @@ app.use(
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with']
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with', 'Cookie', 'Set-Cookie']
 }));
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// Set app-level variables for auth routes
+app.set('redisClient', client);
+app.set('isSimpleMode', isSimpleMode);
 
 // 🔗 API URL using private-first networking (Railway internal network)
 import { resolveBaseUrl } from '../utils/network.js';
@@ -418,6 +426,7 @@ if (process.env.REDIS_HOST && process.env.REDIS_PASSWORD && RedisStore) {
     app.use(session({
         store: new RedisStore({ client }),
         secret: process.env.SESSION_SECRET || 'your-secret-key',
+        name: 'hazard_session', // Set the cookie name as expected by frontend
         resave: false,
         saveUninitialized: false,
         cookie: {
@@ -432,6 +441,7 @@ if (process.env.REDIS_HOST && process.env.REDIS_PASSWORD && RedisStore) {
     console.log('⚠️ Redis not configured or connect-redis unavailable - using MemoryStore for sessions');
     app.use(session({
         secret: process.env.SESSION_SECRET || 'your-secret-key',
+        name: 'hazard_session', // Set the cookie name as expected by frontend
         resave: false,
         saveUninitialized: false,
         cookie: {
@@ -446,6 +456,9 @@ if (process.env.REDIS_HOST && process.env.REDIS_PASSWORD && RedisStore) {
 
   app.use(passport.initialize());
   app.use(passport.session());
+
+// Mount authentication routes
+app.use('/auth', authRoutes);
 
 // 📨 SendGrid API
 if (process.env.SENDGRID_API_KEY) {
