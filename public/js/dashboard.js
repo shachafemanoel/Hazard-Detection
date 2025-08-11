@@ -76,11 +76,12 @@ function applyFiltersAndSort() {
     
     filtered = filtered.filter(report => {
       // Search in multiple fields - all converted to lowercase for case-insensitive search
+      const locationString = (report.latitude && report.longitude) ? `${report.latitude.toFixed(4)}, ${report.longitude.toFixed(4)}` : "";
       const searchFields = [
         (report.id?.toString() || "").toLowerCase(),
-        (report.location || "").toLowerCase(),
+        locationString.toLowerCase(),
         (report.reportedBy || "").toLowerCase(),
-        (report.type || "").toLowerCase(),
+        (report.class_name || "").toLowerCase(),
         (report.status || "").toLowerCase(),
         (report.address || "").toLowerCase(),
         (report.user || "").toLowerCase(),
@@ -106,7 +107,7 @@ function applyFiltersAndSort() {
   // Apply type filter - Case insensitive
   if (state.filters.type && state.filters.type !== "") {
     filtered = filtered.filter(report => 
-      (report.type || "").toLowerCase() === state.filters.type.toLowerCase()
+      (report.class_name || "").toLowerCase() === state.filters.type.toLowerCase()
     );
     console.log(`Filtered by type: ${filtered.length} results`);
   }
@@ -155,14 +156,16 @@ function applyFiltersAndSort() {
   
   // Apply sorting
   filtered.sort((a, b) => {
-    let aVal = a[state.sort.field];
-    let bVal = b[state.sort.field];
+    // Map the sort field 'time' to the new 'timestamp' field
+    const sortField = state.sort.field === 'time' ? 'timestamp' : state.sort.field;
+    let aVal = a[sortField];
+    let bVal = b[sortField];
     
     // Handle different data types
-    if (state.sort.field === "time") {
+    if (sortField === "timestamp") {
       aVal = new Date(aVal || 0);
       bVal = new Date(bVal || 0);
-    } else if (state.sort.field === "id") {
+    } else if (sortField === "id") {
       aVal = parseInt(aVal) || 0;
       bVal = parseInt(bVal) || 0;
     } else {
@@ -437,15 +440,15 @@ function renderTable() {
     row.dataset.reportId = report.id;
     row.classList.toggle("selected", state.selectedReportIds.has(report.id));
 
-    
+    const locationString = (report.latitude && report.longitude) ? `${report.latitude.toFixed(4)}, ${report.longitude.toFixed(4)}` : "No location";
 
     row.innerHTML = `
       <td><input type="checkbox" class="report-checkbox" data-report-id="${report.id}" ${state.selectedReportIds.has(report.id) ? "checked" : ""}></td>
       <td>${report.id || "N/A"}</td>
-      <td><span class="badge type-badge ${getTypeClass(report.type)}">${formatType(report.type)}</span></td>
+      <td><span class="badge type-badge ${getTypeClass(report.class_name)}">${formatType(report.class_name)}</span></td>
       <td>${getStatusBadge(report.status)}</td>
-      <td title="${report.location || ""}">${truncate(report.location)}</td>
-      <td>${formatTime(report.time)}</td>
+      <td title="${locationString}">${truncate(locationString)}</td>
+      <td>${formatTime(report.timestamp)}</td>
       <td>
         <div class="btn-group" role="group">
           <button class="btn btn-sm btn-outline-info view-report-btn" title="View Details"><i class="fas fa-eye"></i></button>
@@ -506,15 +509,16 @@ function renderReportCards() {
     const card = document.createElement("div");
     card.className = "card mb-3";
     card.dataset.id = report.id;
+    const locationString = (report.latitude && report.longitude) ? `${report.latitude.toFixed(4)}, ${report.longitude.toFixed(4)}` : "No location";
     card.innerHTML = `
         <div class="card-body">
           <div class="d-flex justify-content-between mb-2">
-            <span class="badge type-badge ${getTypeClass(report.type)}">${formatType(report.type)}</span>
+            <span class="badge type-badge ${getTypeClass(report.class_name)}">${formatType(report.class_name)}</span>
             ${getStatusBadge(report.status)}
           </div>
           <h6 class="card-title mb-1">ID: ${report.id || "N/A"}</h6>
-          <p class="card-text mb-2" title="${report.location || ""}">${truncate(report.location)}</p>
-          <small class="text-muted">${formatTime(report.time)}</small>
+          <p class="card-text mb-2" title="${locationString}">${truncate(locationString)}</p>
+          <small class="text-muted">${formatTime(report.timestamp)}</small>
         </div>
         <div class="card-footer d-flex justify-content-end gap-2">
           <button class="btn btn-sm btn-outline-info view-report-btn" title="View Details"><i class="fas fa-eye"></i></button>
@@ -831,27 +835,29 @@ function handleFormSubmit(e) {
 
 function showReportDetails(report) {
   const modal = elements.detailsModal;
+  const locationString = (report.latitude && report.longitude) ? `${report.latitude.toFixed(4)}, ${report.longitude.toFixed(4)}` : "No location";
   modal.querySelector("#modal-hazard-id").textContent = report.id;
-  modal.querySelector("#modal-type").textContent = report.type;
-  modal.querySelector("#modal-location").textContent = report.location;
+  modal.querySelector("#modal-type").textContent = report.class_name;
+  modal.querySelector("#modal-location").textContent = locationString;
   modal.querySelector("#modal-time").textContent = new Date(
-    report.time,
+    report.timestamp,
   ).toLocaleString();
   modal.querySelector("#modal-status").textContent = report.status;
   modal.querySelector("#modal-user").textContent =
     report.reportedBy || "Unknown";
-  modal.querySelector("#modal-report-image").src = report.image || "";
+  modal.querySelector("#modal-report-image").src = report.image_url || "";
   const bsModal = new bootstrap.Modal(modal);
   bsModal.show();
 }
 
 function showEditModal(report) {
   const modal = elements.editModal;
+  const locationString = (report.latitude && report.longitude) ? `${report.latitude.toFixed(4)}, ${report.longitude.toFixed(4)}` : "No location";
   modal.querySelector("#edit-report-id").value = report.id;
-  modal.querySelector("#edit-report-type").value = report.type;
+  modal.querySelector("#edit-report-type").value = report.class_name;
   modal.querySelector("#edit-report-status").value = report.status;
-  modal.querySelector("#edit-report-location").value = report.location;
-  modal.querySelector("#edit-report-image").value = report.image || "";
+  modal.querySelector("#edit-report-location").value = locationString;
+  modal.querySelector("#edit-report-image").value = report.image_url || "";
   modal.querySelector("#edit-report-reportedBy").value =
     report.reportedBy || "";
   const bsModal = new bootstrap.Modal(modal);

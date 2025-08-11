@@ -38,6 +38,11 @@ import FormData from 'form-data';
 import cors from 'cors';
 import os from 'os'; // מייבאים את המודול os
 
+const CLASS_ID_TO_NAME_MAP = {
+  0: 'crack',
+  1: 'pothole'
+};
+
 // 📦 Firebase & Cloudinary
 import { v2 as cloudinary } from 'cloudinary';
 import multer from 'multer';
@@ -924,15 +929,26 @@ async function getReports() {
             
             const batchPromises = batchKeys.map(async (key) => {
                 try {
-                    // Try to get as JSON first
-                    let report = await client.json.get(key);
-                    if (report) return report;
+                    let reportData = await client.json.get(key);
+                    if (!reportData) {
+                        const str = await client.get(key);
+                        if (str) reportData = JSON.parse(str);
+                    }
+                    if (!reportData) return null;
 
-                    // Fallback to getting as a string and parsing
-                    const str = await client.get(key);
-                    if (str) return JSON.parse(str);
+                    // Map to the canonical ReportItem contract
+                    const location = reportData.location || "";
+                    const coordMatch = location.match(/Coordinates:\s*([+-]?\d*\.?\d+),\s*([+-]?\d*\.?\d+)/);
 
-                    return null;
+                    return {
+                        id: reportData.id,
+                        image_url: reportData.image || reportData.imageUrl,
+                        class_name: reportData.type || reportData.class_name,
+                        timestamp: reportData.time || reportData.timestamp,
+                        latitude: reportData.lat ?? (coordMatch ? parseFloat(coordMatch[1]) : undefined),
+                        longitude: reportData.lon ?? (coordMatch ? parseFloat(coordMatch[2]) : undefined),
+                        status: reportData.status // Keep extra fields for dashboard functionality
+                    };
                 } catch (err) {
                     console.warn(`Skipping corrupted report ${key}:`, err.message);
                     return null;
@@ -943,27 +959,7 @@ async function getReports() {
             reports.push(...batchReports);
         }
 
-        // Ensure all reports have required lat/lon for mapping
-        return reports.map(report => {
-            // If report has coordinates as lat/lon properties, keep them
-            if (report.lat && report.lon) {
-                return report;
-            }
-            
-            // Try to parse location for coordinates
-            if (typeof report.location === 'string') {
-                const coordMatch = report.location.match(/Coordinates:\s*([+-]?\d*\.?\d+),\s*([+-]?\d*\.?\d+)/);
-                if (coordMatch) {
-                    return {
-                        ...report,
-                        lat: parseFloat(coordMatch[1]),
-                        lon: parseFloat(coordMatch[2])
-                    };
-                }
-            }
-            
-            return report;
-        });
+        return reports;
     } catch (error) {
         console.error('🔥 Error in getReports:', error);
         throw new Error(`Database operation failed: ${error.message}`);
@@ -1181,6 +1177,58 @@ app.get('/api/reports/stats', async (req, res) => {
     } catch (err) {
         console.error('Error getting report stats:', err);
         res.status(500).json({ error: 'Failed to get stats', details: err.message });
+    }
+});
+
+// NEW: Create a single report from a detection
+// This endpoint implements the `Create report request` contract
+app.post('/api/reports/create', upload.single('file'), async (req, res) => {
+    if (!isSimpleMode && !req.isAuthenticated()) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    try {
+        const { class_id, bbox, timestamp, latitude, longitude, metadata } = req.body;
+
+        if (!req.file || !class_id || !bbox || !timestamp) {
+            return res.status(400).json({ error: 'Missing required fields: file, class_id, bbox, timestamp' });
+        }
+
+        // Upload image to Cloudinary
+        const uploadResult = await new Promise((resolve, reject) => {
+            const stream = cloudinary.uploader.upload_stream(
+                { folder: "hazard-reports" },
+                (error, result) => {
+                    if (error) return reject(error);
+                    resolve(result);
+                }
+            );
+            streamifier.createReadStream(req.file.buffer).pipe(stream);
+        });
+
+        const reportId = `rep_${new Date().getTime()}`;
+        const reportKey = `report:${reportId}`;
+
+        const newReport = {
+            id: reportId,
+            class_name: CLASS_ID_TO_NAME_MAP[class_id] || 'unknown',
+            timestamp: timestamp,
+            image_url: uploadResult.secure_url,
+            latitude: latitude ? parseFloat(latitude) : null,
+            longitude: longitude ? parseFloat(longitude) : null,
+            bbox: JSON.parse(bbox),
+            status: 'New',
+            reportedBy: req.user ? req.user.email : 'anonymous',
+            metadata: metadata ? JSON.parse(metadata) : {}
+        };
+
+        await client.json.set(reportKey, '$', newReport);
+
+        res.status(201).json({ success: true, message: 'Report created successfully', report: newReport });
+
+    } catch (error) {
+        console.error('Error creating report:', error);
+        res.status(500).json({ error: 'Failed to create report', details: error.message });
     }
 });
 

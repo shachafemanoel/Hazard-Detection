@@ -22,16 +22,19 @@ if (fs.existsSync(envPath)) {
 let client = null;
 let redisConnected = false;
 
-if (process.env.REDIS_HOST && process.env.REDIS_PASSWORD) {
-    client = createClient({
-        username: process.env.REDIS_USERNAME || 'default',
-        password: process.env.REDIS_PASSWORD,
-        socket: {
-            host: process.env.REDIS_HOST,
-            port: parseInt(process.env.REDIS_PORT) || 6379,
-            connectTimeout: 10000
-        }
-    });
+const redisUrl = process.env.REDIS_URL || (process.env.REDIS_HOST ? `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT || 6379}`: null);
+
+if (!redisUrl) {
+    console.warn('REDIS_URL is not set. Redis is disabled.');
+    client = null;
+    redisConnected = false;
+} else {
+    const opts = { url: redisUrl };
+    if (redisUrl.startsWith('rediss://')) {
+        opts.socket = { tls: true, rejectUnauthorized: false };
+    }
+
+    client = createClient(opts);
 
     client.on('error', (err) => {
         console.error('Redis Client Error', err);
@@ -52,9 +55,7 @@ if (process.env.REDIS_HOST && process.env.REDIS_PASSWORD) {
             redisConnected = false;
             console.error('🔥 Failed to connect to Redis:', err);
         });
-} else {
-    console.log('⚠️ Redis not configured.');
 }
 
 export const redisClient = client;
-export const isRedisConnected = () => redisConnected;
+export const isRedisConnected = () => redisConnected && client && client.isOpen;

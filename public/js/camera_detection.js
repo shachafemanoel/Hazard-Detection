@@ -1,6 +1,6 @@
 // camera_detection.js - Refactored for camera.html
 // Firebase imports removed - now using Cloudinary via API
-import { setApiUrl, checkHealth, startSession, detectHazards, detectSingleWithRetry } from './apiClient.js';
+import { setApiUrl, checkHealth, startSession, detectHazards, detectSingleWithRetry, createReport } from './apiClient.js';
 import { resolveBaseUrl, probeHealth } from './network.js';
 import { RealtimeClient } from './realtime-client.js';
 import { BASE_API_URL } from './config.js';
@@ -1486,21 +1486,16 @@ async function ensureRtConnected() {
     
     // Set up message handler for API detections
     rtClient.onMessage((msg) => {
-      const processingTime = msg._metadata?.processingTime || 0;
-      lastNetworkLatencyMs = processingTime;
-      console.log(`📥 Received API response, RTT: ${processingTime}ms`);
+      // The apiClient now handles normalization, so the message `msg` is the normalized response.
+      lastNetworkLatencyMs = msg.processing_time || 0;
+      console.log(`📥 Received normalized API response, RTT: ${lastNetworkLatencyMs}ms`);
       
       // Enhanced logging for debugging
-      if (msg.success !== undefined) {
-        console.log(`📊 API Response: success=${msg.success}, detections=${msg.detections?.length || 0}, new_reports=${msg.new_reports?.length || 0}`);
+      if (msg.detections) {
+        console.log(`📊 API Response: detections=${msg.detections.length}, new_reports=${msg.has_new_reports}`);
       }
       
-      // Log any API errors
-      if (msg.success === false) {
-        console.error('❌ API returned error response:', msg.error || 'Unknown error');
-      }
-      
-      handleApiDetections(msg.detections || [], processingTime, msg.session_stats, msg);
+      handleApiDetections(msg);
     });
     
     rtClient.onError((error) => {
@@ -1521,56 +1516,63 @@ async function ensureRtConnected() {
   }
 }
 
-function handleApiDetections(detections, processingTime, sessionStats = null, response = null) {
+function handleApiDetections(normalizedResponse) {
+  const { detections, processing_time, session_stats, new_reports } = normalizedResponse;
+
   // Update timing for adaptive scheduler
-  updateTiming(processingTime);
+  updateTiming(processing_time);
 
-  console.log(`⚡ Processing ${detections.length} API detections, inference: ${processingTime}ms`);
+  console.log(`⚡ Processing ${detections.length} API detections, inference: ${processing_time}ms`);
 
-  if (!Array.isArray(detections) || detections.length === 0) {
-    switchToFallback('empty detections');
+  if (!Array.isArray(detections)) {
+    // This should not happen if normalization is correct
     return;
   }
   
-  // Parse server response fields if available
-  if (response) {
-    // Handle new_reports to show success toasts
-    if (response.new_reports?.length > 0) {
-      response.new_reports.forEach(report => {
-        if (typeof notify === 'function') {
-          notify(`New ${report.hazard_type} report saved`, 'success');
-        }
-      });
-    }
-    
-    // Update session stats UI counters
-    if (sessionStats) {
-      updateSessionStatsUI(sessionStats);
-    }
+  // Handle new_reports to show success toasts
+  if (new_reports?.length > 0) {
+    new_reports.forEach(report => {
+      if (typeof notify === 'function') {
+        notify(`New ${report.hazard_type} report saved`, 'success');
+      }
+    });
+  }
+
+  // Update session stats UI counters
+  if (session_stats) {
+    updateSessionStatsUI(session_stats);
   }
   
-  // Parse and update detections
-  const parsedDetections = parseAPIDetections(detections);
+  // The detections are already normalized. We need to adapt them for persistent storage/drawing
+  // which expects x1, y1, x2, y2 format. The adapter provides `box: [x1, y1, x2, y2]`.
+  const adaptedDetections = detections.map(det => {
+      const [x1, y1, x2, y2] = det.box;
+      const classId = CLASS_NAMES.indexOf(det.label);
+      return {
+          x1, y1, x2, y2,
+          score: det.score,
+          classId: classId > -1 ? classId : 0, // Fallback to class 0
+          className: det.label,
+      };
+  });
   
   // Update persistent detections (this handles the visual state)
-  updatePersistentDetections(parsedDetections);
+  updatePersistentDetections(adaptedDetections);
   detectedObjectCount = persistentDetections.length;
   updateUniqueHazardTypesFromPersistent();
   
   // Update session tracking
-  if (parsedDetections.length > 0) {
+  if (adaptedDetections.length > 0) {
     detectionSession.detectionFrames++;
-    parsedDetections.forEach(detection => {
-      const label = CLASS_NAMES[detection.classId] || `Class ${detection.classId}`;
-      
+    adaptedDetections.forEach(detection => {
       // Update per-class cooldown to prevent spam
-      updateCooldown(label);
+      updateCooldown(detection.className);
       // Use new session manager for detection tracking
       addDetectionToSession({
         hazards: [{
-          class: label,
+          class: detection.className,
           confidence: detection.score,
-          bbox: detection
+          bbox: detection // Pass the adapted detection
         }],
         confidence: detection.score
       }, canvas);
@@ -1584,7 +1586,66 @@ function handleApiDetections(detections, processingTime, sessionStats = null, re
   inFlight = false;
 }
 
-export { handleApiDetections, switchToFallback };
+export { handleApiDetections, switchToFallback, createSingleDetectionReport };
+
+/**
+ * Creates a formal report for a single, specific detection.
+ * This function will be callable for creating high-quality reports from the UI.
+ * @param {object} detection - The detection object to report.
+ */
+async function createSingleDetectionReport(detection) {
+    if (!video.videoWidth || !video.videoHeight) {
+        console.error("Cannot create report: video stream not available.");
+        notify("Video not available to create report.", "error");
+        return;
+    }
+
+    try {
+        // 1. Capture the current frame as a blob
+        const captureCanvas = document.createElement('canvas');
+        captureCanvas.width = video.videoWidth;
+        captureCanvas.height = video.videoHeight;
+        const captureCtx = captureCanvas.getContext('2d');
+        captureCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+
+        const blob = await new Promise(resolve => captureCanvas.toBlob(resolve, 'image/jpeg', 0.9));
+        if (!blob) {
+            throw new Error("Failed to create image blob from canvas.");
+        }
+
+        // 2. Get current location
+        const location = await getCurrentLocation();
+
+        // 3. Prepare the report data payload
+        const reportData = {
+            file: blob,
+            class_id: detection.classId,
+            bbox: [detection.x1, detection.y1, detection.x2, detection.y2],
+            timestamp: new Date().toISOString(),
+            latitude: location?.lat,
+            longitude: location?.lng,
+            metadata: {
+                confidence: detection.score,
+                userAgent: navigator.userAgent,
+                canvasSize: { width: canvas.width, height: canvas.height }
+            }
+        };
+
+        // 4. Call the apiClient to create the report
+        console.log("Creating single detection report...", reportData);
+        notify("Creating report...", "info");
+
+        const result = await createReport(reportData); // Assumes createReport is imported from apiClient
+
+        console.log("Report created successfully:", result);
+        notify(`Report #${result.report.id} created for ${result.report.class_name}.`, "success");
+
+    } catch (error) {
+        console.error("Failed to create single detection report:", error);
+        notify(`Error creating report: ${error.message}`, "error");
+    }
+}
+
 
 function initializeWorker() {
   if (!preprocessWorker && typeof Worker !== 'undefined') {
@@ -2106,54 +2167,6 @@ function updateDetectionSessionSummary() {
   if (avgConfidenceEl) avgConfidenceEl.textContent = `${Math.round(avgConfidence * 100)}%`;
 }
 
-async function runAPIDetection() {
-  try {
-    // Create a high-quality capture from the video stream for API detection
-    const captureCanvas = document.createElement('canvas');
-    const captureCtx = captureCanvas.getContext('2d');
-    
-    // Resize to 480x480 for the API model
-    captureCanvas.width = 480;
-    captureCanvas.height = 480;
-    
-    // Draw current video frame
-    captureCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
-    
-    // Create blob with optimized quality for API
-    const blob = await new Promise((resolve) =>
-      captureCanvas.toBlob(resolve, 'image/jpeg', 0.9)
-    );
-    
-    // Validate blob before sending
-    if (!blob || blob.size === 0) {
-      throw new Error('Failed to create image blob from video frame');
-    }
-    
-    const result = await detectHazards(
-      cameraState.apiSessionId,
-      blob
-    );
-
-    cameraState.apiAvailable = result.ok;
-
-    if (!result.ok) {
-      console.warn('⚠️ Invalid API response format:', result.error);
-      return [];
-    }
-
-    const detections = parseAPIDetections(result.detections);
-    console.log(`🔍 API returned ${detections.length} detections`);
-
-    return detections;
-  } catch (error) {
-    console.error('❌ API detection attempt failed:', error.message);
-    cameraState.apiAvailable = false;
-    switchToFallback(error.message);
-    // Return fallback detections
-    return fallbackProvider.detect(captureCanvas);
-  }
-}
-
 async function runLocalDetection(inputTensor) {
   try {
     // Run inference - use the actual input name from the model
@@ -2288,41 +2301,6 @@ async function runLocalDetection(inputTensor) {
     console.error('❌ Local detection failed:', error);
     return [];
   }
-}
-
-/**
- * Parse and normalize API detections
- * @param {Array<import('./result_normalizer.js').NormalizedDetection>} apiDetections
- * @returns {Array<DetectionResult>} Normalized detections in model space
- */
-function parseAPIDetections(apiDetections) {
-  if (!Array.isArray(apiDetections)) return [];
-  const detections = [];
-  for (const det of apiDetections) {
-    if (!det || !det.box) continue;
-    const x1 = det.box.x;
-    const y1 = det.box.y;
-    const x2 = det.box.x + det.box.w;
-    const y2 = det.box.y + det.box.h;
-    if (x2 <= x1 || y2 <= y1) continue;
-    const className = det.class_name || 'unknown';
-    const classId = CLASS_NAMES.indexOf(className);
-    const score = det.confidence || 0;
-    const classThreshold = CLASS_THRESHOLDS[className] ?? GLOBAL_CONFIDENCE_THRESHOLD;
-    if (score < classThreshold) continue;
-    detections.push({
-      x1, y1, x2, y2,
-      score,
-      classId: classId >= 0 ? classId : 0,
-      className,
-      area: det.box.w * det.box.h,
-      aspectRatio: det.box.h > 0 ? det.box.w / det.box.h : 0,
-      passedGeometryCheck: true,
-      isNew: false,
-      reportId: null
-    });
-  }
-  return detections;
 }
 
 function tensorToImageData(tensor) {

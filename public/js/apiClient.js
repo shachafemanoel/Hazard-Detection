@@ -4,7 +4,7 @@
 import { BASE_API_URL } from './config.js';
 import { fetchWithTimeout } from './utils/fetchWithTimeout.js';
 import { ensureOk, getJsonOrThrow } from './utils/http.js';
-import { normalizeApiResult } from './result_normalizer.js';
+import { normalizeDetectResponse } from './adapters.js';
 
 const metaApiBase = document.querySelector('meta[name="api-base"]')?.content;
 let API_URL = '';
@@ -230,20 +230,20 @@ export async function getSessionSummary(sessionId) {
  */
 export async function createReport(reportData) {
     try {
+        const formData = new FormData();
+        formData.append('file', reportData.file); // image blob
+        formData.append('class_id', reportData.class_id);
+        formData.append('bbox', JSON.stringify(reportData.bbox));
+        formData.append('timestamp', reportData.timestamp);
+
+        if (reportData.latitude) formData.append('latitude', reportData.latitude);
+        if (reportData.longitude) formData.append('longitude', reportData.longitude);
+        if (reportData.metadata) formData.append('metadata', JSON.stringify(reportData.metadata));
+
         const response = await apiFetch(`/reports/create`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                session_id: reportData.sessionId,
-                title: reportData.title || 'Hazard Detection Report',
-                description: reportData.description || '',
-                location: reportData.location || null,
-                hazard_types: reportData.hazardTypes || [],
-                severity: reportData.severity || 'medium',
-                metadata: reportData.metadata || {}
-            })
+            body: formData,
+            // Note: Don't set Content-Type header for FormData, browser does it with boundary.
         });
 
         ensureOk(response);
@@ -305,27 +305,26 @@ export async function detectFrame(sessionId, payload) {
         } catch (err) {
             throw new ParseError(err.message);
         }
-        const norm = normalizeApiResult(json);
-        if (norm.error) {
-            throw new ModelError(norm.error.message || 'Model returned error');
+        // Use the new, contract-compliant adapter
+        const normalizedResponse = normalizeDetectResponse(json);
+
+        if (!Array.isArray(normalizedResponse.detections)) {
+            throw new ParseError('Invalid detections format after normalization');
         }
-        if (!Array.isArray(norm.detections)) {
-            throw new ParseError('Invalid detections format');
-        }
-        if (norm.session_id) {
-            currentSessionId = norm.session_id;
-            sessionStorage.setItem('hazard_session_id', currentSessionId);
-        }
+
+        // The new response shape is the return value.
+        // Session ID handling should be part of the response if needed, but the
+        // main detection data is now clean.
 
         if (window.DEBUG_CLIENT) {
             const counts = {};
-            norm.detections.forEach(d => {
-                counts[d.class_name] = (counts[d.class_name] || 0) + 1;
+            normalizedResponse.detections.forEach(d => {
+                counts[d.label] = (counts[d.label] || 0) + 1;
             });
             const classesStr = Object.entries(counts).map(([k, v]) => `${k}(${v})`).join(', ');
-            console.log(`Detections: ${norm.detections.length} | time: ${norm.processing_time_ms || 0} | classes: ${classesStr}`);
+            console.log(`Detections: ${normalizedResponse.detections.length} | time: ${normalizedResponse.processing_time || 0} | classes: ${classesStr}`);
         }
 
-        return norm;
+        return normalizedResponse;
     }
 }

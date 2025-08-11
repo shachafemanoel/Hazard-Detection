@@ -1,51 +1,72 @@
 import { readFileSync } from 'fs';
-import { normalizeApiResult, filterDetections } from '../js/result_normalizer.js';
+import { normalizeDetectResponse } from '../js/adapters.js';
 
+// Helper to load fixtures
 function loadFixture(name) {
   return JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url)));
 }
 
-test('parses object-based detections', () => {
-  const data = loadFixture('success_object.json');
-  const res = normalizeApiResult(data);
-  expect(res.ok).toBe(true);
-  expect(res.detections).toHaveLength(2);
-  expect(res.detections[0].box).toEqual({ x:1, y:2, w:4, h:4 });
-});
+describe('normalizeDetectResponse', () => {
+  test('should handle object-based detections and normalize to canonical shape', () => {
+    const data = loadFixture('success_object.json');
+    const res = normalizeDetectResponse(data);
 
-test('parses tuple-based detections', () => {
-  const data = loadFixture('success_yolo_array.json');
-  const res = normalizeApiResult(data);
-  expect(res.detections[0].box).toEqual({ x:1, y:2, w:4, h:4 });
-  expect(res.detections[0].class_id).toBe(1);
-});
+    expect(res.detections).toHaveLength(2);
 
-test('infers success when flag missing', () => {
-  const res = normalizeApiResult({ detections: [] });
-  expect(res.ok).toBe(true);
-});
+    // Check first detection
+    expect(res.detections[0].box).toEqual([1, 2, 5, 6]);
+    expect(res.detections[0].label).toBe('pothole'); // The adapter now correctly maps class_id 1 to 'pothole'
+    expect(res.detections[0].score).toBe(0.9);
 
-test('parses processing_time strings and seconds', () => {
-  const res1 = normalizeApiResult({ processing_time: '123ms', detections: [] });
-  expect(res1.processing_time_ms).toBe(123);
-  const res2 = normalizeApiResult({ processing_time: 0.5, detections: [] });
-  expect(res2.processing_time_ms).toBe(500);
-});
+    // Check second detection
+    expect(res.detections[1].box).toEqual([2, 3, 6, 8]);
+    expect(res.detections[1].label).toBe('crack'); // The adapter now correctly maps class_id 0 to 'crack'
+    expect(res.detections[1].score).toBe(0.8);
 
-test('handles empty detections', () => {
-  const data = loadFixture('empty.json');
-  const res = normalizeApiResult(data);
-  expect(res.detections).toHaveLength(0);
-});
+    expect(res.processing_time).toBe(200); // "0.2s" should be converted to 200ms
+  });
 
-test('drops invalid boxes', () => {
-  const res = normalizeApiResult({ detections: [{ box: [0,0,0,0], confidence:0.9 }] });
-  expect(res.detections).toHaveLength(0);
-});
+  test('should handle tuple-based detections and normalize keys', () => {
+    const data = loadFixture('success_yolo_array.json');
+    const res = normalizeDetectResponse(data);
 
-test('applies global and per-class thresholds', () => {
-  const data = loadFixture('success_object.json');
-  const res = normalizeApiResult(data);
-  const filtered = filterDetections(res.detections, 0.85, { pothole: 0.95 });
-  expect(filtered).toHaveLength(1);
+    expect(res.detections).toHaveLength(2);
+    expect(res.detections[0].box).toEqual([1, 2, 5, 6]);
+    expect(res.detections[0].label).toBe('pothole'); // has class_name
+    expect(res.detections[0].score).toBe(0.75); // The fixture has a score of 0.75
+  });
+
+  test('should handle empty or missing detections array', () => {
+    const data = loadFixture('empty.json');
+    const res = normalizeDetectResponse(data);
+    expect(res.detections).toHaveLength(0);
+
+    const res2 = normalizeDetectResponse({});
+    expect(res2.detections).toHaveLength(0);
+  });
+
+  test('should filter out detections with invalid boxes', () => {
+    const data = {
+      detections: [
+        { box: [1, 2, 3, 4], label: 'valid', score: 0.9 },
+        { box: [1, 2, 3], label: 'invalid_length', score: 0.9 },
+        { box: null, label: 'invalid_null', score: 0.9 },
+      ]
+    };
+    const res = normalizeDetectResponse(data);
+    expect(res.detections).toHaveLength(1);
+    expect(res.detections[0].label).toBe('valid');
+  });
+
+  test('should return zero for image size if not provided', () => {
+    const data = { detections: [] };
+    const res = normalizeDetectResponse(data);
+    expect(res.original_image_size).toEqual({ width: 0, height: 0 });
+  });
+
+  test('should parse image size correctly', () => {
+    const data = { original_image_size: { width: 640, height: 480 } };
+    const res = normalizeDetectResponse(data);
+    expect(res.original_image_size).toEqual({ width: 640, height: 480 });
+  });
 });
