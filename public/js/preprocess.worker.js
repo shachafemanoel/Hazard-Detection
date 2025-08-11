@@ -1,8 +1,12 @@
-// preprocess.worker.js - Web Worker for fast image preprocessing
-// Handles createImageBitmap + OffscreenCanvas operations off the main thread
+// preprocess.worker.js - Web Worker for ONNX tensor preprocessing
+// Handles letterboxing, normalization, and tensor creation for hazard detection
 
 let offscreenCanvas = null;
 let offscreenCtx = null;
+
+// Preprocessing constants
+const DEFAULT_INPUT_SIZE = 640;
+const NORMALIZATION_SCALE = 1.0 / 255.0;
 
 self.onmessage = async function(event) {
   const { id, type, data } = event.data;
@@ -12,6 +16,11 @@ self.onmessage = async function(event) {
       case 'process_frame':
         const result = await processFrame(data);
         self.postMessage({ id, type: 'success', result });
+        break;
+        
+      case 'process_for_onnx':
+        const onnxResult = await processForONNX(data);
+        self.postMessage({ id, type: 'success', result: onnxResult });
         break;
         
       case 'init':
@@ -83,6 +92,78 @@ async function processFrame({ imageBitmap, size = 416, quality = 0.9, outputForm
     if (imageBitmap && imageBitmap.close) {
       imageBitmap.close();
     }
+  }
+}
+
+/**
+ * Process image for ONNX inference with letterboxing and tensor conversion
+ */
+async function processForONNX({ imageData, inputSize = DEFAULT_INPUT_SIZE }) {
+  const startTime = performance.now();
+  
+  try {
+    // Create ImageBitmap from ImageData
+    const bitmap = await createImageBitmap(imageData);
+    
+    // Initialize canvas for processing
+    initializeCanvas(inputSize);
+    
+    // Calculate letterbox scaling (maintain aspect ratio)
+    const scale = Math.min(inputSize / bitmap.width, inputSize / bitmap.height);
+    const scaledWidth = bitmap.width * scale;
+    const scaledHeight = bitmap.height * scale;
+    const offsetX = (inputSize - scaledWidth) / 2;
+    const offsetY = (inputSize - scaledHeight) / 2;
+
+    // Clear canvas with black padding
+    offscreenCtx.fillStyle = '#000000';
+    offscreenCtx.fillRect(0, 0, inputSize, inputSize);
+    
+    // Draw letterboxed image
+    offscreenCtx.drawImage(bitmap, offsetX, offsetY, scaledWidth, scaledHeight);
+
+    // Get processed image data
+    const processedImageData = offscreenCtx.getImageData(0, 0, inputSize, inputSize);
+    const pixels = processedImageData.data;
+
+    // Convert RGBA to RGB and normalize to [0,1] in NCHW format
+    const tensorData = new Float32Array(3 * inputSize * inputSize);
+    let tensorIndex = 0;
+
+    // NCHW format: [batch, channels, height, width]
+    for (let c = 0; c < 3; c++) {
+      for (let y = 0; y < inputSize; y++) {
+        for (let x = 0; x < inputSize; x++) {
+          const pixelIndex = (y * inputSize + x) * 4;
+          tensorData[tensorIndex++] = pixels[pixelIndex + c] * NORMALIZATION_SCALE;
+        }
+      }
+    }
+
+    const processingTime = performance.now() - startTime;
+
+    // Clean up bitmap
+    bitmap.close();
+
+    return {
+      tensorData,
+      shape: [1, 3, inputSize, inputSize],
+      metadata: {
+        scale,
+        offsetX,
+        offsetY,
+        originalWidth: bitmap.width,
+        originalHeight: bitmap.height,
+        scaledWidth,
+        scaledHeight,
+        inputSize,
+        processingTime
+      }
+    };
+
+  } catch (error) {
+    const processingTime = performance.now() - startTime;
+    throw new Error(`ONNX preprocessing failed: ${error.message}`);
   }
 }
 

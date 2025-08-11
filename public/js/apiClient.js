@@ -20,8 +20,62 @@ async function initializeApiUrl() {
     }
 }
 
+import { getToken, clearToken } from './session-manager.js';
+
 // Call initialization function immediately
 initializeApiUrl();
+
+/**
+ * A wrapper for the fetch API that automatically adds the Authorization header.
+ * @param {string} url - The URL to fetch.
+ * @param {object} options - The options for the fetch request.
+ * @returns {Promise<any>} The response data.
+ */
+async function fetchWithAuth(url, options = {}) {
+  // Get the token from our session manager.
+  const token = getToken();
+
+  // Prepare the headers.
+  const headers = {
+    'Content-Type': 'application/json',
+    ...options.headers, // Preserve any headers passed in options
+  };
+
+  // If a token exists, add the Authorization header.
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  try {
+    const response = await fetch(url, { ...options, headers });
+
+    // If the server returns an "Unauthorized" or "Forbidden" error,
+    // it likely means the token is invalid or expired.
+    // Log the user out automatically.
+    if (response.status === 401 || response.status === 403) {
+      console.error('Authentication error. Token may be invalid. Logging out.');
+      clearToken(); // Clear the bad token
+      window.location.href = '/login.html'; // Redirect to login
+      return; // Stop further execution
+    }
+
+    if (!response.ok) {
+      throw new Error(`API request failed with status: ${response.status}`);
+    }
+
+    // Check if response is JSON before parsing
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.indexOf("application/json") !== -1) {
+        return response.json();
+    } else {
+        // If not JSON, return the response object itself or handle as text/blob
+        return response;
+    }
+  } catch (error) {
+    console.error('An error occurred during the API request:', error);
+    throw error;
+  }
+}
 
 /**
  * Sets the API URL for all subsequent requests.
@@ -59,7 +113,7 @@ export async function getReportImage(reportId) {
         await initializeApiUrl();
     }
     try {
-        const response = await fetch(`${API_URL}/api/reports/${reportId}/image`);
+        const response = await fetchWithAuth(`${API_URL}/api/reports/${reportId}/image`);
         if (!response.ok) {
             throw new Error(`API error: ${response.status}`);
         }
@@ -77,7 +131,7 @@ export async function getReportPlot(reportId) {
         await initializeApiUrl();
     }
     try {
-        const response = await fetch(`${API_URL}/api/reports/${reportId}/plot`);
+        const response = await fetchWithAuth(`${API_URL}/api/reports/${reportId}/plot`);
         if (!response.ok) {
             throw new Error(`API error: ${response.status}`);
         }
@@ -175,7 +229,7 @@ export async function uploadDetection(detectionData) {
             location: detectionData.location || null
         }));
 
-        const response = await fetch(`${API_URL}/api/upload`, {
+        const response = await fetchWithAuth(`${API_URL}/api/upload`, {
             method: 'POST',
             body: formData
         });
@@ -203,7 +257,7 @@ export async function getSessionSummary(sessionId) {
         await initializeApiUrl();
     }
     try {
-        const response = await fetch(`${API_URL}/api/v1/session/${sessionId}/summary`);
+        const response = await fetchWithAuth(`${API_URL}/api/v1/session/${sessionId}/summary`);
         
         if (!response.ok) {
             if (response.status === 404) {
@@ -230,7 +284,7 @@ export async function createReport(reportData) {
         await initializeApiUrl();
     }
     try {
-        const response = await fetch(`${API_URL}/api/reports`, {
+        const response = await fetchWithAuth(`${API_URL}/api/reports`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -269,7 +323,7 @@ export async function detectFrame(sessionId, canvas) {
                 const formData = new FormData();
                 formData.append('file', blob, 'frame.jpg');
 
-                const response = await fetch(`${API_URL}/api/v1/detect/${sessionId}`, {
+                const response = await fetchWithAuth(`${API_URL}/api/v1/detect/${sessionId}`, {
                     method: 'POST',
                     body: formData
                 });

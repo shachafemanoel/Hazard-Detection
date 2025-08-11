@@ -78,14 +78,11 @@
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="js/layout.js" defer></script>
+  <script type="module" src="js/session-manager.js"></script>
+  <script type="module" src="js/route-guard.js"></script>
   <script type="module">
-    import { requireAuth } from './js/route-guard.js';
-    
-    // Require authentication for this page
-    const user = requireAuth();
-    if (user) {
-      console.log('📤 Upload page access granted to:', user.email);
-    }
+    // The route-guard.js now handles redirection, so no need for requireAuth here.
+    console.log('📤 Upload page loaded.');
   </script>
   <script src="js/notifications.js"></script>
   <script type="module" src="js/upload.js" defer></script>

@@ -1,4 +1,5 @@
 import { initializeMap, plotReports, toggleHeatmap, centerMap, clearGeocodingCache, getGeocodingCacheStats } from "./map.js";
+import { clearToken } from './session-manager.js';
 
 // Make plotReports available globally for easier access
 window.plotReports = plotReports;
@@ -1018,6 +1019,20 @@ function initializeEventListeners() {
   // Add geocoding cache stats to console for debugging
   const geocodingStats = getGeocodingCacheStats();
   console.log("🗺️ Geocoding cache stats:", geocodingStats);
+
+  // Logout button
+  const logoutButton = document.getElementById('logoutButton');
+  if (logoutButton) {
+    logoutButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      clearToken();
+      console.log('User has been logged out.');
+      window.location.href = '/login.html';
+    });
+    console.log("✅ Logout button event listener added");
+  } else {
+    console.error("❌ Logout button not found");
+  }
 }
 
 function showMetricsLoading() {

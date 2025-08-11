@@ -171,9 +171,20 @@ document.addEventListener('DOMContentLoaded', function () {
                 errorElement.textContent = 'Login successful! Redirecting...';
                 errorElement.classList.remove('hidden');
     
-                setTimeout(() => {
-                    window.location.href = '/upload.html';
-                }, 3000);
+                const token = data.token; // Assuming 'data.token' contains the authentication token
+                if (token) {
+                    saveToken(token); // Use the new session-manager function
+                    console.log('Token successfully saved to localStorage.');
+                    setTimeout(() => {
+                        window.location.href = '/upload.html';
+                    }, 3000);
+                } else {
+                    console.error('Login failed: No token was received from the server.');
+                    errorElement.classList.add('alert-danger');
+                    errorElement.classList.remove('alert-success');
+                    errorElement.textContent = 'Login failed. No token received.';
+                    errorElement.classList.remove('hidden');
+                }
             } else {
                 errorElement.classList.add('alert-danger');
                 errorElement.classList.remove('alert-success');

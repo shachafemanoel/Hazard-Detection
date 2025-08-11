@@ -35,7 +35,18 @@ import {
   ContractValidationError 
 } from './inference-contract-validator.js';
 
-// Import the inference worker
+// Import ONNX runtime loader
+import { 
+  loadONNXRuntime, 
+  createInferenceSession, 
+  getInferenceSession, 
+  disposeInferenceSession,
+  createTensor,
+  performanceMonitor 
+} from './onnx-runtime-loader.js';
+
+// Import the preprocessing and inference workers
+const preprocessWorker = new Worker('./preprocess.worker.js', { type: 'module' });
 const inferenceWorker = new Worker('./inference.worker.js', { type: 'module' });
 
 // Global state
@@ -320,9 +331,8 @@ function toggleSettings() {
 async function initializeDetection() {
   updateStatus("Loading local AI model...");
   startButton.disabled = true;
-  loadingOverlay.style.display = "flex"; // Show loading spinner
+  loadingOverlay.style.display = "flex";
   
-  // Add timeout for model loading using config
   const modelLoadTimeout = setTimeout(() => {
     if (!cameraState.modelLoaded) {
       const timeoutSeconds = UI_CONFIG.LOADING_TIMEOUT / 1000;
@@ -332,6 +342,57 @@ async function initializeDetection() {
       loadingOverlay.style.display = "none";
     }
   }, UI_CONFIG.LOADING_TIMEOUT);
+
+  try {
+    console.log('🚀 Initializing ONNX Runtime with enhanced loader...');
+    
+    // Load ONNX Runtime
+    updateStatus("Loading ONNX Runtime...");
+    await loadONNXRuntime();
+    
+    // Create inference session with automatic model resolution
+    updateStatus("Creating inference session...");
+    const session = await createInferenceSession();
+    
+    // Update state
+    clearTimeout(modelLoadTimeout);
+    cameraState.modelLoaded = true;
+    cameraState.modelInputSize = 640; // Default, can be detected from session
+    cameraState.backend = session._sessionOptions?.executionProviders?.[0] || 'unknown';
+    
+    // Success state
+    updateStatus(`Model ready (${cameraState.backend}) - Start camera`);
+    detectionModeInfo.innerHTML = `💻 Local Model (${cameraState.backend})`;
+    detectionModeInfo.style.color = '#28a745';
+    startButton.disabled = false;
+    startButton.innerHTML = '<i class="fas fa-play"></i> Start Camera';
+    loadingOverlay.style.display = "none";
+    
+    console.log('✅ Enhanced ONNX model initialization completed successfully');
+    
+    if (typeof notify === 'function') {
+      notify(`AI model loaded successfully with ${cameraState.backend} backend!`, 'success');
+    }
+    
+    // Initialize auto-reporting
+    if (FEATURE_FLAGS.AUTO_REPORTING_ENABLED) {
+      await initializeAutoReporting(cameraState.sessionId || 'camera-session');
+      console.log('✅ Auto-reporting initialized');
+    }
+    
+  } catch (error) {
+    clearTimeout(modelLoadTimeout);
+    cameraState.modelLoaded = false;
+    updateStatus("Model loading failed - Check console for details");
+    detectionModeInfo.innerHTML = `❌ Model Failed`;
+    detectionModeInfo.style.color = '#dc3545';
+    startButton.disabled = true;
+    
+    const errorMsg = error.message || 'Unknown initialization error';
+    console.error('❌ Enhanced model initialization error:', errorMsg);
+    notify(`Failed to load AI model: ${errorMsg}`, 'error');
+    loadingOverlay.style.display = "none";
+  }
 
   inferenceWorker.onmessage = (event) => {
     const { type, payload } = event.data;

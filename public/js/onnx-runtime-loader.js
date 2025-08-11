@@ -197,13 +197,57 @@ export async function loadONNXRuntime() {
 }
 
 /**
+ * Resolve model URL with comprehensive fallback paths
+ * Supports both correct and typo folder names for robustness
+ * @returns {Promise<string>} Resolved model URL
+ */
+async function resolveModelUrl() {
+    const MODEL_FALLBACK_PATHS = [
+        // Primary path (correct spelling)
+        '/onnx_models/best.onnx',
+        
+        // Current typo path (fallback until folder is renamed)
+        '/onxx_models/best.onnx',
+        
+        // Additional web-optimized variants
+        '/onxx_models/best_web.onnx',
+        '/onxx_models/best0608.onnx',
+        '/onnx_models/best_web.onnx',
+        '/onnx_models/best0608.onnx',
+        
+        // Legacy paths
+        '/object_detection_model/best.onnx',
+        '/object_detection_model/best0608.onnx'
+    ];
+    
+    console.log('🔍 Resolving model URL with comprehensive fallback paths...');
+    
+    for (const modelPath of MODEL_FALLBACK_PATHS) {
+        try {
+            console.log(`📝 Checking model availability: ${modelPath}`);
+            const response = await fetch(modelPath, { method: 'HEAD' });
+            
+            if (response.ok) {
+                console.log(`✅ Model found at: ${modelPath}`);
+                return modelPath;
+            } else {
+                console.log(`❌ Model not available at: ${modelPath} (${response.status})`);
+            }
+        } catch (error) {
+            console.log(`❌ Error checking ${modelPath}: ${error.message}`);
+        }
+    }
+    
+    throw new Error('No accessible model found in any of the fallback paths');
+}
+
+/**
  * Create optimized inference session with model warmup and fallback support
- * @param {string} modelPath - Path to ONNX model file  
+ * @param {string} modelPath - Path to ONNX model file (optional - will auto-resolve)
  * @param {Object} options - Additional session options
  * @returns {Promise<Object>} Inference session
  */
 export async function createInferenceSession(modelPath, options = {}) {
-    console.log(`🧠 Creating inference session for: ${modelPath}`);
     const startTime = performance.now();
     
     // Ensure ONNX Runtime is loaded
@@ -211,69 +255,53 @@ export async function createInferenceSession(modelPath, options = {}) {
         await loadONNXRuntime();
     }
     
-    // Try multiple model paths with fallback
-    const MODEL_FALLBACK_PATHS = [
-        modelPath,
-        '/web/best.onnx',
-        '/web/best_web.onnx', 
-        '/web/best0608.onnx'
-    ];
+    // Auto-resolve model path if not provided
+    let actualModelPath = modelPath;
+    if (!actualModelPath) {
+        actualModelPath = await resolveModelUrl();
+    }
     
-    let actualModelPath = null;
+    console.log(`🧠 Creating inference session for: ${actualModelPath}`);
+    
     let sessionCreationError = null;
     
-    for (const tryPath of MODEL_FALLBACK_PATHS) {
-        if (!tryPath) continue;
+    try {
+        // Try to create session with current execution providers
+        const sessionOptions = {
+            ...ONNX_CONFIG.sessionOptions,
+            ...options
+        };
         
-        try {
-            console.log(`📝 Trying model path: ${tryPath}`);
-            
-            // Check if model exists
-            const modelResponse = await fetch(tryPath, { method: 'HEAD' });
-            if (!modelResponse.ok) {
-                console.warn(`⚠️ Model not found at ${tryPath}`);
-                continue;
-            }
-            
-            // Try to create session with current execution providers
-            const sessionOptions = {
-                ...ONNX_CONFIG.sessionOptions,
-                ...options
-            };
-            
-            console.log(`🚀 Creating session with providers: ${sessionOptions.executionProviders.join(', ')}`);
-            inferenceSession = await ortInstance.InferenceSession.create(tryPath, sessionOptions);
-            actualModelPath = tryPath;
-            break;
-            
-        } catch (error) {
-            sessionCreationError = error;
-            console.warn(`❌ Failed to create session with ${tryPath}:`, error.message);
-            
-            // Try with WASM-only if WebGPU failed
-            if (ONNX_CONFIG.sessionOptions.executionProviders.includes('webgpu')) {
-                try {
-                    console.log(`🔄 Retrying ${tryPath} with WASM-only fallback...`);
-                    const wasmOnlyOptions = {
-                        ...sessionOptions,
-                        executionProviders: ['wasm']
-                    };
-                    
-                    inferenceSession = await ortInstance.InferenceSession.create(tryPath, wasmOnlyOptions);
-                    actualModelPath = tryPath;
-                    ONNX_CONFIG.sessionOptions.executionProviders = ['wasm']; // Update global config
-                    console.log(`✅ Session created with WASM fallback`);
-                    break;
-                    
-                } catch (wasmError) {
-                    console.warn(`❌ WASM fallback also failed for ${tryPath}:`, wasmError.message);
-                }
+        console.log(`🚀 Creating session with providers: ${sessionOptions.executionProviders.join(', ')}`);
+        inferenceSession = await ortInstance.InferenceSession.create(actualModelPath, sessionOptions);
+        
+    } catch (error) {
+        sessionCreationError = error;
+        console.warn(`❌ Failed to create session with ${actualModelPath}:`, error.message);
+        
+        // Try with WASM-only if WebGPU failed
+        if (ONNX_CONFIG.sessionOptions.executionProviders.includes('webgpu')) {
+            try {
+                console.log(`🔄 Retrying ${actualModelPath} with WASM-only fallback...`);
+                const wasmOnlyOptions = {
+                    ...ONNX_CONFIG.sessionOptions,
+                    executionProviders: ['wasm'],
+                    ...options
+                };
+                
+                inferenceSession = await ortInstance.InferenceSession.create(actualModelPath, wasmOnlyOptions);
+                ONNX_CONFIG.sessionOptions.executionProviders = ['wasm']; // Update global config
+                console.log(`✅ Session created with WASM fallback`);
+                
+            } catch (wasmError) {
+                console.warn(`❌ WASM fallback also failed for ${actualModelPath}:`, wasmError.message);
+                sessionCreationError = wasmError;
             }
         }
     }
     
-    if (!inferenceSession || !actualModelPath) {
-        const errorMessage = `Failed to create inference session with any model path. Last error: ${sessionCreationError?.message}`;
+    if (!inferenceSession) {
+        const errorMessage = `Failed to create inference session. Last error: ${sessionCreationError?.message}`;
         console.error('❌', errorMessage);
         throw new Error(errorMessage);
     }

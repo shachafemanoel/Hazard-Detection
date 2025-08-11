@@ -6,6 +6,8 @@ import { DETECTION_CONFIG } from './config.js';
 // Import enhanced EXIF service
 import { processImageWithExif, hasGPSData } from './exif.js';
 
+const FIXED_SIZE = 480;
+
 // Import inference contract validator
 import { 
   validateDetectionResult, 
@@ -523,11 +525,14 @@ document.addEventListener("DOMContentLoaded", async function () {
     return true;
   }
   
-  // YOLOv12n Road Damage Detection Model Configuration
-  const FIXED_SIZE = 480; // from YAML imgsz
   
-  // YOLOv12n Road Damage Classes (4 classes)
-  const classNames = ['crack', 'knocked', 'pothole', 'surface damage'];
+  
+  // YOLOv12n Road Damage Detection Model Configuration
+const FIXED_SIZE = 480; // from YAML imgsz
+
+// Import inference contract validator
+import {
+  validateDetectionResult,
   
   // Hazard colors for YOLOv12n classes
   const hazardColors = {

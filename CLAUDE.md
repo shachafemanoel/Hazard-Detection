@@ -1,415 +1,353 @@
-# Unified Client Agents & Detection Engine Lead (Anthropic Subagent Format)
+# CLAUDE.md
 
----
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-name: detection-engine-lead
-description: Senior engineer for in-browser ONNX runtime, pre/post-processing, engine selection, and runtime telemetry for the Hazard-Detection web app.
---------------------------------------------------------------------------------------------------------------------------------------------------------
+## Project Overview
 
-## Repo Context (current layout)
+Hazard Detection is a real-time road hazard detection system using AI/ML with a hybrid architecture:
+- **Frontend**: Static web app with ONNX Runtime for browser-based inference
+- **Backend**: Node.js Express server with authentication and session management
+- **API**: External FastAPI service for remote inference fallback
+- **Models**: YOLO-based detection models in ONNX format
 
-* **Frontend (static HTML/JS/CSS):** `public/`
-* **ORT Web bundles:** `public/ort/`
-* **App entry (after auth):** `public/login.html` → `public/upload.html` (gated by `public/js/route-guard.js` + `public/js/session-manager.js`)
-* **Detection engine surfaces in:**
+## Quick Start Commands
 
-  * `public/js/onnx-runtime-loader.js` (session init + backend selection)
-  * `public/js/inference.worker.js`, `public/js/preprocess.worker.js` (off-thread work)
-  * `public/js/camera_detection.js` (camera flow integration)
-  * Validation & plumbing: `public/js/inference-contract-validator.js`, `public/js/config.js`
-* **Model file (browser):** `public/onnx_models/best.onnx` (canonical) — **fallback:** `public/onxx_models/best.onnx` (current typo folder)
-* **Shared logic (source):** `src/utils/yolo-runtime.js`, `src/utils/hazard-classes.js`
-
-  * If these aren’t bundled, copy or inline logic into `public/js/*`.
-* **Tests & benches:** `public/test-onnx-model-loading.html`, `tests/*`, `__tests__/*`
-* **Server (Node.js):** `server/routes/server.js` & `server/routes/simple-server.js` (static hosting, headers)
-* **Other models:** `pt_models/best0608.pt` (training artifact; not used in-browser)
-
-## Mission
-
-Own model loading and inference in the browser with robust fallbacks, fix path and header issues, keep FPS stable, and expose clean telemetry. If the browser cannot run ONNX locally (no WebGPU/blocked WASM), orchestrate a remote inference fallback via the separate API service.
-
-## Immediate Model-Fix Plan (do these first)
-
-1. **Model path resolver (typo-safe)**
-
-   * Primary: `/onnx_models/best.onnx` (correct)
-   * Fallback: `/onxx_models/best.onnx` (current tree)
-   * Implement resolution order and cache whichever succeeds.
-
-2. **ORT Web WASM/WebGPU mapping**
-
-   * Ensure ORT loads from `/ort/` and supports threads when headers allow.
-
-```js
-// public/js/onnx-runtime-loader.js
-import * as ort from '/ort/ort.wasm.bundle.min.mjs';
-
-export async function initOrtEnv() {
-  // ORT WASM paths
-  ort.env.wasm.wasmPaths = '/ort/';
-  // Threads if available (auto-fallback without COOP/COEP)
-  ort.env.wasm.numThreads = navigator.hardwareConcurrency ? Math.min(4, navigator.hardwareConcurrency) : 1;
-  ort.env.wasm.simd = true;
-  ort.env.wasm.proxy = true; // allow worker-threaded runtime when possible
-}
-```
-
-3. **Static headers (Node)**
-
-   * Serve correct MIME and (optionally) COOP/COEP; do **not** hard-fail if missing.
-
-```js
-// server/routes/server.js (or simple-server.js) — when configuring static:
-// res.setHeader('Cross-Origin-Opener-Policy','same-origin');       // optional for WASM threads
-// res.setHeader('Cross-Origin-Embedder-Policy','require-corp');    // optional for WASM threads
-// MIME types:
-// .wasm -> application/wasm
-// .onnx -> application/octet-stream
-```
-
-4. **Pre/Post alignment**
-
-   * Assume YOLO-style letterboxed square input. Start at 640, with downshift path: 640 → 480 → 384 → 320.
-   * Normalize to \[0,1] (or model-specific mean/std); ensure correct layout (NCHW vs NHWC).
-
-5. **Remote inference fallback (API)**
-
-   * If WebGPU not available and WASM init fails or model 404s, call the external API (base from `public/js/config.js`).
-   * Use/extend `public/js/apiClient.js` and normalize the response to the local `Detection[]` contract.
-   * Only use remote when local fails or when FPS < SLA for N frames.
-
-## Public Browser API (JS)
-
-```ts
-/**
- * @typedef {{x:number,y:number,w:number,h:number,classId:number,label:string,score:number}} Detection
- * @typedef {{conf?:number,iou?:number,topk?:number,maxDet?:number}} NmsOpts
- * @typedef {{backendOrder?:('webgpu'|'wasm-simd'|'wasm'|'remote')[],
- *            inputSize?:640|480|384|320,
- *            modelUrlPrimary?:string, modelUrlFallback?:string,
- *            enableTelemetry?:boolean}} EngineConfig
- */
-
-export async function createEngine(config /** @type {EngineConfig} */ ) { /* …see Chain… */ }
-```
-
-## Chain of Actions
-
-1. **Probe & initialize**
-
-   * Detect: WebGPU → WASM-SIMD(+threads if COOP/COEP) → WASM baseline → remote.
-   * Resolve model URL: try `/onnx_models/best.onnx` then `/onxx_models/best.onnx`.
-   * `initOrtEnv()`; create single shared `InferenceSession`.
-   * Warmup with `1×3×S×S` tensor; cache IO metadata.
-
-2. **Preprocess → Inference → Postprocess**
-
-   * Preprocess (worker): letterbox to `S×S`, normalize, convert to the model’s layout.
-   * Inference: run ORT; reuse preallocated tensors/buffers to reduce GC.
-   * Postprocess (worker or main): YOLO decode + deterministic NMS.
-   * Map `classId → label` using `src/utils/hazard-classes.js` (copy/export to browser at build/publish time).
-
-3. **Adaptive performance**
-
-   * Keep rolling avg over last `N=30` frames. If avg `t_infer > 33ms`:
-
-     * Downshift input size: `640 → 480 → 384 → 320`.
-     * If still over budget, downshift backend (`WebGPU→WASM-SIMD→WASM→remote`).
-   * Emit a `switch` event with reason and new mode.
-
-4. **Caching**
-
-   * Cache ONNX via Cache Storage/IndexedDB keyed by `model-config.json` version.
-   * Bust cache when `model-config.json` changes.
-
-5. **Telemetry**
-
-   * Every 30 frames emit `telemetry`:
-
-```json
-{ "backend": "webgpu|wasm|remote", "inputSize": S, "tInferMsAvg": n, "fps": n, "frames": n, "dropped": n, "memMB": n? }
-```
-
-* Emit `warn` on any fallback or IO mismatch; include `{code,message,detail}`.
-
-6. **Resource hygiene**
-
-   * Reuse typed arrays/tensors; call `session.release()` on dispose.
-   * Use `ImageBitmap` transfers to workers.
-   * Terminate workers on unload; remove RAF loops.
-
-## Files You Own (in this repo)
-
-* `public/js/onnx-runtime-loader.js` — detection, env init, model URL resolver, warmup, switching, telemetry emitter.
-* `public/js/inference.worker.js` — pre/post wiring, structured-clone-friendly payloads, buffer reuse.
-* `public/js/preprocess.worker.js` — letterbox, normalize, layout transform; avoid per-frame allocations.
-* `public/js/camera_detection.js` — integrate `createEngine()` with camera loop and UI.
-* `public/js/inference-contract-validator.js` — enforce the contract from `docs/inference-contract.md`.
-* `server/routes/server.js` (or `simple-server.js`) — static serving for .onnx/.wasm and optional COOP/COEP.
-* `src/utils/yolo-runtime.js` & `src/utils/hazard-classes.js` — single source of truth; export functions used by the browser runtime.
-
-## Remote Fallback (API service)
-
-* When backend = `remote`, use `public/js/apiClient.js` against the production API base (from `public/js/config.js`).
-* Response must normalize to local `Detection[]` (x,y,w,h in **pixel** coords, not normalized).
-* Apply the same NMS thresholds locally if the API returns raw boxes.
-
-## Acceptance Criteria (DoD)
-
-* Model loads without 404 on both `/onnx_models/best.onnx` and `/onxx_models/best.onnx` (resolver picks what exists).
-* ORT Web initializes on at least one backend; app stays functional without COOP/COEP (threads optional).
-* Stable **20–30 FPS** at 640 (WebGPU) on mid-range hardware; **≥15 FPS** at 384 on WASM fallback.
-* Deterministic NMS (repeatable ordering); no memory growth over a 5-minute run.
-* Telemetry visible via event emitter and optional `window.__ENGINE_STATS__` (dev only).
-* Remote inference engages automatically only when local backends fail or drop below SLA for N frames.
-
-## Concrete TODOs (short list)
-
-1. **Fix loader**
-
-   * Implement `resolveModelUrl()` and `initOrtEnv()` in `public/js/onnx-runtime-loader.js`.
-   * Add backend probing and warmup; export `createEngine()`.
-2. **Wire workers**
-
-   * Ensure `preprocess.worker.js` produces `S×S` `Float32` tensor (model layout).
-   * Ensure `inference.worker.js` decodes outputs and runs NMS deterministically.
-3. **Headers**
-
-   * Verify `.onnx/.wasm` MIME; add COOP/COEP when possible (don’t block if absent).
-4. **Fallback**
-
-   * Extend `apiClient.js` with `detectRemote(frame)`; integrate into engine backend order.
-5. **Tests**
-
-   * Update `public/test-onnx-model-loading.html` to try both model paths and log chosen backend/size.
-   * Add FPS & memory smoke in `__tests__/post-refactor-qa.test.js` (keep JSON snapshots in `artifacts/`).
-
-## Reference NMS (deterministic, tie-broken by score then index)
-
-```js
-export function nms(boxes, scores, iou=0.45, maxDet=100, topk=300) {
-  // boxes: Float32Array rows of [x1,y1,x2,y2]; scores: Float32Array
-  const idxs = scores.map((s,i)=>[s,i]).sort((a,b)=> b[0]-a[0] || a[1]-b[1]).slice(0, topk).map(p=>p[1]);
-  const selected = [];
-  for (const i of idxs) {
-    let keep = true;
-    for (const j of selected) {
-      if (iou2d(boxes, i, j) > iou) { keep = false; break; }
-    }
-    if (keep) { selected.push(i); if (selected.length >= maxDet) break; }
-  }
-  return selected;
-}
-```
-
-**Notes & Pitfalls**
-
-* If `hazard-classes.js` stays under `src/utils/`, copy or inline its export into `public/js/` for the browser (no bundler visible).
-* Threads (WASM) require COOP/COEP + compatible third-party assets. Keep auto-fallback to single-threaded WASM.
-* Feature flag in `model-config.json` can force `remote` backend for low-end devices.
-
----
-
-# CLAUDE.md — Client Repo (Hazard-Detection) — Updated to Current Tree
-
-> Root: `/Users/shachafemanoel/Documents/Hazard-Detection`
-
-This file defines specialized Claude Code agents for the **client** web app. Each agent has a narrow scope, exact files, acceptance checks, and deliverables. A **Work Manager** agent coordinates the others and pushes commits when milestones pass.
-
-## Shared Context
-
-* **API base (prod):** `https://hazard-api-production-production.up.railway.app`
-* **App entry after auth:** `public/login.html` → `public/upload.html` (guarded by `public/js/route-guard.js` + `public/js/session-manager.js`)
-* **Model (browser):** canonical `public/onnx_models/best.onnx` (with fallback to `public/onxx_models/best.onnx` until repo rename)
-* **ONNX Runtime (ORT Web):** bundles under `public/ort/`; prefer WebGPU, fallback to WASM (SIMD/threads if headers allow)
-* **Decisions:** Use canvas Decisions D1 mapping, D2 hybrid session cache, D3 bundles, D4 batching, D6 mobile adaptivity, D7 precision
-* **Guardrails:** Small commits, no secrets, keep backward-compatible URLs/HTML, add tests for changes, ask unclear items in `QUESTIONS.md`
-
-## Environment Keys
-
-The client reads base URL primarily from `public/js/config.js`/`public/js/network.js`.
-Optionally support Vite-style envs when present.
-
+### Development
 ```bash
-# optional (if using a bundler)
-VITE_API_BASE=https://hazard-api-production-production.up.railway.app
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+
+# Start production server
+npm start
+
+# Run tests
+npm test
+
+# Check streaming functionality
+npm run stream:check
 ```
 
----
+### Docker Development
+```bash
+# Build unified container
+./build-unified.sh
 
-## Agent 0 — Work Manager (Client Lead)
+# Run with compose
+docker-compose -f docker-compose.unified.yml up -d
 
-**Goal:** Plan → Assign → Verify → Commit & Push.
-
-**Scope:** Whole repo. Creates task checklist, delegates to Agents 1–6, validates acceptance, and pushes commits.
-
-**Process (High-level):**
-
-1. Read this CLAUDE.md and PLAN.md.
-2. Create `TASKS.md` with ordered checklist and owners (Agents 1–6).
-3. For each task: open a short sub-prompt to the relevant agent, collect result, run acceptance checks, request fixes.
-4. When green, commit with message template and open a PR.
-
-**Must produce:** `TASKS.md`, PR links, and `REPORT.md` with metrics (FPS/TTFD, overlay px error).
-
-**Commit template:**
-
-```md
-feat(client): <short title>
-
-Why
-- ...
-What
-- ...
-Tests
-- ...
-Metrics
-- FPS: …, TTFD: …, Overlay error: …
+# Health check
+curl http://localhost:3000/health
 ```
 
----
+## Architecture
 
-## Agent 1 — Frontend Overlay & Camera
+### Frontend Structure (`public/`)
+- **Entry Points**: `login.html` → `upload.html` → `camera.html`
+- **Auth Flow**: `route-guard.js` + `session-manager.js` gate access to main app
+- **Detection Engine**: ONNX Runtime with WebGPU/WASM fallbacks
+- **API Communication**: REST API via `apiClient.js` with Railway backend
+- **Real-time**: Camera stream with overlay detection rendering
 
-**Files:**
+### Key Modules
+- **`public/js/camera_detection.js`**: Main detection loop, camera handling, overlay rendering
+- **`public/js/apiClient.js`**: HTTP client for external API, session management
+- **`public/js/onnx-runtime-loader.js`**: ONNX model loading with backend selection
+- **`public/js/utils/coordsMap.js`**: Video-to-canvas coordinate transformation
+- **`public/js/inference.worker.js`**: Web Worker for inference processing
+- **`public/js/auto-reporting-service.js`**: Automatic hazard reporting system
 
-* `public/camera.html`
-* `public/css/camera.css`
-* `public/js/camera_detection.js`
-* `public/js/ui-controls.js`
-* `public/js/utils/coordsMap.js` **(new)**
-* `public/js/test_camera_functions.js` (smoke tests exist today)
+### Server Structure (`server/`)
+- **`server/routes/server.js`**: Main Express server with Redis sessions
+- **`server/routes/auth.js`**: Google OAuth integration
+- **`server/services/reportUploadService.js`**: Cloudinary integration
 
-**Tasks:**
+### Model Files
+- **Primary**: `public/onnx_models/best.onnx` (canonical path)
+- **Fallback**: `public/onxx_models/best.onnx` (typo folder - legacy support)
+- **ONNX Runtime**: `public/ort/` (WebGPU and WASM bundles)
 
-1. Implement mapping utils: `computeContainMapping`, `computeCoverMapping`, `modelToCanvasBox`.
-2. Call `syncCanvasSize()` on `loadeddata` + window resize; draw boxes with contain/cover modes.
-3. Backpressure (single in-flight), FPS/TTFD logs, mobile tweaks (D6: input downshift, DPR handling).
+## Common Development Tasks
 
-**Acceptance:** boxes align ±2px (±1px ל־`crack` על DPR≥2); FPS ≥15 desktop; TTFD ≤2s לאחר טעינה.
+### Adding New Detection Features
+1. Update model preprocessing in `preprocess.worker.js`
+2. Modify post-processing in `inference.worker.js` 
+3. Update coordinate mapping in `utils/coordsMap.js`
+4. Test with `public/test-onnx-model-loading.html`
 
-**Deliverables:** code + updated `public/js/test_camera_functions.js` (או `tests/test_camera_functions.js` אם מעבירים), screenshots before/after.
+### API Integration Changes
+1. Update contracts in `apiClient.js`
+2. Validate against external API at `https://hazard-api-production-production.up.railway.app`
+3. Update session flow in `session-manager.js`
+4. Test end-to-end with `test-api-connection.html`
 
----
+### Performance Optimization
+- **ONNX Backend Selection**: WebGPU → WASM-SIMD → WASM → Remote API
+- **Target Performance**: ≥15 FPS, ≤2s TTFD (Time To First Detection)
+- **Memory Management**: Reuse inference sessions, avoid GC pressure
+- **Coordinate Accuracy**: ±2px overlay alignment across all viewports
 
-## Agent 2 — API Client & Cross-Repo Integration (Client-side)
+### Testing Strategy
+- **Unit**: Jest with `__tests__/*.test.js`
+- **Integration**: Browser tests in `public/test-*.html`
+- **Performance**: FPS/TTFD metrics logged in console
+- **Smoke Tests**: `scripts/verify_onnx_web.mjs`
 
-**Files:**
+## Important Patterns
 
-* `public/js/apiClient.js`
-* `public/js/report-upload-service.js`
-* `public/js/network.js`
-* `public/js/config.js`
-* `src/utils/hazard-classes.js` → **mirror/inline** to `public/js/hazardClasses.js` if referenced in browser
+### ESM Module Structure
+The project uses ES modules (`"type": "module"` in package.json):
+```javascript
+// ✅ Correct - Named exports
+export { detectSingleWithRetry, uploadDetection };
 
-**Tasks:**
+// ✅ Correct - Dynamic imports for workers
+const worker = new Worker('./inference.worker.js', { type: 'module' });
+```
 
-1. Ensure **named exports** exist and are used: `detectSingleWithRetry`, `uploadDetection`, `createReport`, `getSessionSummary`, `uploadToCloudinaryViaServer`.
-2. Centralize `resolveBaseUrl()` in `public/js/network.js`; read default from `public/js/config.js`; support `VITE_API_BASE` when available.
-3. Validate contracts vs server:
+### Error Handling
+```javascript
+// ✅ Graceful fallbacks for ONNX backends
+try {
+  await ort.env.webgpu.init();
+  backend = 'webgpu';
+} catch {
+  backend = 'wasm'; // fallback
+}
+```
 
-   * `POST /report` expects multipart (image + JSON meta).
-   * `GET /session/{id}/reports|summary` returns objects with `image.url`.
-4. Update parsers accordingly; add `schemas/client-api.md` documenting fields and examples.
+### Coordinate Transformation
+```javascript
+// ✅ Video-to-canvas mapping with object-fit handling
+const rect = getVideoDisplayRect(video, canvas);
+const canvasBox = mapModelToCanvas(detection, 640, rect);
+```
 
-**Acceptance:** live calls succeed against Railway API; Summary modal shows Cloudinary URLs; no 4xx/5xx in console.
+## Configuration
 
-**Deliverables:** code + `schemas/client-api.md` + short `README` note.
+### Environment Variables
+- **Required**: `SESSION_SECRET`
+- **Optional**: `CLOUDINARY_*`, `GOOGLE_*`, `REDIS_*`, `MODEL_BACKEND`
+- **Client Config**: `public/js/config.js` + `public/js/network.js`
 
----
+### Feature Flags
+- **Auto-reporting**: `FEATURE_FLAGS.AUTO_REPORTING_ENABLED`
+- **Real-time**: `FEATURE_FLAGS.REALTIME_ENABLED` 
+- **Debug**: `FEATURE_FLAGS.DEBUG_MODE`
 
-## Agent 3 — Model Integration (browser ONNX)
+### API Endpoints
+- **Health**: `GET /health`
+- **Detection**: `POST /detect`
+- **Reports**: `POST /report`, `GET /session/:id/reports`
+- **Auth**: Google OAuth via Passport.js
 
-**Files:**
+## Known Issues & Workarounds
 
-* `public/onnx_models/best.onnx` (fallback: `public/onxx_models/best.onnx` until rename)
-* `public/js/onnx-runtime-loader.js` **(new)** — env init, backend probe, model URL resolver
-* `public/js/camera_detection.js` (uses loader API)
-* `scripts/verify_onnx_web.mjs` **(new, optional)** — local smoke
+### Model Path Typo
+- Current: `/onxx_models/` (typo folder exists)
+- Canonical: `/onnx_models/` (implement resolver for both)
 
-**Tasks:**
+### ONNX Runtime Threading
+- Requires COOP/COEP headers for WASM threads
+- Graceful fallback to single-threaded when headers missing
 
-1. Load model via resolver (try `/onnx_models/best.onnx` then `/onxx_models/best.onnx`); log chosen path.
-2. Create ORT session; log IO names and dims; warmup with `1×3×S×S`.
-3. If IO names differ from expected (e.g. `images` / `output0`), adapt pre/post accordingly and document.
+### Coordinate Alignment
+- Different aspect ratios need custom mapping logic
+- Mobile viewport handling requires DPR scaling
+- Test accuracy with measurement tools
 
-**Acceptance:** session created in browser; warmup completes; logs show input/output names and shapes.
+## Performance Targets
 
-**Deliverables:** code + log snippet in `REPORT.md`.
+- **TTFD**: ≤2 seconds from page load to first detection
+- **FPS**: ≥15 FPS steady-state during detection
+- **API Latency**: P95 ≤150ms for external API calls  
+- **Overlay Accuracy**: ±2px bounding box alignment
+- **Memory**: No growth over 5-minute detection sessions
 
----
+## Git Workflow
 
-## Agent 4 — Performance & Bundles
+### Branch Strategy
+- **Main**: `4uryeb-codex/fix-loading-backend-model`
+- **Current**: `codebase`
+- **Development**: Feature branches from main
 
-**Files:**
+### Commit Messages
+```
+feat(client): implement coordinate mapping system
 
-* `public/ort/*` (WebGPU & WASM bundles)
-* `public/js/onnx-runtime-loader.js`
-* `public/js/camera_detection.js`
+Why:
+- Fix ±2px overlay accuracy requirement
+- Support all aspect ratios and viewports
 
-**Tasks:**
+What:
+- Add getVideoDisplayRect() utility
+- Implement mapModelToCanvas() transformation
+- Update camera_detection.js overlay rendering
 
-1. Dynamic import: try `ort.webgpu.bundle.min.mjs` + `await ort.env.webgpu.init()`, fallback to `ort.wasm.bundle.min.mjs`; set `ort.env.wasm.wasmPaths='/ort/'`.
-2. Lazy-load model on first camera start; reuse a single session across camera restarts.
-3. Metric logs (FPS/TTFD) + periodic console summary.
+Tests:
+- Added coordinate mapping unit tests
+- Verified across mobile/desktop viewports
 
-**Acceptance:** TTFD ≤2s ו־FPS ≥15 על לפטופ בינוני; bundle אחד ל־WebGPU + אחד ל־WASM בלבד נטענים.
+Metrics:
+- Overlay accuracy: ±1.2px average
+- No performance regression
+```
 
-**Deliverables:** code + metrics in `REPORT.md`.
+## Specialized Agent System
 
----
+This project uses a comprehensive agent system for handling complex development tasks. These agents can be invoked using the Task tool with specific `subagent_type` parameters.
 
-## Agent 5 — Code Cleanup
+### Project-Specific Agents
 
-**Files / Actions:**
+#### Core Development Leads
 
-* **Rename folder** `public/onxx_models` → `public/onnx_models` (fix typo) ולתקן ייחוסים.
-* להסיר מודלים/קבצי ONNX מיותרים — להשאיר רק `best.onnx`.
-* להסיר כפילויות ORT; להשאיר WebGPU אחד ו־WASM אחד.
-* להסיר קבצים ישנים: `public/js/upload_tf.js`, `public/js/firebaseConfig*.js` אם קיימים.
-* לעדכן `.gitignore` ל־`*.map` ו־caches בהתאם.
+**`fe-platform-lead`** - Frontend platform management
+- **Role**: Senior frontend manager for Detection UI + Dashboard + UX polish
+- **Scope**: Detection view with camera/overlays, live dashboard, controls integration
+- **Targets**: 60fps UI, <1s dashboard lag, keyboard/mouse/touch ROI support
 
-**Acceptance:** preview/build pass; אין 404; אין imports מתים (ESLint/depcheck ירוקים).
+**`detection-engine-lead`** - ONNX runtime and inference engine
+- **Role**: In-browser ONNX runtime, pre/post-processing, engine selection, telemetry
+- **Scope**: Model loading, WebGPU→WASM fallbacks, coordinate mapping, performance
+- **Targets**: 20-30 FPS WebGPU, ≥15 FPS WASM, ≤2s TTFD, deterministic NMS
 
-**Deliverables:** PR `chore(client): remove obsolete files and fix model folder`.
+**`node-server-lead`** - Backend server and API proxy
+- **Role**: REST/WebSocket server, report CRUD, API proxy to Python service
+- **Scope**: `/reports` endpoints, `/events` streaming, `/infer` proxy, CORS setup
+- **Targets**: Works offline, proxy recovery, JSON/lowdb storage
 
----
+**`orchestration-lead`** - Cross-engine routing and health management
+- **Role**: Smart routing between local ONNX and remote API with circuit breakers
+- **Scope**: Health checks, latency measurement, seamless switching, status broadcasting
+- **Targets**: ≤2 frame failover, automatic switchback after 3 green checks
 
-## Agent 6 — E2E QA & Visual Tests
+#### Data and Quality Management
 
-**Files:**
+**`reports-data-lead`** - Report lifecycle and storage
+- **Role**: Report schema design, CRUD operations, deduplication, export functionality
+- **Scope**: IndexedDB store, versioned migrations, background sync, conflict resolution
+- **Targets**: 10k item performance, zero data loss, export compatibility
 
-* `tests/e2e/overlay.spec.ts` **(new, Playwright)**
-* `public/js/test_camera_functions.js` (או להעביר ל־`tests/`)
-* `public/test-onnx-model-loading.html` (smoke קיימת — לעדכן שתבדוק שני נתיבי מודל ותציג backend)
+**`interface-contracts-owner`** - API contracts and data validation
+- **Role**: Shared data contracts, JSON schemas, cross-repo compatibility
+- **Scope**: TypeScript types, Pydantic models, sample fixtures, version management
+- **Targets**: Both repos compile against same contract, fixtures pass CI
 
-**Tasks:**
+**`qa-release-lead`** - Testing and release management
+- **Role**: Contract tests, E2E flows, performance budgets, CI pipeline
+- **Scope**: Playwright scenarios, FPS measurement, release checklists
+- **Targets**: Green builds required for merges, comprehensive test coverage
 
-1. Mock camera; run start→detections→stop→Summary; לאמת thumbnails ו־URLs.
-2. שינוי גודל viewport; לאמת שה־overlay נשאר בתוך ±2px.
+#### Meta-Orchestration Agents
 
-**Acceptance:** tests pass locally and in CI.
+**`program-director`** - Cross-repo coordination
+- **Role**: Overall engineering lead, scope setting, team coordination
+- **Scope**: Task delegation, milestone tracking, contract enforcement
+- **Targets**: 30+ FPS interface, ≤1s dashboard staleness, API p95 ≤120ms
 
-**Deliverables:** code + CI snippet + screenshots.
+**`agent-organizer`** - Multi-agent task coordination
+- **Role**: Task decomposition, agent selection, workflow optimization
+- **Scope**: Agent registry management, task queue optimization, resource tracking
+- **Targets**: >95% selection accuracy, >99% task completion, optimal utilization
 
----
+**`error-coordinator`** - Distributed error handling
+- **Role**: Error correlation, cascade prevention, automated recovery
+- **Scope**: Cross-agent error tracking, failure isolation, learning integration
+- **Targets**: <30s detection, >90% recovery success, <5min MTTR
 
-## Integration Specialist (Client-oriented)
+#### Utility and Maintenance
 
-**Goal:** Own **integration with the Server repo** from the client side.
+**`esm-test-fixer`** - CommonJS to ESM migration
+- **Role**: Convert test files from CommonJS to ES Module syntax
+- **Scope**: `require()` to `import` conversion, `__dirname` replacement, dependency fixes
+- **Usage**: When tests fail with "require is not defined" in ESM projects
 
-**Files:**
+**`repo-sweeper-web`** - Codebase cleanup
+- **Role**: Remove redundant files, clean build artifacts, optimize repository
+- **Scope**: Dead code removal, cache cleanup, dependency analysis
+- **Targets**: Build passes post-cleanup, no protected files affected
 
-* `public/js/apiClient.js`, `public/js/network.js`, `public/js/config.js`
-* `schemas/client-api.md`
+### Client Development Specialists
 
-**Tasks:**
+#### Frontend Engineering
 
-1. Diff client expectations vs server responses; open issues/PRs on server as needed.
-2. Validate CORS/ALLOWED\_ORIGINS; ensure single source of truth for API base (config/env).
-3. Keep a checklist of endpoints and fields used by the client.
+**`frontend-developer`** - Modern web UI development
+- **Role**: React/Vue/Angular component development with accessibility focus
+- **Capabilities**: Responsive design, TypeScript strict mode, state management
+- **Targets**: >90 Lighthouse score, WCAG 2.1 AA compliance, >85% test coverage
 
-**Acceptance:** No schema mismatches; all client→server flows succeed in Railway preview.
+**`websocket-engineer`** - Real-time communication
+- **Role**: WebSocket architectures, bidirectional protocols, event-driven systems
+- **Capabilities**: Connection management, horizontal scaling, message queuing
+- **Targets**: Sub-10ms latency, high throughput, robust reconnection
 
-**Deliverables:** `schemas/client-api.md` + checklist in `TASKS.md`.
+**`performance-engineer`** - System optimization
+- **Role**: Bottleneck identification, load testing, scalability engineering
+- **Capabilities**: Profiling, resource optimization, capacity planning
+- **Targets**: SLA achievement, comprehensive monitoring, cost optimization
+
+#### Code Quality and Testing
+
+**`code-reviewer`** - Code quality and security
+- **Role**: Security vulnerability detection, design pattern validation
+- **Capabilities**: Static analysis, technical debt assessment, performance review
+- **Targets**: Zero critical security issues, >80% coverage, <10 complexity
+
+**`test-automator`** - Test framework development
+- **Role**: Automated testing infrastructure, CI/CD integration
+- **Capabilities**: UI/API testing, framework design, performance testing
+- **Targets**: >80% coverage, <30min execution, <1% flaky tests
+
+**`refactoring-specialist`** - Code transformation
+- **Role**: Safe refactoring patterns, maintainability improvement
+- **Capabilities**: Code smell detection, automated transformation, pattern application
+- **Targets**: Zero behavior changes, maintained coverage, complexity reduction
+
+#### Development Experience
+
+**`debugger`** - Complex issue diagnosis
+- **Role**: Systematic debugging, root cause analysis, production troubleshooting
+- **Capabilities**: Memory debugging, concurrency issues, performance analysis
+- **Targets**: Consistent reproduction, systematic elimination, comprehensive postmortem
+
+**`dx-optimizer`** - Developer experience enhancement
+- **Role**: Build performance, workflow automation, tooling optimization
+- **Capabilities**: HMR acceleration, IDE configuration, testing optimization
+- **Targets**: <30s builds, <100ms HMR, <2min test runs, developer satisfaction
+
+### Agent Communication Protocol
+
+All agents follow a standardized communication pattern:
+
+1. **Context Query**: Request project context from context manager
+2. **Progress Updates**: JSON status reports during execution  
+3. **Completion Notification**: Structured delivery reports with metrics
+4. **Cross-Agent Coordination**: Explicit handoff points between agents
+
+### Usage Examples
+
+```javascript
+// Use the Task tool to invoke agents
+// Example 1: Fix ESM compatibility issues
+{
+  "subagent_type": "esm-test-fixer",
+  "description": "Convert CommonJS tests to ESM",
+  "prompt": "My tests are failing with 'require is not defined'. Convert all test files to ESM syntax."
+}
+
+// Example 2: Optimize detection engine performance  
+{
+  "subagent_type": "detection-engine-lead", 
+  "description": "Optimize ONNX inference performance",
+  "prompt": "Current FPS is 8-12. Need to achieve ≥15 FPS with proper backend fallbacks."
+}
+
+// Example 3: Build comprehensive test suite
+{
+  "subagent_type": "test-automator",
+  "description": "Create E2E test coverage",
+  "prompt": "Need Playwright tests for camera detection flow: start→detect→save→summary."
+}
+```

@@ -203,11 +203,58 @@ app.use((req, res, next) => {
     next();
 });
 
-/* ───── Core middleware (סדר חשוב!) ───── */
+/* ───── ONNX and WASM MIME Types Configuration ───── */
+app.use(express.static('public', {
+  setHeaders: (res, filePath) => {
+    const ext = path.extname(filePath).toLowerCase();
+    
+    // Set MIME types for ONNX and WASM files
+    switch (ext) {
+      case '.wasm':
+        res.setHeader('Content-Type', 'application/wasm');
+        break;
+      case '.onnx':
+        res.setHeader('Content-Type', 'application/octet-stream');
+        break;
+      case '.mjs':
+        res.setHeader('Content-Type', 'application/javascript');
+        break;
+      case '.js':
+        if (filePath.includes('worker')) {
+          res.setHeader('Content-Type', 'application/javascript');
+        }
+        break;
+    }
+
+    // CORS headers for ONNX Runtime files
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    
+    // Optional: Add COOP/COEP headers for WASM threading (if enabled)
+    if (process.env.ENABLE_WASM_THREADS === 'true') {
+      res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+      res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+    }
+  }
+}));
+
+/* ───── ORT Directory with Enhanced Headers ───── */
 app.use(
     '/ort',
     (req, res, next) => {
       res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.set('Access-Control-Allow-Origin', '*');
+      res.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+      
+      // Set specific MIME types for ORT files
+      const ext = path.extname(req.path).toLowerCase();
+      if (ext === '.wasm') {
+        res.set('Content-Type', 'application/wasm');
+      } else if (ext === '.mjs') {
+        res.set('Content-Type', 'application/javascript');
+      }
+      
       next();
     },
     express.static(path.join(__dirname, '../../public/ort'))
@@ -246,7 +293,6 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Set app-level variables for auth routes
-app.set('redisClient', client);
 app.set('isSimpleMode', isSimpleMode);
 
 // 🔗 API URL using private-first networking (Railway internal network)
@@ -303,14 +349,14 @@ app.get('/api/v1/health', async (req, res) => {
 
 // Session management endpoints
 app.post('/api/v1/session/start', async (req, res) => {
-    try {
-        const result = await makeApiRequest('/session/start', {
-            method: 'POST'
-        });
-        res.json(result);
-    } catch (error) {
-        res.status(502).json({ error: error.message });
-    }
+  try {
+    const sessionId = `local_session_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    console.log(`Generated local session ID: ${sessionId}`);
+    res.json({ session_id: sessionId });
+  } catch (error) {
+    console.error('Error generating local session ID:', error);
+    res.status(500).json({ error: 'Failed to start local session' });
+  }
 });
 
 app.post('/api/v1/session/:sessionId/end', async (req, res) => {
@@ -453,6 +499,9 @@ if (process.env.REDIS_HOST && process.env.REDIS_PASSWORD && RedisStore) {
         proxy: process.env.NODE_ENV === 'production'
     }));
 }
+
+// Set Redis client for auth routes after initialization
+app.set('redisClient', client);
 
   app.use(passport.initialize());
   app.use(passport.session());
