@@ -100,7 +100,7 @@ def main():
         os.path.dirname(__file__),
         'public',
         'object_detection_model',
-        'last_model_train12052025.onnx'
+        'best0608.onnx'
     )
     
     print("🔍 ONNX Model Validation Tool")

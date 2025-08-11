@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Error><Code>NoSuchBucket</Code><Message>The specified bucket does not exist</Message><BucketName>pipeless-public</BucketName><RequestId>V2MQDP08Y7HZG0Y2</RequestId><HostId>neZ1vSpa57IHdFS3UNZvcRVXTCcWTRQiq6hOMRe7nn10SZGF31dLr8QeHqEBK8z/qgvuRwz5h58=</HostId></Error>

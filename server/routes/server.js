@@ -2,6 +2,7 @@
 import express from 'express';
 import session from 'express-session';
 import { createRequire } from 'module';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 
 // Some environments bundle different versions of connect-redis. Use createRequire
 // so we can support both CommonJS and ESM variants gracefully.
@@ -37,6 +38,11 @@ import FormData from 'form-data';
 import cors from 'cors';
 import os from 'os'; // מייבאים את המודול os
 
+const CLASS_ID_TO_NAME_MAP = {
+  0: 'crack',
+  1: 'pothole'
+};
+
 // 📦 Firebase & Cloudinary
 import { v2 as cloudinary } from 'cloudinary';
 import multer from 'multer';
@@ -49,16 +55,16 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // 📁 Load environment variables
-// Ensure environment variables are loaded before any use.
-// The project's documentation expects the `.env` file to live at the repo root,
-// but this file resides under `server/routes`. Resolve the path accordingly.
-const envPath = path.resolve(__dirname, '../../.env');
+// Load .env file from project root using absolute path resolution
+const projectRoot = path.resolve(process.cwd());
+const envPath = path.join(projectRoot, '.env');
+
 if (process.env.NODE_ENV !== 'production' && fs.existsSync(envPath)) {
   dotenv.config({ path: envPath });
-  console.log('Loaded environment from', envPath);
+  console.log('✅ Loaded environment from', envPath);
 } else {
   dotenv.config();
-  console.log('Loaded environment from process.env');
+  console.log('✅ Loaded environment from process.env');
 }
 
 // הדפסה לבדיקת טעינת משתני סביבה
@@ -86,14 +92,81 @@ const upload = multer();
 const app = express();
 const port = process.env.PORT || process.env.WEB_PORT || 3000;
 
+// API proxy configuration
+const API_TARGET = process.env.API_TARGET || 'http://ideal-learning.railway.internal:8080';
+
+// Safety middleware to ensure no CSP is sent
+app.use((req, res, next) => {
+  res.removeHeader('Content-Security-Policy');
+  next();
+});
+
+// Add API proxy to avoid Mixed Content issues
+app.use('/api', createProxyMiddleware({
+  target: API_TARGET,
+  changeOrigin: true,
+  secure: false,
+  ws: false,
+  xfwd: true,
+  pathRewrite: { '^/api': '' }, // so /api/health -> /health
+  onProxyReq: (proxyReq) => {
+    proxyReq.removeHeader('Origin');
+  }
+}));
+
 // Simple mode detection (for testing without Redis/complex features)
 const isSimpleMode = process.env.SIMPLE_MODE === 'true' || !process.env.REDIS_HOST;
+// In-memory store for password reset tokens in simple mode or when Redis/SENDGRID are unavailable
+const simpleResetTokens = new Map();
+
+// --- Simple user store (file-based) for environments without Redis ---
+const userStorePath = path.resolve(process.cwd(), 'server', 'data', 'users.json');
+async function ensureUserStoreDir() {
+    const dir = path.dirname(userStorePath);
+    try { await fs.promises.mkdir(dir, { recursive: true }); } catch (_) {}
+}
+async function loadUsers() {
+    try {
+        const data = await fs.promises.readFile(userStorePath, 'utf8');
+        return JSON.parse(data);
+    } catch (err) {
+        if (err.code === 'ENOENT') return [];
+        throw err;
+    }
+}
+async function saveUsers(users) {
+    await ensureUserStoreDir();
+    await fs.promises.writeFile(userStorePath, JSON.stringify(users, null, 2), 'utf8');
+}
+async function findUserByEmailSimple(email) {
+    const users = await loadUsers();
+    return users.find(u => u.email === email) || null;
+}
+async function createUserSimple({ email, username, password }) {
+    const users = await loadUsers();
+    if (users.some(u => u.email === email)) {
+        return { error: 'User already registered with this email.' };
+    }
+    const newUser = { id: `user:${Date.now()}`, email, username, password, type: 'user' };
+    users.push(newUser);
+    await saveUsers(users);
+    return { user: newUser };
+}
+async function updateUserPasswordSimple(email, newPassword) {
+    const users = await loadUsers();
+    const idx = users.findIndex(u => u.email === email);
+    if (idx === -1) return false;
+    users[idx].password = newPassword;
+    await saveUsers(users);
+    return true;
+}
 
 // Serving static files from the "public" directory
 // Make sure to set index: false to prevent serving index.html by default
 app.use(express.static(path.join(__dirname, '../../public'), { 
     index: false,
     extensions: ['html'], // This will allow serving .html files without the extension
+    fallthrough: true, // Ensure requests continue to other middleware if file not found
     setHeaders: (res, path) => {
         // Set proper MIME types for ML models and WASM files
         if (path.endsWith('.onnx')) {
@@ -135,6 +208,35 @@ app.get('/object_detection_model/*.onnx', (req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
     
     console.log(`✅ Serving ONNX model: ${modelName}.onnx`);
+    res.sendFile(modelPath);
+});
+
+// Specific route for web ONNX model files  
+app.get('/web/*.onnx', (req, res) => {
+    const modelName = decodeURIComponent(req.params[0]);
+    const modelPath = path.resolve(
+      process.cwd(),
+      'public',
+      'web',
+      `${modelName}.onnx`
+    );
+    
+    console.log(`📂 Requesting web ONNX model: ${modelName}.onnx`);
+    console.log(`📁 Full path: ${modelPath}`);
+    
+    // Check if file exists
+    if (!require('fs').existsSync(modelPath)) {
+        console.log(`❌ Web model not found: ${modelPath}`);
+        return res.status(404).json({ error: 'Web model not found' });
+    }
+    
+    // Set proper headers for ONNX files
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+    
+    console.log(`✅ Serving web ONNX model: ${modelName}.onnx`);
     res.sendFile(modelPath);
 });
 
@@ -827,15 +929,26 @@ async function getReports() {
             
             const batchPromises = batchKeys.map(async (key) => {
                 try {
-                    // Try to get as JSON first
-                    let report = await client.json.get(key);
-                    if (report) return report;
+                    let reportData = await client.json.get(key);
+                    if (!reportData) {
+                        const str = await client.get(key);
+                        if (str) reportData = JSON.parse(str);
+                    }
+                    if (!reportData) return null;
 
-                    // Fallback to getting as a string and parsing
-                    const str = await client.get(key);
-                    if (str) return JSON.parse(str);
+                    // Map to the canonical ReportItem contract
+                    const location = reportData.location || "";
+                    const coordMatch = location.match(/Coordinates:\s*([+-]?\d*\.?\d+),\s*([+-]?\d*\.?\d+)/);
 
-                    return null;
+                    return {
+                        id: reportData.id,
+                        image_url: reportData.image || reportData.imageUrl,
+                        class_name: reportData.type || reportData.class_name,
+                        timestamp: reportData.time || reportData.timestamp,
+                        latitude: reportData.lat ?? (coordMatch ? parseFloat(coordMatch[1]) : undefined),
+                        longitude: reportData.lon ?? (coordMatch ? parseFloat(coordMatch[2]) : undefined),
+                        status: reportData.status // Keep extra fields for dashboard functionality
+                    };
                 } catch (err) {
                     console.warn(`Skipping corrupted report ${key}:`, err.message);
                     return null;
@@ -846,27 +959,7 @@ async function getReports() {
             reports.push(...batchReports);
         }
 
-        // Ensure all reports have required lat/lon for mapping
-        return reports.map(report => {
-            // If report has coordinates as lat/lon properties, keep them
-            if (report.lat && report.lon) {
-                return report;
-            }
-            
-            // Try to parse location for coordinates
-            if (typeof report.location === 'string') {
-                const coordMatch = report.location.match(/Coordinates:\s*([+-]?\d*\.?\d+),\s*([+-]?\d*\.?\d+)/);
-                if (coordMatch) {
-                    return {
-                        ...report,
-                        lat: parseFloat(coordMatch[1]),
-                        lon: parseFloat(coordMatch[2])
-                    };
-                }
-            }
-            
-            return report;
-        });
+        return reports;
     } catch (error) {
         console.error('🔥 Error in getReports:', error);
         throw new Error(`Database operation failed: ${error.message}`);
@@ -1084,6 +1177,58 @@ app.get('/api/reports/stats', async (req, res) => {
     } catch (err) {
         console.error('Error getting report stats:', err);
         res.status(500).json({ error: 'Failed to get stats', details: err.message });
+    }
+});
+
+// NEW: Create a single report from a detection
+// This endpoint implements the `Create report request` contract
+app.post('/api/reports/create', upload.single('file'), async (req, res) => {
+    if (!isSimpleMode && !req.isAuthenticated()) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    try {
+        const { class_id, bbox, timestamp, latitude, longitude, metadata } = req.body;
+
+        if (!req.file || !class_id || !bbox || !timestamp) {
+            return res.status(400).json({ error: 'Missing required fields: file, class_id, bbox, timestamp' });
+        }
+
+        // Upload image to Cloudinary
+        const uploadResult = await new Promise((resolve, reject) => {
+            const stream = cloudinary.uploader.upload_stream(
+                { folder: "hazard-reports" },
+                (error, result) => {
+                    if (error) return reject(error);
+                    resolve(result);
+                }
+            );
+            streamifier.createReadStream(req.file.buffer).pipe(stream);
+        });
+
+        const reportId = `rep_${new Date().getTime()}`;
+        const reportKey = `report:${reportId}`;
+
+        const newReport = {
+            id: reportId,
+            class_name: CLASS_ID_TO_NAME_MAP[class_id] || 'unknown',
+            timestamp: timestamp,
+            image_url: uploadResult.secure_url,
+            latitude: latitude ? parseFloat(latitude) : null,
+            longitude: longitude ? parseFloat(longitude) : null,
+            bbox: JSON.parse(bbox),
+            status: 'New',
+            reportedBy: req.user ? req.user.email : 'anonymous',
+            metadata: metadata ? JSON.parse(metadata) : {}
+        };
+
+        await client.json.set(reportKey, '$', newReport);
+
+        res.status(201).json({ success: true, message: 'Report created successfully', report: newReport });
+
+    } catch (error) {
+        console.error('Error creating report:', error);
+        res.status(500).json({ error: 'Failed to create report', details: error.message });
     }
 });
 
@@ -1307,25 +1452,31 @@ app.post('/register', async (req, res) => {
     }  
 
     // בדוק אם המייל קיים בעזרת פונקציה שנבנתה קודם
-    const existingUser = await emailExists(email);  
-    if (existingUser) {  
-        return res.status(400).json({ error: 'User already registered with this email.' }); // הודעת שגיאה  
-    }  
+    if (client && redisConnected) {
+        const existingUser = await emailExists(email);  
+        if (existingUser) {  
+            return res.status(400).json({ error: 'User already registered with this email.' });
+        }  
 
-    const userId = `user:${Date.now()}`;  // יצירת מזהה ייחודי למשתמש
-    const newUser = {  
-        email,  
-        username,  
-        password,  
-        type: 'user'  
-    };  
-
-    // שמירה ב-Redis כ-string
-    try {
-        await client.set(userId, JSON.stringify(newUser));  // שמירה כ-string
-    } catch (err) {
-        console.error('Error saving user to Redis:', err);
-        return res.status(500).json({ error: 'Internal server error' });
+        const userId = `user:${Date.now()}`;  
+        const newUser = {  
+            email,  
+            username,  
+            password,  
+            type: 'user'  
+        };  
+        try {
+            await client.set(userId, JSON.stringify(newUser));
+        } catch (err) {
+            console.error('Error saving user to Redis:', err);
+            return res.status(500).json({ error: 'Internal server error' });
+        }
+    } else {
+        // Simple mode: save to file store
+        const result = await createUserSimple({ email, username, password });
+        if (result.error) {
+            return res.status(400).json({ error: result.error });
+        }
     }
 
     // Use Passport login to properly authenticate the new user
@@ -1435,105 +1586,164 @@ app.post('/login', async (req, res) => {
 
 // שליחה למייל של קישור לאיפוס סיסמה
 app.post('/forgot-password', async (req, res) => {
-    const { email } = req.body;
-    if (!email) {
-        return res.status(400).json({ error: 'Email is required' });
-    }
-
-    const userKeys = await client.keys('user:*');
-    let userId = null;
-    let userData = null;
-    for (const key of userKeys) {
-        const data = JSON.parse(await client.get(key));
-        if (data.email === email) {
-            userId = key;
-            userData = data;
-            break;
-        }
-    }
-
-    if (!userId || !userData) {
-        return res.status(404).json({ error: 'Email not found' });
-    }
-
-    if (!userData.password) {
-        return res.status(400).json({ error: 'This account uses Google login and cannot reset password.' });
-    }
-
-
-    // ✅ מחיקת טוקנים קודמים של אותו משתמש אם קיימים
-    const existingTokens = await client.keys('reset:*');
-    for (const key of existingTokens) {
-        const value = await client.get(key);
-        if (value === userId) {
-            await client.del(key);
-        }
-    }
-
-    // יצירת טוקן ייחודי
-    const token = crypto.randomBytes(20).toString('hex');
-    const tokenKey = `reset:${token}`;
-
-    // שמירת הטוקן עם תוקף של 10 דקות
-    await client.setEx(tokenKey, 600, userId); // 600 שניות = 10 דקות
-
-    const externalBase = process.env.RENDER_EXTERNAL_URL || process.env.RAILWAY_STATIC_URL || process.env.RAILWAY_PUBLIC_DOMAIN || 'http://localhost:3000';
-    const resetUrl = `${externalBase}/reset-password.html?token=${token}`;
-
-    const message = {
-        to: email,
-        from: 'hazard.reporter@outlook.com', // כתובת שנרשמה ואושרה ב-SendGrid
-        subject: 'Password Reset Request',
-        html: `
-            <h3>Hello,</h3>
-            <p>You requested to reset your password. Click the link below to reset it:</p>
-            <a href="${resetUrl}">${resetUrl}</a>
-            <p>This link will expire in 10 minutes.</p>
-        `
-    };
-
     try {
-        await sgMail.send(message); 
-        console.log("Reset email sent successfully to", email);
-        res.status(200).json({ message: 'Reset link sent to your email' });
-    } catch (error) {
-        console.error("Error sending email: ", error);
-        res.status(500).json({ error: 'Failed to send email' });
-    } 
+        const { email } = req.body;
+        if (!email) {
+            return res.status(400).json({ error: 'Email is required' });
+        }
+
+        // Try to find the user when Redis is available; otherwise allow silent success
+        let userId = null;
+        let userData = null;
+        const canUseRedis = client && redisConnected;
+    if (canUseRedis) {
+            const userKeys = await client.keys('user:*');
+            for (const key of userKeys) {
+                const dataStr = await client.get(key);
+                if (!dataStr) continue;
+                const data = JSON.parse(dataStr);
+                if (data.email === email) {
+                    userId = key;
+                    userData = data;
+                    break;
+                }
+            }
+
+            // If user not found or Google-only account, return generic success to avoid email enumeration
+            if (!userId || !userData || !userData.password) {
+                return res.status(200).json({ message: 'If the email is registered, you will receive a password reset link shortly.' });
+            }
+
+            // Remove previous tokens for this user
+            const existingTokens = await client.keys('reset:*');
+            for (const key of existingTokens) {
+                const value = await client.get(key);
+                if (value === userId) {
+                    await client.del(key);
+                }
+            }
+        } else {
+            // Simple mode: find user by email in file store
+            const simpleUser = await findUserByEmailSimple(email);
+            if (!simpleUser || !simpleUser.password) {
+                return res.status(200).json({ message: 'If the email is registered, you will receive a password reset link shortly.' });
+            }
+        }
+
+        // Create token
+        const token = crypto.randomBytes(20).toString('hex');
+        const tokenKey = `reset:${token}`;
+
+        // Save token for 10 minutes
+        if (canUseRedis) {
+            await client.setEx(tokenKey, 600, userId);
+        } else {
+            // Simple mode: store mapping to email in-memory
+            simpleResetTokens.set(token, { email, createdAt: Date.now(), ttlMs: 10 * 60 * 1000 });
+        }
+
+        const externalBase =
+            process.env.RENDER_EXTERNAL_URL ||
+            process.env.RAILWAY_STATIC_URL ||
+            process.env.RAILWAY_PUBLIC_DOMAIN ||
+            `${req.protocol}://${req.get('host')}` ||
+            'http://localhost:3000';
+        const resetUrl = `${externalBase}/reset-password.html?token=${token}`;
+
+        const sendgridConfigured = !!process.env.SENDGRID_API_KEY;
+        if (sendgridConfigured) {
+            const message = {
+                to: email,
+                from: 'hazard.reporter@outlook.com',
+                subject: 'Password Reset Request',
+                html: `
+                    <h3>Hello,</h3>
+                    <p>You requested to reset your password. Click the link below to reset it:</p>
+                    <a href="${resetUrl}">${resetUrl}</a>
+                    <p>This link will expire in 10 minutes.</p>
+                `
+            };
+            try {
+                await sgMail.send(message);
+                console.log('Reset email sent successfully to', email);
+                return res.status(200).json({ message: 'Reset link sent to your email' });
+            } catch (error) {
+                console.error('Error sending email via SendGrid:', error.message || error);
+                // Fall through to dev-friendly response including resetUrl
+            }
+        }
+
+        // Dev/simple-mode fallback: respond with reset URL so the client can display it
+        console.warn('Email not sent (SendGrid not configured or Redis unavailable). Returning reset URL in response for dev.');
+        return res.status(200).json({ message: 'Reset link generated', resetUrl });
+    } catch (err) {
+        console.error('Forgot password error:', err);
+        return res.status(500).json({ error: 'Server error' });
+    }
 });
 
 
 // איפוס סיסמה לפי טוקן
 app.post('/reset-password', async (req, res) => {
-    const { token, password } = req.body;
-    if (!token || !password) {
-        return res.status(400).json({ error: 'Missing token or password' });
+    try {
+        const { token, password } = req.body;
+        if (!token || !password) {
+            return res.status(400).json({ error: 'Missing token or password' });
+        }
+
+        const valid = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/.test(password);
+        if (!valid) {
+            return res.status(400).json({ error: 'Invalid password format' });
+        }
+
+        const canUseRedis = client && redisConnected;
+        if (canUseRedis) {
+            const tokenKey = `reset:${token}`;
+            const userKey = await client.get(tokenKey);
+            if (!userKey) {
+                return res.status(400).json({ error: 'Token expired or invalid' });
+            }
+
+            const userDataStr = await client.get(userKey);
+            if (!userDataStr) {
+                return res.status(404).json({ error: 'User not found' });
+            }
+            const userData = JSON.parse(userDataStr);
+            userData.password = password;
+
+            await client.set(userKey, JSON.stringify(userData));
+            await client.del(tokenKey);
+
+            req.session.user = {
+                email: userData.email,
+                username: userData.username
+            };
+            return res.status(200).json({ message: 'Password reset successfully' });
+        }
+
+        // Simple mode: validate token from memory, cannot persist password across restarts
+        const tokenEntry = simpleResetTokens.get(token);
+        if (!tokenEntry) {
+            return res.status(400).json({ error: 'Token expired or invalid' });
+        }
+        // TTL check (10 minutes)
+        const expired = Date.now() - tokenEntry.createdAt > (tokenEntry.ttlMs || 600000);
+        if (expired) {
+            simpleResetTokens.delete(token);
+            return res.status(400).json({ error: 'Token expired or invalid' });
+        }
+        // Update password in simple file store
+        const updated = await updateUserPasswordSimple(tokenEntry.email, password);
+        simpleResetTokens.delete(token);
+        if (!updated) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        req.session.user = { email: tokenEntry.email, username: tokenEntry.email.split('@')[0] };
+        return res.status(200).json({ message: 'Password reset successfully' });
+    } catch (err) {
+        console.error('Reset password error:', err);
+        return res.status(500).json({ error: 'Server error' });
     }
-
-    const valid = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/.test(password);
-    if (!valid) {
-        return res.status(400).json({ error: 'Invalid password format' });
-    }
-
-    const tokenKey = `reset:${token}`;
-    const userKey = await client.get(tokenKey);
-
-    if (!userKey) {
-        return res.status(400).json({ error: 'Token expired or invalid' });
-    }
-
-    const userData = JSON.parse(await client.get(userKey));
-    userData.password = password;
-
-    await client.set(userKey, JSON.stringify(userData));
-    await client.del(tokenKey);
-
-    req.session.user = {
-        email: userData.email,
-        username: userData.username
-    };
-
-    res.status(200).json({ message: 'Password reset successfully' });
 });
 
 

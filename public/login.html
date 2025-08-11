@@ -29,20 +29,20 @@
 
     <!-- Main Buttons -->
     <div id="buttons" class="d-grid gap-3">
-      <button class="btn btn-lg d-flex align-items-center justify-content-center" onclick="toggleForm()">
+      <button id="email-toggle-btn" class="btn btn-lg d-flex align-items-center justify-content-center">
         <i class="far fa-envelope me-2"></i> Continue with Email
       </button>
-      <button class="btn btn-lg d-flex align-items-center justify-content-center" onclick="location.href='/auth/google'">
+      <button id="google-auth-btn" class="btn btn-lg d-flex align-items-center justify-content-center">
         <i class="fab fa-google me-2"></i> Continue with Google
       </button>
     </div>
 
     <!-- Email Options -->
     <div id="email-options" class="d-none mt-4 d-grid gap-2">
-      <button class="btn btn-sm text-uppercase" onclick="showSignupForm()">Sign Up</button>
-      <button class="btn btn-sm text-uppercase" onclick="showLoginForm()">Log In</button>
-      <button class="btn btn-sm text-uppercase" onclick="toggleForgotPassword()">Forgot Password</button>
-      <button id="back-options" class="btn btn-sm btn-secondary text-uppercase" onclick="backToMainScreen()">Back</button>
+      <button id="signup-btn" class="btn btn-sm text-uppercase">Sign Up</button>
+      <button id="login-btn" class="btn btn-sm text-uppercase">Log In</button>
+      <button id="forgot-password-btn" class="btn btn-sm text-uppercase">Forgot Password</button>
+      <button id="back-options" class="btn btn-sm btn-secondary text-uppercase">Back</button>
     </div>
 
     <!-- Email Forms -->

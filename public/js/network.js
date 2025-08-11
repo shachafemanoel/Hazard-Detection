@@ -25,113 +25,40 @@ function withTimeout(ms) {
 
 /**
  * Probes a health endpoint to check if it's responsive.
- * Calls exactly GET ${base}/health (no /api/v1 prefix)
- * @param {string} base The base URL to probe (will be cleaned of trailing slashes)
- * @param {number} timeoutMs Milliseconds to wait for a response (default: 2000)
+ * @param {string} url The health URL to probe
  * @returns {Promise<boolean>} True if the endpoint is healthy (200-299), false otherwise
  */
-async function probeHealth(base, timeoutMs = 2000) {
+async function probeHealth(url) {
   try {
-    // Clean base URL of trailing slashes and ensure /health endpoint
-    const cleanBase = base.replace(/\/+$/, '');
-    const healthUrl = `${cleanBase}/health`;
-
-    const response = await fetch(healthUrl, {
-      method: 'GET',
-      signal: withTimeout(timeoutMs),
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'Hazard-Detection-Client/1.0',
-      },
-    });
-
-    // Return true for 200-299 status codes
-    return response.status >= 200 && response.status < 300;
-  } catch (error) {
-    // Log probe failures for debugging
-    if (env.DEBUG_ENV === 'true') {
-      console.warn(`⚠️ Health probe failed for ${base}:`, error.message);
-    }
+    const res = await fetch(url, { method: 'GET', mode: 'cors' });
+    return res.ok;
+  } catch {
     return false;
   }
 }
 
 /**
  * Resolves the active base URL by probing endpoints according to configuration.
- * Priority: Local-Dev → Private-First → Public → Error
+ * Priority: Proxy → Explicit endpoints → Error
  * @param {Object} options Configuration options
  * @param {string} options.usePrivate Override for private endpoint preference ('auto', 'true', 'false')
  * @returns {Promise<string>} The healthy base URL
  * @throws {Error} If no healthy endpoint is found
  */
 async function resolveBaseUrl(options = {}) {
-  if (env.DEBUG_ENV === 'true') {
-    console.log('🔎 Resolving API endpoint...');
-  }
+  const candidates = [
+    '/api', // proxy first
+    // existing explicit HTTPS endpoints if any
+    localStorage.getItem('HAZARD_API_URL'),
+    typeof process !== 'undefined' && process.env?.API_URL,
+  ].filter(Boolean);
 
-  // Environment variables with defaults
-  const privateUrl =
-    env.HAZARD_API_URL_PRIVATE ||
-    'http://ideal-learning.railway.internal:8080';
-  const publicUrl =
-    env.HAZARD_API_URL_PUBLIC ||
-    'https://hazard-api-production-production.up.railway.app';
-  const localUrl = env.HAZARD_API_URL_LOCAL || 'http://localhost:8080';
-
-  // Local-Dev Override - highest priority
-  if (env.NODE_ENV === 'development') {
-    if (env.DEBUG_ENV === 'true') {
-      console.log('🔧 NODE_ENV=development → using LOCAL endpoint');
-      console.log(`🔒 Private network selected: ${localUrl}`);
+  for (const base of candidates) {
+    if (await probeHealth(`${base.replace(/\/$/,'')}/health`).catch(() => false)) {
+      return base.replace(/\/$/,'');
     }
-    return localUrl;
   }
-
-  // Get preference from options or environment
-  const usePrivate =
-    options.usePrivate || env.HAZARD_USE_PRIVATE || 'auto';
-
-  // Direct private override
-  if (usePrivate === 'true') {
-    if (env.DEBUG_ENV === 'true') {
-      console.log(`🔒 Private network selected: ${privateUrl}`);
-    }
-    return privateUrl;
-  }
-
-  // Direct public override
-  if (usePrivate === 'false') {
-    if (env.DEBUG_ENV === 'true') {
-      console.log(`🌐 Public network selected: ${publicUrl}`);
-    }
-    return publicUrl;
-  }
-
-  // Auto-selection: Private-First → Public → Error
-  if (usePrivate === 'auto') {
-    // Try private first with 2s timeout
-    if (await probeHealth(privateUrl, 2000)) {
-      if (env.DEBUG_ENV === 'true') {
-        console.log(`🔒 Private network selected: ${privateUrl}`);
-      }
-      return privateUrl;
-    }
-
-    // Fallback to public
-    if (await probeHealth(publicUrl, 2000)) {
-      if (env.DEBUG_ENV === 'true') {
-        console.log(`🌐 Public network selected: ${publicUrl}`);
-      }
-      return publicUrl;
-    }
-
-    // Both failed
-    throw new Error('No healthy endpoint found');
-  }
-
-  throw new Error(
-    `Invalid HAZARD_USE_PRIVATE value: ${usePrivate}. Must be 'auto', 'true', or 'false'`
-  );
+  throw new Error('No healthy endpoint found');
 }
 
 /**

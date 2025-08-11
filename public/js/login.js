@@ -222,7 +222,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 // הצגת הודעת הצלחה
                 errorElement.classList.remove('alert-danger');
                 errorElement.classList.add('alert-success');
-                errorElement.textContent = 'If the email is registered, you will receive a password reset link shortly.';
+                // אם בשרת הוחזר resetUrl (מצב DEV), נציג קישור לחיצה
+                if (data && data.resetUrl) {
+                    errorElement.innerHTML = `Reset link (dev): <a href="${data.resetUrl}">Click here</a>`;
+                } else {
+                    errorElement.textContent = 'If the email is registered, you will receive a password reset link shortly.';
+                }
                 errorElement.classList.remove('hidden');
                 document.getElementById('reset-password-form').reset();
             } else {

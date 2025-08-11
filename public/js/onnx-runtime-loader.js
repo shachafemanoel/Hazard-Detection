@@ -3,6 +3,7 @@
  * Provides lazy loading, memory management, and performance optimization
  * for hazard detection models
  */
+import { fetchWithTimeout } from './utils/fetchWithTimeout.js';
 
 // ONNX Runtime configuration for optimal performance
 const ONNX_CONFIG = {
@@ -65,7 +66,7 @@ async function detectDeviceCapabilities() {
     capabilities.isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
     deviceCapabilities = capabilities;
-    console.log('🔍 Device capabilities detected:', capabilities);
+    // Device capabilities detected
     return capabilities;
 }
 
@@ -74,21 +75,36 @@ async function detectDeviceCapabilities() {
  * @param {Object} capabilities - Device capabilities
  * @returns {Object} Selected bundle info
  */
-function selectOptimalBundle(capabilities) {
+async function selectOptimalBundle(capabilities) {
     let selectedBundle = 'wasm'; // Default fallback
     let executionProviders = ['wasm'];
     
     if (capabilities.webgpu && !capabilities.isMobile) {
-        // Use WebGPU for modern desktop browsers with WASM fallback
+        // Prefer WebGPU on capable desktop browsers
         selectedBundle = 'webgpu';
         executionProviders = ['webgpu', 'wasm'];
     } else {
-        // Use WASM for mobile or devices without WebGPU acceleration
         selectedBundle = 'wasm';
         executionProviders = ['wasm'];
     }
+
+    // If WebGPU selected, verify that required WASM/JSEP sidecar modules are available locally
+    if (selectedBundle === 'webgpu') {
+        try {
+            const resp = await fetchWithTimeout('/ort/ort-wasm-simd-threaded.jsep.mjs', { method: 'HEAD', timeout: 3000 });
+            if (!resp.ok) {
+                // Missing JSEP sidecar, falling back to WASM bundle
+                selectedBundle = 'wasm';
+                executionProviders = ['wasm'];
+            }
+        } catch (e) {
+            // Unable to verify JSEP sidecar, falling back to WASM bundle
+            selectedBundle = 'wasm';
+            executionProviders = ['wasm'];
+        }
+    }
     
-    // Adjust threading for mobile devices
+    // Adjust threading strategy
     const numThreads = capabilities.isMobile 
         ? Math.min(2, capabilities.hardwareConcurrency) 
         : capabilities.hardwareConcurrency;
@@ -113,14 +129,14 @@ export async function loadONNXRuntime() {
     
     ortLoadPromise = (async () => {
         try {
-            console.log('🚀 Loading ONNX Runtime...');
+            // Loading ONNX Runtime...
             const startTime = performance.now();
             
             // Detect device capabilities
             const capabilities = await detectDeviceCapabilities();
-            const bundleInfo = selectOptimalBundle(capabilities);
+            const bundleInfo = await selectOptimalBundle(capabilities);
             
-            console.log(`📦 Selected ONNX bundle: ${bundleInfo.selectedType} (${bundleInfo.bundle})`);
+            // Selected ONNX bundle
             
             // Dynamic import of the selected ONNX bundle
             const ortModule = await import(bundleInfo.bundle);
@@ -136,14 +152,19 @@ export async function loadONNXRuntime() {
             if (ortInstance.env.webgpu) {
                 ortInstance.env.webgpu.validateInputContent = false; // Skip validation for performance
             }
+
+            // Configure WASM env: use single-thread unless cross-origin isolated
+            try {
+                const canMultiThread = typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated === true;
+                ortInstance.env.wasm.wasmPaths = ONNX_CONFIG.wasmPaths;
+                ortInstance.env.wasm.numThreads = canMultiThread ? Math.max(1, Math.min(bundleInfo.numThreads, 4)) : 1;
+            } catch (e) {
+                // Failed to configure ORT WASM env
+            }
             
             const loadTime = performance.now() - startTime;
-            console.log(`✅ ONNX Runtime loaded in ${loadTime.toFixed(0)}ms`);
-            console.log(`🔧 Execution providers: ${bundleInfo.executionProviders.join(', ')}`);
-            console.log(`📦 Bundle: ${bundleInfo.selectedType} (optimized build)`);
-            
-            // Log bundle size reduction achievement
-            console.log(`🎉 Bundle optimization: 99% reduction (WebGPU+WASM only, 87MB→34MB)`);
+            // ONNX Runtime loaded successfully
+            console.log('ONNX Runtime ready');
             
             // Store execution providers for session creation
             ONNX_CONFIG.sessionOptions.executionProviders = bundleInfo.executionProviders;
@@ -151,8 +172,24 @@ export async function loadONNXRuntime() {
             return ortInstance;
             
         } catch (error) {
-            console.error('❌ Failed to load ONNX Runtime:', error);
             ortLoadPromise = null; // Reset promise so retry is possible
+            
+            // Try fallback to basic WASM bundle if initial load failed
+            if (bundleInfo.selectedType !== 'wasm') {
+                console.log('Retrying with basic WASM bundle...');
+                try {
+                    const ortModule = await import(ONNX_CONFIG.bundles.wasm);
+                    ortInstance = ortModule.default || ortModule;
+                    ortInstance.env.wasm.wasmPaths = ONNX_CONFIG.wasmPaths;
+                    ortInstance.env.wasm.numThreads = 1;
+                    ortInstance.env.logLevel = ONNX_CONFIG.logLevel;
+                    ONNX_CONFIG.sessionOptions.executionProviders = ['wasm'];
+                    console.log('ONNX Runtime ready (fallback)');
+                    return ortInstance;
+                } catch (fallbackError) {
+                    throw new Error(`ONNX Runtime loading failed: ${fallbackError.message}`);
+                }
+            }
             throw new Error(`ONNX Runtime loading failed: ${error.message}`);
         }
     })();
@@ -168,7 +205,7 @@ export async function loadONNXRuntime() {
  */
 export async function createInferenceSession(modelPath, options = {}) {
     try {
-        console.log(`🧠 Creating inference session for: ${modelPath}`);
+        // Creating inference session
         const startTime = performance.now();
         
         // Ensure ONNX Runtime is loaded
@@ -186,7 +223,7 @@ export async function createInferenceSession(modelPath, options = {}) {
         inferenceSession = await ortInstance.InferenceSession.create(modelPath, sessionOptions);
         
         const creationTime = performance.now() - startTime;
-        console.log(`✅ Inference session created in ${creationTime.toFixed(0)}ms`);
+        // Inference session created
         
         // Model warmup with dummy data
         await warmupModel(inferenceSession);
@@ -194,7 +231,6 @@ export async function createInferenceSession(modelPath, options = {}) {
         return inferenceSession;
         
     } catch (error) {
-        console.error('❌ Failed to create inference session:', error);
         throw new Error(`Inference session creation failed: ${error.message}`);
     }
 }
@@ -205,7 +241,7 @@ export async function createInferenceSession(modelPath, options = {}) {
  */
 async function warmupModel(session) {
     try {
-        console.log('🔥 Warming up model...');
+        // Warming up model...
         const startTime = performance.now();
         
         // Get input shape from model
@@ -213,7 +249,7 @@ async function warmupModel(session) {
         const outputNames = session.outputNames;
         
         if (inputNames.length === 0) {
-            console.warn('⚠️ No input names found, skipping warmup');
+            // No input names found, skipping warmup
             return;
         }
         
@@ -237,10 +273,10 @@ async function warmupModel(session) {
         }
         
         const warmupTime = performance.now() - startTime;
-        console.log(`🔥 Model warmup completed in ${warmupTime.toFixed(0)}ms`);
+        // Model warmup completed
         
     } catch (error) {
-        console.warn('⚠️ Model warmup failed:', error);
+        // Model warmup failed
         // Don't throw error - warmup is optional optimization
     }
 }
@@ -264,9 +300,9 @@ export function disposeInferenceSession() {
     if (inferenceSession) {
         try {
             inferenceSession.dispose();
-            console.log('🗑️ Inference session disposed');
+            // Inference session disposed
         } catch (error) {
-            console.warn('⚠️ Error disposing inference session:', error);
+            // Error disposing inference session
         }
         inferenceSession = null;
     }
@@ -300,10 +336,10 @@ export function monitorMemoryUsage() {
         // Trigger GC if memory usage is high (>80% of limit)
         const usageRatio = memory.usedJSHeapSize / memory.jsHeapSizeLimit;
         if (usageRatio > 0.8) {
-            console.warn('⚠️ High memory usage detected, consider garbage collection');
+            // High memory usage detected
             if (window.gc) {
                 window.gc();
-                console.log('🗑️ Manual garbage collection triggered');
+                // Manual garbage collection triggered
             }
         }
     }

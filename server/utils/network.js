@@ -81,7 +81,7 @@ async function resolveBaseUrl(options = {}) {
   // Environment variables with defaults
   const privateUrl =
     process.env.HAZARD_API_URL_PRIVATE ||
-    'http://ideal-learning.railway.internal:8080';
+    'https://hazard-api-production-production.up.railway.app';
   const publicUrl =
     process.env.HAZARD_API_URL_PUBLIC ||
     'https://hazard-api-production-production.up.railway.app';

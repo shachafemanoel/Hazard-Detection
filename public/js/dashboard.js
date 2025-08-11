@@ -1,4 +1,7 @@
 import { initializeMap, plotReports, toggleHeatmap, centerMap, clearGeocodingCache, getGeocodingCacheStats } from "./map.js";
+import { BASE_API_URL } from './config.js';
+import { fetchWithTimeout } from './utils/fetchWithTimeout.js';
+import { ensureOk, getJsonOrThrow } from './utils/http.js';
 
 // Make plotReports available globally for easier access
 window.plotReports = plotReports;
@@ -26,7 +29,7 @@ const state = {
 };
 
 // Polling configuration for detecting new reports - Reduced frequency to minimize server load
-const REPORT_POLL_INTERVAL = 300000; // 5 minutes (reduced from 1 minute)
+const REPORT_POLL_INTERVAL = 10000; // 10 seconds for near real-time updates
 let latestReportTime = null;
 let pollTimer = null;
 let pollErrorCount = 0;
@@ -73,11 +76,12 @@ function applyFiltersAndSort() {
     
     filtered = filtered.filter(report => {
       // Search in multiple fields - all converted to lowercase for case-insensitive search
+      const locationString = (report.latitude && report.longitude) ? `${report.latitude.toFixed(4)}, ${report.longitude.toFixed(4)}` : "";
       const searchFields = [
         (report.id?.toString() || "").toLowerCase(),
-        (report.location || "").toLowerCase(),
+        locationString.toLowerCase(),
         (report.reportedBy || "").toLowerCase(),
-        (report.type || "").toLowerCase(),
+        (report.class_name || "").toLowerCase(),
         (report.status || "").toLowerCase(),
         (report.address || "").toLowerCase(),
         (report.user || "").toLowerCase(),
@@ -103,7 +107,7 @@ function applyFiltersAndSort() {
   // Apply type filter - Case insensitive
   if (state.filters.type && state.filters.type !== "") {
     filtered = filtered.filter(report => 
-      (report.type || "").toLowerCase() === state.filters.type.toLowerCase()
+      (report.class_name || "").toLowerCase() === state.filters.type.toLowerCase()
     );
     console.log(`Filtered by type: ${filtered.length} results`);
   }
@@ -152,14 +156,16 @@ function applyFiltersAndSort() {
   
   // Apply sorting
   filtered.sort((a, b) => {
-    let aVal = a[state.sort.field];
-    let bVal = b[state.sort.field];
+    // Map the sort field 'time' to the new 'timestamp' field
+    const sortField = state.sort.field === 'time' ? 'timestamp' : state.sort.field;
+    let aVal = a[sortField];
+    let bVal = b[sortField];
     
     // Handle different data types
-    if (state.sort.field === "time") {
+    if (sortField === "timestamp") {
       aVal = new Date(aVal || 0);
       bVal = new Date(bVal || 0);
-    } else if (state.sort.field === "id") {
+    } else if (sortField === "id") {
       aVal = parseInt(aVal) || 0;
       bVal = parseInt(bVal) || 0;
     } else {
@@ -310,10 +316,10 @@ function updateFilteredMetrics() {
   
   // Update metrics display (but don't overwrite if we're showing all data)
   if (state.filters.search || state.filters.status || state.filters.type || state.filters.my_reports) {
-    elements.totalReportsCount.innerHTML = total;
-    elements.openHazardsCount.innerHTML = open;
-    elements.resolvedThisMonthCount.innerHTML = resolved;
-    elements.activeUsersCount.innerHTML = uniqueUsers.size;
+    elements.totalReportsCount.textContent = total;
+    elements.openHazardsCount.textContent = open;
+    elements.resolvedThisMonthCount.textContent = resolved;
+    elements.activeUsersCount.textContent = uniqueUsers.size;
   }
 }
 
@@ -401,10 +407,10 @@ function renderStats() {
       : v === 0
         ? "—"
         : v;
-  elements.totalReportsCount.innerHTML = display(total);
-  elements.openHazardsCount.innerHTML = display(open);
-  elements.resolvedThisMonthCount.innerHTML = display(resolved);
-  elements.activeUsersCount.innerHTML = display(users);
+  elements.totalReportsCount.textContent = display(total);
+  elements.openHazardsCount.textContent = display(open);
+  elements.resolvedThisMonthCount.textContent = display(resolved);
+  elements.activeUsersCount.textContent = display(users);
 }
 
 function renderTable() {
@@ -413,13 +419,18 @@ function renderTable() {
   console.log(`🎨 Rendering table with ${state.filteredReports.length} reports`);
   const startTime = performance.now();
 
-  elements.tableBody.innerHTML = ""; // Clear existing rows
+  elements.tableBody.replaceChildren(); // Clear existing rows
 
   const reportsToRender = state.filteredReports;
 
   if (reportsToRender.length === 0) {
-    elements.tableBody.innerHTML =
-      '<tr><td colspan="7" class="text-center">No reports found.</td></tr>';
+    const emptyRow = document.createElement('tr');
+    const emptyCell = document.createElement('td');
+    emptyCell.colSpan = 7;
+    emptyCell.className = 'text-center';
+    emptyCell.textContent = 'No reports found.';
+    emptyRow.appendChild(emptyCell);
+    elements.tableBody.appendChild(emptyRow);
     renderBulkDeleteButton();
     return;
   }
@@ -429,15 +440,15 @@ function renderTable() {
     row.dataset.reportId = report.id;
     row.classList.toggle("selected", state.selectedReportIds.has(report.id));
 
-    
+    const locationString = (report.latitude && report.longitude) ? `${report.latitude.toFixed(4)}, ${report.longitude.toFixed(4)}` : "No location";
 
     row.innerHTML = `
       <td><input type="checkbox" class="report-checkbox" data-report-id="${report.id}" ${state.selectedReportIds.has(report.id) ? "checked" : ""}></td>
       <td>${report.id || "N/A"}</td>
-      <td><span class="badge type-badge ${getTypeClass(report.type)}">${formatType(report.type)}</span></td>
+      <td><span class="badge type-badge ${getTypeClass(report.class_name)}">${formatType(report.class_name)}</span></td>
       <td>${getStatusBadge(report.status)}</td>
-      <td title="${report.location || ""}">${truncate(report.location)}</td>
-      <td>${formatTime(report.time)}</td>
+      <td title="${locationString}">${truncate(locationString)}</td>
+      <td>${formatTime(report.timestamp)}</td>
       <td>
         <div class="btn-group" role="group">
           <button class="btn btn-sm btn-outline-info view-report-btn" title="View Details"><i class="fas fa-eye"></i></button>
@@ -498,15 +509,16 @@ function renderReportCards() {
     const card = document.createElement("div");
     card.className = "card mb-3";
     card.dataset.id = report.id;
+    const locationString = (report.latitude && report.longitude) ? `${report.latitude.toFixed(4)}, ${report.longitude.toFixed(4)}` : "No location";
     card.innerHTML = `
         <div class="card-body">
           <div class="d-flex justify-content-between mb-2">
-            <span class="badge type-badge ${getTypeClass(report.type)}">${formatType(report.type)}</span>
+            <span class="badge type-badge ${getTypeClass(report.class_name)}">${formatType(report.class_name)}</span>
             ${getStatusBadge(report.status)}
           </div>
           <h6 class="card-title mb-1">ID: ${report.id || "N/A"}</h6>
-          <p class="card-text mb-2" title="${report.location || ""}">${truncate(report.location)}</p>
-          <small class="text-muted">${formatTime(report.time)}</small>
+          <p class="card-text mb-2" title="${locationString}">${truncate(locationString)}</p>
+          <small class="text-muted">${formatTime(report.timestamp)}</small>
         </div>
         <div class="card-footer d-flex justify-content-end gap-2">
           <button class="btn btn-sm btn-outline-info view-report-btn" title="View Details"><i class="fas fa-eye"></i></button>
@@ -643,13 +655,17 @@ async function pollForNewReports() {
   // Reduce polling frequency and add error handling
   try {
     const params = new URLSearchParams({ limit: 1, sort: 'time', order: 'desc' });
-    const response = await fetch(`/api/reports?${params.toString()}`, {
+    const headers = {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    };
+    if (state.lastDataFetch) {
+      headers['If-Modified-Since'] = state.lastDataFetch.toUTCString();
+    }
+    const response = await fetchWithTimeout(`/api/reports?${params.toString()}`, {
       mode: 'cors',
       credentials: 'include',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
+      headers,
       // Add timeout to prevent hanging requests
       signal: AbortSignal.timeout(5000)
     });
@@ -660,6 +676,9 @@ async function pollForNewReports() {
       return;
     }
     
+    if (response.status === 304) {
+      return;
+    }
     const data = await response.json();
     const latest = Array.isArray(data.reports) ? data.reports[0] : null;
     if (latest) {
@@ -816,27 +835,29 @@ function handleFormSubmit(e) {
 
 function showReportDetails(report) {
   const modal = elements.detailsModal;
+  const locationString = (report.latitude && report.longitude) ? `${report.latitude.toFixed(4)}, ${report.longitude.toFixed(4)}` : "No location";
   modal.querySelector("#modal-hazard-id").textContent = report.id;
-  modal.querySelector("#modal-type").textContent = report.type;
-  modal.querySelector("#modal-location").textContent = report.location;
+  modal.querySelector("#modal-type").textContent = report.class_name;
+  modal.querySelector("#modal-location").textContent = locationString;
   modal.querySelector("#modal-time").textContent = new Date(
-    report.time,
+    report.timestamp,
   ).toLocaleString();
   modal.querySelector("#modal-status").textContent = report.status;
   modal.querySelector("#modal-user").textContent =
     report.reportedBy || "Unknown";
-  modal.querySelector("#modal-report-image").src = report.image || "";
+  modal.querySelector("#modal-report-image").src = report.image_url || "";
   const bsModal = new bootstrap.Modal(modal);
   bsModal.show();
 }
 
 function showEditModal(report) {
   const modal = elements.editModal;
+  const locationString = (report.latitude && report.longitude) ? `${report.latitude.toFixed(4)}, ${report.longitude.toFixed(4)}` : "No location";
   modal.querySelector("#edit-report-id").value = report.id;
-  modal.querySelector("#edit-report-type").value = report.type;
+  modal.querySelector("#edit-report-type").value = report.class_name;
   modal.querySelector("#edit-report-status").value = report.status;
-  modal.querySelector("#edit-report-location").value = report.location;
-  modal.querySelector("#edit-report-image").value = report.image || "";
+  modal.querySelector("#edit-report-location").value = locationString;
+  modal.querySelector("#edit-report-image").value = report.image_url || "";
   modal.querySelector("#edit-report-reportedBy").value =
     report.reportedBy || "";
   const bsModal = new bootstrap.Modal(modal);
@@ -945,11 +966,15 @@ function initializeEventListeners() {
   if (refreshBtn) {
     refreshBtn.addEventListener("click", () => {
       console.log("Manual refresh requested");
-      refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
+      const spinner = document.createElement('i');
+      spinner.className = 'fas fa-spinner fa-spin';
+      refreshBtn.replaceChildren(spinner, document.createTextNode(' Refreshing...'));
       refreshBtn.disabled = true;
       
       updateDashboard({ forceRefresh: true }).finally(() => {
-        refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh';
+        const syncIcon = document.createElement('i');
+        syncIcon.className = 'fas fa-sync-alt';
+        refreshBtn.replaceChildren(syncIcon, document.createTextNode(' Refresh'));
         refreshBtn.disabled = false;
       });
     });
@@ -1039,7 +1064,7 @@ function setupMobileDrawer() {
   if (!sidebar) return;
   const toggle = document.createElement("button");
   toggle.id = "mobile-drawer-toggle";
-  toggle.innerHTML = '<i class="fas fa-bars"></i>';
+  const barsIcon = document.createElement('i');\n  barsIcon.className = 'fas fa-bars';\n  toggle.appendChild(barsIcon);
   document.body.appendChild(toggle);
   toggle.addEventListener("click", () => sidebar.classList.toggle("open"));
 }

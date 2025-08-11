@@ -1,0 +1,8 @@
+{
+  "success": true,
+  "processing_time": "0.2s",
+  "detections": [
+    {"bbox": [1,2,5,6], "confidence": 0.9, "class_id": 1},
+    {"bbox": [2,3,6,8], "score": 0.8, "class_id": 0}
+  ]
+}

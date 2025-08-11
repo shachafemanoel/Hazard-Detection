@@ -1,0 +1,6 @@
+{
+  "ok": true,
+  "detections": [
+    {"class_name":"pothole","confidence":0.9,"box":{"x":10,"y":10,"w":20,"h":20}}
+  ]
+}
