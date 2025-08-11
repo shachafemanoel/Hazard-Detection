@@ -55,23 +55,6 @@ if (process.env.NODE_ENV !== 'production' && fs.existsSync(envPath)) {
   console.log('Loaded environment from process.env');
 }
 
-// Load Railway environment variables when available
-try {
-  const railwayEnvPath = path.resolve(__dirname, '../../railway.json');
-  if (fs.existsSync(railwayEnvPath)) {
-    const railwayConfig = JSON.parse(fs.readFileSync(railwayEnvPath, 'utf8'));
-    const vars = railwayConfig?.variables || {};
-    for (const [key, value] of Object.entries(vars)) {
-      if (!process.env[key]) {
-        process.env[key] = String(value);
-      }
-    }
-    console.log('Loaded environment from', railwayEnvPath);
-  }
-} catch (err) {
-  console.warn('⚠️ Failed to load railway.json env:', err.message);
-}
-
 // הדפסה לבדיקת טעינת משתני סביבה
 console.log("Attempting to load environment variables...");
 if (process.env.DEBUG_ENV === 'true') {
@@ -189,7 +172,7 @@ app.use(
       const allowedOrigins = [
         'https://hazard-detection.onrender.com',
         'https://hazard-detection-production.up.railway.app',
-        process.env.CLIENT_URL || 'http://localhost:3000',
+        'http://localhost:3000',
         'http://127.0.0.1:3000'
       ];
       
@@ -409,19 +392,8 @@ if (process.env.REDIS_HOST && process.env.REDIS_PASSWORD && RedisStore) {
     }));
 }
 
-// Configure express-session middleware before Passport
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'hazard-detection-secret-key-change-in-production',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
-  }
-}));
-
-app.use(passport.initialize());
-app.use(passport.session());
+  app.use(passport.initialize());
+  app.use(passport.session());
 
 // 📨 SendGrid API
 if (process.env.SENDGRID_API_KEY) {
@@ -505,7 +477,7 @@ if (googleAuthConfigured) {
   passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.GOOGLE_CALLBACK_URL || `${process.env.CLIENT_URL || 'http://localhost:3000'}/auth/google/callback`
+    callbackURL: process.env.GOOGLE_CALLBACK_URL || 'http://localhost:3000/auth/google/callback'
 
     },
     async (accessToken, refreshToken, profile, done) => {
@@ -1469,7 +1441,7 @@ app.post('/forgot-password', async (req, res) => {
     // שמירת הטוקן עם תוקף של 10 דקות
     await client.setEx(tokenKey, 600, userId); // 600 שניות = 10 דקות
 
-    const externalBase = process.env.RENDER_EXTERNAL_URL || process.env.RAILWAY_STATIC_URL || process.env.RAILWAY_PUBLIC_DOMAIN || process.env.CLIENT_URL || 'http://localhost:3000';
+    const externalBase = process.env.RENDER_EXTERNAL_URL || process.env.RAILWAY_STATIC_URL || process.env.RAILWAY_PUBLIC_DOMAIN || 'http://localhost:3000';
     const resetUrl = `${externalBase}/reset-password.html?token=${token}`;
 
     const message = {

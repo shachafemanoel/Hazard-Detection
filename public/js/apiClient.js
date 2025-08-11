@@ -1,91 +1,15 @@
 // apiClient.js
 // Handles API requests for object detection
 
-import { BASE_API_URL } from './config.js';
-import { fetchWithTimeout } from './utils/fetchWithTimeout.js';
-import { ensureOk, getJsonOrThrow } from './utils/http.js';
-import { normalizeDetectResponse } from './adapters.js';
-
-const metaApiBase = document.querySelector('meta[name="api-base"]')?.content;
-let API_URL = '';
-const FALLBACK_BASES = [window.__API_BASE__, metaApiBase, BASE_API_URL].filter(Boolean);
-
-// Standardised error types for consumers
-export class TransportError extends Error {
-    constructor(message) {
-        super(message);
-        this.name = 'TransportError';
-    }
-}
-
-export class ModelError extends Error {
-    constructor(message) {
-        super(message);
-        this.name = 'ModelError';
-    }
-}
-
-export class ParseError extends Error {
-    constructor(message) {
-        super(message);
-        this.name = 'ParseError';
-    }
-}
-
-async function apiFetch(path, options = {}) {
-    const bases = [API_URL || '', ...FALLBACK_BASES].filter(Boolean);
-    let lastError;
-    
-    console.log(`[api] Attempting API call: ${path}`);
-    
-    for (const base of bases) {
-        const url = `${base}${path}`;
-        try {
-            console.log(`[api] Trying base: ${base}`);
-            const res = await fetchWithTimeout(url, {
-                timeout: options.timeout || 8000,
-                ...options
-            });
-            
-            if (!API_URL || API_URL !== base) {
-                API_URL = base; // cache working base
-                console.log(`[api] Cached working base: ${base}`);
-            }
-            
-            return res;
-        } catch (err) {
-            console.warn(`[api] Failed with base ${base}: ${err.message}`);
-            lastError = err;
-        }
-    }
-    
-    console.error(`[api] All bases failed for ${path}`);
-    throw lastError;
-}
+let API_URL = window.API_URL || "https://hazard-api-production-production.up.railway.app";
 
 /**
  * Sets the API URL for all subsequent requests.
  * @param {string} newApiUrl The new API URL.
  */
 export function setApiUrl(newApiUrl) {
-    API_URL = newApiUrl || '';
-}
-
-let currentSessionId = sessionStorage.getItem('hazard_session_id') || null;
-
-export function getStoredSessionId() {
-    return currentSessionId;
-}
-
-export async function endSession() {
-    if (!currentSessionId) return;
-    try {
-        await apiFetch(`/session/${currentSessionId}/end`, { method: 'POST' });
-    } catch (e) {
-        console.warn('Failed to end session', e);
-    }
-    sessionStorage.removeItem('hazard_session_id');
-    currentSessionId = null;
+    API_URL = newApiUrl;
+    console.log(`API URL set to: ${API_URL}`);
 }
 
 /**
@@ -94,44 +18,56 @@ export async function endSession() {
  */
 export async function checkHealth() {
     try {
-        const response = await apiFetch(`/health`, { timeout: 5000 });
-        ensureOk(response);
-        return await getJsonOrThrow(response);
+        const response = await fetch(`${API_URL}/health`);
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+        return await response.json();
     } catch (error) {
+        console.error("API health check failed:", error);
         return { status: 'error', message: error.message };
     }
 }
 
 export async function getReportImage(reportId) {
     try {
-        const response = await apiFetch(`/report/image/${reportId}`);
-        ensureOk(response);
-        return await response.blob();
+        const response = await fetch(`${API_URL}/report/image/${reportId}`);
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+        const blob = await response.blob();
+        return blob;
     } catch (error) {
-        throw new Error(`Failed to get report image: ${error.message}`);
+        console.error(`Failed to get report image for ${reportId}:`, error);
+        return new Blob(); // Return an empty Blob on error
     }
 }
 
 export async function getReportPlot(reportId) {
     try {
-        const response = await apiFetch(`/report/plot/${reportId}`);
-        ensureOk(response);
-        return await response.blob();
+        const response = await fetch(`${API_URL}/report/plot/${reportId}`);
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+        const blob = await response.blob();
+        return blob;
     } catch (error) {
-        throw new Error(`Failed to get report plot: ${error.message}`);
+        console.error(`Failed to get report plot for ${reportId}:`, error);
+        return new Blob(); // Return an empty Blob on error
     }
 }
 
 export async function startSession() {
     try {
-        const response = await apiFetch(`/session/start`, { method: 'POST' });
-        ensureOk(response);
-        const data = await getJsonOrThrow(response);
-        currentSessionId = data.session_id;
-        sessionStorage.setItem('hazard_session_id', currentSessionId);
-        return currentSessionId;
+        const response = await fetch(`${API_URL}/session/start`, { method: 'POST' });
+        if (!response.ok) {
+            throw new Error(`API error: ${response.status}`);
+        }
+        const data = await response.json();
+        return data.session_id;
     } catch (error) {
-        throw new Error(`Failed to start session: ${error.message}`);
+        console.error("Failed to start session:", error);
+        return null;
     }
 }
 
@@ -140,9 +76,8 @@ export async function startSession() {
  * @param {HTMLCanvasElement} canvas 
  * @returns {Promise<Array>} Array of detections
  */
-export async function detectHazards(sessionId, payload) {
-    // Accepts either a Blob/File or an HTMLCanvasElement
-    return detectFrame(sessionId, payload);
+export async function detectHazards(sessionId, canvas) {
+    return detectFrame(sessionId, canvas);
 }
 
 /**
@@ -152,20 +87,21 @@ export async function detectHazards(sessionId, payload) {
  * @param {number} retryAttempts - Number of retry attempts (default: 3)
  * @returns {Promise<Object>} Detection results
  */
-export async function detectSingleWithRetry(sessionId, payload, retryAttempts = 3) {
-    let lastError;
+export async function detectSingleWithRetry(sessionId, canvas, retryAttempts = 3) {
     for (let attempt = 1; attempt <= retryAttempts; attempt++) {
         try {
-            return await detectFrame(sessionId, payload);
+            return await detectFrame(sessionId, canvas);
         } catch (error) {
-            lastError = error;
-            if (attempt < retryAttempts) {
-                console.warn(`[api] Detection attempt ${attempt} failed: ${error.message}, retrying...`);
-                await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 500));
+            console.warn(`Detection attempt ${attempt} failed:`, error);
+            
+            if (attempt === retryAttempts) {
+                throw new Error(`Detection failed after ${retryAttempts} attempts: ${error.message}`);
             }
+            
+            // Wait before retry with exponential backoff
+            await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 500));
         }
     }
-    throw new ModelError(`Detection failed after ${retryAttempts} attempts: ${lastError?.message || 'unknown'}`);
 }
 
 /**
@@ -191,15 +127,20 @@ export async function uploadDetection(detectionData) {
             location: detectionData.location || null
         }));
 
-        const response = await apiFetch(`/reports/upload`, {
+        const response = await fetch(`${API_URL}/reports/upload`, {
             method: 'POST',
             body: formData
         });
 
-        ensureOk(response);
-        return await getJsonOrThrow(response);
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Upload API error: ${response.status} - ${errorText}`);
+        }
+
+        return await response.json();
     } catch (error) {
-        throw new Error(`Error uploading detection: ${error.message}`);
+        console.error("Error uploading detection:", error);
+        throw error;
     }
 }
 
@@ -210,16 +151,19 @@ export async function uploadDetection(detectionData) {
  */
 export async function getSessionSummary(sessionId) {
     try {
-        const response = await apiFetch(`/session/${sessionId}/summary`);
+        const response = await fetch(`${API_URL}/session/${sessionId}/summary`);
         
-        if (response.status === 404) {
-            throw new Error('Session not found or expired');
+        if (!response.ok) {
+            if (response.status === 404) {
+                throw new Error('Session not found or expired');
+            }
+            throw new Error(`API error: ${response.status}`);
         }
-        ensureOk(response);
         
-        return await getJsonOrThrow(response);
+        return await response.json();
     } catch (error) {
-        throw new Error(`Error getting session summary: ${error.message}`);
+        console.error("Error getting session summary:", error);
+        throw error;
     }
 }
 
@@ -230,101 +174,61 @@ export async function getSessionSummary(sessionId) {
  */
 export async function createReport(reportData) {
     try {
-        const formData = new FormData();
-        formData.append('file', reportData.file); // image blob
-        formData.append('class_id', reportData.class_id);
-        formData.append('bbox', JSON.stringify(reportData.bbox));
-        formData.append('timestamp', reportData.timestamp);
-
-        if (reportData.latitude) formData.append('latitude', reportData.latitude);
-        if (reportData.longitude) formData.append('longitude', reportData.longitude);
-        if (reportData.metadata) formData.append('metadata', JSON.stringify(reportData.metadata));
-
-        const response = await apiFetch(`/reports/create`, {
+        const response = await fetch(`${API_URL}/reports/create`, {
             method: 'POST',
-            body: formData,
-            // Note: Don't set Content-Type header for FormData, browser does it with boundary.
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                session_id: reportData.sessionId,
+                title: reportData.title || 'Hazard Detection Report',
+                description: reportData.description || '',
+                location: reportData.location || null,
+                hazard_types: reportData.hazardTypes || [],
+                severity: reportData.severity || 'medium',
+                metadata: reportData.metadata || {}
+            })
         });
 
-        ensureOk(response);
-        return await getJsonOrThrow(response);
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Report creation error: ${response.status} - ${errorText}`);
+        }
+
+        return await response.json();
     } catch (error) {
-        throw new Error(`Error creating report: ${error.message}`);
+        console.error("Error creating report:", error);
+        throw error;
     }
 }
 
-export async function detectFrame(sessionId, payload) {
-    sessionId = sessionId || currentSessionId;
-    // Normalize payload to a Blob
-    const toBlob = () => new Promise((resolve, reject) => {
-        try {
-            if (payload instanceof Blob || payload instanceof File) {
-                return resolve(payload);
+export async function detectFrame(sessionId, canvas) {
+    return new Promise((resolve, reject) => {
+        canvas.toBlob(async blob => {
+            try {
+                const formData = new FormData();
+                formData.append('file', blob, 'frame.jpg');
+
+                const response = await fetch(`${API_URL}/detect/${sessionId}`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Detection API error: ${response.status} - ${errorText}`);
+                }
+
+                const data = await response.json();
+                if (Array.isArray(data.detections)) {
+                    resolve(data);
+                } else {
+                    resolve({ detections: [] });
+                }
+            } catch (err) {
+                console.error("Error in detectFrame:", err);
+                reject(err);
             }
-            if (payload && typeof HTMLCanvasElement !== 'undefined' && payload instanceof HTMLCanvasElement) {
-                payload.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Failed to convert canvas to blob')), 'image/jpeg', 0.85);
-                return;
-            }
-            reject(new Error('Unsupported payload type for detectFrame'));
-        } catch (e) {
-            reject(e);
-        }
+        }, 'image/jpeg', 0.8);
     });
-
-    const blob = await toBlob();
-
-    const formData = new FormData();
-    formData.append('file', blob, 'frame.jpg');
-
-    const path = sessionId ? `/detect/${sessionId}` : `/detect`;
-    let attemptDelay = 300;
-    // Exponential backoff for rate limiting
-    while (true) {
-        let response;
-        try {
-            response = await apiFetch(path, {
-                method: 'POST',
-                body: formData
-            });
-        } catch (err) {
-            throw new TransportError(err.message);
-        }
-
-        if (response.status === 429 || response.status === 503) {
-            console.log(`[api] Rate limited (${response.status}), backing off for ${attemptDelay}ms`);
-            window.dispatchEvent(new CustomEvent('api-status', { detail: 'Rate-limited, retrying…' }));
-            await new Promise(res => setTimeout(res, attemptDelay + Math.random() * 100));
-            attemptDelay = Math.min(attemptDelay * 2, 5000);
-            continue;
-        }
-
-        ensureOk(response);
-        let json;
-        try {
-            json = await getJsonOrThrow(response);
-        } catch (err) {
-            throw new ParseError(err.message);
-        }
-        // Use the new, contract-compliant adapter
-        const normalizedResponse = normalizeDetectResponse(json);
-
-        if (!Array.isArray(normalizedResponse.detections)) {
-            throw new ParseError('Invalid detections format after normalization');
-        }
-
-        // The new response shape is the return value.
-        // Session ID handling should be part of the response if needed, but the
-        // main detection data is now clean.
-
-        if (window.DEBUG_CLIENT) {
-            const counts = {};
-            normalizedResponse.detections.forEach(d => {
-                counts[d.label] = (counts[d.label] || 0) + 1;
-            });
-            const classesStr = Object.entries(counts).map(([k, v]) => `${k}(${v})`).join(', ');
-            console.log(`Detections: ${normalizedResponse.detections.length} | time: ${normalizedResponse.processing_time || 0} | classes: ${classesStr}`);
-        }
-
-        return normalizedResponse;
-    }
 }

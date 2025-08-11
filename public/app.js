@@ -1,8 +1,5 @@
 // Complete Hazard Detection Web App Integration
 // This file orchestrates the entire application flow
-import { BASE_API_URL } from './js/config.js';
-import { fetchWithTimeout } from './js/utils/fetchWithTimeout.js';
-import { ensureOk, getJsonOrThrow } from './js/utils/http.js';
 
 class HazardDetectionApp {
   constructor() {
@@ -17,12 +14,13 @@ class HazardDetectionApp {
 
   // Get backend URL based on environment - use direct endpoints
   getBackendUrl() {
-    return BASE_API_URL || window.location.origin;
+    // Use the same origin for development/proxy setup
+    return window.location.origin;
   }
 
   // Initialize the application
   async init() {
-    // Initializing Hazard Detection App...
+    console.log('🚀 Initializing Hazard Detection App...');
     
     try {
       // Check authentication first
@@ -39,9 +37,9 @@ class HazardDetectionApp {
         await this.initCamera();
       }
       
-      // App initialization complete
+      console.log('✅ App initialization complete');
     } catch (error) {
-      // App initialization failed
+      console.error('❌ App initialization failed:', error);
       this.showError('Failed to initialize application');
     }
   }
@@ -51,56 +49,56 @@ class HazardDetectionApp {
     try {
       // Auth routes on the express server are not namespaced under /api
       // so we query the plain /auth/status endpoint
-      const response = await fetchWithTimeout('/auth/status', { timeout: 5000 });
+      const response = await fetch('/auth/status');
       if (response.ok) {
-        const data = await getJsonOrThrow(response);
+        const data = await response.json();
         if (!data.authenticated && !window.location.pathname.includes('login.html')) {
           window.location.href = '/login.html';
         }
       }
     } catch (error) {
-      // Auth check failed
+      console.warn('Auth check failed:', error);
     }
   }
 
   // Initialize inference system (backend + frontend fallback)
   async initInferenceSystem() {
-    // Checking backend connection...
+    console.log('🔍 Checking backend connection...');
     
     try {
-      const response = await fetchWithTimeout(`${this.backendUrl}/health`, {
+      const response = await fetch(`${this.backendUrl}/health`, {
         method: 'GET',
-        timeout: 10000
+        signal: AbortSignal.timeout(10000)
       });
       
       if (response.ok) {
-        const data = await getJsonOrThrow(response);
+        const data = await response.json();
         if (data.status === 'healthy' && data.model_status === 'loaded') {
           this.inferenceMode = 'backend';
           this.isConnected = true;
-          // Backend inference ready
+          console.log('✅ Backend inference ready');
           this.updateStatus('connected', 'Backend AI Ready');
           return;
         }
       }
     } catch (error) {
-      // Backend connection failed
+      console.warn('Backend connection failed:', error.message);
     }
 
     // Fallback to frontend inference
-    // Loading frontend AI model...
+    console.log('🔄 Loading frontend AI model...');
     try {
       if (typeof window.ort !== 'undefined') {
         await this.loadONNXModel();
         this.inferenceMode = 'frontend';
         this.isConnected = true;
-        // Frontend inference ready
+        console.log('✅ Frontend inference ready');
         this.updateStatus('connected', 'Local AI Ready');
       } else {
         throw new Error('ONNX Runtime not available');
       }
     } catch (error) {
-      // Frontend model loading failed
+      console.error('❌ Frontend model loading failed:', error);
       this.inferenceMode = 'disabled';
       this.updateStatus('disconnected', 'AI Detection Unavailable');
       this.showError('AI detection is currently unavailable. Camera preview only.');
@@ -127,18 +125,18 @@ class HazardDetectionApp {
     for (const path of modelPaths) {
       try {
         const encodedPath = encodeURI(path);
-        const testResponse = await fetchWithTimeout(encodedPath, { method: 'HEAD', timeout: 3000 });
+        const testResponse = await fetch(encodedPath, { method: 'HEAD' });
         if (testResponse.ok) {
-          // Loading model from path
+          console.log(`📦 Loading model from: ${path}`);
           this.session = await ort.InferenceSession.create(encodedPath, {
             executionProviders: ['webgl', 'wasm'],
             graphOptimizationLevel: 'all'
           });
-          // ONNX model loaded successfully
+          console.log('✅ ONNX model loaded successfully');
           return;
         }
       } catch (e) {
-        // Model not found at path
+        console.log(`❌ Model not found at: ${path}`);
       }
     }
 
@@ -186,10 +184,10 @@ class HazardDetectionApp {
       if (video) {
         video.srcObject = stream;
         video.play();
-        // Camera initialized
+        console.log('📹 Camera initialized');
       }
     } catch (error) {
-      // Camera initialization failed
+      console.error('❌ Camera initialization failed:', error);
       this.showError('Camera access denied or not available');
     }
   }
@@ -270,7 +268,7 @@ class HazardDetectionApp {
     const formData = new FormData();
     formData.append('file', blob, 'frame.jpg');
 
-    const response = await fetchWithTimeout(`${this.backendUrl}/detect`, {
+    const response = await fetch(`${this.backendUrl}/detect`, {
       method: 'POST',
       body: formData,
       signal: AbortSignal.timeout(10000)
