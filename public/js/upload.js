@@ -1,3 +1,51 @@
+import { uploadDetection, startSession, detectSingleWithRetry } from './apiClient.js';
+import { mapModelToCanvas, validateMappingAccuracy, modelToCanvasBox, computeContainMapping } from './utils/coordsMap.js';
+import { processDetectionForAutoReporting } from './auto-reporting-service.js';
+import { DETECTION_CONFIG } from './config.js';
+
+// Import enhanced EXIF service
+import { processImageWithExif, hasGPSData } from './exif.js';
+
+// Import inference contract validator
+import { 
+  validateDetectionResult, 
+  convertToContractFormat,
+  logContractFailure,
+  ContractValidationError 
+} from './inference-contract-validator.js';
+
+// Global variables for geolocation and session state
+let geoData = null;
+let sessionId = null;
+let isOnline = navigator.onLine;
+let processingStage = 'idle'; // 'idle', 'uploading', 'processing', 'rendering', 'saving'
+
+// Inference worker and detection state
+let inferenceWorker = null;
+let persistentDetections = [];
+let coordinateMapping = null;
+
+// Custom DetectionEvent for integration
+class DetectionEvent extends CustomEvent {
+  constructor(type, detectionData) {
+    super(type, {
+      detail: {
+        ...detectionData,
+        timestamp: Date.now(),
+        source: 'upload'
+      }
+    });
+  }
+}
+
+// Progress stage management
+const PROGRESS_STAGES = {
+  UPLOAD: { name: 'Uploading image...', progress: 20 },
+  PROCESSING: { name: 'Processing with AI model...', progress: 60 },
+  RENDERING: { name: 'Rendering detection results...', progress: 80 },
+  SAVING: { name: 'Saving detection report...', progress: 100 }
+};
+
 document.addEventListener("DOMContentLoaded", async function () {
   const imageUpload = document.getElementById("image-upload");
   const confidenceSlider = document.getElementById("confidence-slider");
@@ -9,13 +57,173 @@ document.addEventListener("DOMContentLoaded", async function () {
   const tooltip = document.getElementById("tooltip");
   const uploadingModal = document.getElementById("uploading-modal");
   const uploadingModalBootstrap = new bootstrap.Modal(document.getElementById('uploading-modal'));
+  
+  // Initialize inference worker and session
+  await initializeInferenceWorker();
+  initializeUploadSession();
+  
+  // Update online status
+  window.addEventListener('online', () => {
+    isOnline = true;
+    console.log('📡 Connection restored - upload workflow can sync to server');
+  });
+  
+  window.addEventListener('offline', () => {
+    isOnline = false;
+    console.log('📡 Connection lost - upload workflow will work offline');
+  });
 
   function showUploadingModal() {
+    updateProgressModal('UPLOAD');
     uploadingModalBootstrap.show();
   }
 
   function hideUploadingModal() {
     uploadingModalBootstrap.hide();
+  }
+  
+  // Enhanced progress modal with stages and auto-reporting status
+  function updateProgressModal(stage) {
+    const modal = document.querySelector('#uploading-modal .modal-body');
+    if (modal && PROGRESS_STAGES[stage]) {
+      const { name, progress } = PROGRESS_STAGES[stage];
+      processingStage = stage.toLowerCase();
+      
+      // Add auto-reporting status for SAVING stage
+      const autoReportingStatus = stage === 'SAVING' && typeof getAutoReportingStats === 'function' 
+        ? getAutoReportingStats() : null;
+      
+      const autoReportingHtml = autoReportingStatus && autoReportingStatus.reportsCreated > 0
+        ? `<div class="mt-2 text-success"><small><i class="fas fa-robot"></i> ${autoReportingStatus.reportsCreated} auto-report(s) created</small></div>`
+        : '';
+      
+      modal.innerHTML = `
+        <div class="text-center">
+          <div class="spinner-border text-primary mb-3" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+          <div class="progress mb-2" style="height: 4px;">
+            <div class="progress-bar" role="progressbar" style="width: ${progress}%"></div>
+          </div>
+          <p class="mb-0">${name}</p>
+          <small class="text-muted">${progress}% complete</small>
+          ${autoReportingHtml}
+        </div>
+      `;
+    }
+  }
+  
+  // Initialize inference worker for upload detection
+  async function initializeInferenceWorker() {
+    try {
+      console.log('🔧 Initializing inference worker for upload detection...');
+      inferenceWorker = new Worker('/js/inference.worker.js', { type: 'module' });
+      
+      // Set up worker message handling
+      inferenceWorker.onmessage = (event) => {
+        const { type, payload } = event.data;
+        
+        switch (type) {
+          case 'init_success':
+            console.log('✅ Upload inference worker initialized:', payload);
+            break;
+          case 'init_error':
+            console.error('❌ Upload inference worker failed to initialize:', payload.message);
+            break;
+          case 'inference_result':
+            handleInferenceResult(payload);
+            break;
+          case 'run_error':
+            console.error('❌ Upload inference failed:', payload.message);
+            updateProgressModal('RENDERING');
+            hideUploadingModal();
+            showToast(`❌ Detection failed: ${payload.message}`, "error");
+            break;
+        }
+      };
+      
+      // Initialize worker with model
+      inferenceWorker.postMessage({
+        type: 'init',
+        payload: {
+          modelUrl: '/object_detection_model/best0608.onnx',
+          opts: {
+            inputSize: FIXED_SIZE,
+            threshold: 0.25,
+            iou: 0.45
+          }
+        }
+      });
+      
+    } catch (error) {
+      console.error('❌ Failed to initialize inference worker:', error);
+      inferenceWorker = null;
+    }
+  }
+  
+  // Initialize session for upload workflow
+  async function initializeUploadSession() {
+    try {
+      sessionId = await startSession();
+      console.log('📝 Upload session initialized:', sessionId);
+    } catch (error) {
+      console.warn('⚠️ Failed to initialize upload session:', error.message);
+      sessionId = `upload_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    }
+  }
+  
+  // Handle inference results from worker
+  function handleInferenceResult(result) {
+    console.log('🎯 Received inference result from worker:', result);
+    
+    // Store detections and update display
+    persistentDetections = result.detections || [];
+    lastRawBoxes = persistentDetections.map(det => [
+      det.x1, det.y1, det.x2, det.y2, det.score, det.classId
+    ]);
+    
+    // Update progress and render results
+    updateProgressModal('RENDERING');
+    updateAndDrawDetections();
+    
+    // Emit DetectionEvent for integration with auto-reporting
+    emitDetectionEvent(persistentDetections, currentImage);
+    
+    // Hide loading modal after rendering
+    setTimeout(() => {
+      hideUploadingModal();
+    }, 500);
+  }
+  
+  // Try to get current location for metadata
+  async function getCurrentLocation() {
+    if (geoData) return JSON.parse(geoData);
+    
+    try {
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          timeout: 5000,
+          enableHighAccuracy: true,
+          maximumAge: 300000 // 5 minutes
+        });
+      });
+      
+      const locationData = {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+        accuracy: position.coords.accuracy
+      };
+      
+      geoData = JSON.stringify(locationData);
+      console.log('📍 Current location obtained:', locationData);
+      return locationData;
+    } catch (error) {
+      console.warn('⚠️ Could not get current location:', error.message);
+      // Return default Israel coordinates as fallback
+      const fallbackLocation = { lat: 31.7683, lng: 35.2137 };
+      geoData = JSON.stringify(fallbackLocation);
+      return fallbackLocation;
+    }
   }
 
   function showToast(message, type = 'success') {
@@ -61,50 +269,12 @@ document.addEventListener("DOMContentLoaded", async function () {
     detectionResults.innerHTML = html;
   }
 
-  let geoData = null;
-
-  function getGeoDataFromImage(file) {
-    // ... (קוד פונקציה זהה)
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = function (e) {
-        const imgData = e.target.result;
   
-        const img = new Image();
-        img.onload = function () {
-          EXIF.getData(img, function () {
-            const lat = EXIF.getTag(this, "GPSLatitude");
-            const lon = EXIF.getTag(this, "GPSLongitude");
-            const latRef = EXIF.getTag(this, "GPSLatitudeRef") || "N";
-            const lonRef = EXIF.getTag(this, "GPSLongitudeRef") || "E";
-  
-            if (!lat || !lon) {
-              return resolve(null); // No geo data
-            }
-  
-            const toDecimal = (dms, ref) => {
-              const [deg, min, sec] = dms;
-              let decimal = deg + min / 60 + sec / 3600;
-              if (ref === "S" || ref === "W") decimal *= -1;
-              return decimal;
-            };
-  
-            const latitude = toDecimal(lat, latRef);
-            const longitude = toDecimal(lon, lonRef);
-  
-            resolve(JSON.stringify({ lat: latitude, lng: longitude }));
-          });
-        };
-        img.src = imgData;
-      };
-      reader.readAsDataURL(file);
-    });
-  }
 
 
 
-// שמירת התמונה והנתונים
-  saveBtn.addEventListener("click", () => {
+// Enhanced save functionality with proper workflow
+  saveBtn.addEventListener("click", async () => {
     if (!canvas) {
       showToast("❌ Canvas element not found.", "error");
       return;
@@ -124,17 +294,42 @@ document.addEventListener("DOMContentLoaded", async function () {
     compositeCanvas.height = canvas.height;
     const compositeCtx = compositeCanvas.getContext("2d");
 
-    // Draw the original uploaded image using the same letterbox parameters
-    if (currentImage) {
-        const { offsetX, offsetY, newW, newH } = letterboxParams;
+    // Draw the original uploaded image using coordinate mapping
+    if (currentImage && coordinateMapping) {
         compositeCtx.fillStyle = "black";
         compositeCtx.fillRect(0, 0, compositeCanvas.width, compositeCanvas.height);
-        compositeCtx.drawImage(currentImage, offsetX, offsetY, newW, newH);
+        compositeCtx.drawImage(currentImage, 
+          coordinateMapping.offsetX, 
+          coordinateMapping.offsetY, 
+          coordinateMapping.displayWidth, 
+          coordinateMapping.displayHeight
+        );
     }
 
-    // Draw the detection overlays
-    compositeCtx.drawImage(canvas, 0, 0);
+    // Draw the detection overlays with proper coordinate mapping
+    if (persistentDetections && persistentDetections.length > 0 && coordinateMapping) {
+      // Redraw detections on composite canvas using proper coordinate mapping
+      persistentDetections.forEach((detection, index) => {
+        const { x1, y1, x2, y2, score, classId } = detection;
+        
+        // Map from model coordinates to composite canvas coordinates
+        const mappedBox = modelToCanvasBox([x1, y1, x2, y2], coordinateMapping, FIXED_SIZE);
+        const [mappedX1, mappedY1, mappedX2, mappedY2] = mappedBox;
+        
+        const label = classNames[classId] || `Class ${classId}`;
+        const color = hazardColors[label] || '#00FF00';
 
+        drawProfessionalBoundingBox(compositeCtx, {
+            x1: mappedX1, y1: mappedY1, x2: mappedX2, y2: mappedY2,
+            label: label, confidence: score, detectionIndex: index + 1, color: color
+        });
+      });
+    } else {
+      // Fallback: draw canvas overlay directly if no raw detection data
+      compositeCtx.drawImage(canvas, 0, 0);
+    }
+
+    updateProgressModal('SAVING');
     showUploadingModal();
 
     compositeCanvas.toBlob(async (blob) => {
@@ -143,39 +338,63 @@ document.addEventListener("DOMContentLoaded", async function () {
           return alert("❌ Failed to get image blob");
         }
   
-      // Create FormData for file upload
-      const formData = new FormData();
-      formData.append('file', blob, 'detection.jpg');
-      formData.append('hazardTypes', hazardTypes.join(","));
-      formData.append('geoData', geoData);
-      formData.append('time', new Date().toISOString());
-      formData.append('locationNote', 'GPS');
+      // Enhanced report data with detections
+      const reportData = {
+        sessionId: sessionId,
+        imageBlob: blob,
+        detections: lastRawBoxes.filter(box => {
+          const threshold = Math.max(confidenceThreshold, uploadDetectionConfig.classThresholds[Math.floor(box[5])] || uploadDetectionConfig.minConfidence || 0.25);
+          return box[4] >= threshold;
+        }).map(box => ({
+          bbox: [box[0], box[1], box[2], box[3]],
+          class: classNames[Math.floor(box[5])] || `Class ${Math.floor(box[5])}`,
+          score: box[4]
+        })),
+        timestamp: new Date().toISOString(),
+        confidenceThreshold: confidenceThreshold,
+        location: geoData ? JSON.parse(geoData) : null,
+        metadata: {
+          source: 'upload',
+          processingTime: Date.now(),
+          hazardTypes: hazardTypes,
+          detectionCount: lastRawBoxes.length,
+          canvas: {
+            width: canvas.width,
+            height: canvas.height
+          },
+          coordinateMapping: {
+            modelInputSize: FIXED_SIZE,
+            letterboxParams: letterboxParams,
+            canvasSize: { width: canvas.width, height: canvas.height },
+            imageSize: currentImage ? { width: currentImage.width, height: currentImage.height } : null
+          }
+        }
+      };
 
         try {
-            const res = await fetch("/api/upload", {
-                method: "POST",
-                body: formData,
-                credentials: "include",
-            });
+            // Use the existing uploadDetection API for consistency
+            const result = await uploadDetection(reportData);
 
-          if (!res.ok) {
-              const contentType = res.headers.get("content-type");
-              let errorMessage = `HTTP ${res.status}`;
-              
-              if (contentType && contentType.includes("application/json")) {
-                  const errorData = await res.json();
-                  errorMessage = errorData.error || errorMessage;
-              } else {
-                  errorMessage = res.status === 401 ? "Authentication required" : `Server error (${res.status})`;
-              }
-              
-              throw new Error(errorMessage);
-          }
-
-            const result = await res.json();
+            // Success handling
             detectionSession.savedReports++;
             updateDetectionSessionSummary();
-            showToast("✅ Saved to server: " + result.message, "success");
+            
+            // Show gallery view with the saved detection
+            showGalleryView(result, blob, hazardTypes);
+            
+            showToast("✅ Detection report saved successfully!", "success");
+            
+            // Emit save completion event
+            const saveEvent = new CustomEvent('detection-saved', {
+              detail: {
+                reportId: result.id || result.reportId,
+                sessionId: sessionId,
+                hazardTypes: hazardTypes,
+                detectionCount: reportData.detections.length,
+                timestamp: Date.now()
+              }
+            });
+            document.dispatchEvent(saveEvent);
 
         } catch (err) {
             showToast("❌ Failed to save image to server.", "error");
@@ -186,6 +405,123 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     }, "image/jpeg", 0.95);
   });
+  
+  // Gallery view functionality
+  function showGalleryView(result, imageBlob, hazardTypes) {
+    const galleryModal = createGalleryModal(result, imageBlob, hazardTypes);
+    document.body.appendChild(galleryModal);
+    
+    const galleryModalBootstrap = new bootstrap.Modal(galleryModal);
+    galleryModalBootstrap.show();
+    
+    // Clean up modal after hiding
+    galleryModal.addEventListener('hidden.bs.modal', () => {
+      document.body.removeChild(galleryModal);
+    });
+  }
+  
+  function createGalleryModal(result, imageBlob, hazardTypes) {
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.setAttribute('tabindex', '-1');
+    modal.innerHTML = `
+      <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Detection Report Saved</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="row">
+              <div class="col-md-8">
+                <div class="detection-preview">
+                  <canvas id="gallery-canvas" class="img-fluid border rounded"></canvas>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="detection-summary">
+                  <h6>Detection Summary</h6>
+                  <div class="mb-2">
+                    <strong>Report ID:</strong><br>
+                    <small class="text-muted font-monospace">${result.id || result.reportId || 'Generated locally'}</small>
+                  </div>
+                  <div class="mb-2">
+                    <strong>Hazards Detected:</strong><br>
+                    <span class="badge bg-warning me-1">${hazardTypes.length} type${hazardTypes.length > 1 ? 's' : ''}</span>
+                  </div>
+                  <div class="mb-2">
+                    <strong>Types:</strong><br>
+                    ${hazardTypes.map(type => `<span class="badge bg-secondary me-1">${type}</span>`).join('')}
+                  </div>
+                  <div class="mb-2">
+                    <strong>Confidence:</strong><br>
+                    <span class="text-info">${(confidenceThreshold * 100).toFixed(0)}% threshold</span>
+                  </div>
+                  <div class="mb-2">
+                    <strong>Session:</strong><br>
+                    <small class="text-muted">${sessionId || 'Local session'}</small>
+                  </div>
+                  <div class="mb-2">
+                    <strong>Timestamp:</strong><br>
+                    <small class="text-muted">${new Date().toLocaleString()}</small>
+                  </div>
+                  ${geoData ? `
+                  <div class="mb-2">
+                    <strong>Location:</strong><br>
+                    <small class="text-muted">📍 ${JSON.parse(geoData).lat.toFixed(4)}, ${JSON.parse(geoData).lng.toFixed(4)}</small>
+                  </div>
+                  ` : ''}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            <button type="button" class="btn btn-primary" onclick="downloadDetectionImage()">
+              <i class="fas fa-download"></i> Download Image
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    // Set up canvas with detection image after modal is shown
+    modal.addEventListener('shown.bs.modal', () => {
+      const galleryCanvas = modal.querySelector('#gallery-canvas');
+      const galleryCtx = galleryCanvas.getContext('2d');
+      
+      // Copy the current canvas content to gallery canvas
+      galleryCanvas.width = canvas.width;
+      galleryCanvas.height = canvas.height;
+      galleryCtx.drawImage(canvas, 0, 0);
+      
+      // Add download functionality
+      window.downloadDetectionImage = () => {
+        const link = document.createElement('a');
+        link.download = `hazard-detection-${Date.now()}.jpg`;
+        link.href = galleryCanvas.toDataURL('image/jpeg', 0.95);
+        link.click();
+      };
+    });
+    
+    return modal;
+  }
+  
+  // Enhanced image validation
+  function validateImageFile(file) {
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    
+    if (!validTypes.includes(file.type)) {
+      throw new Error(`Invalid file type: ${file.type}. Please select a JPEG, PNG, or WebP image.`);
+    }
+    
+    if (file.size > maxSize) {
+      throw new Error(`File too large: ${(file.size / 1024 / 1024).toFixed(1)}MB. Maximum size is 10MB.`);
+    }
+    
+    return true;
+  }
   
   // YOLOv12n Road Damage Detection Model Configuration
   const FIXED_SIZE = 480; // from YAML imgsz
@@ -202,89 +538,18 @@ document.addEventListener("DOMContentLoaded", async function () {
   };
 
   // Detection configuration for YOLOv12n processing
-  const DETECTION_CONFIG = {
-    minConfidence: 0.25,          // Updated for YOLOv12n
-    nmsThreshold: 0.4,            // Lower for better precision
-    maxDetections: 50,            // Higher limit for batch processing
-    minBoxSize: 4,                // Smaller for crack detection
-    aspectRatioFilter: 30.0,      // Allow longer shapes for cracks/markings
-    // Class-specific minimum confidences for YOLOv12n (4 classes)
+  // Detection configuration for upload workflow
+  const uploadDetectionConfig = {
+    minConfidence: 0.25,
+    nmsThreshold: 0.4,
+    maxDetections: 50,
+    minBoxSize: 4,
+    aspectRatioFilter: 30.0,
     classThresholds: { 0:0.25, 1:0.25, 2:0.25, 3:0.25 }
   };
+  
+  // Legacy session for fallback (only loaded if worker fails)
   let session = null;
-  let runtime = 'onnx';
-
-  // Detect available runtime
-  if (typeof ov !== 'undefined' && ov.InferenceSession) {
-    runtime = 'openvino';
-    console.log('✅ OpenVINO runtime detected');
-  } else {
-    console.log('✅ ONNX Runtime loaded, configuring for CPU execution...');
-    if (typeof ort === 'undefined') {
-      console.error('ONNX Runtime not loaded. Please ensure ort.wasm.min.js is included in the HTML.');
-      // Create a script element to load ONNX Runtime dynamically
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.wasm.min.js';
-      script.onload = () => {
-        console.log('ONNX Runtime loaded dynamically');
-        // Retry model loading after ONNX Runtime is loaded
-        setTimeout(() => location.reload(), 1000);
-      };
-      document.head.appendChild(script);
-      return;
-    }
-  }
-
-  try {
-    // Prioritized model paths - using available ONNX models
-    const modelPaths = [
-      '/object_detection_model/best0608.onnx'           // Primary model (migrated from best0408)
-    ]
-    
-    let modelPath = null;
-    for (const path of modelPaths) {
-      try {
-        // URL encode the path to handle spaces in filenames
-        const encodedPath = encodeURI(path);
-        const response = await fetch(encodedPath, { method: 'HEAD' });
-        if (response.ok) {
-          modelPath = encodedPath;
-          console.log(`✅ Found ONNX model at: ${path}`);
-          break;
-        }
-      } catch (e) {
-        console.log(`❌ Failed to access model at ${path}:`, e.message);
-        // Continue to next path
-      }
-    }
-    
-    if (!modelPath) {
-      throw new Error('No ONNX model found in any of the expected locations');
-    }
-
-    // Initialize session based on selected runtime
-    if (runtime === 'openvino') {
-      session = await ov.InferenceSession.create(modelPath);
-      console.log('✅ YOLO model loaded with OpenVINO runtime!');
-    } else {
-      const executionProviders = ['cpu'];
-      console.log('✅ Using CPU execution provider');
-
-      session = await ort.InferenceSession.create(
-        modelPath,
-        {
-          executionProviders: executionProviders,
-          graphOptimizationLevel: 'disabled', // Disable optimizations for stability
-          enableCpuMemArena: false,
-          logSeverityLevel: 2 // Reduce logging
-        }
-      );
-
-      console.log("✅ YOLO model loaded with ONNX runtime!");
-    }
-  } catch (err) {
-    console.error("❌ Failed to load model:", err);
-  }
 
   // --- State for active image and detections ---
   let confidenceThreshold = parseFloat(confidenceSlider.value);
@@ -303,56 +568,151 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   if (imageUpload) {
     imageUpload.addEventListener("change", async (event) => {
-  const file = event.target.files[0];
-  if (!file || !canvas) return; // Add check for canvas
+      const file = event.target.files[0];
+      if (!file || !canvas) return;
+      
+      try {
+        // Validate the image file
+        validateImageFile(file);
+        console.log('📁 Image file validated:', {
+          name: file.name,
+          size: `${(file.size / 1024 / 1024).toFixed(1)}MB`,
+          type: file.type
+        });
+      } catch (error) {
+        showToast(`❌ ${error.message}`, "error");
+        imageUpload.value = ''; // Clear the input
+        return;
+      }
 
-  // 1. נתחיל קריאת EXIF ברקע (לא חוסם את התצוגה)
-  getGeoDataFromImage(file).then(data => {
-    if (data) {
-      geoData = data;      // שומר מיקום אם קיים
-    } else {
-      console.warn("אין נתוני EXIF גיאו בתמונה הזאת");
-    }
-  });
+      showUploadingModal();
+      updateProgressModal('UPLOAD');
+      
+      // Use enhanced EXIF service for better performance and reliability
+      let exifResult = null;
+      try {
+        if (typeof processImageWithExif === 'function') {
+          exifResult = await processImageWithExif(file, {
+            autoCreateReport: true,
+            uploadImmediately: true
+          });
+          
+          if (exifResult.success && exifResult.hasGPS) {
+            showToast(`✅ EXIF GPS found: Auto-report created (${exifResult.message})`, "success");
+          } else if (exifResult.hasGPS === false) {
+            console.log('📷 No GPS data in EXIF, proceeding with manual location detection');
+          }
+        } else {
+          console.log('🔍 EXIF service not available, skipping EXIF processing');
+        }
+      } catch (error) {
+        console.warn('⚠️ EXIF processing failed:', error);
+        if (error.message !== 'processImageWithExif is not a function') {
+          showToast(`⚠️ EXIF processing failed: ${error.message}`, "warning");
+        }
+      }
+      
+      // Update location data based on EXIF result
+      if (exifResult?.success && exifResult.exifData?.location) {
+        geoData = JSON.stringify({
+          lat: exifResult.exifData.location.latitude,
+          lng: exifResult.exifData.location.longitude,
+          source: 'EXIF',
+          accuracy: exifResult.exifData.location.accuracy
+        });
+        console.log('📍 Using EXIF GPS coordinates:', JSON.parse(geoData));
+      } else {
+        // Get current location as fallback
+        await getCurrentLocation();
+        console.log('📍 Using current location as fallback');
+      }
 
-  // 2. Set canvas dimensions and reinitialize context
-  canvas.width  = FIXED_SIZE;
-  canvas.height = FIXED_SIZE;
-  ctx = canvas.getContext("2d"); // Re-initialize context after resizing
+      // Set canvas dimensions and reinitialize context
+      canvas.width = FIXED_SIZE;
+      canvas.height = FIXED_SIZE;
+      ctx = canvas.getContext("2d");
 
-  // 3. תמיד תציג תצוגה ותריץ את המודל
-  const reader = new FileReader();
-  reader.onload = e => {
-    const img = new Image();
-    img.onload = async () => {
-      currentImage = img;
-      
-      // Draw image immediately for instant preview
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = "black";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // Calculate letterbox parameters for preview
-      const imgW = img.width;
-      const imgH = img.height;
-      const scale = Math.min(FIXED_SIZE / imgW, FIXED_SIZE / imgH);
-      const newW = Math.round(imgW * scale);
-      const newH = Math.round(imgH * scale);
-      const offsetX = Math.floor((FIXED_SIZE - newW) / 2);
-      const offsetY = Math.floor((FIXED_SIZE - newH) / 2);
-      
-      letterboxParams = { offsetX, offsetY, newW, newH };
-      
-      // Draw the image for immediate visual feedback
-      ctx.drawImage(img, offsetX, offsetY, newW, newH);
-      
-      // Run inference in background
-      await runInferenceOnImage(img);  // כאן מציירים את המסגרות
-    };
-    img.src = e.target.result;
-  };
-  reader.readAsDataURL(file);
-});
+      try {
+        // Convert file to ImageBitmap for worker processing
+        const imageBitmap = await createImageBitmap(file);
+        currentImage = imageBitmap;
+        
+        // Calculate coordinate mapping for proper overlay rendering
+        coordinateMapping = computeContainMapping({
+          videoW: imageBitmap.width,
+          videoH: imageBitmap.height,
+          viewportW: FIXED_SIZE,
+          viewportH: FIXED_SIZE,
+          dpr: 1 // Canvas uses device pixels
+        });
+        
+        letterboxParams = {
+          offsetX: coordinateMapping.offsetX,
+          offsetY: coordinateMapping.offsetY,
+          newW: coordinateMapping.displayWidth,
+          newH: coordinateMapping.displayHeight
+        };
+        
+        // Draw image immediately for instant preview
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "black";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(imageBitmap, 
+          coordinateMapping.offsetX, 
+          coordinateMapping.offsetY, 
+          coordinateMapping.displayWidth, 
+          coordinateMapping.displayHeight
+        );
+        
+        // Run inference via worker
+        updateProgressModal('PROCESSING');
+        
+        if (inferenceWorker) {
+          inferenceWorker.postMessage({
+            type: 'run_image_bitmap',
+            payload: {
+              bitmap: imageBitmap,
+              opts: {
+                inputSize: FIXED_SIZE,
+                threshold: confidenceThreshold,
+                iou: 0.45
+              }
+            }
+          });
+        } else {
+          // Fallback if worker failed to initialize
+          console.warn('⚠️ Inference worker not available, using fallback');
+          const detections = await runInferenceFallback(imageBitmap);
+          persistentDetections = detections;
+          lastRawBoxes = detections.map(det => [
+            det.x1, det.y1, det.x2, det.y2, det.score, det.classId
+          ]);
+          updateAndDrawDetections();
+          emitDetectionEvent(detections, imageBitmap);
+          hideUploadingModal();
+        }
+        
+        // Add EXIF metadata to the detection event if available
+        if (exifResult?.success && exifResult.exifData) {
+          const exifEvent = new CustomEvent('exif-data-processed', {
+            detail: {
+              exifData: exifResult.exifData,
+              hasGPS: exifResult.hasGPS,
+              geoReportCreated: !!exifResult.uploadResult,
+              sessionId: sessionId,
+              timestamp: Date.now()
+            }
+          });
+          document.dispatchEvent(exifEvent);
+          console.log('📷 EXIF processing event emitted:', exifResult.message);
+        }
+        
+      } catch (error) {
+        console.error('❌ Failed to process uploaded image:', error);
+        showToast(`❌ Failed to process image: ${error.message}`, "error");
+        hideUploadingModal();
+      }
+    });
   }
 
   // Auto-detect and parse different YOLO output formats
@@ -444,16 +804,98 @@ document.addEventListener("DOMContentLoaded", async function () {
     return detections;
   }
 
-  async function runInferenceOnImage(imageElement) {
+  // Emit DetectionEvent compliant with inference contract
+  function emitDetectionEvent(detections, imageElement) {
+    // Handle both worker format detections and legacy array format
+    let contractDetections;
+    
+    if (Array.isArray(detections) && detections.length > 0 && typeof detections[0] === 'object' && 'x1' in detections[0]) {
+      // Worker format: array of detection objects {x1, y1, x2, y2, score, classId}
+      contractDetections = detections.map(det => ({
+        x1: det.x1, y1: det.y1, x2: det.x2, y2: det.y2,
+        score: det.score, classId: det.classId,
+        className: classNames[det.classId] || `Class ${det.classId}`
+      }));
+    } else if (Array.isArray(detections) && detections.length > 0 && Array.isArray(detections[0])) {
+      // Legacy format: array of arrays [x1, y1, x2, y2, score, classId]
+      contractDetections = detections.map(det => ({
+        x1: det[0], y1: det[1], x2: det[2], y2: det[3],
+        score: det[4], classId: Math.floor(det[5]),
+        className: classNames[Math.floor(det[5])] || `Class ${Math.floor(det[5])}`
+      }));
+    } else {
+      // No detections
+      contractDetections = [];
+    }
+    
+    // Create inference contract compliant result
+    const detectionResult = {
+      detections: contractDetections,
+      width: imageElement.width || FIXED_SIZE,
+      height: imageElement.height || FIXED_SIZE,
+      timings: {
+        preprocess_ms: 50,  // Estimated for upload flow
+        infer_ms: 200,      // Estimated model inference time
+        postprocess_ms: 30, // Estimated postprocessing time
+        total_ms: 280
+      },
+      engine: {
+        name: 'upload-worker',
+        backend: inferenceWorker ? 'worker' : 'fallback',
+        version: '1.0',
+        modelPath: '/object_detection_model/best0608.onnx'
+      }
+    };
+    
+    const eventData = {
+      detectionResult: detectionResult,
+      sessionId: sessionId,
+      timestamp: Date.now(),
+      imageElement: imageElement,
+      canvas: canvas,
+      location: geoData ? JSON.parse(geoData) : null,
+      source: 'upload',
+      // Compatibility with auto-reporting service
+      detections: contractDetections,
+      // Additional metadata for upload workflow
+      coordinateMapping: coordinateMapping,
+      confidenceThreshold: confidenceThreshold
+    };
+    
+    const event = new DetectionEvent('hazard-detected', eventData);
+    document.dispatchEvent(event);
+    
+    console.log('📡 DetectionEvent emitted (inference contract compliant) for upload:', {
+      detectionCount: contractDetections.length,
+      sessionId: sessionId,
+      location: eventData.location,
+      engine: detectionResult.engine,
+      confidenceThreshold: confidenceThreshold
+    });
+    
+    // Process for auto-reporting if enabled and detections exist
+    if (typeof processDetectionForAutoReporting === 'function' && contractDetections.length > 0) {
+      processDetectionForAutoReporting(contractDetections, imageElement)
+        .then(result => {
+          if (result.processed) {
+            console.log(`🚨 Upload auto-reporting: ${result.reportsCreated} report(s) created`);
+            showToast(`🤖 Auto-reporting: ${result.reportsCreated} report(s) created`, "info");
+          }
+        })
+        .catch(error => {
+          console.warn('⚠️ Upload auto-reporting failed:', error);
+        });
+    }
+  }
+
+  // Fallback inference function when worker is not available
+  async function runInferenceFallback(imageElement) {
+    console.log('🔄 Running fallback inference (no worker available)');
+    
     if (!session) {
       console.warn("Model not loaded yet.");
       showToast("⚠️ Model not loaded yet, please wait...", "warning");
-      return;
-    }
-    
-    if (!ctx) {
-      console.warn("Canvas context not available.");
-      return;
+      return [];
     }
 
     try {
@@ -462,23 +904,20 @@ document.addEventListener("DOMContentLoaded", async function () {
       offscreen.height = FIXED_SIZE;
       const offCtx = offscreen.getContext("2d");
 
-      const imgW = imageElement.width;
-      const imgH = imageElement.height;
-      const scale = Math.min(FIXED_SIZE / imgW, FIXED_SIZE / imgH);
-      const newW = Math.round(imgW * scale);
-      const newH = Math.round(imgH * scale);
-      const offsetX = Math.floor((FIXED_SIZE - newW) / 2);
-      const offsetY = Math.floor((FIXED_SIZE - newH) / 2);
-
-      letterboxParams = { offsetX, offsetY, newW, newH };
-
+      // Draw image with letterbox padding
       offCtx.fillStyle = "black";
       offCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
-      offCtx.drawImage(imageElement, offsetX, offsetY, newW, newH);
+      offCtx.drawImage(imageElement, 
+        coordinateMapping.offsetX, 
+        coordinateMapping.offsetY, 
+        coordinateMapping.displayWidth, 
+        coordinateMapping.displayHeight
+      );
 
       const imageData = offCtx.getImageData(0, 0, FIXED_SIZE, FIXED_SIZE);
       const { data, width, height } = imageData;
 
+      // Convert to tensor format
       const tensorData = new Float32Array(width * height * 3);
       for (let i = 0, j = 0; i < data.length; i += 4, j += 3) {
         tensorData[j] = data[i] / 255;
@@ -499,27 +938,24 @@ document.addEventListener("DOMContentLoaded", async function () {
       const dims = [1, 3, height, width];
       const tensor = new ort.Tensor("float32", chwData, dims);
 
-      // Dynamically get the input nam from the model for robustness
+      // Run inference
       const inputName = session.inputNames[0];
       const feeds = { [inputName]: tensor };
       const results = await session.run(feeds);
       const outputKey = Object.keys(results)[0];
       const output = results[outputKey];
       
-      // Enhanced debug logging after model inference
-      console.log('🧪 ONNX output dims:', output.dims, 'len:', output.data.length);
-      console.log('Output dims:', output.dims, 'Output data length:', output.data.length);
-      console.log("Raw outputData sample:", output.data.slice(0, 20));
+      console.log('🧪 Fallback ONNX output dims:', output.dims, 'len:', output.data.length);
 
-      // Use auto-detection parser with a low threshold to get all potential boxes
+      // Parse detections using auto-parser
       const parsed = parseDetectionsAuto(output, FIXED_SIZE, 0.01);
       
-      // Convert parsed detections to the format expected by applyDetectionFilters
-      lastRawBoxes = parsed.map(det => [det.x1, det.y1, det.x2, det.y2, det.score, det.classId]);
+      // Return detections in worker-compatible format
+      return parsed;
       
-      updateAndDrawDetections();
     } catch (err) {
-      console.error("Error in inference:", err);
+      console.error("Error in fallback inference:", err);
+      return [];
     }
   }
 
@@ -593,7 +1029,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       const classIndex = Math.floor(classId);
       
       // Use class-specific confidence thresholds if available
-      const classMinThreshold = DETECTION_CONFIG.classThresholds[classIndex] || DETECTION_CONFIG.minConfidence;
+      const classMinThreshold = uploadDetectionConfig.classThresholds[classIndex] || uploadDetectionConfig.minConfidence;
       const minThreshold = Math.max(confidenceThreshold, classMinThreshold);
       
       // Skip low confidence detections
@@ -606,11 +1042,11 @@ document.addEventListener("DOMContentLoaded", async function () {
       const height = y2 - y1;
       
       // Filter tiny boxes
-      if (width < DETECTION_CONFIG.minBoxSize || height < DETECTION_CONFIG.minBoxSize) continue;
+      if (width < uploadDetectionConfig.minBoxSize || height < uploadDetectionConfig.minBoxSize) continue;
       
       // Filter extreme aspect ratios (likely false positives)
       const aspectRatio = Math.max(width/height, height/width);
-      if (aspectRatio > DETECTION_CONFIG.aspectRatioFilter) continue;
+      if (aspectRatio > uploadDetectionConfig.aspectRatioFilter) continue;
       
       // Ensure box is within image bounds
       if (x1 < 0 || y1 < 0 || x2 > FIXED_SIZE || y2 > FIXED_SIZE) continue;
@@ -622,12 +1058,12 @@ document.addEventListener("DOMContentLoaded", async function () {
     validBoxes.sort((a, b) => b[4] - a[4]);
     
     // Limit number of detections
-    if (validBoxes.length > DETECTION_CONFIG.maxDetections) {
-      validBoxes = validBoxes.slice(0, DETECTION_CONFIG.maxDetections);
+    if (validBoxes.length > uploadDetectionConfig.maxDetections) {
+      validBoxes = validBoxes.slice(0, uploadDetectionConfig.maxDetections);
     }
     
     // Apply Non-Maximum Suppression (simplified)
-    return applyNMS(validBoxes, DETECTION_CONFIG.nmsThreshold);
+    return applyNMS(validBoxes, uploadDetectionConfig.nmsThreshold);
   }
 
   // Simplified Non-Maximum Suppression
@@ -696,7 +1132,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       
       // Calculate average confidence
       const validBoxes = boxes.filter(box => {
-        const threshold = Math.max(confidenceThreshold, DETECTION_CONFIG.minConfidence);
+        const threshold = Math.max(confidenceThreshold, uploadDetectionConfig.minConfidence);
         return box[4] >= threshold;
       });
       
@@ -726,142 +1162,213 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
   }
 
-  // Professional bounding box drawing function
+  // Enhanced professional bounding box drawing function with better coordinate handling
   function drawProfessionalBoundingBox(ctx, options) {
     const { x1, y1, x2, y2, label, confidence, classIndex, detectionIndex, color } = options;
     
     const boxW = x2 - x1;
     const boxH = y2 - y1;
+    
+    // Early return for invalid boxes
+    if (boxW <= 0 || boxH <= 0) {
+      console.warn('Invalid bounding box dimensions for upload:', { x1, y1, x2, y2 });
+      return;
+    }
+    
     const scorePerc = (confidence * 100).toFixed(1);
     
     // Save current context state
     ctx.save();
     
-    // Calculate dynamic styling based on confidence
-    const alpha = Math.min(0.7 + confidence * 0.3, 1.0);
-    const lineWidth = Math.max(2, Math.min(6, confidence * 8));
-    const cornerSize = Math.max(8, Math.min(16, confidence * 20));
+    // Enhanced styling with better visual hierarchy
+    const alpha = Math.min(0.85 + confidence * 0.15, 1.0);
+    const lineWidth = Math.max(2, Math.min(5, 2 + confidence * 3));
+    const cornerSize = Math.max(10, Math.min(18, confidence * 22));
     
-    // Set shadow for depth effect
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
-    ctx.shadowBlur = 4;
+    // Enhanced shadow for better depth perception
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+    ctx.shadowBlur = 3;
     ctx.shadowOffsetX = 2;
     ctx.shadowOffsetY = 2;
     
-    // Draw main bounding box
+    // Draw main bounding box with enhanced styling
     ctx.globalAlpha = alpha;
     ctx.strokeStyle = color;
     ctx.lineWidth = lineWidth;
+    ctx.setLineDash([]); // Ensure solid line
     ctx.strokeRect(x1, y1, boxW, boxH);
     
-    // Reset shadow for corner markers
+    // Semi-transparent fill for better contrast
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = color;
+    ctx.fillRect(x1, y1, boxW, boxH);
+    
+    // Clear shadow for subsequent elements
     ctx.shadowColor = 'transparent';
     ctx.shadowBlur = 0;
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 0;
     
-    // Draw professional corner markers
-    ctx.fillStyle = color;
-    ctx.globalAlpha = Math.min(alpha + 0.2, 1.0);
-    
-    const cornerThickness = Math.max(2, lineWidth / 2);
-    const cornerLength = cornerSize;
-    
-    // Top-left corner
-    ctx.fillRect(x1 - cornerThickness, y1 - cornerThickness, cornerLength, cornerThickness);
-    ctx.fillRect(x1 - cornerThickness, y1 - cornerThickness, cornerThickness, cornerLength);
-    
-    // Top-right corner
-    ctx.fillRect(x2 - cornerLength + cornerThickness, y1 - cornerThickness, cornerLength, cornerThickness);
-    ctx.fillRect(x2, y1 - cornerThickness, cornerThickness, cornerLength);
-    
-    // Bottom-left corner
-    ctx.fillRect(x1 - cornerThickness, y2, cornerLength, cornerThickness);
-    ctx.fillRect(x1 - cornerThickness, y2 - cornerLength + cornerThickness, cornerThickness, cornerLength);
-    
-    // Bottom-right corner
-    ctx.fillRect(x2 - cornerLength + cornerThickness, y2, cornerLength, cornerThickness);
-    ctx.fillRect(x2, y2 - cornerLength + cornerThickness, cornerThickness, cornerLength);
-    
-    // Draw confidence indicator bar
-    const confBarWidth = Math.min(boxW * 0.8, 60);
-    const confBarHeight = 4;
-    const confBarX = x1 + (boxW - confBarWidth) / 2;
-    const confBarY = y2 - 8;
-    
-    // Background bar
-    ctx.globalAlpha = 0.3;
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(confBarX, confBarY, confBarWidth, confBarHeight);
-    
-    // Confidence fill
-    ctx.globalAlpha = 0.8;
-    ctx.fillStyle = color;
-    ctx.fillRect(confBarX, confBarY, confBarWidth * confidence, confBarHeight);
-    
-    // Professional label design
-    ctx.font = 'bold 12px "Segoe UI", Arial, sans-serif';
-    const mainText = label;
-    const confText = `${scorePerc}%`;
-    const idText = `#${detectionIndex}`;
-    
-    const mainTextWidth = ctx.measureText(mainText).width;
-    const confTextWidth = ctx.measureText(confText).width;
-    const idTextWidth = ctx.measureText(idText).width;
-    
-    const labelPadding = 8;
-    const labelSpacing = 4;
-    const totalLabelWidth = mainTextWidth + confTextWidth + idTextWidth + labelPadding * 2 + labelSpacing * 2;
-    const labelHeight = 22;
-    
-    // Smart label positioning
-    let labelX = x1;
-    let labelY = y1 - labelHeight - 4;
-    
-    // Adjust if label goes outside image bounds
-    if (labelX + totalLabelWidth > FIXED_SIZE) {
-      labelX = FIXED_SIZE - totalLabelWidth - 4;
-    }
-    if (labelY < 0) {
-      labelY = y2 + 4;
+    // Enhanced corner markers for high-confidence detections
+    if (confidence > 0.6 && Math.min(boxW, boxH) > 30) {
+      ctx.globalAlpha = alpha * 0.9;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(2, lineWidth * 0.8);
+      ctx.lineCap = 'round';
+      
+      const cornerLength = Math.min(cornerSize, Math.min(boxW, boxH) / 3);
+      
+      // Draw enhanced corner markers
+      // Top-left
+      ctx.beginPath();
+      ctx.moveTo(x1, y1 + cornerLength);
+      ctx.lineTo(x1, y1);
+      ctx.lineTo(x1 + cornerLength, y1);
+      ctx.stroke();
+      
+      // Top-right
+      ctx.beginPath();
+      ctx.moveTo(x2 - cornerLength, y1);
+      ctx.lineTo(x2, y1);
+      ctx.lineTo(x2, y1 + cornerLength);
+      ctx.stroke();
+      
+      // Bottom-left
+      ctx.beginPath();
+      ctx.moveTo(x1, y2 - cornerLength);
+      ctx.lineTo(x1, y2);
+      ctx.lineTo(x1 + cornerLength, y2);
+      ctx.stroke();
+      
+      // Bottom-right
+      ctx.beginPath();
+      ctx.moveTo(x2 - cornerLength, y2);
+      ctx.lineTo(x2, y2);
+      ctx.lineTo(x2, y2 - cornerLength);
+      ctx.stroke();
+      
+      ctx.lineCap = 'butt';
     }
     
-    // Draw label background with gradient effect
-    ctx.globalAlpha = 0.95;
-    
-    // Create gradient background
-    const gradient = ctx.createLinearGradient(labelX, labelY, labelX, labelY + labelHeight);
-    gradient.addColorStop(0, color);
-    gradient.addColorStop(1, adjustColorBrightness(color, -20));
-    
-    ctx.fillStyle = gradient;
-    drawRoundedRect(ctx, labelX, labelY, totalLabelWidth, labelHeight, 4);
-    
-    // Draw label text with shadow
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
-    ctx.shadowBlur = 1;
-    ctx.shadowOffsetX = 1;
-    ctx.shadowOffsetY = 1;
-    
-    ctx.globalAlpha = 1.0;
-    ctx.fillStyle = '#FFFFFF';
-    
-    // Main label text
-    ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
-    ctx.fillText(mainText, labelX + labelPadding, labelY + 14);
-    
-    // Confidence text
-    ctx.font = 'bold 10px "Segoe UI", Arial, sans-serif';
-    ctx.fillStyle = '#E0E0E0';
-    ctx.fillText(confText, labelX + labelPadding + mainTextWidth + labelSpacing, labelY + 14);
-    
-    // Detection ID
-    ctx.font = 'bold 8px "Segoe UI", Arial, sans-serif';
-    ctx.fillStyle = '#CCCCCC';
-    ctx.fillText(idText, labelX + labelPadding + mainTextWidth + confTextWidth + labelSpacing * 2, labelY + 13);
+    // Enhanced label rendering with better typography
+    drawUploadLabel(ctx, {
+      x1, y1, y2, label, confidence, scorePerc, detectionIndex, color,
+      canvasWidth: FIXED_SIZE, canvasHeight: FIXED_SIZE, boxWidth: boxW, boxHeight: boxH
+    });
     
     // Restore context state
     ctx.restore();
+  }
+  
+  // Enhanced label drawing function for upload images
+  function drawUploadLabel(ctx, { x1, y1, y2, label, confidence, scorePerc, detectionIndex, color, canvasWidth, canvasHeight, boxWidth, boxHeight }) {
+    // Adaptive font sizing
+    const baseFontSize = Math.max(10, Math.min(14, Math.min(boxWidth / 6, boxHeight / 4)));
+    const confFontSize = baseFontSize * 0.85;
+    
+    ctx.font = `${baseFontSize}px ui-sans-serif, system-ui, "Segoe UI", sans-serif`;
+    ctx.textBaseline = 'middle';
+    
+    const mainText = label.charAt(0).toUpperCase() + label.slice(1);
+    const confText = `${scorePerc}%`;
+    const idText = `#${detectionIndex}`;
+    
+    const mainTextMetrics = ctx.measureText(mainText);
+    const confTextMetrics = ctx.measureText(confText);
+    const idTextMetrics = ctx.measureText(idText);
+    
+    const labelPadding = Math.max(6, baseFontSize * 0.5);
+    const labelSpacing = Math.max(3, baseFontSize * 0.25);
+    const totalLabelWidth = mainTextMetrics.width + confTextMetrics.width + idTextMetrics.width + labelPadding * 2 + labelSpacing * 2;
+    const labelHeight = Math.max(18, baseFontSize * 1.5);
+    
+    // Smart label positioning with enhanced bounds checking
+    let labelX = Math.max(2, Math.min(x1, canvasWidth - totalLabelWidth - 2));
+    let labelY = y1 - labelHeight - 3;
+    
+    // Position adjustment logic
+    if (labelY < 0) {
+      if (y2 + labelHeight + 3 <= canvasHeight) {
+        labelY = y2 + 3;
+      } else if (boxHeight > labelHeight + 8) {
+        labelY = y1 + 3;
+      } else {
+        labelY = Math.max(2, canvasHeight - labelHeight - 2);
+      }
+    }
+    
+    // Enhanced background with gradient
+    ctx.globalAlpha = Math.min(0.95, 0.85 + confidence * 0.1);
+    const bgGradient = ctx.createLinearGradient(labelX, labelY, labelX, labelY + labelHeight);
+    bgGradient.addColorStop(0, color);
+    bgGradient.addColorStop(1, adjustColorBrightness(color, -15));
+    ctx.fillStyle = bgGradient;
+    
+    drawRoundedRect(ctx, labelX, labelY, totalLabelWidth, labelHeight, 3);
+    
+    // Subtle border for definition
+    ctx.globalAlpha = 0.6;
+    ctx.strokeStyle = adjustColorBrightness(color, 25);
+    ctx.lineWidth = 1;
+    ctx.setLineDash([]);
+    drawRoundedRectStroke(ctx, labelX, labelY, totalLabelWidth, labelHeight, 3);
+    
+    // Enhanced text rendering
+    ctx.globalAlpha = 1.0;
+    ctx.fillStyle = getOptimalTextColor(color);
+    ctx.textBaseline = 'middle';
+    
+    // Text shadow for readability
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+    ctx.shadowBlur = 1;
+    ctx.shadowOffsetX = 0.5;
+    ctx.shadowOffsetY = 0.5;
+    
+    // Draw text elements
+    ctx.font = `${baseFontSize}px ui-sans-serif, system-ui, "Segoe UI", sans-serif`;
+    ctx.fillText(mainText, labelX + labelPadding, labelY + labelHeight / 2);
+    
+    ctx.font = `${confFontSize}px ui-sans-serif, system-ui, "Segoe UI", sans-serif`;
+    ctx.fillStyle = adjustColorBrightness(getOptimalTextColor(color), -15);
+    ctx.fillText(confText, labelX + labelPadding + mainTextMetrics.width + labelSpacing, labelY + labelHeight / 2);
+    
+    ctx.font = `${Math.max(8, confFontSize * 0.8)}px ui-sans-serif, system-ui, "Segoe UI", sans-serif`;
+    ctx.fillStyle = adjustColorBrightness(getOptimalTextColor(color), -25);
+    ctx.fillText(idText, labelX + labelPadding + mainTextMetrics.width + confTextMetrics.width + labelSpacing * 2, labelY + labelHeight / 2);
+    
+    // Clear shadow
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+  }
+  
+  // Helper function for optimal text color selection
+  function getOptimalTextColor(bgColor) {
+    if (bgColor.startsWith('#')) {
+      const r = parseInt(bgColor.slice(1, 3), 16);
+      const g = parseInt(bgColor.slice(3, 5), 16);
+      const b = parseInt(bgColor.slice(5, 7), 16);
+      const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+      return brightness > 140 ? '#000000' : '#ffffff';
+    }
+    return '#ffffff';
+  }
+  
+  // Enhanced rounded rectangle stroke function
+  function drawRoundedRectStroke(ctx, x, y, width, height, radius) {
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + width - radius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+    ctx.lineTo(x + width, y + height - radius);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    ctx.lineTo(x + radius, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+    ctx.stroke();
   }
   
   // Helper function to draw rounded rectangles
@@ -880,18 +1387,28 @@ document.addEventListener("DOMContentLoaded", async function () {
     ctx.fill();
   }
   
-  // Helper function to adjust color brightness
+  // Enhanced color brightness adjustment with better precision
   function adjustColorBrightness(color, amount) {
+    if (!color || typeof color !== 'string') return '#ffffff';
+    
     const usePound = color[0] === '#';
     const col = usePound ? color.slice(1) : color;
+    
+    if (col.length !== 6) return color; // Return original if invalid format
+    
     const num = parseInt(col, 16);
-    let r = (num >> 16) + amount;
-    let g = (num >> 8 & 0x00FF) + amount;
-    let b = (num & 0x0000FF) + amount;
-    r = r > 255 ? 255 : r < 0 ? 0 : r;
-    g = g > 255 ? 255 : g < 0 ? 0 : g;
-    b = b > 255 ? 255 : b < 0 ? 0 : b;
-    return (usePound ? '#' : '') + (r << 16 | g << 8 | b).toString(16).padStart(6, '0');
+    if (isNaN(num)) return color;
+    
+    let r = Math.round((num >> 16) + amount);
+    let g = Math.round((num >> 8 & 0x00FF) + amount);
+    let b = Math.round((num & 0x0000FF) + amount);
+    
+    r = Math.max(0, Math.min(255, r));
+    g = Math.max(0, Math.min(255, g));
+    b = Math.max(0, Math.min(255, b));
+    
+    const result = (r << 16 | g << 8 | b).toString(16).padStart(6, '0');
+    return (usePound ? '#' : '') + result;
   }
 
   // Function to draw "No hazard detected" message on canvas
@@ -942,18 +1459,22 @@ document.addEventListener("DOMContentLoaded", async function () {
   }
 
   function drawResults(boxes) {
-    if (!ctx) return; // Check if context exists
+    if (!ctx || !coordinateMapping) return; // Check if context and mapping exist
 
     hazardTypes = []; // Reset hazard types array
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const { offsetX, offsetY, newW, newH } = letterboxParams;
 
     // Draw background
     ctx.fillStyle = "black";
     ctx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
 
     if (currentImage) {
-      ctx.drawImage(currentImage, offsetX, offsetY, newW, newH);
+      ctx.drawImage(currentImage, 
+        coordinateMapping.offsetX, 
+        coordinateMapping.offsetY, 
+        coordinateMapping.displayWidth, 
+        coordinateMapping.displayHeight
+      );
     }
 
     hasHazard = false;
@@ -963,8 +1484,12 @@ document.addEventListener("DOMContentLoaded", async function () {
       let [x1, y1, x2, y2, score, classId] = box;      
       const classIndex = Math.floor(classId);
 
-      const boxW = x2 - x1;
-      const boxH = y2 - y1;
+      // Map model coordinates to canvas coordinates using proper coordinate mapping
+      const mappedBox = modelToCanvasBox([x1, y1, x2, y2], coordinateMapping, FIXED_SIZE);
+      const [mappedX1, mappedY1, mappedX2, mappedY2] = mappedBox;
+
+      const boxW = mappedX2 - mappedX1;
+      const boxH = mappedY2 - mappedY1;
 
       if (boxW <= 1 || boxH <= 1) return;
 
@@ -974,17 +1499,16 @@ document.addEventListener("DOMContentLoaded", async function () {
       // Get the correct class name using corrected class ID
       const labelName = classNames[classIndex] || `Unknown Class ${classIndex}`;
       
-      console.log(`🔍 Detection: Raw classId=${classId}, Corrected=${classIndex}, Label="${labelName}"`);  // Debug log
-      const scorePerc = (score * 100).toFixed(1);
+      console.log(`🔍 Detection: Raw classId=${classId}, Corrected=${classIndex}, Label="${labelName}", Mapped: (${mappedX1},${mappedY1})→(${mappedX2},${mappedY2})`);
 
       // Add to hazard types if not already present
       if (!hazardTypes.includes(labelName)) {
         hazardTypes.push(labelName);
       }
 
-      // Professional bounding box drawing
+      // Professional bounding box drawing with mapped coordinates
       drawProfessionalBoundingBox(ctx, {
-        x1, y1, x2, y2,
+        x1: mappedX1, y1: mappedY1, x2: mappedX2, y2: mappedY2,
         label: labelName,
         confidence: score,
         classIndex: classIndex,
@@ -997,7 +1521,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         type: labelName,
         confidence: score,
         classIndex: classIndex,
-        coordinates: { x1, y1, x2, y2 },
+        coordinates: { x1: mappedX1, y1: mappedY1, x2: mappedX2, y2: mappedY2 },
         imageDimensions: { width: canvas.width, height: canvas.height }
       });
     });

@@ -8,6 +8,11 @@
   />
   <title>Live Detection – Hazard Detection System</title>
 
+  <!-- Performance optimizations: preload critical resources -->
+  <link rel="preload" href="/ort/ort.webgpu.bundle.min.mjs" as="script" type="module">
+  <link rel="preload" href="/ort/ort.wasm.bundle.min.mjs" as="script" type="module">
+  <link rel="preload" href="/onxx_models/best.onnx" as="fetch" type="application/octet-stream" crossorigin>
+  
   <!-- Core styles -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="css/main.css">
@@ -21,8 +26,8 @@
     <!-- Video & inference canvas -->
     <section class="camera-view" aria-label="Live camera feed">
       <div class="camera-container">
-        <video id="camera-stream" autoplay playsinline muted class="camera-video"></video>
-        <canvas id="overlay-canvas" class="overlay-canvas"></canvas>
+        <video id="camera-stream" data-testid="video-input" autoplay playsinline muted class="camera-video"></video>
+        <canvas id="overlay-canvas" data-testid="overlay-canvas" class="overlay-canvas"></canvas>
       </div>
     </section>
 
@@ -51,18 +56,33 @@
           <i class="fas fa-exclamation-triangle"></i>
           <span id="hazard-types-list">—</span>
         </div>
+        <div class="detection-badge">
+          <i class="fas fa-microchip"></i>
+          <span id="preprocess-ms-badge" aria-live="polite">0ms (Pre)</span>
+        </div>
+        <div class="detection-badge">
+          <i class="fas fa-brain"></i>
+          <span id="infer-ms-badge" aria-live="polite">0ms (Infer)</span>
+        </div>
+        <div class="detection-badge">
+          <i class="fas fa-paint-brush"></i>
+          <span id="postprocess-ms-badge" aria-live="polite">0ms (Post)</span>
+        </div>
       </section>
 
       <!-- Bottom controls -->
       <footer class="bottom-controls">
-        <button id="start-camera" class="camera-button primary" aria-label="Start">
+        <button id="start-camera" data-testid="start-btn" class="camera-button primary" aria-label="Start">
           <i class="fas fa-play"></i>
         </button>
-        <button id="stop-camera"  class="camera-button primary" hidden aria-label="Stop">
+        <button id="stop-camera" data-testid="stop-btn" class="camera-button primary" hidden aria-label="Stop">
           <i class="fas fa-stop"></i>
         </button>
-        <button id="capture-btn" class="camera-button secondary" hidden aria-label="Capture">
-          <i class="fas fa-camera"></i>
+        <button id="save-report-btn" data-testid="save-report-btn" class="camera-button secondary" aria-label="Save Report">
+          <i class="fas fa-save"></i>
+        </button>
+        <button id="switch-camera-btn" data-testid="switch-camera-btn" class="camera-button secondary" aria-label="Switch Camera" hidden>
+          <i class="fas fa-sync-alt"></i>
         </button>
         <button id="settings-btn" class="camera-button secondary" aria-label="Settings" aria-expanded="false">
           <i class="fas fa-cog"></i>
@@ -78,10 +98,15 @@
           <h3>Camera Settings</h3>
           <div class="setting-item">
             <label for="confidence-threshold">Detection Confidence</label>
-            <input type="range" id="confidence-threshold" min="0.1" max="0.9" step="0.1" value="0.5">
+            <input type="range" id="confidence-threshold" data-testid="threshold-slider" min="0.1" max="0.9" step="0.1" value="0.5">
             <span id="confidence-value">0.5</span>
           </div>
-          <button class="btn btn-secondary" onclick="document.getElementById('settings-panel').classList.remove('show')">Close</button>
+          <div class="setting-item">
+            <label for="iou-threshold">IoU Threshold</label>
+            <input type="range" id="iou-threshold" data-testid="iou-slider" min="0.1" max="0.9" step="0.1" value="0.45">
+            <span id="iou-value">0.45</span>
+          </div>
+          <button class="btn btn-secondary" id="close-settings-btn">Close</button>
         </div>
       </section>
 
@@ -159,9 +184,17 @@
     <!-- Core Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/layout.js" defer></script>
+    <script type="module">
+      import { requireAuth } from './js/route-guard.js';
+      
+      // Require authentication for this page
+      const user = requireAuth();
+      if (user) {
+        console.log('📹 Camera page access granted to:', user.email);
+      }
+    </script>
     <!-- Optimized ONNX Runtime Loader (lazy loading) -->
     <!-- ONNX Runtime will be loaded dynamically by onnx-runtime-loader.js -->
-    <script src="js/notifications.js"></script>
     <!-- Camera hotfix for Railway deployment -->
     <script src="js/camera-hotfix.js"></script>
     <script type="module" src="js/apiClient.js"></script>

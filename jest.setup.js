@@ -1,13 +1,11 @@
-import fetch, { Headers, Request, Response } from 'node-fetch';
+// Jest setup for ES modules
+import { jest } from '@jest/globals';
 import { TextDecoder, TextEncoder } from 'util';
 
-// Test setup file for Node.js built-in test runner
+// Test setup file for Jest with ES modules
 // Global test configuration and utilities
 
-global.fetch = fetch;
-global.Headers = Headers;
-global.Request = Request;
-global.Response = Response;
+// Polyfill for Web APIs in Node.js test environment
 global.TextDecoder = TextDecoder;
 global.TextEncoder = TextEncoder;
 // global.Blob = Blob; // Ensure global Blob is from node-fetch

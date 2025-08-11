@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Workflow Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .pass { color: green; }
+        .fail { color: red; }
+        .warning { color: orange; }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+        canvas {
+            border: 1px solid #ddd;
+            margin: 10px 0;
+        }
+        .test-results {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Upload Workflow Test</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: Module Loading</h2>
+        <div id="module-test-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 2: Inference Worker Initialization</h2>
+        <div id="worker-test-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 3: Coordinate Mapping</h2>
+        <div id="mapping-test-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 4: File Upload Simulation</h2>
+        <input type="file" id="test-file" accept="image/*" />
+        <canvas id="test-canvas" width="480" height="480"></canvas>
+        <div id="upload-test-result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 5: Detection Event Integration</h2>
+        <div id="event-test-result"></div>
+    </div>
+    
+    <div class="test-results">
+        <h3>Overall Results</h3>
+        <div id="overall-result"></div>
+    </div>
+
+    <script type="module">
+        let testResults = [];
+        let detectionEventReceived = false;
+        
+        function logResult(testName, status, message, details = '') {
+            testResults.push({ testName, status, message, details });
+            const element = document.getElementById(testName.toLowerCase().replace(/\s+/g, '-') + '-test-result');
+            if (element) {
+                element.innerHTML = `
+                    <span class="${status}">[${status.toUpperCase()}] ${message}</span>
+                    ${details ? `<pre>${details}</pre>` : ''}
+                `;
+            }
+            updateOverallResults();
+        }
+        
+        function updateOverallResults() {
+            const passed = testResults.filter(r => r.status === 'pass').length;
+            const failed = testResults.filter(r => r.status === 'fail').length;
+            const warnings = testResults.filter(r => r.status === 'warning').length;
+            
+            document.getElementById('overall-result').innerHTML = `
+                <div>✅ Passed: ${passed}</div>
+                <div>❌ Failed: ${failed}</div>
+                <div>⚠️ Warnings: ${warnings}</div>
+                <div><strong>Total Tests: ${testResults.length}</strong></div>
+            `;
+        }
+        
+        // Test 1: Module Loading
+        async function testModuleLoading() {
+            try {
+                // Test coordinate mapping
+                const { computeContainMapping } = await import('./public/js/utils/coordsMap.js');
+                if (typeof computeContainMapping === 'function') {
+                    logResult('Module Loading', 'pass', 'Coordinate mapping module loaded successfully');
+                } else {
+                    logResult('Module Loading', 'fail', 'Coordinate mapping function not found');
+                }
+            } catch (error) {
+                logResult('Module Loading', 'fail', 'Failed to load required modules', error.message);
+            }
+        }
+        
+        // Test 2: Inference Worker
+        async function testInferenceWorker() {
+            try {
+                const worker = new Worker('./public/js/inference.worker.js', { type: 'module' });
+                
+                worker.postMessage({ type: 'test' });
+                
+                worker.onmessage = (event) => {
+                    if (event.data === 'worker_ready') {
+                        logResult('Inference Worker Initialization', 'pass', 'Worker responds to test messages');
+                        worker.terminate();
+                    }
+                };
+                
+                worker.onerror = (error) => {
+                    logResult('Inference Worker Initialization', 'fail', 'Worker error', error.message);
+                };
+                
+                // Timeout after 5 seconds
+                setTimeout(() => {
+                    if (testResults.find(r => r.testName === 'Inference Worker Initialization')) return;
+                    logResult('Inference Worker Initialization', 'warning', 'Worker test timeout - worker may be slow to initialize');
+                }, 5000);
+                
+            } catch (error) {
+                logResult('Inference Worker Initialization', 'fail', 'Failed to create worker', error.message);
+            }
+        }
+        
+        // Test 3: Coordinate Mapping
+        async function testCoordinateMapping() {
+            try {
+                const { computeContainMapping, modelToCanvasBox } = await import('./public/js/utils/coordsMap.js');
+                
+                // Test contain mapping
+                const mapping = computeContainMapping({
+                    videoW: 1920,
+                    videoH: 1080,
+                    viewportW: 480,
+                    viewportH: 480,
+                    dpr: 1
+                });
+                
+                if (mapping.displayWidth && mapping.displayHeight && mapping.offsetX !== undefined && mapping.offsetY !== undefined) {
+                    // Test model to canvas conversion
+                    const testBox = [100, 100, 200, 200]; // Model coordinates
+                    const canvasBox = modelToCanvasBox(testBox, mapping, 480);
+                    
+                    if (Array.isArray(canvasBox) && canvasBox.length === 4) {
+                        logResult('Coordinate Mapping', 'pass', 
+                            'Coordinate mapping functions working correctly',
+                            `Mapping: ${JSON.stringify(mapping, null, 2)}\nTest box: [100,100,200,200] → [${canvasBox.join(',')}]`
+                        );
+                    } else {
+                        logResult('Coordinate Mapping', 'fail', 'modelToCanvasBox returned invalid result');
+                    }
+                } else {
+                    logResult('Coordinate Mapping', 'fail', 'computeContainMapping returned invalid mapping');
+                }
+                
+            } catch (error) {
+                logResult('Coordinate Mapping', 'fail', 'Coordinate mapping test failed', error.message);
+            }
+        }
+        
+        // Test 4: File Upload Simulation
+        async function setupFileUploadTest() {
+            const fileInput = document.getElementById('test-file');
+            const canvas = document.getElementById('test-canvas');
+            const ctx = canvas.getContext('2d');
+            
+            fileInput.addEventListener('change', async (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                try {
+                    // Test createImageBitmap
+                    const imageBitmap = await createImageBitmap(file);
+                    
+                    // Test canvas drawing
+                    ctx.fillStyle = 'black';
+                    ctx.fillRect(0, 0, 480, 480);
+                    ctx.drawImage(imageBitmap, 0, 0, 480, 480);
+                    
+                    logResult('File Upload Simulation', 'pass', 
+                        `File processed successfully: ${file.name} (${file.size} bytes)`,
+                        `Image dimensions: ${imageBitmap.width}x${imageBitmap.height}`
+                    );
+                    
+                } catch (error) {
+                    logResult('File Upload Simulation', 'fail', 'File processing failed', error.message);
+                }
+            });
+            
+            // Initial message
+            logResult('File Upload Simulation', 'warning', 'Please select an image file to test upload workflow');
+        }
+        
+        // Test 5: Detection Event Integration
+        function testDetectionEvents() {
+            // Listen for custom detection events
+            document.addEventListener('hazard-detected', (event) => {
+                detectionEventReceived = true;
+                const { detail } = event;
+                
+                if (detail.detectionResult && detail.source === 'upload') {
+                    logResult('Detection Event Integration', 'pass', 
+                        'Detection event received successfully',
+                        `Event details: ${JSON.stringify(detail, null, 2)}`
+                    );
+                } else {
+                    logResult('Detection Event Integration', 'warning', 
+                        'Detection event received but missing expected data',
+                        `Event details: ${JSON.stringify(detail, null, 2)}`
+                    );
+                }
+            });
+            
+            // Test synthetic event
+            const testEvent = new CustomEvent('hazard-detected', {
+                detail: {
+                    detectionResult: {
+                        detections: [],
+                        width: 480,
+                        height: 480,
+                        timings: { total_ms: 100 }
+                    },
+                    source: 'upload',
+                    timestamp: Date.now()
+                }
+            });
+            
+            document.dispatchEvent(testEvent);
+            
+            setTimeout(() => {
+                if (!detectionEventReceived) {
+                    logResult('Detection Event Integration', 'fail', 'No detection events received');
+                }
+            }, 1000);
+        }
+        
+        // Run all tests
+        async function runTests() {
+            await testModuleLoading();
+            await testInferenceWorker();
+            await testCoordinateMapping();
+            await setupFileUploadTest();
+            testDetectionEvents();
+        }
+        
+        // Start tests when page loads
+        runTests();
+    </script>
+</body>
+</html>

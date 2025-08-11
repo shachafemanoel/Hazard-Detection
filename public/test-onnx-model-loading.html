@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ONNX Model Loading Test - Hazard Detection</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 40px;
+            background: #f5f5f5;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-result {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid;
+        }
+        .success {
+            background: #d4edda;
+            border-color: #28a745;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            border-color: #dc3545;
+            color: #721c24;
+        }
+        .info {
+            background: #d1ecf1;
+            border-color: #17a2b8;
+            color: #0c5460;
+        }
+        .warning {
+            background: #fff3cd;
+            border-color: #ffc107;
+            color: #856404;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        .performance-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .metric {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .metric-label {
+            font-size: 14px;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🧠 ONNX Model Loading Test</h1>
+        <p>This page tests the ONNX model loading functionality with proper fallback handling and performance monitoring.</p>
+
+        <button id="startTest" onclick="runModelLoadingTest()">🚀 Start Model Loading Test</button>
+        <button id="clearLogs" onclick="clearLogs()" disabled>🗑️ Clear Logs</button>
+
+        <div class="performance-metrics" id="metricsContainer" style="display:none;">
+            <div class="metric">
+                <div class="metric-value" id="loadTimeMetric">-</div>
+                <div class="metric-label">Load Time (ms)</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="backendMetric">-</div>
+                <div class="metric-label">Backend</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="modelPathMetric">-</div>
+                <div class="metric-label">Model Path</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="inputSizeMetric">-</div>
+                <div class="metric-label">Input Size</div>
+            </div>
+        </div>
+
+        <div id="testResults"></div>
+        <div id="testLogs">
+            <h3>📋 Test Logs</h3>
+            <pre id="logOutput"></pre>
+        </div>
+    </div>
+
+    <script type="module">
+        let testResults = [];
+        let logOutput = document.getElementById('logOutput');
+        
+        // Enhanced logging
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}`;
+            
+            logOutput.textContent += logEntry + '\n';
+            logOutput.scrollTop = logOutput.scrollHeight;
+            
+            // Also log to console with appropriate level
+            if (type === 'error') {
+                console.error(logEntry);
+            } else if (type === 'warn') {
+                console.warn(logEntry);
+            } else {
+                console.log(logEntry);
+            }
+        }
+
+        // Display test result
+        function displayResult(title, result, type = 'info') {
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result ${type}`;
+            resultDiv.innerHTML = `<strong>${title}</strong><br>${result}`;
+            document.getElementById('testResults').appendChild(resultDiv);
+        }
+
+        // Clear all logs and results
+        window.clearLogs = function() {
+            logOutput.textContent = '';
+            document.getElementById('testResults').innerHTML = '';
+            document.getElementById('metricsContainer').style.display = 'none';
+            document.getElementById('clearLogs').disabled = true;
+        }
+
+        // Main test function
+        window.runModelLoadingTest = async function() {
+            const startBtn = document.getElementById('startTest');
+            const clearBtn = document.getElementById('clearLogs');
+            
+            startBtn.disabled = true;
+            startBtn.textContent = '⏳ Running Tests...';
+            clearBtn.disabled = false;
+            
+            clearLogs();
+            log('🚀 Starting ONNX Model Loading Test Suite');
+            
+            try {
+                // Test 1: Worker availability
+                await testWorkerAvailability();
+                
+                // Test 2: Model file accessibility
+                await testModelFileAccess();
+                
+                // Test 3: ONNX Runtime loading
+                await testONNXRuntimeLoading();
+                
+                // Test 4: Model initialization
+                await testModelInitialization();
+                
+                // Test 5: Performance validation
+                await testPerformanceTargets();
+                
+                log('✅ All tests completed successfully!');
+                displayResult('Test Suite Complete', 'All ONNX model loading tests passed!', 'success');
+                
+            } catch (error) {
+                log(`❌ Test suite failed: ${error.message}`, 'error');
+                displayResult('Test Suite Failed', `Error: ${error.message}`, 'error');
+            } finally {
+                startBtn.disabled = false;
+                startBtn.textContent = '🚀 Start Model Loading Test';
+            }
+        }
+        
+        // Test 1: Worker availability
+        async function testWorkerAvailability() {
+            log('🧪 Test 1: Checking worker availability...');
+            
+            try {
+                const worker = new Worker('./js/inference.worker.js', { type: 'module' });
+                
+                const workerReady = await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => reject(new Error('Worker timeout')), 5000);
+                    
+                    worker.onmessage = (event) => {
+                        clearTimeout(timeout);
+                        resolve(event.data);
+                    };
+                    
+                    worker.onerror = (error) => {
+                        clearTimeout(timeout);
+                        reject(error);
+                    };
+                    
+                    // Send a test message
+                    worker.postMessage({ type: 'test' });
+                });
+                
+                worker.terminate();
+                log('✅ Test 1 PASSED: Worker is available and responsive');
+                displayResult('Worker Availability', 'Inference worker loaded successfully', 'success');
+                
+            } catch (error) {
+                log(`❌ Test 1 FAILED: Worker not available - ${error.message}`, 'error');
+                displayResult('Worker Availability', `Failed: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+        
+        // Test 2: Model file accessibility  
+        async function testModelFileAccess() {
+            log('🧪 Test 2: Checking model file access...');
+            
+            const modelPaths = ['/onxx_models/best.onnx', '/onxx_models/best_web.onnx', '/onxx_models/best0608.onnx'];
+            let accessibleModels = [];
+            
+            for (const path of modelPaths) {
+                try {
+                    const response = await fetch(path, { method: 'HEAD' });
+                    if (response.ok) {
+                        accessibleModels.push(path);
+                        log(`✅ Model accessible: ${path} (${response.status})`);
+                    } else {
+                        log(`⚠️ Model not found: ${path} (${response.status})`, 'warn');
+                    }
+                } catch (error) {
+                    log(`❌ Error accessing ${path}: ${error.message}`, 'error');
+                    console.error(`Fetch error for ${path}:`, error);
+                }
+            }
+            
+            if (accessibleModels.length === 0) {
+                throw new Error('No accessible ONNX models found');
+            }
+            
+            log(`✅ Test 2 PASSED: ${accessibleModels.length} model(s) accessible`);
+            displayResult('Model File Access', `${accessibleModels.length} models accessible: ${accessibleModels.join(', ')}`, 'success');
+        }
+        
+        // Test 3: ONNX Runtime loading
+        async function testONNXRuntimeLoading() {
+            log('🧪 Test 3: Testing ONNX Runtime loading...');
+            
+            try {
+                // Test WebGPU bundle
+                try {
+                    const webgpuModule = await import('/ort/ort.webgpu.bundle.min.mjs');
+                    log('✅ WebGPU bundle loaded successfully');
+                } catch (error) {
+                    log(`⚠️ WebGPU bundle failed: ${error.message}`, 'warn');
+                }
+                
+                // Test WASM bundle (fallback)
+                const wasmModule = await import('/ort/ort.wasm.bundle.min.mjs');
+                log('✅ WASM bundle loaded successfully');
+                
+                log('✅ Test 3 PASSED: ONNX Runtime bundles available');
+                displayResult('ONNX Runtime Loading', 'Runtime bundles loaded successfully', 'success');
+                
+            } catch (error) {
+                log(`❌ Test 3 FAILED: ONNX Runtime loading failed - ${error.message}`, 'error');
+                displayResult('ONNX Runtime Loading', `Failed: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+        
+        // Test 4: Model initialization
+        async function testModelInitialization() {
+            log('🧪 Test 4: Testing model initialization...');
+            
+            return new Promise((resolve, reject) => {
+                const worker = new Worker('./js/inference.worker.js', { type: 'module' });
+                const startTime = performance.now();
+                let initTime = 0;
+                
+                const timeout = setTimeout(() => {
+                    worker.terminate();
+                    reject(new Error('Model initialization timeout (30s)'));
+                }, 30000);
+                
+                worker.onmessage = (event) => {
+                    const { type, payload } = event.data;
+                    
+                    if (type === 'engine_info') {
+                        log(`📊 Engine info: ${payload.backend} backend, ${payload.inputSize}x${payload.inputSize} input`);
+                    } else if (type === 'init_success') {
+                        clearTimeout(timeout);
+                        initTime = performance.now() - startTime;
+                        
+                        log(`✅ Model initialized successfully in ${initTime.toFixed(0)}ms`);
+                        log(`🔧 Backend: ${payload.backend}`);
+                        log(`📐 Input size: ${payload.inputSize}x${payload.inputSize}`);
+                        log(`⚡ Init time: ${payload.initTime?.toFixed(0)}ms`);
+                        log(`🔥 Warmup time: ${payload.warmupTime?.toFixed(0)}ms`);
+                        
+                        // Update metrics display
+                        document.getElementById('metricsContainer').style.display = 'grid';
+                        document.getElementById('loadTimeMetric').textContent = initTime.toFixed(0);
+                        document.getElementById('backendMetric').textContent = payload.backend;
+                        document.getElementById('modelPathMetric').textContent = payload.modelPath || 'N/A';
+                        document.getElementById('inputSizeMetric').textContent = `${payload.inputSize}x${payload.inputSize}`;
+                        
+                        displayResult('Model Initialization', 
+                            `Successfully initialized with ${payload.backend} backend in ${initTime.toFixed(0)}ms`, 
+                            'success');
+                        
+                        worker.terminate();
+                        resolve({ initTime, ...payload });
+                        
+                    } else if (type === 'init_error') {
+                        clearTimeout(timeout);
+                        log(`❌ Model initialization failed: ${payload.message}`, 'error');
+                        displayResult('Model Initialization', `Failed: ${payload.message}`, 'error');
+                        worker.terminate();
+                        reject(new Error(payload.message));
+                    }
+                };
+                
+                worker.onerror = (error) => {
+                    clearTimeout(timeout);
+                    worker.terminate();
+                    reject(new Error(`Worker error: ${error.message}`));
+                };
+                
+                // Initialize model
+                worker.postMessage({
+                    type: 'init',
+                    payload: {
+                        modelUrl: null, // Use fallback logic
+                        opts: {
+                            threshold: 0.5,
+                            iou: 0.45,
+                            inputSize: 640,
+                            classes: ['crack', 'knocked', 'pothole', 'surface damage']
+                        }
+                    }
+                });
+            });
+        }
+        
+        // Test 5: Performance validation
+        async function testPerformanceTargets() {
+            log('🧪 Test 5: Validating performance targets...');
+            
+            // TTFD target: <2s (2000ms)
+            const TTFD_TARGET = 2000;
+            
+            // Re-run initialization to measure TTFD
+            const startTime = performance.now();
+            const initResult = await testModelInitialization();
+            const ttfd = performance.now() - startTime;
+            
+            log(`⏱️ Time To First Detection (TTFD): ${ttfd.toFixed(0)}ms`);
+            
+            if (ttfd <= TTFD_TARGET) {
+                log(`✅ TTFD target met: ${ttfd.toFixed(0)}ms ≤ ${TTFD_TARGET}ms`);
+                displayResult('Performance Validation', 
+                    `TTFD target achieved: ${ttfd.toFixed(0)}ms ≤ ${TTFD_TARGET}ms`, 
+                    'success');
+            } else {
+                log(`⚠️ TTFD target exceeded: ${ttfd.toFixed(0)}ms > ${TTFD_TARGET}ms`, 'warn');
+                displayResult('Performance Validation', 
+                    `TTFD target exceeded: ${ttfd.toFixed(0)}ms > ${TTFD_TARGET}ms`, 
+                    'warning');
+            }
+            
+            // Additional performance checks
+            if (initResult.initTime && initResult.initTime > 5000) {
+                log(`⚠️ Model initialization is slow: ${initResult.initTime.toFixed(0)}ms`, 'warn');
+            }
+            
+            if (initResult.warmupTime && initResult.warmupTime > 3000) {
+                log(`⚠️ Model warmup is slow: ${initResult.warmupTime.toFixed(0)}ms`, 'warn');
+            }
+            
+            log('✅ Test 5 COMPLETED: Performance validation finished');
+        }
+    </script>
+</body>
+</html>

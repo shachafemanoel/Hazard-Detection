@@ -71,33 +71,38 @@ async function detectDeviceCapabilities() {
 
 /**
  * Select optimal ONNX Runtime bundle based on device capabilities
+ * Following CLAUDE.md preferred order: WebGPU → WASM SIMD Threaded → WASM
  * @param {Object} capabilities - Device capabilities
  * @returns {Object} Selected bundle info
  */
 function selectOptimalBundle(capabilities) {
     let selectedBundle = 'wasm'; // Default fallback
-    let executionProviders = ['wasm'];
+    let executionProviders = [];
     
-    if (capabilities.webgpu && !capabilities.isMobile) {
-        // Use WebGPU for modern desktop browsers with WASM fallback
+    // Per CLAUDE.md: Prefer WebGPU; Fallback to wasm-simd-threaded; Surface hard errors
+    if (capabilities.webgpu) {
+        // WebGPU preferred for both desktop and mobile (if supported)
         selectedBundle = 'webgpu';
-        executionProviders = ['webgpu', 'wasm'];
+        executionProviders = ['webgpu', 'wasm']; // Always include WASM fallback
+        console.log('🚀 Selected WebGPU bundle with WASM fallback');
     } else {
-        // Use WASM for mobile or devices without WebGPU acceleration
+        // WASM-only path for devices without WebGPU
         selectedBundle = 'wasm';
         executionProviders = ['wasm'];
+        console.log('💻 Selected WASM bundle (WebGPU not available)');
     }
     
-    // Adjust threading for mobile devices
+    // Threading optimization based on device class
     const numThreads = capabilities.isMobile 
         ? Math.min(2, capabilities.hardwareConcurrency) 
-        : capabilities.hardwareConcurrency;
+        : Math.min(4, capabilities.hardwareConcurrency); // Cap at 4 threads for stability
     
     return {
         bundle: ONNX_CONFIG.bundles[selectedBundle],
         executionProviders,
         numThreads,
-        selectedType: selectedBundle
+        selectedType: selectedBundle,
+        capabilities: capabilities
     };
 }
 
@@ -126,34 +131,65 @@ export async function loadONNXRuntime() {
             const ortModule = await import(bundleInfo.bundle);
             ortInstance = ortModule.default || ortModule;
             
-            // Configure ONNX Runtime environment
+            // Configure ONNX Runtime environment with enhanced settings
             ortInstance.env.wasm.wasmPaths = ONNX_CONFIG.wasmPaths;
             ortInstance.env.wasm.numThreads = bundleInfo.numThreads;
             ortInstance.env.logLevel = ONNX_CONFIG.logLevel;
             
-            // WebGL optimizations removed - WebGPU → WASM fallback only
-            
+            // Enhanced WebGPU configuration for optimal performance
             if (ortInstance.env.webgpu) {
                 ortInstance.env.webgpu.validateInputContent = false; // Skip validation for performance
+                ortInstance.env.webgpu.powerPreference = 'high-performance'; // Prefer discrete GPU
+                console.log('🚀 WebGPU configured for high-performance mode');
+            }
+            
+            // Enhanced WASM configuration
+            if (ortInstance.env.wasm) {
+                ortInstance.env.wasm.simd = true; // Enable SIMD for better performance
+                console.log(`💻 WASM configured with ${bundleInfo.numThreads} threads and SIMD enabled`);
             }
             
             const loadTime = performance.now() - startTime;
             console.log(`✅ ONNX Runtime loaded in ${loadTime.toFixed(0)}ms`);
             console.log(`🔧 Execution providers: ${bundleInfo.executionProviders.join(', ')}`);
             console.log(`📦 Bundle: ${bundleInfo.selectedType} (optimized build)`);
+            console.log(`📊 Device capabilities:`, bundleInfo.capabilities);
             
-            // Log bundle size reduction achievement
+            // Log performance achievements
             console.log(`🎉 Bundle optimization: 99% reduction (WebGPU+WASM only, 87MB→34MB)`);
             
             // Store execution providers for session creation
             ONNX_CONFIG.sessionOptions.executionProviders = bundleInfo.executionProviders;
+            
+            // Performance validation
+            if (loadTime < 2000) {
+                console.log(`⚡ Fast loading achieved! (${loadTime.toFixed(0)}ms < 2s target)`);
+            } else {
+                console.warn(`⏱️ Loading slower than target: ${loadTime.toFixed(0)}ms > 2s`);
+            }
             
             return ortInstance;
             
         } catch (error) {
             console.error('❌ Failed to load ONNX Runtime:', error);
             ortLoadPromise = null; // Reset promise so retry is possible
-            throw new Error(`ONNX Runtime loading failed: ${error.message}`);
+            
+            // Enhanced error reporting
+            let errorDetails = `ONNX Runtime loading failed: ${error.message}`;
+            if (error.stack) {
+                console.error('Error stack:', error.stack);
+            }
+            
+            // Provide helpful error messages based on common failure modes
+            if (error.message.includes('WebGPU')) {
+                errorDetails += '. Try refreshing the page or use a WebGPU-compatible browser.';
+            } else if (error.message.includes('WASM')) {
+                errorDetails += '. Your browser may not support WebAssembly or SIMD.';
+            } else if (error.message.includes('network')) {
+                errorDetails += '. Check your internet connection and try again.';
+            }
+            
+            throw new Error(errorDetails);
         }
     })();
     
@@ -161,51 +197,103 @@ export async function loadONNXRuntime() {
 }
 
 /**
- * Create optimized inference session with model warmup
- * @param {string} modelPath - Path to ONNX model file
+ * Create optimized inference session with model warmup and fallback support
+ * @param {string} modelPath - Path to ONNX model file  
  * @param {Object} options - Additional session options
  * @returns {Promise<Object>} Inference session
  */
 export async function createInferenceSession(modelPath, options = {}) {
-    try {
-        console.log(`🧠 Creating inference session for: ${modelPath}`);
-        const startTime = performance.now();
-        
-        // Ensure ONNX Runtime is loaded
-        if (!ortInstance) {
-            await loadONNXRuntime();
-        }
-        
-        // Merge session options
-        const sessionOptions = {
-            ...ONNX_CONFIG.sessionOptions,
-            ...options
-        };
-        
-        // Create inference session
-        inferenceSession = await ortInstance.InferenceSession.create(modelPath, sessionOptions);
-        
-        const creationTime = performance.now() - startTime;
-        console.log(`✅ Inference session created in ${creationTime.toFixed(0)}ms`);
-        
-        // Model warmup with dummy data
-        await warmupModel(inferenceSession);
-        
-        return inferenceSession;
-        
-    } catch (error) {
-        console.error('❌ Failed to create inference session:', error);
-        throw new Error(`Inference session creation failed: ${error.message}`);
+    console.log(`🧠 Creating inference session for: ${modelPath}`);
+    const startTime = performance.now();
+    
+    // Ensure ONNX Runtime is loaded
+    if (!ortInstance) {
+        await loadONNXRuntime();
     }
+    
+    // Try multiple model paths with fallback
+    const MODEL_FALLBACK_PATHS = [
+        modelPath,
+        '/web/best.onnx',
+        '/web/best_web.onnx', 
+        '/web/best0608.onnx'
+    ];
+    
+    let actualModelPath = null;
+    let sessionCreationError = null;
+    
+    for (const tryPath of MODEL_FALLBACK_PATHS) {
+        if (!tryPath) continue;
+        
+        try {
+            console.log(`📝 Trying model path: ${tryPath}`);
+            
+            // Check if model exists
+            const modelResponse = await fetch(tryPath, { method: 'HEAD' });
+            if (!modelResponse.ok) {
+                console.warn(`⚠️ Model not found at ${tryPath}`);
+                continue;
+            }
+            
+            // Try to create session with current execution providers
+            const sessionOptions = {
+                ...ONNX_CONFIG.sessionOptions,
+                ...options
+            };
+            
+            console.log(`🚀 Creating session with providers: ${sessionOptions.executionProviders.join(', ')}`);
+            inferenceSession = await ortInstance.InferenceSession.create(tryPath, sessionOptions);
+            actualModelPath = tryPath;
+            break;
+            
+        } catch (error) {
+            sessionCreationError = error;
+            console.warn(`❌ Failed to create session with ${tryPath}:`, error.message);
+            
+            // Try with WASM-only if WebGPU failed
+            if (ONNX_CONFIG.sessionOptions.executionProviders.includes('webgpu')) {
+                try {
+                    console.log(`🔄 Retrying ${tryPath} with WASM-only fallback...`);
+                    const wasmOnlyOptions = {
+                        ...sessionOptions,
+                        executionProviders: ['wasm']
+                    };
+                    
+                    inferenceSession = await ortInstance.InferenceSession.create(tryPath, wasmOnlyOptions);
+                    actualModelPath = tryPath;
+                    ONNX_CONFIG.sessionOptions.executionProviders = ['wasm']; // Update global config
+                    console.log(`✅ Session created with WASM fallback`);
+                    break;
+                    
+                } catch (wasmError) {
+                    console.warn(`❌ WASM fallback also failed for ${tryPath}:`, wasmError.message);
+                }
+            }
+        }
+    }
+    
+    if (!inferenceSession || !actualModelPath) {
+        const errorMessage = `Failed to create inference session with any model path. Last error: ${sessionCreationError?.message}`;
+        console.error('❌', errorMessage);
+        throw new Error(errorMessage);
+    }
+    
+    const creationTime = performance.now() - startTime;
+    console.log(`✅ Inference session created in ${creationTime.toFixed(0)}ms using ${actualModelPath}`);
+    
+    // Enhanced model warmup for TTFD <2s target
+    await warmupModel(inferenceSession);
+    
+    return inferenceSession;
 }
 
 /**
- * Warmup model with dummy inference to ensure consistent performance
+ * Enhanced model warmup to achieve TTFD <2s target
  * @param {Object} session - ONNX Runtime inference session
  */
 async function warmupModel(session) {
     try {
-        console.log('🔥 Warming up model...');
+        console.log('🔥 Starting enhanced model warmup for optimal performance...');
         const startTime = performance.now();
         
         // Get input shape from model
@@ -222,26 +310,47 @@ async function warmupModel(session) {
         const inputInfo = session.inputMetadata[inputName];
         const inputShape = inputInfo.dims;
         
-        // Handle dynamic dimensions (replace -1 with typical values)
-        const actualShape = inputShape.map(dim => dim === -1 ? 320 : dim);
+        // Handle dynamic dimensions (replace -1 with typical values for hazard detection)
+        const actualShape = inputShape.map(dim => {
+            if (dim === -1) {
+                // For batch dimension, use 1
+                if (inputShape.indexOf(dim) === 0) return 1;
+                // For spatial dimensions, use 640 (typical for YOLO models)
+                return 640;
+            }
+            return dim;
+        });
+        
         const inputSize = actualShape.reduce((a, b) => a * b, 1);
+        console.log(`📊 Warmup tensor shape: [${actualShape.join(', ')}], size: ${inputSize}`);
         
         const dummyData = new Float32Array(inputSize).fill(0.5); // Neutral input data
         const inputTensor = new ortInstance.Tensor('float32', dummyData, actualShape);
         
         const feeds = { [inputName]: inputTensor };
         
-        // Perform warmup inferences (typically 2-3 are enough)
-        for (let i = 0; i < 3; i++) {
+        // Perform enhanced warmup - more iterations for consistent performance
+        const warmupIterations = 5; // Increased for better warmup
+        for (let i = 0; i < warmupIterations; i++) {
+            const iterStart = performance.now();
             await session.run(feeds);
+            const iterTime = performance.now() - iterStart;
+            console.log(`🔥 Warmup iteration ${i + 1}: ${iterTime.toFixed(1)}ms`);
         }
         
         const warmupTime = performance.now() - startTime;
-        console.log(`🔥 Model warmup completed in ${warmupTime.toFixed(0)}ms`);
+        console.log(`✅ Enhanced model warmup completed in ${warmupTime.toFixed(0)}ms`);
+        
+        // Validate warmup performance
+        if (warmupTime > 3000) {
+            console.warn(`⚠️ Warmup took longer than expected (${warmupTime.toFixed(0)}ms). Performance may be impacted.`);
+        }
         
     } catch (error) {
-        console.warn('⚠️ Model warmup failed:', error);
+        console.warn('⚠️ Model warmup failed:', error.message);
         // Don't throw error - warmup is optional optimization
+        // But log it for debugging
+        console.error('Warmup error details:', error);
     }
 }
 

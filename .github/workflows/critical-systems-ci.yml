@@ -1,0 +1,246 @@
+name: Critical Systems CI Pipeline
+
+on:
+  push:
+    branches: [ main, develop, 'feature/*', 'fix/*' ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  critical-systems-test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Start test server
+      run: |
+        npm start &
+        sleep 10
+        curl -f http://localhost:3000 || exit 1
+      
+    - name: Run critical systems tests
+      run: npm test -- tests/critical-systems.test.js --verbose
+      continue-on-error: true # Allow tests to fail initially
+      
+    - name: Run contract validation tests
+      run: npm test -- --testMatch="**/inference-contract*.test.js"
+      continue-on-error: true
+      
+    - name: Run performance benchmarks
+      run: npm run test:performance
+      continue-on-error: true
+      
+    - name: Generate test coverage report
+      run: npm run test:coverage
+      
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage/lcov.info
+        
+    - name: Performance budget check
+      run: npm run test:performance:check
+      continue-on-error: true
+      
+    - name: Generate test report
+      run: |
+        npm run test:report
+        cat test-report.json
+        
+    - name: Comment PR with test results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const testReport = JSON.parse(fs.readFileSync('test-report.json', 'utf8'));
+          
+          const comment = `## 🧪 Critical Systems Test Report
+          
+          ### Test Results Summary
+          - **Total Tests**: ${testReport.totalTests}
+          - **Passed**: ${testReport.passed} ✅
+          - **Failed**: ${testReport.failed} ❌
+          - **Success Rate**: ${testReport.successRate}%
+          
+          ### Critical Issues Status
+          ${testReport.criticalIssues.map(issue => 
+            `- **${issue.name}**: ${issue.status} ${issue.status === 'PASS' ? '✅' : '❌'}`
+          ).join('\\n')}
+          
+          ### Performance Budgets
+          ${testReport.performanceBudgets.map(budget => 
+            `- **${budget.metric}**: ${budget.actual}${budget.unit} / ${budget.target}${budget.unit} ${budget.passing ? '✅' : '❌'}`
+          ).join('\\n')}
+          
+          ${testReport.failed > 0 ? '⚠️ **Some tests are failing by design until fixes are implemented**' : ''}
+          `;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+
+  contract-validation-test:
+    runs-on: ubuntu-latest
+    needs: critical-systems-test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: 20.x
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Test inference contract validation
+      run: npm test -- tests/inference-contract*.test.js --verbose
+      
+    - name: Validate contract compliance across engines
+      run: |
+        node tests/validate-contract-compliance.js
+        
+    - name: Check contract documentation
+      run: |
+        test -f docs/inference-contract.md
+        grep -q "DetectionResult" docs/inference-contract.md
+
+  integration-test:
+    runs-on: ubuntu-latest
+    needs: [critical-systems-test, contract-validation-test]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: 20.x
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Start full system
+      run: |
+        npm start &
+        sleep 15
+        
+    - name: Test upload → detection → report flow
+      run: npm test -- tests/integration-upload-flow.test.js
+      
+    - name: Test auto-reporting integration  
+      run: npm test -- tests/integration-auto-reporting.test.js
+      
+    - name: Test EXIF → geo-report flow
+      run: npm test -- tests/integration-exif-reporting.test.js
+
+  performance-test:
+    runs-on: ubuntu-latest
+    needs: integration-test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: 20.x
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Install Playwright browsers
+      run: npx playwright install
+      
+    - name: Run performance tests
+      run: npx playwright test tests/performance/*.spec.js
+      
+    - name: Check performance budgets
+      run: |
+        node scripts/check-performance-budgets.js
+        
+    - name: Generate performance report
+      run: |
+        node scripts/generate-performance-report.js > performance-report.json
+        
+    - name: Upload performance artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-report
+        path: performance-report.json
+
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    - name: Run npm audit
+      run: npm audit --audit-level high
+      
+    - name: Run CodeQL analysis
+      uses: github/codeql-action/init@v2
+      with:
+        languages: javascript
+        
+    - name: Perform CodeQL analysis
+      uses: github/codeql-action/analyze@v2
+
+  deployment-gate:
+    runs-on: ubuntu-latest
+    needs: [critical-systems-test, contract-validation-test, integration-test, performance-test]
+    if: always()
+    
+    steps:
+    - name: Check deployment readiness
+      run: |
+        echo "## Deployment Gate Check"
+        
+        # Check if all critical tests are passing
+        CRITICAL_TESTS_PASSING=false
+        CONTRACT_VALIDATION_PASSING=false
+        INTEGRATION_TESTS_PASSING=false
+        PERFORMANCE_BUDGETS_MET=false
+        
+        # This will be updated as systems are fixed
+        if [ "$CRITICAL_TESTS_PASSING" = true ] && 
+           [ "$CONTRACT_VALIDATION_PASSING" = true ] && 
+           [ "$INTEGRATION_TESTS_PASSING" = true ] && 
+           [ "$PERFORMANCE_BUDGETS_MET" = true ]; then
+          echo "✅ All systems operational - deployment approved"
+          exit 0
+        else
+          echo "❌ Critical systems failing - deployment blocked"
+          echo "- Critical Tests: $CRITICAL_TESTS_PASSING"
+          echo "- Contract Validation: $CONTRACT_VALIDATION_PASSING" 
+          echo "- Integration Tests: $INTEGRATION_TESTS_PASSING"
+          echo "- Performance Budgets: $PERFORMANCE_BUDGETS_MET"
+          exit 1
+        fi

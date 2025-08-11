@@ -1,7 +1,27 @@
 // apiClient.js
 // Handles API requests for object detection
 
-let API_URL = window.API_URL || "https://hazard-api-production-production.up.railway.app";
+let API_URL;
+
+// Initialize API_URL by fetching from /api/config
+async function initializeApiUrl() {
+    try {
+        const response = await fetch('/api/config');
+        if (!response.ok) {
+            throw new Error(`Failed to fetch API config: ${response.status}`);
+        }
+        const config = await response.json();
+        API_URL = config.apiUrl;
+        console.log(`API URL initialized to: ${API_URL}`);
+    } catch (error) {
+        console.error("Error initializing API URL:", error);
+        API_URL = "https://hazard-api-production-production.up.railway.app"; // Fallback
+        console.warn(`Falling back to default API URL: ${API_URL}`);
+    }
+}
+
+// Call initialization function immediately
+initializeApiUrl();
 
 /**
  * Sets the API URL for all subsequent requests.
@@ -17,6 +37,10 @@ export function setApiUrl(newApiUrl) {
  * @returns {Promise<boolean>} True if the server is healthy, false otherwise.
  */
 export async function checkHealth() {
+    // Ensure API_URL is initialized before making the call
+    if (!API_URL) {
+        await initializeApiUrl();
+    }
     try {
         const response = await fetch(`${API_URL}/health`);
         if (!response.ok) {
@@ -30,8 +54,12 @@ export async function checkHealth() {
 }
 
 export async function getReportImage(reportId) {
+    // Ensure API_URL is initialized before making the call
+    if (!API_URL) {
+        await initializeApiUrl();
+    }
     try {
-        const response = await fetch(`${API_URL}/report/image/${reportId}`);
+        const response = await fetch(`${API_URL}/api/reports/${reportId}/image`);
         if (!response.ok) {
             throw new Error(`API error: ${response.status}`);
         }
@@ -44,8 +72,12 @@ export async function getReportImage(reportId) {
 }
 
 export async function getReportPlot(reportId) {
+    // Ensure API_URL is initialized before making the call
+    if (!API_URL) {
+        await initializeApiUrl();
+    }
     try {
-        const response = await fetch(`${API_URL}/report/plot/${reportId}`);
+        const response = await fetch(`${API_URL}/api/reports/${reportId}/plot`);
         if (!response.ok) {
             throw new Error(`API error: ${response.status}`);
         }
@@ -58,8 +90,12 @@ export async function getReportPlot(reportId) {
 }
 
 export async function startSession() {
+    // Ensure API_URL is initialized before making the call
+    if (!API_URL) {
+        await initializeApiUrl();
+    }
     try {
-        const response = await fetch(`${API_URL}/session/start`, { method: 'POST' });
+        const response = await fetch(`${API_URL}/api/v1/session/start`, { method: 'POST' });
         if (!response.ok) {
             throw new Error(`API error: ${response.status}`);
         }
@@ -77,6 +113,10 @@ export async function startSession() {
  * @returns {Promise<Array>} Array of detections
  */
 export async function detectHazards(sessionId, canvas) {
+    // Ensure API_URL is initialized before making the call
+    if (!API_URL) {
+        await initializeApiUrl();
+    }
     return detectFrame(sessionId, canvas);
 }
 
@@ -88,6 +128,10 @@ export async function detectHazards(sessionId, canvas) {
  * @returns {Promise<Object>} Detection results
  */
 export async function detectSingleWithRetry(sessionId, canvas, retryAttempts = 3) {
+    // Ensure API_URL is initialized before making the call
+    if (!API_URL) {
+        await initializeApiUrl();
+    }
     for (let attempt = 1; attempt <= retryAttempts; attempt++) {
         try {
             return await detectFrame(sessionId, canvas);
@@ -110,6 +154,10 @@ export async function detectSingleWithRetry(sessionId, canvas, retryAttempts = 3
  * @returns {Promise<Object>} Upload result with Cloudinary URL
  */
 export async function uploadDetection(detectionData) {
+    // Ensure API_URL is initialized before making the call
+    if (!API_URL) {
+        await initializeApiUrl();
+    }
     try {
         const formData = new FormData();
         
@@ -127,7 +175,7 @@ export async function uploadDetection(detectionData) {
             location: detectionData.location || null
         }));
 
-        const response = await fetch(`${API_URL}/reports/upload`, {
+        const response = await fetch(`${API_URL}/api/upload`, {
             method: 'POST',
             body: formData
         });
@@ -150,8 +198,12 @@ export async function uploadDetection(detectionData) {
  * @returns {Promise<Object>} Session summary data
  */
 export async function getSessionSummary(sessionId) {
+    // Ensure API_URL is initialized before making the call
+    if (!API_URL) {
+        await initializeApiUrl();
+    }
     try {
-        const response = await fetch(`${API_URL}/session/${sessionId}/summary`);
+        const response = await fetch(`${API_URL}/api/v1/session/${sessionId}/summary`);
         
         if (!response.ok) {
             if (response.status === 404) {
@@ -173,8 +225,12 @@ export async function getSessionSummary(sessionId) {
  * @returns {Promise<Object>} Created report with ID
  */
 export async function createReport(reportData) {
+    // Ensure API_URL is initialized before making the call
+    if (!API_URL) {
+        await initializeApiUrl();
+    }
     try {
-        const response = await fetch(`${API_URL}/reports/create`, {
+        const response = await fetch(`${API_URL}/api/reports`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -203,13 +259,17 @@ export async function createReport(reportData) {
 }
 
 export async function detectFrame(sessionId, canvas) {
+    // Ensure API_URL is initialized before making the call
+    if (!API_URL) {
+        await initializeApiUrl();
+    }
     return new Promise((resolve, reject) => {
         canvas.toBlob(async blob => {
             try {
                 const formData = new FormData();
                 formData.append('file', blob, 'frame.jpg');
 
-                const response = await fetch(`${API_URL}/detect/${sessionId}`, {
+                const response = await fetch(`${API_URL}/api/v1/detect/${sessionId}`, {
                     method: 'POST',
                     body: formData
                 });

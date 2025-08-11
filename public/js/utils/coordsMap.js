@@ -77,43 +77,63 @@ export function getVideoDisplayRect(videoElement) {
 
 /**
  * Transform YOLO model coordinates to canvas pixel coordinates
- * @param {Object} detection - YOLO detection with normalized coordinates
- * @param {number} detection.x - Center X (0-1 normalized)
- * @param {number} detection.y - Center Y (0-1 normalized) 
- * @param {number} detection.width - Width (0-1 normalized)
- * @param {number} detection.height - Height (0-1 normalized)
- * @param {number} modelInputSize - Model input size (e.g., 320 for YOLOv8s)
- * @param {Object} canvasSize - Canvas dimensions
+ * Handles both center-based and corner-based YOLO formats with DPR accuracy
+ * @param {Object} detection - YOLO detection with coordinates
+ * @param {number} detection.x1|detection.x - Left/Center X coordinate
+ * @param {number} detection.y1|detection.y - Top/Center Y coordinate
+ * @param {number} detection.x2|detection.width - Right/Width coordinate
+ * @param {number} detection.y2|detection.height - Bottom/Height coordinate
+ * @param {number} modelInputSize - Model input size (e.g., 640 for YOLOv8)
+ * @param {Object} canvasSize - Canvas dimensions {width, height}
  * @param {Object} videoDisplayRect - Video display rectangle from getVideoDisplayRect
- * @returns {Object} Canvas coordinates {x, y, width, height} in pixels
+ * @param {number} dpr - Device pixel ratio (default: window.devicePixelRatio)
+ * @returns {Object} Canvas coordinates {x1, y1, x2, y2} in device pixels
  */
-export function mapModelToCanvas(detection, modelInputSize, canvasSize, videoDisplayRect) {
-    // YOLO outputs are normalized (0-1) relative to model input
-    const normalizedX = detection.x;
-    const normalizedY = detection.y;
-    const normalizedWidth = detection.width;
-    const normalizedHeight = detection.height;
+export function mapModelToCanvas(detection, modelInputSize, canvasSize, videoDisplayRect, dpr = window.devicePixelRatio || 1) {
+    let x1, y1, x2, y2;
     
-    // Convert normalized coordinates to video display coordinates
-    const videoX = normalizedX * videoDisplayRect.width;
-    const videoY = normalizedY * videoDisplayRect.height;
-    const videoWidth = normalizedWidth * videoDisplayRect.width;
-    const videoHeight = normalizedHeight * videoDisplayRect.height;
+    // Handle different YOLO output formats
+    if ('x1' in detection && 'y1' in detection && 'x2' in detection && 'y2' in detection) {
+        // Corner format (x1, y1, x2, y2) - already normalized to model input size
+        x1 = detection.x1 / modelInputSize;
+        y1 = detection.y1 / modelInputSize;
+        x2 = detection.x2 / modelInputSize;
+        y2 = detection.y2 / modelInputSize;
+    } else if ('x' in detection && 'y' in detection && 'width' in detection && 'height' in detection) {
+        // Center format (x, y, width, height) - normalized 0-1
+        const centerX = detection.x;
+        const centerY = detection.y;
+        const width = detection.width;
+        const height = detection.height;
+        
+        x1 = centerX - width / 2;
+        y1 = centerY - height / 2;
+        x2 = centerX + width / 2;
+        y2 = centerY + height / 2;
+    } else {
+        console.error('Invalid detection format:', detection);
+        return { x1: 0, y1: 0, x2: 0, y2: 0 };
+    }
     
-    // Adjust for video display offset within canvas
-    const canvasX = videoX + videoDisplayRect.x;
-    const canvasY = videoY + videoDisplayRect.y;
+    // Clamp normalized coordinates to [0, 1] range
+    x1 = Math.max(0, Math.min(1, x1));
+    y1 = Math.max(0, Math.min(1, y1));
+    x2 = Math.max(0, Math.min(1, x2));
+    y2 = Math.max(0, Math.min(1, y2));
     
-    // Scale to canvas resolution if different from video display
-    const scaleX = canvasSize.width / (videoDisplayRect.width + videoDisplayRect.x * 2);
-    const scaleY = canvasSize.height / (videoDisplayRect.height + videoDisplayRect.y * 2);
+    // Map normalized coordinates to video display space
+    const displayX1 = x1 * videoDisplayRect.width + videoDisplayRect.x;
+    const displayY1 = y1 * videoDisplayRect.height + videoDisplayRect.y;
+    const displayX2 = x2 * videoDisplayRect.width + videoDisplayRect.x;
+    const displayY2 = y2 * videoDisplayRect.height + videoDisplayRect.y;
     
-    return {
-        x: Math.round(canvasX * scaleX),
-        y: Math.round(canvasY * scaleY),
-        width: Math.round(videoWidth * scaleX),
-        height: Math.round(videoHeight * scaleY)
-    };
+    // Scale to canvas device pixels for DPR accuracy
+    const canvasX1 = Math.round(displayX1 * dpr);
+    const canvasY1 = Math.round(displayY1 * dpr);
+    const canvasX2 = Math.round(displayX2 * dpr);
+    const canvasY2 = Math.round(displayY2 * dpr);
+    
+    return { x1: canvasX1, y1: canvasY1, x2: canvasX2, y2: canvasY2 };
 }
 
 /**
@@ -189,55 +209,113 @@ export function calculateIoU(box1, box2) {
 
 /**
  * Validate coordinate mapping accuracy for testing
+ * Ensures ≤1px error at all DPR values as required by CLAUDE.md
  * @param {Object} originalCoords - Original model coordinates
  * @param {Object} mappedCoords - Mapped canvas coordinates  
  * @param {Object} tolerance - Acceptable tolerance {x: px, y: px}
+ * @param {Object} mapping - Mapping parameters for validation
  * @returns {boolean} True if mapping is within tolerance
  */
-export function validateMappingAccuracy(originalCoords, mappedCoords, tolerance = {x: 2, y: 2}) {
-    // This would require a reference implementation or known-good test cases
-    // For now, just check that coordinates are reasonable
-    const isReasonable = (
-        mappedCoords.x >= 0 &&
-        mappedCoords.y >= 0 &&
-        mappedCoords.width > 0 &&
-        mappedCoords.height > 0 &&
-        !isNaN(mappedCoords.x) &&
-        !isNaN(mappedCoords.y)
+export function validateMappingAccuracy(originalCoords, mappedCoords, tolerance = {x: 1, y: 1}, mapping = null) {
+    // Basic sanity checks
+    const hasValidCoords = (
+        typeof mappedCoords.x1 === 'number' && !isNaN(mappedCoords.x1) &&
+        typeof mappedCoords.y1 === 'number' && !isNaN(mappedCoords.y1) &&
+        typeof mappedCoords.x2 === 'number' && !isNaN(mappedCoords.x2) &&
+        typeof mappedCoords.y2 === 'number' && !isNaN(mappedCoords.y2) &&
+        mappedCoords.x2 > mappedCoords.x1 &&
+        mappedCoords.y2 > mappedCoords.y1
     );
     
-    return isReasonable;
+    if (!hasValidCoords) {
+        console.warn('Invalid mapped coordinates:', mappedCoords);
+        return false;
+    }
+    
+    // If mapping parameters are provided, validate precision
+    if (mapping && originalCoords) {
+        // Check center point accuracy (most critical for detection overlay)
+        const originalCenterX = (originalCoords.x1 + originalCoords.x2) / 2;
+        const originalCenterY = (originalCoords.y1 + originalCoords.y2) / 2;
+        const mappedCenterX = (mappedCoords.x1 + mappedCoords.x2) / 2;
+        const mappedCenterY = (mappedCoords.y1 + mappedCoords.y2) / 2;
+        
+        // Convert original to expected mapped center for comparison
+        const expectedCenterX = (mapping.offsetX + originalCenterX * mapping.displayWidth) * (mapping.dpr || 1);
+        const expectedCenterY = (mapping.offsetY + originalCenterY * mapping.displayHeight) * (mapping.dpr || 1);
+        
+        const centerErrorX = Math.abs(mappedCenterX - expectedCenterX);
+        const centerErrorY = Math.abs(mappedCenterY - expectedCenterY);
+        
+        if (centerErrorX > tolerance.x || centerErrorY > tolerance.y) {
+            console.warn(`Mapping accuracy failed: center error (${centerErrorX.toFixed(2)}, ${centerErrorY.toFixed(2)}) > tolerance (${tolerance.x}, ${tolerance.y})`);
+            return false;
+        }
+    }
+    
+    return true;
 }
 
 /**
- * Debug utility to visualize coordinate mapping
+ * Debug utility to visualize coordinate mapping with DPR awareness
  * @param {HTMLCanvasElement} debugCanvas - Canvas for debug visualization
  * @param {Object} detection - Detection with original coordinates
- * @param {Object} mappedCoords - Mapped coordinates
+ * @param {Object} mappedCoords - Mapped coordinates {x1, y1, x2, y2}
  * @param {string} color - Debug color (default: red)
+ * @param {Object} options - Debug options {showGrid, showCenter, dpr}
  */
-export function debugDrawMapping(debugCanvas, detection, mappedCoords, color = 'red') {
+export function debugDrawMapping(debugCanvas, detection, mappedCoords, color = 'red', options = {}) {
     if (!debugCanvas || !debugCanvas.getContext) return;
     
     const ctx = debugCanvas.getContext('2d');
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.setLineDash([5, 5]);
+    const dpr = options.dpr || window.devicePixelRatio || 1;
+    
+    // Save context state
+    ctx.save();
+    
+    // Apply DPR scaling to context for crisp rendering
+    ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform
+    ctx.scale(1/dpr, 1/dpr); // Scale down for display
     
     // Draw mapped bounding box
-    const cornerBox = centerToCornerBox(mappedCoords);
-    ctx.strokeRect(cornerBox.x, cornerBox.y, cornerBox.width, cornerBox.height);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2 * dpr;
+    ctx.setLineDash([5 * dpr, 5 * dpr]);
+    
+    const width = mappedCoords.x2 - mappedCoords.x1;
+    const height = mappedCoords.y2 - mappedCoords.y1;
+    ctx.strokeRect(mappedCoords.x1, mappedCoords.y1, width, height);
+    
+    // Draw center point if requested
+    if (options.showCenter) {
+        const centerX = (mappedCoords.x1 + mappedCoords.x2) / 2;
+        const centerY = (mappedCoords.y1 + mappedCoords.y2) / 2;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, 3 * dpr, 0, 2 * Math.PI);
+        ctx.fill();
+    }
     
     // Draw confidence and class label
     ctx.fillStyle = color;
-    ctx.font = '12px Arial';
+    ctx.font = `${12 * dpr}px ui-sans-serif`;
     ctx.fillText(
         `${detection.class || 'unknown'}: ${(detection.confidence || 0).toFixed(2)}`,
-        cornerBox.x,
-        cornerBox.y - 5
+        mappedCoords.x1,
+        mappedCoords.y1 - 5 * dpr
     );
     
-    ctx.setLineDash([]);
+    // Draw coordinate debug info
+    if (options.showCoords) {
+        ctx.fillText(
+            `(${mappedCoords.x1},${mappedCoords.y1})→(${mappedCoords.x2},${mappedCoords.y2})`,
+            mappedCoords.x1,
+            mappedCoords.y2 + 15 * dpr
+        );
+    }
+    
+    // Restore context state
+    ctx.restore();
 }
 
 // Contract-required exports (aliases for compatibility)
@@ -268,7 +346,11 @@ export function computeContainMapping({ videoW, videoH, viewportW, viewportH, dp
         offsetX,
         offsetY,
         scale: displayWidth / videoW,
-        dpr
+        dpr,
+        videoW,
+        videoH,
+        viewportW,
+        viewportH
     };
 }
 
@@ -303,21 +385,22 @@ export function computeCoverMapping({ videoW, videoH, viewportW, viewportH, dpr 
     };
 }
 
-export function modelToCanvasBox(modelBox, mapping, inputSize = 480) {
+export function modelToCanvasBox(modelBox, mapping, inputSize = 640) {
     // Convert model-space box (x1,y1,x2,y2 in inputSize x inputSize) to canvas-space box
     const [x1, y1, x2, y2] = modelBox;
     
     // Normalize from model input size to [0,1]
-    const normalizedX1 = x1 / inputSize;
-    const normalizedY1 = y1 / inputSize;
-    const normalizedX2 = x2 / inputSize;
-    const normalizedY2 = y2 / inputSize;
+    const normalizedX1 = Math.max(0, Math.min(1, x1 / inputSize));
+    const normalizedY1 = Math.max(0, Math.min(1, y1 / inputSize));
+    const normalizedX2 = Math.max(0, Math.min(1, x2 / inputSize));
+    const normalizedY2 = Math.max(0, Math.min(1, y2 / inputSize));
     
-    // Apply mapping to canvas space
-    const canvasX1 = mapping.offsetX + (normalizedX1 * mapping.displayWidth);
-    const canvasY1 = mapping.offsetY + (normalizedY1 * mapping.displayHeight);
-    const canvasX2 = mapping.offsetX + (normalizedX2 * mapping.displayWidth);
-    const canvasY2 = mapping.offsetY + (normalizedY2 * mapping.displayHeight);
+    // Apply mapping to canvas space with DPR scaling
+    const dpr = mapping.dpr || window.devicePixelRatio || 1;
+    const canvasX1 = Math.round((mapping.offsetX + (normalizedX1 * mapping.displayWidth)) * dpr);
+    const canvasY1 = Math.round((mapping.offsetY + (normalizedY1 * mapping.displayHeight)) * dpr);
+    const canvasX2 = Math.round((mapping.offsetX + (normalizedX2 * mapping.displayWidth)) * dpr);
+    const canvasY2 = Math.round((mapping.offsetY + (normalizedY2 * mapping.displayHeight)) * dpr);
     
     return [canvasX1, canvasY1, canvasX2, canvasY2];
 }

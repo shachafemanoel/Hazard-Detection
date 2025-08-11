@@ -1,0 +1,299 @@
+.
+├── .DS_Store
+├── .claude
+│   ├── agents
+│   │   ├── detection-engine-lead.md
+│   │   ├── esm-test-fixer.md
+│   │   ├── fe-platform-lead.md
+│   │   ├── interface-contracts-owner.md
+│   │   ├── node-server-lead.md
+│   │   ├── orchestration-lead.md
+│   │   ├── program-director.md
+│   │   ├── qa-release-lead.md
+│   │   ├── repo-sweeper-web.md
+│   │   └── reports-data-lead.md
+│   └── settings.local.json
+├── .dockerignore
+├── .dockerignore 
+├── .env
+├── .env.example
+├── .env.model
+├── .env.production
+├── .github
+│   └── workflows
+│       ├── claude-code-review.yml
+│       ├── claude.yml
+│       ├── critical-systems-ci.yml
+│       └── deploy.yml
+├── .gitignore
+├── .railwayignore
+├── .venv
+│   ├── .gitignore
+│   ├── bin
+│   │   ├── Activate.ps1
+│   │   ├── activate
+│   │   ├── activate.csh
+│   │   ├── activate.fish
+│   │   ├── pip
+│   │   ├── pip3
+│   │   ├── pip3.13
+│   │   ├── python -> python3.13
+│   │   ├── python3 -> python3.13
+│   │   ├── python3.13 -> /usr/local/opt/python@3.13/bin/python3.13
+│   │   └── wheel
+│   ├── include
+│   │   └── python3.13
+│   ├── lib
+│   │   └── python3.13
+│   └── pyvenv.cfg
+├── .vscode
+│   ├── extensions.json
+│   └── settings.json
+├── 2025-07-31-this-session-is-being-continued-from-a-previous-co.txt
+├── 2025-08-06-this-session-is-being-continued-from-a-previous-co.txt
+├── AGENT_MERGE_SUMMARY.md
+├── API_AUDIT.md
+├── API_FETCH_GUIDE.md
+├── AUTH_IMPLEMENTATION_OVERVIEW.md
+├── AUTO_REPORTING_IMPLEMENTATION.md
+├── CHANGELOG.md
+├── CLAUDE.md
+├── COMPREHENSIVE_DOM_FIXES.md
+├── DEPLOYMENT.md
+├── DOM_FIXES_SUMMARY.md
+├── Dockerfile.frontend
+├── Dockerfile.simple
+├── Dockerfile.unified
+├── Dockerfile.unified.slim
+├── GEMINI.md
+├── NODEJS_INTEGRATION_GUIDE.md
+├── ONNX_MODEL_LOADING_FIXES.md
+├── PLAN.md
+├── POST-MORTEM.md
+├── POST-REFACTOR-QA-REPORT.md
+├── Procfile
+├── Prompt.md
+├── QA-SUMMARY.txt
+├── QA_RELEASE_VALIDATION_REPORT.md
+├── QUESTIONS.md
+├── README.md
+├── README.unified.md
+├── REALTIME_CLIENT.md
+├── REALTIME_STREAMING_GUIDE.md
+├── REFACTORING_SUMMARY.md
+├── REPORT.md
+├── TASKS.md
+├── TRIAGE_COMPLETION_REPORT.md
+├── WORK_MANAGER_SUMMARY.md
+├── __tests__
+│   ├── .DS_Store
+│   ├── apiClient.test.js
+│   ├── auth-simple.test.js
+│   ├── post-refactor-qa.test.js
+│   ├── realtimeClient.e2e.test.js
+│   └── refactor-integration.test.js
+├── api
+│   ├── __init__.py
+│   └── app.py
+├── artifacts
+│   └── proof-20250810-134744
+├── build-unified.sh
+├── debug-coordinates.py
+├── deploy-railway.sh
+├── docker-compose.unified.yml
+├── docs
+│   └── inference-contract.md
+├── final-detection-test.js
+├── fix-claude-agents.sh
+├── fix-railway-deployment.sh
+├── health-check.sh
+├── jest.client.config.js
+├── jest.config.js
+├── jest.server.config.js
+├── jest.setup.js
+├── model-config.json
+├── package-lock.json
+├── package.json
+├── project_tree.txt
+├── pt_models
+│   ├── .DS_Store
+│   └── best0608.pt
+├── public
+│   ├── .DS_Store
+│   ├── app.js
+│   ├── camera.html
+│   ├── css
+│   │   ├── camera.css
+│   │   ├── dashboard.css
+│   │   ├── main.css
+│   │   └── upload.css
+│   ├── dashboard.html
+│   ├── icon.png
+│   ├── js
+│   │   ├── .DS_Store
+│   │   ├── apiClient.js
+│   │   ├── apiClient.test.js
+│   │   ├── auth-service.js
+│   │   ├── auto-reporting-service.js
+│   │   ├── camera-hotfix.js
+│   │   ├── camera_detection.js
+│   │   ├── config.js
+│   │   ├── dashboard-personalizer.js
+│   │   ├── dashboard.js
+│   │   ├── exif.js
+│   │   ├── exifWorker.js
+│   │   ├── inference-contract-validator.js
+│   │   ├── inference.worker.js
+│   │   ├── layout.js
+│   │   ├── login.js
+│   │   ├── map.js
+│   │   ├── network.js
+│   │   ├── notifications.js
+│   │   ├── onnx-runtime-loader.js
+│   │   ├── preprocess.worker.js
+│   │   ├── realtime-client.js
+│   │   ├── report-upload-service.js
+│   │   ├── reports-api.js
+│   │   ├── reports-modal.js
+│   │   ├── reports-store.js
+│   │   ├── route-guard.js
+│   │   ├── session-manager.js
+│   │   ├── simple-camera-fix.js
+│   │   ├── test_camera_functions.js
+│   │   ├── ui-controls.js
+│   │   ├── upload.js
+│   │   └── utils
+│   ├── login.html
+│   ├── mixkit-elevator-tone-2863.wav
+│   ├── onxx_models
+│   │   ├── .DS_Store
+│   │   └── best.onnx
+│   ├── ort
+│   │   ├── ort-wasm-simd-threaded.jsep.wasm
+│   │   ├── ort-wasm-simd-threaded.wasm
+│   │   ├── ort.wasm.bundle.min.mjs
+│   │   ├── ort.wasm.bundle.min.mjs.map
+│   │   ├── ort.webgpu.bundle.min.mjs
+│   │   └── ort.webgpu.bundle.min.mjs.map
+│   ├── reset-password.html
+│   ├── test-api-connection.html
+│   ├── test-auth-flow.html
+│   ├── test-canvas-rendering.html
+│   ├── test-onnx-model-loading.html
+│   ├── test-upload-workflow.html
+│   └── upload.html
+├── qa-test-report.md
+├── railway.json
+├── railway.toml
+├── requirements.txt
+├── run-qa-tests.js
+├── scripts
+│   ├── detect-cpu-and-select-model.py
+│   ├── detect_backend.py
+│   ├── sample-image.png
+│   ├── start-united.sh
+│   ├── stream-check-clientside.js
+│   ├── stream-check.js
+│   └── verify_onnx_web.mjs
+├── server
+│   ├── .DS_Store
+│   ├── .env
+│   ├── __pycache__
+│   │   ├── api_connectors.cpython-313.pyc
+│   │   ├── app.cpython-310.pyc
+│   │   └── app.cpython-313.pyc
+│   ├── routes
+│   │   ├── auth.js
+│   │   ├── firebaseAdmin.js
+│   │   ├── server.js
+│   │   ├── server.log
+│   │   └── simple-server.js
+│   ├── services
+│   │   └── reportUploadService.js
+│   └── utils
+│       └── network.js
+├── src
+│   ├── clients
+│   │   ├── apiClient.js
+│   │   ├── realtime-client.js
+│   │   ├── realtime.browser.js
+│   │   └── runtime-realtime-client.js
+│   ├── routes
+│   │   └── server.js
+│   ├── scripts
+│   │   ├── stream-check-clientside.js
+│   │   └── stream-check.js
+│   ├── services
+│   │   ├── report-upload-service.js
+│   │   └── reports-service.js
+│   └── utils
+│       ├── async-handler.js
+│       ├── hazard-classes.js
+│       ├── network.js
+│       ├── notifications.js
+│       └── yolo-runtime.js
+├── start-frontend.sh
+├── start-unified.sh
+├── start.sh
+├── test
+│   ├── mock-server.js
+│   ├── run-tests.js
+│   └── test-apiClient.js
+├── test-api-detection.js
+├── test-api-response-format.py
+├── test-camera-fix.js
+├── test-canvas-display.js
+├── test-detection-simple.js
+├── test-full-integration.js
+├── test-integration.js
+├── test-pink-colors.html
+├── test-server.sh
+├── test.png
+├── test_api_integration.js
+├── test_camera_functions.js
+├── test_frontend.sh
+├── test_image.jpg
+├── test_railway_connection.js
+├── tests
+│   ├── auto-reporting.test.js
+│   ├── critical-systems.test.js
+│   ├── integration-upload-auto-reporting.test.js
+│   ├── integration.auto-reporting.test.js
+│   ├── mock-server.js
+│   └── qa-release-checklist.md
+├── unified-requirements.slim.txt
+├── unified-requirements.txt
+├── validate-auth-implementation.cjs
+├── validate-auto-reporting.cjs
+├── validate_onnx.py
+└── venv
+    ├── .gitignore
+    ├── bin
+    │   ├── Activate.ps1
+    │   ├── activate
+    │   ├── activate.csh
+    │   ├── activate.fish
+    │   ├── backend-test-tools
+    │   ├── check-model
+    │   ├── check-node
+    │   ├── coloredlogs
+    │   ├── f2py
+    │   ├── humanfriendly
+    │   ├── isympy
+    │   ├── numpy-config
+    │   ├── onnxruntime_test
+    │   ├── pip
+    │   ├── pip3
+    │   ├── pip3.13
+    │   ├── python -> python3.13
+    │   ├── python3 -> python3.13
+    │   └── python3.13 -> /usr/local/opt/python@3.13/bin/python3.13
+    ├── include
+    │   └── python3.13
+    ├── lib
+    │   └── python3.13
+    ├── pyvenv.cfg
+    └── share
+        └── man
+
+46 directories, 251 files

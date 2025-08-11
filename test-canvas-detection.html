@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas Detection Test</title>
+    <style>
+        body {
+            margin: 0;
+            background: #000;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        
+        .test-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        #test-video {
+            width: 80%;
+            height: 60%;
+            object-fit: cover;
+            background: #333;
+        }
+        
+        #test-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 20;
+        }
+        
+        button {
+            margin: 5px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        
+        button:hover {
+            background: #0056b3;
+        }
+        
+        .debug-info {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 20;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <video id="test-video" width="640" height="480"></video>
+        <canvas id="test-canvas"></canvas>
+        
+        <div class="controls">
+            <button onclick="testDrawing()">Test Canvas Drawing</button>
+            <button onclick="simulateDetections()">Simulate Detections</button>
+            <button onclick="startCamera()">Start Camera</button>
+            <button onclick="clearCanvas()">Clear Canvas</button>
+        </div>
+        
+        <div class="debug-info">
+            <div><strong>Canvas Debug Info:</strong></div>
+            <div id="debug-output">Ready to test...</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { getVideoDisplayRect, mapModelToCanvas } from './public/js/utils/coordsMap.js';
+        
+        const video = document.getElementById('test-video');
+        const canvas = document.getElementById('test-canvas');
+        const ctx = canvas.getContext('2d');
+        const debugOutput = document.getElementById('debug-output');
+        
+        // Mock detection data
+        const mockDetections = [
+            { x1: 160, y1: 120, x2: 320, y2: 240, classId: 0, score: 0.85 }, // crack
+            { x1: 400, y1: 200, x2: 560, y2: 350, classId: 2, score: 0.72 }  // pothole
+        ];
+        
+        const classNames = ['crack', 'knocked', 'pothole', 'surface damage'];
+        const colors = {
+            crack: '#FF8844',
+            knocked: '#FFD400', 
+            pothole: '#FF4444',
+            'surface damage': '#44D7B6'
+        };
+        
+        function updateCanvasSize() {
+            const dpr = window.devicePixelRatio || 1;
+            const rect = video.getBoundingClientRect();
+            
+            canvas.style.width = '100%';
+            canvas.style.height = '100%';
+            canvas.width = Math.round(rect.width * dpr);
+            canvas.height = Math.round(rect.height * dpr);
+            
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            
+            debugOutput.innerHTML = `
+                Canvas Size: ${canvas.width}x${canvas.height}<br>
+                Display Size: ${rect.width.toFixed(1)}x${rect.height.toFixed(1)}<br>
+                DPR: ${dpr}<br>
+                Video Size: ${video.videoWidth || 'N/A'}x${video.videoHeight || 'N/A'}
+            `;
+        }
+        
+        window.testDrawing = function() {
+            updateCanvasSize();
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width / (window.devicePixelRatio || 1), canvas.height / (window.devicePixelRatio || 1));
+            
+            // Draw test rectangles
+            ctx.strokeStyle = '#FF0000';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(50, 50, 100, 60);
+            
+            ctx.fillStyle = '#00FF00';
+            ctx.fillRect(200, 100, 80, 40);
+            
+            ctx.strokeStyle = '#0000FF';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(300, 200, 150, 100);
+            
+            // Draw text
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = '16px Arial';
+            ctx.fillText('Canvas Drawing Test', 50, 30);
+            
+            debugOutput.innerHTML += '<br><strong>✅ Canvas drawing test completed</strong>';
+        };
+        
+        window.simulateDetections = function() {
+            updateCanvasSize();
+            
+            if (!video.videoWidth || !video.videoHeight) {
+                // Create fake video dimensions for testing
+                Object.defineProperty(video, 'videoWidth', { value: 640, writable: true });
+                Object.defineProperty(video, 'videoHeight', { value: 480, writable: true });
+            }
+            
+            const videoDisplayRect = getVideoDisplayRect(video);
+            const dpr = window.devicePixelRatio || 1;
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+            
+            debugOutput.innerHTML += `<br><strong>Video Display Rect:</strong><br>
+                x: ${videoDisplayRect.x.toFixed(1)}, y: ${videoDisplayRect.y.toFixed(1)}<br>
+                w: ${videoDisplayRect.width.toFixed(1)}, h: ${videoDisplayRect.height.toFixed(1)}`;
+            
+            // Draw simulated detections
+            mockDetections.forEach((detection, index) => {
+                const mappedBox = mapModelToCanvas(
+                    detection,
+                    640, // model input size
+                    { width: canvas.width, height: canvas.height },
+                    videoDisplayRect,
+                    dpr
+                );
+                
+                const label = classNames[detection.classId];
+                const color = colors[label] || '#00FF00';
+                
+                // Convert to CSS pixels for drawing
+                const drawCoords = {
+                    x1: mappedBox.x1 / dpr,
+                    y1: mappedBox.y1 / dpr,
+                    x2: mappedBox.x2 / dpr,
+                    y2: mappedBox.y2 / dpr
+                };
+                
+                // Draw bounding box
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(
+                    drawCoords.x1, 
+                    drawCoords.y1, 
+                    drawCoords.x2 - drawCoords.x1, 
+                    drawCoords.y2 - drawCoords.y1
+                );
+                
+                // Draw label
+                ctx.fillStyle = color;
+                ctx.fillRect(drawCoords.x1, drawCoords.y1 - 20, 120, 20);
+                ctx.fillStyle = '#000';
+                ctx.font = '12px Arial';
+                ctx.fillText(`${label} ${(detection.score * 100).toFixed(0)}%`, drawCoords.x1 + 2, drawCoords.y1 - 6);
+                
+                debugOutput.innerHTML += `<br><strong>Detection ${index + 1}:</strong><br>
+                    Original: (${detection.x1},${detection.y1}) to (${detection.x2},${detection.y2})<br>
+                    Mapped: (${mappedBox.x1.toFixed(1)},${mappedBox.y1.toFixed(1)}) to (${mappedBox.x2.toFixed(1)},${mappedBox.y2.toFixed(1)})<br>
+                    Draw: (${drawCoords.x1.toFixed(1)},${drawCoords.y1.toFixed(1)}) to (${drawCoords.x2.toFixed(1)},${drawCoords.y2.toFixed(1)})`;
+            });
+            
+            debugOutput.innerHTML += '<br><strong>✅ Detection simulation completed</strong>';
+        };
+        
+        window.startCamera = async function() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { 
+                        facingMode: "environment",
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    }
+                });
+                
+                video.srcObject = stream;
+                video.onloadedmetadata = () => {
+                    updateCanvasSize();
+                    debugOutput.innerHTML += '<br><strong>✅ Camera started</strong>';
+                };
+                
+            } catch (err) {
+                debugOutput.innerHTML += `<br><strong>❌ Camera error:</strong> ${err.message}`;
+            }
+        };
+        
+        window.clearCanvas = function() {
+            const dpr = window.devicePixelRatio || 1;
+            ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+            debugOutput.innerHTML += '<br><strong>Canvas cleared</strong>';
+        };
+        
+        // Initialize
+        updateCanvasSize();
+        window.addEventListener('resize', updateCanvasSize);
+    </script>
+</body>
+</html>

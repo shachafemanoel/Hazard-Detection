@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication Flow Test - Hazard Detection</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+    <main class="container mt-5 main-content">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-flask me-2"></i>Authentication Flow Test</h2>
+                    </div>
+                    <div class="card-body">
+                        <!-- Auth Status Section -->
+                        <div class="mb-4 p-3 border rounded" id="auth-status">
+                            <h5><i class="fas fa-user me-2"></i>Authentication Status</h5>
+                            <div id="auth-info">
+                                <div class="text-muted">Loading...</div>
+                            </div>
+                            <div class="mt-3" id="auth-actions">
+                                <!-- Auth action buttons will be added here -->
+                            </div>
+                        </div>
+
+                        <!-- Test Results Section -->
+                        <div class="mb-4">
+                            <h5><i class="fas fa-check-circle me-2"></i>Test Results</h5>
+                            <div id="test-results" class="border rounded p-3" style="max-height: 400px; overflow-y: auto;">
+                                <div class="text-muted">No tests run yet.</div>
+                            </div>
+                            <div class="mt-3">
+                                <button id="run-tests-btn" class="btn btn-primary">
+                                    <i class="fas fa-play me-1"></i>Run All Tests
+                                </button>
+                                <button id="clear-results-btn" class="btn btn-outline-secondary">
+                                    <i class="fas fa-trash me-1"></i>Clear Results
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Page Navigation Test -->
+                        <div class="mb-4">
+                            <h5><i class="fas fa-link me-2"></i>Protected Page Navigation</h5>
+                            <p class="text-muted">Test whether protected pages properly redirect when not authenticated:</p>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <a href="/camera.html" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-camera me-1"></i>Camera Page
+                                </a>
+                                <a href="/dashboard.html" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-chart-bar me-1"></i>Dashboard Page
+                                </a>
+                                <a href="/upload.html" class="btn btn-outline-primary btn-sm">
+                                    <i class="fas fa-upload me-1"></i>Upload Page
+                                </a>
+                                <a href="/login.html" class="btn btn-outline-success btn-sm">
+                                    <i class="fas fa-sign-in-alt me-1"></i>Login Page
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- Mock Authentication Section -->
+                        <div class="mb-4">
+                            <h5><i class="fas fa-cog me-2"></i>Mock Authentication</h5>
+                            <p class="text-muted">Test authentication without hitting the real backend:</p>
+                            <div class="d-flex gap-2 flex-wrap">
+                                <button id="mock-login-btn" class="btn btn-success btn-sm">
+                                    <i class="fas fa-sign-in-alt me-1"></i>Mock Login
+                                </button>
+                                <button id="mock-logout-btn" class="btn btn-outline-danger btn-sm">
+                                    <i class="fas fa-sign-out-alt me-1"></i>Mock Logout
+                                </button>
+                                <button id="simulate-expired-btn" class="btn btn-warning btn-sm">
+                                    <i class="fas fa-clock me-1"></i>Simulate Expired Session
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script type="module">
+        import { 
+            isAuthenticated, 
+            getCurrentUser, 
+            initAuth,
+            onAuthEvent,
+            AUTH_EVENTS
+        } from './js/auth-service.js';
+        
+        import { initRouteGuard } from './js/route-guard.js';
+
+        // Test results container
+        const testResults = document.getElementById('test-results');
+        const authInfo = document.getElementById('auth-info');
+        const authActions = document.getElementById('auth-actions');
+
+        let testCount = 0;
+
+        // Add test result
+        function addTestResult(message, type = 'info', details = null) {
+            testCount++;
+            const timestamp = new Date().toLocaleTimeString();
+            const alertClass = {
+                'success': 'alert-success',
+                'error': 'alert-danger',
+                'warning': 'alert-warning',
+                'info': 'alert-info'
+            }[type] || 'alert-info';
+
+            const icon = {
+                'success': 'fas fa-check-circle',
+                'error': 'fas fa-exclamation-circle',
+                'warning': 'fas fa-exclamation-triangle',
+                'info': 'fas fa-info-circle'
+            }[type] || 'fas fa-info-circle';
+
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `alert ${alertClass} mb-2`;
+            resultDiv.innerHTML = `
+                <div class="d-flex align-items-start">
+                    <i class="${icon} me-2 mt-1"></i>
+                    <div class="flex-grow-1">
+                        <strong>#${testCount} [${timestamp}]</strong> ${message}
+                        ${details ? `<div class="small mt-1 text-muted">${details}</div>` : ''}
+                    </div>
+                </div>
+            `;
+
+            if (testResults.firstChild && testResults.firstChild.textContent.includes('No tests run yet')) {
+                testResults.innerHTML = '';
+            }
+
+            testResults.appendChild(resultDiv);
+            testResults.scrollTop = testResults.scrollHeight;
+        }
+
+        // Update auth status display
+        function updateAuthStatus() {
+            const user = getCurrentUser();
+            const authenticated = isAuthenticated();
+
+            if (authenticated && user) {
+                authInfo.innerHTML = `
+                    <div class="alert alert-success mb-0">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <strong>Authenticated</strong>
+                        <div class="small mt-1">
+                            <div><strong>Email:</strong> ${user.email}</div>
+                            <div><strong>Username:</strong> ${user.username || 'N/A'}</div>
+                            <div><strong>Login Time:</strong> ${new Date(user.loginTime).toLocaleString()}</div>
+                        </div>
+                    </div>
+                `;
+
+                authActions.innerHTML = `
+                    <button class="btn btn-outline-danger btn-sm" onclick="mockLogout()">
+                        <i class="fas fa-sign-out-alt me-1"></i>Logout
+                    </button>
+                `;
+            } else {
+                authInfo.innerHTML = `
+                    <div class="alert alert-warning mb-0">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Not Authenticated</strong>
+                        <div class="small mt-1">No user session found</div>
+                    </div>
+                `;
+
+                authActions.innerHTML = `
+                    <button class="btn btn-success btn-sm" onclick="mockLogin()">
+                        <i class="fas fa-sign-in-alt me-1"></i>Mock Login
+                    </button>
+                `;
+            }
+        }
+
+        // Mock authentication functions
+        window.mockLogin = function() {
+            const mockUser = {
+                id: 'test-user-123',
+                email: 'test@example.com',
+                username: 'testuser',
+                role: 'user',
+                loginTime: Date.now()
+            };
+
+            // Manually trigger login state
+            localStorage.setItem('hazard_auth_user', JSON.stringify(mockUser));
+            localStorage.setItem('hazard_auth_timestamp', mockUser.loginTime.toString());
+            
+            addTestResult('Mock login successful', 'success', 'User session stored in localStorage');
+            location.reload(); // Reload to reinitialize auth
+        };
+
+        window.mockLogout = function() {
+            localStorage.removeItem('hazard_auth_user');
+            localStorage.removeItem('hazard_auth_token');
+            localStorage.removeItem('hazard_auth_timestamp');
+            
+            addTestResult('Mock logout successful', 'success', 'User session cleared from localStorage');
+            location.reload(); // Reload to reinitialize auth
+        };
+
+        window.simulateExpiredSession = function() {
+            const expiredUser = {
+                id: 'expired-user-123',
+                email: 'expired@example.com',
+                username: 'expireduser',
+                role: 'user',
+                loginTime: Date.now() - (25 * 60 * 60 * 1000) // 25 hours ago (expired)
+            };
+
+            localStorage.setItem('hazard_auth_user', JSON.stringify(expiredUser));
+            localStorage.setItem('hazard_auth_timestamp', expiredUser.loginTime.toString());
+            
+            addTestResult('Expired session simulated', 'warning', 'Session set to 25 hours ago (should be expired)');
+            location.reload();
+        };
+
+        // Run comprehensive tests
+        async function runAllTests() {
+            addTestResult('Starting authentication flow tests...', 'info');
+
+            // Test 1: Auth service initialization
+            try {
+                const user = initAuth();
+                addTestResult('Auth service initialization', 'success', 
+                    user ? `Restored user: ${user.email}` : 'No existing session found');
+            } catch (error) {
+                addTestResult('Auth service initialization failed', 'error', error.message);
+            }
+
+            // Test 2: Route guard initialization  
+            try {
+                const guardResult = initRouteGuard();
+                addTestResult('Route guard initialization', 'success', 
+                    `Guard result: ${guardResult}`);
+            } catch (error) {
+                addTestResult('Route guard initialization failed', 'error', error.message);
+            }
+
+            // Test 3: Authentication status checks
+            const authenticated = isAuthenticated();
+            const currentUser = getCurrentUser();
+            addTestResult('Authentication status check', authenticated ? 'success' : 'warning',
+                authenticated ? `User authenticated: ${currentUser?.email}` : 'No authenticated user');
+
+            // Test 4: LocalStorage persistence test
+            const storedUser = localStorage.getItem('hazard_auth_user');
+            const storedTimestamp = localStorage.getItem('hazard_auth_timestamp');
+            addTestResult('LocalStorage persistence check', storedUser ? 'success' : 'info',
+                storedUser ? 'User data found in localStorage' : 'No user data in localStorage');
+
+            // Test 5: Session validation
+            if (currentUser) {
+                const sessionAge = Date.now() - currentUser.loginTime;
+                const hoursAgo = (sessionAge / (1000 * 60 * 60)).toFixed(1);
+                addTestResult('Session age validation', sessionAge < (24 * 60 * 60 * 1000) ? 'success' : 'warning',
+                    `Session is ${hoursAgo} hours old`);
+            }
+
+            addTestResult('All tests completed!', 'success');
+        }
+
+        // Set up auth event listeners
+        onAuthEvent((event) => {
+            addTestResult(`Auth Event: ${event.type}`, 'info', 
+                event.data ? JSON.stringify(event.data, null, 2) : 'No event data');
+            updateAuthStatus();
+        });
+
+        // Event listeners
+        document.getElementById('run-tests-btn').addEventListener('click', runAllTests);
+        
+        document.getElementById('clear-results-btn').addEventListener('click', () => {
+            testResults.innerHTML = '<div class="text-muted">No tests run yet.</div>';
+            testCount = 0;
+        });
+
+        document.getElementById('mock-login-btn').addEventListener('click', mockLogin);
+        document.getElementById('mock-logout-btn').addEventListener('click', mockLogout);
+        document.getElementById('simulate-expired-btn').addEventListener('click', simulateExpiredSession);
+
+        // Initialize on load
+        initRouteGuard();
+        updateAuthStatus();
+        
+        addTestResult('Test page loaded successfully', 'success', 'Ready to run authentication tests');
+    </script>
+</body>
+</html>
