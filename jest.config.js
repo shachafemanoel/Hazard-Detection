@@ -3,7 +3,7 @@ export default {
   testTimeout: 30000,
   verbose: true,
   collectCoverage: false,
-  testMatch: ['**/__tests__/apiClient.test.js'],
+  testMatch: ['**/__tests__/**/*.test.js', '**/tests/**/*.test.js'],
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   moduleFileExtensions: ['js', 'json'],
   preset: null,
