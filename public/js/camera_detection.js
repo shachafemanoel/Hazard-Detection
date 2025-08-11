@@ -1056,11 +1056,15 @@ function drawPersistentDetections() {
     // Performance optimization: batch canvas operations
     ctx.save();
     
-    // Clear canvas for new frame - use CSS pixel dimensions for drawing operations
-    const canvasDisplayWidth = canvas.width / coordinateScale.dpr;
-    const canvasDisplayHeight = canvas.height / coordinateScale.dpr;
-    ctx.clearRect(0, 0, canvasDisplayWidth, canvasDisplayHeight);
-    
+    // Draw the current video frame onto the canvas FIRST
+    // Ensure video is ready before drawing
+    if (video.readyState >= 3) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    } else {
+        // If video not ready, just clear the canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
     const hazardColors = UI_CONFIG.HAZARD_COLORS;
     const detectionCount = persistentDetections.length;
 

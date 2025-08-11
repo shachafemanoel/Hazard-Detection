@@ -6,7 +6,8 @@ import { DETECTION_CONFIG } from './config.js';
 // Import enhanced EXIF service
 import { processImageWithExif, hasGPSData } from './exif.js';
 
-const FIXED_SIZE = 480;
+// YOLOv12n Road Damage Detection Model Configuration
+const FIXED_SIZE = 480; // from YAML imgsz
 
 // Import inference contract validator
 import { 
@@ -46,6 +47,28 @@ const PROGRESS_STAGES = {
   PROCESSING: { name: 'Processing with AI model...', progress: 60 },
   RENDERING: { name: 'Rendering detection results...', progress: 80 },
   SAVING: { name: 'Saving detection report...', progress: 100 }
+};
+
+// YOLOv12n Road Damage Classes (4 classes)
+const classNames = ['crack', 'knocked', 'pothole', 'surface damage'];
+  
+// Hazard colors for YOLOv12n classes
+const hazardColors = {
+  crack:'#FF8844', 
+  knocked:'#FFD400', 
+  pothole:'#FF4444', 
+  'surface damage':'#44D7B6'
+};
+
+// Detection configuration for YOLOv12n processing
+// Detection configuration for upload workflow
+const uploadDetectionConfig = {
+  minConfidence: 0.25,
+  nmsThreshold: 0.4,
+  maxDetections: 50,
+  minBoxSize: 4,
+  aspectRatioFilter: 30.0,
+  classThresholds: { 0:0.25, 1:0.25, 2:0.25, 3:0.25 }
 };
 
 document.addEventListener("DOMContentLoaded", async function () {
@@ -272,8 +295,6 @@ document.addEventListener("DOMContentLoaded", async function () {
   }
 
   
-
-
 
 // Enhanced save functionality with proper workflow
   saveBtn.addEventListener("click", async () => {
@@ -524,34 +545,6 @@ document.addEventListener("DOMContentLoaded", async function () {
     
     return true;
   }
-  
-  
-  
-  // YOLOv12n Road Damage Detection Model Configuration
-const FIXED_SIZE = 480; // from YAML imgsz
-
-// Import inference contract validator
-import {
-  validateDetectionResult,
-  
-  // Hazard colors for YOLOv12n classes
-  const hazardColors = {
-    crack:'#FF8844', 
-    knocked:'#FFD400', 
-    pothole:'#FF4444', 
-    'surface damage':'#44D7B6'
-  };
-
-  // Detection configuration for YOLOv12n processing
-  // Detection configuration for upload workflow
-  const uploadDetectionConfig = {
-    minConfidence: 0.25,
-    nmsThreshold: 0.4,
-    maxDetections: 50,
-    minBoxSize: 4,
-    aspectRatioFilter: 30.0,
-    classThresholds: { 0:0.25, 1:0.25, 2:0.25, 3:0.25 }
-  };
   
   // Legacy session for fallback (only loaded if worker fails)
   let session = null;

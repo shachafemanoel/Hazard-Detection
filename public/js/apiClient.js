@@ -220,6 +220,11 @@ export async function uploadDetection(detectionData) {
             formData.append('file', detectionData.imageBlob, 'detection.jpg');
         }
         
+        // --- FIX: Ensure all required fields exist before sending ---
+        if (!detectionData.sessionId || !detectionData.location || !detectionData.detections) {
+            throw new Error("Incomplete report data. Cannot upload.");
+        }
+
         // Add metadata
         formData.append('metadata', JSON.stringify({
             session_id: detectionData.sessionId,
