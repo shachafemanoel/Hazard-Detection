@@ -23,7 +23,7 @@ export function initControls({ toggleHeatmap, centerMap, plotReports } = {}) {
       searchInput.addEventListener('input', (e) => {
         const filtered = filterReportsByType(fetchAllReports(), e.target.value);
         renderReports(filtered);
-        // Map updates are handled centrally by dashboard filters
+        if (typeof plotReports === 'function') plotReports(filtered);
       });
     }
 
@@ -33,7 +33,7 @@ export function initControls({ toggleHeatmap, centerMap, plotReports } = {}) {
         const type = typeFilter.value;
         const filtered = type ? fetchAllReports().filter(r => r.type === type) : fetchAllReports();
         renderReports(filtered);
-        // Map updates are handled centrally by dashboard filters
+        if (typeof plotReports === 'function') plotReports(filtered);
       });
     }
 

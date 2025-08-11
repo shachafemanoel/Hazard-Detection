@@ -1,6 +1,5 @@
 import fetch, { Headers, Request, Response } from 'node-fetch';
 import { TextDecoder, TextEncoder } from 'util';
-import { jest } from '@jest/globals';
 
 // Test setup file for Node.js built-in test runner
 // Global test configuration and utilities

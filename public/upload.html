@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="css/main.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
-  <!-- Load same-origin ONNX Runtime ESM bundle to avoid cross-origin import issues -->
+  <script src="ort/ort.min.js"></script>
 </head>
 <body>
   <!-- Main Content -->
@@ -76,10 +76,10 @@
     </div>
   </div>
 
-  <script>window.__CONFIG__ = { BASE_API_URL: '' };</script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="js/layout.js" defer></script>
-  <script type="module" src="js/notifications.js"></script>
-  <script type="module" src="js/upload.js"></script>
+  <script src="js/notifications.js"></script>
+  <script src="js/upload.js" defer></script>
 </body>
 </html>
+

@@ -1,5 +1,3 @@
-import { normalizeReportsResponse } from './adapters.js';
-
 const API_BASE_URL = '/api/reports';
 
 let allReports = [];
@@ -58,13 +56,11 @@ export async function fetchReports(filters = {}) {
   const data = await response.json();
   const parseTime = performance.now();
   
-  // Use the adapter to normalize the response. It handles both array and object-wrapped formats.
-  const normalizedReports = normalizeReportsResponse(data);
-
+  const reports = Array.isArray(data.reports) ? data.reports : [];
   const pagination = data.pagination || {
-    total: normalizedReports.length,
+    total: reports.length,
     page: 1,
-    limit: normalizedReports.length,
+    limit: reports.length,
     totalPages: 1,
   };
   const metrics = {
@@ -74,11 +70,27 @@ export async function fetchReports(filters = {}) {
     users: data.activeUsers ?? 0,
   };
   
-  console.log(`📊 Data received and normalized: ${normalizedReports.length} reports, ${Math.round((parseTime - startTime))}ms`);
+  console.log(`📊 Data received: ${reports.length} reports, ${Math.round((parseTime - startTime))}ms`);
 
-  // The adapter now handles all normalization. The downstream code in dashboard.js
-  // will need to be updated to use the canonical field names (e.g., `class_name`, `image_url`).
-  allReports = normalizedReports;
+  // Process reports - no geocoding needed since all reports have locations
+  const processedReports = reports.map(report => {
+    let processedReport = { ...report };
+    
+    // If the report already has lat/lon, keep as is
+    if (report.lat && report.lon) {
+      return processedReport;
+    }
+
+    // If location is provided as [lat, lon]
+    if (Array.isArray(report.location) && report.location.length >= 2) {
+      const [lat, lon] = report.location;
+      processedReport = { ...processedReport, lat: Number(lat), lon: Number(lon) };
+    }
+
+    return processedReport;
+  });
+
+  allReports = processedReports;
   
   const endTime = performance.now();
   const totalTime = Math.round(endTime - startTime);

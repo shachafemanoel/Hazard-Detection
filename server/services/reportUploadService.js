@@ -1,5 +1,6 @@
 import { v2 as cloudinary } from 'cloudinary';
 import streamifier from 'streamifier';
+import { createClient } from 'redis';
 
 // Configure Cloudinary
 cloudinary.config({
@@ -7,6 +8,34 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
+
+// Configure Redis client
+let redisClient;
+let isRedisConnected = false;
+
+if (process.env.REDIS_HOST && process.env.REDIS_PASSWORD) {
+  redisClient = createClient({
+    username: process.env.REDIS_USERNAME || 'default',
+    password: process.env.REDIS_PASSWORD,
+    socket: {
+      host: process.env.REDIS_HOST,
+      port: parseInt(process.env.REDIS_PORT) || 6379,
+      connectTimeout: 10000,
+    },
+  });
+
+  redisClient
+    .connect()
+    .then(() => {
+      isRedisConnected = true;
+      console.log('✅ ReportUploadService: Connected to Redis');
+    })
+    .catch((err) => {
+      console.error('🔥 ReportUploadService: Failed to connect to Redis:', err);
+    });
+} else {
+  console.log('⚠️ ReportUploadService: Redis not configured.');
+}
 
 /**
  * Uploads a report to Cloudinary and saves the metadata to Redis.
@@ -16,11 +45,9 @@ cloudinary.config({
  * @param {string} options.file.buffer - The image buffer.
  * @param {string} options.filename - The name for the uploaded file.
  * @param {object} options.metadata - The report metadata.
- * @param {object} options.redisClient - The Redis client instance.
- * @param {function} options.isRedisConnected - A function that returns the Redis connection status.
  * @returns {Promise<object>} The full report object.
  */
-export async function uploadReport({ file, filename, metadata, redisClient, isRedisConnected }) {
+export async function uploadReport({ file, filename, metadata }) {
   if (!file || !file.buffer) {
     throw new Error('A file buffer is required.');
   }
@@ -61,7 +88,7 @@ export async function uploadReport({ file, filename, metadata, redisClient, isRe
   };
 
   // 3. Store in Redis
-  if (isRedisConnected && isRedisConnected()) {
+  if (isRedisConnected) {
     try {
       const reportKey = `report:${reportId}`;
       await redisClient.json.set(reportKey, '$', report);
@@ -78,3 +105,4 @@ export async function uploadReport({ file, filename, metadata, redisClient, isRe
   // 4. Return the full report object
   return report;
 }
+

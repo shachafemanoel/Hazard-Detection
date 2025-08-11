@@ -3,8 +3,6 @@
 
 // Internal imports
 import { resolveBaseUrl, withTimeout } from '../utils/network.js';
-import { fetchWithTimeout } from '../utils/fetchWithTimeout.js';
-import { ensureOk, getJsonOrThrow } from '../utils/http.js';
 
 const DEFAULT_TIMEOUT = 30000; // 30 seconds for image processing
 
@@ -27,10 +25,10 @@ async function loadApiConfig(options = {}) {
   try {
     baseUrl = await resolveBaseUrl(options);
     hasInitialized = true;
-    // API configuration loaded successfully
+    console.log('🔧 API configuration loaded with base URL:', baseUrl);
     return { baseURL: baseUrl, timeout: DEFAULT_TIMEOUT };
   } catch (error) {
-    // Failed to load API config
+    console.error('❌ Failed to load API config:', error.message);
     // Re-throw to prevent the application from starting with a broken API client
     throw error;
   }
@@ -60,8 +58,9 @@ async function checkHealth(timeoutMs = 10000) {
   await ensureInitialized();
 
   try {
-    const res = await fetchWithTimeout(`${baseUrl}/health`, {
-      timeout: timeoutMs,
+    const res = await fetch(`${baseUrl}/health`, {
+      // Use shorter timeout for quicker availability checks
+      signal: withTimeout(timeoutMs),
       method: 'GET',
       headers: {
         Accept: 'application/json',
@@ -70,11 +69,15 @@ async function checkHealth(timeoutMs = 10000) {
       },
     });
 
-    ensureOk(res);
-    const data = await getJsonOrThrow(res);
+    if (!res.ok) {
+      throw new Error(`Health check failed: ${res.status}`);
+    }
+
+    const data = await res.json();
+    console.log('✅ API service health:', data);
     return data;
   } catch (error) {
-    // Health check failed
+    console.error('❌ Health check failed:', error.message);
     throw new Error(`Health check failed: ${error.message}`);
   }
 }
@@ -89,15 +92,19 @@ async function testApiConnection() {
     // Check service and model status
     if (health.status === 'healthy') {
       if (health.model_status && health.model_status.includes('error')) {
-        // Backend model has issues
+        console.warn('⚠️ Backend model has issues:', health.model_status);
         return false;
       }
-      // API service and model ready
+      console.log('✅ API service and model ready');
       return true;
     }
     return false;
   } catch (error) {
-    // API service check failed
+    if (error.message.includes('timed out') || error.name === 'AbortError') {
+      console.log('🔄 API health check timed out');
+    } else {
+      console.log('🏠 API service not accessible');
+    }
     return false;
   }
 }
@@ -109,23 +116,32 @@ async function startSession() {
   await ensureInitialized();
 
   try {
-    const res = await fetchWithTimeout(`${baseUrl}/session/start`, {
+    const res = await fetch(`${baseUrl}/session/start`, {
       method: 'POST',
       headers: {
+        // aligned with spec: POST /session/start has no body
         Accept: 'application/json',
         'User-Agent': 'Hazard-Detection-API/1.0',
       },
     });
 
-    ensureOk(res);
-    const data = await getJsonOrThrow(res);
+    if (!res.ok) {
+      const errorData = await res
+        .json()
+        .catch(() => ({ detail: `HTTP ${res.status}` }));
+      throw new Error(
+        `Failed to start session: ${errorData.detail || res.statusText}`
+      );
+    }
+
+    const data = await res.json();
     if (!data.session_id) {
       throw new Error('Failed to start session: missing session_id');
     }
-    // API session started
+    console.log('✅ API session started:', data.session_id);
     return data.session_id;
   } catch (error) {
-    // Failed to start session
+    console.error('❌ Failed to start session:', error.message);
     throw new Error(`Failed to start session: ${error.message}`);
   }
 }
@@ -155,10 +171,11 @@ async function detectHazards(sessionId, imageBlob) {
     const formData = new FormData();
     formData.append('file', imageBlob, 'frame.jpg');
 
-    const res = await fetchWithTimeout(`${baseUrl}/detect/${sessionId}`, {
+    const res = await fetch(`${baseUrl}/detect/${sessionId}`, {
       method: 'POST',
       body: formData,
       headers: {
+        // aligned with spec: POST /detect/{session_id}, multipart/form-data, field name "file"
         'User-Agent': 'Hazard-Detection-API/1.0',
       },
     });
@@ -172,22 +189,29 @@ async function detectHazards(sessionId, imageBlob) {
     if (res.status === 405) {
       throw new Error('Method Not Allowed');
     }
-    ensureOk(res);
-    const result = await getJsonOrThrow(res);
+    if (!res.ok) {
+      const bodyText = await res.text();
+      throw new Error(`Detection failed: ${res.status} ${bodyText}`);
+    }
+
+    const result = await res.json();
 
     // Validate response structure
     if (!Array.isArray(result.detections)) {
+      console.warn('⚠️ Unexpected API response format:', result);
       return { detections: [], new_reports: [] };
     }
 
     // Reset failure count on successful detection
     apiFailureCount = 0;
 
-    // Detection completed
+    console.log(
+      `🔍 Detection completed: ${result.detections.length} detections found`
+    );
     return result;
   } catch (error) {
     apiFailureCount++;
-    // Detection failed
+    console.error('❌ Detection failed:', error.message);
     throw new Error(`Detection failed: ${error.message}`);
   }
 }
@@ -213,7 +237,7 @@ async function detectSingle(imageBlob) {
     const formData = new FormData();
     formData.append('file', imageBlob, 'frame.jpg');
 
-    const res = await fetchWithTimeout(`${baseUrl}/detect`, {
+    const res = await fetch(`${baseUrl}/detect`, {
       method: 'POST',
       body: formData,
       headers: {
@@ -221,12 +245,22 @@ async function detectSingle(imageBlob) {
       },
     });
 
-    ensureOk(res);
-    const result = await getJsonOrThrow(res);
-    // Single detection completed
+    if (!res.ok) {
+      const errorData = await res
+        .json()
+        .catch(() => ({ detail: `HTTP ${res.status}` }));
+      throw new Error(
+        `Single detection failed: ${errorData.detail || res.statusText}`
+      );
+    }
+
+    const result = await res.json();
+    console.log(
+      `🔍 Single detection completed: ${result.detections?.length || 0} detections found`
+    );
     return result;
   } catch (error) {
-    // Single detection failed
+    console.error('❌ Single detection failed:', error.message);
     throw new Error(`Single detection failed: ${error.message}`);
   }
 }
@@ -250,7 +284,7 @@ async function detectBatch(imageBlobs) {
       }
     });
 
-    const res = await fetchWithTimeout(`${baseUrl}/detect-batch`, {
+    const res = await fetch(`${baseUrl}/detect-batch`, {
       method: 'POST',
       body: formData,
       headers: {
@@ -258,12 +292,22 @@ async function detectBatch(imageBlobs) {
       },
     });
 
-    ensureOk(res);
-    const result = await getJsonOrThrow(res);
-    // Batch detection completed
+    if (!res.ok) {
+      const errorData = await res
+        .json()
+        .catch(() => ({ detail: `HTTP ${res.status}` }));
+      throw new Error(
+        `Batch detection failed: ${errorData.detail || res.statusText}`
+      );
+    }
+
+    const result = await res.json();
+    console.log(
+      `🔍 Batch detection completed: ${result.results?.length || 0} results`
+    );
     return result;
   } catch (error) {
-    // Batch detection failed
+    console.error('❌ Batch detection failed:', error.message);
     throw new Error(`Batch detection failed: ${error.message}`);
   }
 }
@@ -279,19 +323,27 @@ async function getSessionSummary(sessionId) {
       throw new Error('Session ID is required');
     }
 
-    const res = await fetchWithTimeout(`${baseUrl}/session/${sessionId}/summary`, {
+    const res = await fetch(`${baseUrl}/session/${sessionId}/summary`, {
       headers: {
         Accept: 'application/json',
         'User-Agent': 'Hazard-Detection-API/1.0',
       },
     });
 
-    ensureOk(res);
-    const data = await getJsonOrThrow(res);
-    // Session summary retrieved
+    if (!res.ok) {
+      const errorData = await res
+        .json()
+        .catch(() => ({ detail: `HTTP ${res.status}` }));
+      throw new Error(
+        `Failed to get session summary: ${errorData.detail || res.statusText}`
+      );
+    }
+
+    const data = await res.json();
+    console.log('📊 Session summary retrieved:', data);
     return data;
   } catch (error) {
-    // Failed to get session summary
+    console.error('❌ Failed to get session summary:', error.message);
     throw new Error(`Failed to get session summary: ${error.message}`);
   }
 }
@@ -307,7 +359,7 @@ async function endSession(sessionId) {
       return { message: 'No active session' };
     }
 
-    const res = await fetchWithTimeout(`${baseUrl}/session/${sessionId}/end`, {
+    const res = await fetch(`${baseUrl}/session/${sessionId}/end`, {
       method: 'POST',
       headers: {
         Accept: 'application/json',
@@ -316,13 +368,18 @@ async function endSession(sessionId) {
     });
 
     if (res.ok) {
-      const data = await getJsonOrThrow(res);
+      const data = await res.json();
+      console.log('✅ Session ended successfully:', data);
       return data;
     } else {
+      const errorData = await res
+        .json()
+        .catch(() => ({ detail: `HTTP ${res.status}` }));
+      console.warn('⚠️ Session end warning:', errorData.detail);
       return { message: 'Session ended with warning' };
     }
   } catch (error) {
-    // Failed to end session
+    console.error('❌ Failed to end session:', error.message);
     return { message: 'Session ended with error' };
   }
 }
@@ -345,7 +402,7 @@ async function confirmReport(sessionId, reportId) {
       throw new Error('Session ID and Report ID are required');
     }
 
-    const res = await fetchWithTimeout(
+    const res = await fetch(
       `${baseUrl}/session/${sessionId}/report/${reportId}/confirm`,
       {
         method: 'POST',
@@ -356,12 +413,20 @@ async function confirmReport(sessionId, reportId) {
       }
     );
 
-    ensureOk(res);
-    const data = await getJsonOrThrow(res);
-    // Report confirmed
+    if (!res.ok) {
+      const errorData = await res
+        .json()
+        .catch(() => ({ detail: `HTTP ${res.status}` }));
+      throw new Error(
+        `Failed to confirm report: ${errorData.detail || res.statusText}`
+      );
+    }
+
+    const data = await res.json();
+    console.log('✅ Report confirmed:', data);
     return data;
   } catch (error) {
-    // Failed to confirm report
+    console.error('❌ Failed to confirm report:', error.message);
     throw new Error(`Failed to confirm report: ${error.message}`);
   }
 }
@@ -377,7 +442,7 @@ async function dismissReport(sessionId, reportId) {
       throw new Error('Session ID and Report ID are required');
     }
 
-    const res = await fetchWithTimeout(
+    const res = await fetch(
       `${baseUrl}/session/${sessionId}/report/${reportId}/dismiss`,
       {
         method: 'POST',
@@ -388,12 +453,20 @@ async function dismissReport(sessionId, reportId) {
       }
     );
 
-    ensureOk(res);
-    const data = await getJsonOrThrow(res);
-    // Report dismissed
+    if (!res.ok) {
+      const errorData = await res
+        .json()
+        .catch(() => ({ detail: `HTTP ${res.status}` }));
+      throw new Error(
+        `Failed to dismiss report: ${errorData.detail || res.statusText}`
+      );
+    }
+
+    const data = await res.json();
+    console.log('✅ Report dismissed:', data);
     return data;
   } catch (error) {
-    // Failed to dismiss report
+    console.error('❌ Failed to dismiss report:', error.message);
     throw new Error(`Failed to dismiss report: ${error.message}`);
   }
 }
@@ -410,7 +483,7 @@ async function getReportImage(sessionId, reportId) {
       throw new Error('Session ID and Report ID are required');
     }
 
-    const res = await fetchWithTimeout(
+    const res = await fetch(
       `${baseUrl}/session/${sessionId}/report/${reportId}/image`,
       {
         method: 'GET',
@@ -431,7 +504,7 @@ async function getReportImage(sessionId, reportId) {
 
     return await res.arrayBuffer();
   } catch (error) {
-    // Failed to fetch report image
+    console.error('❌ Failed to fetch report image:', error.message);
     throw new Error(`Failed to fetch report image: ${error.message}`);
   }
 }
@@ -448,7 +521,7 @@ async function getReportPlot(sessionId, reportId) {
       throw new Error('Session ID and Report ID are required');
     }
 
-    const res = await fetchWithTimeout(
+    const res = await fetch(
       `${baseUrl}/session/${sessionId}/report/${reportId}/plot`,
       {
         method: 'GET',
@@ -469,7 +542,7 @@ async function getReportPlot(sessionId, reportId) {
 
     return await res.arrayBuffer();
   } catch (error) {
-    // Failed to fetch report plot
+    console.error('❌ Failed to fetch report plot:', error.message);
     throw new Error(`Failed to fetch report plot: ${error.message}`);
   }
 }
@@ -495,7 +568,9 @@ async function withRetry(operation, maxRetriesToUse = maxRetries) {
         break;
       }
 
-      // Attempt failed, retrying...
+      console.log(
+        `⚠️ Attempt ${attempt} failed, retrying in ${retryDelay * attempt}ms...`
+      );
       await new Promise((resolve) => setTimeout(resolve, retryDelay * attempt));
     }
   }
@@ -542,7 +617,10 @@ async function safeDetection(imageBlob, useSession = true) {
       return await detectSingleWithRetry(imageBlob);
     }
   } catch (error) {
-    // Safe detection failed
+    console.error('🚨 Safe detection failed:', {
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
 
     // Return error in consistent format
     return {

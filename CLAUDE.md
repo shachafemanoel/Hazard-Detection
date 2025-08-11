@@ -7,7 +7,7 @@ This file defines specialized Claude Code agents for the **client** web app. Eac
 ## Shared Context
 
 * **API base (prod):** `https://hazard-api-production-production.up.railway.app`
-* **Model:** `public/web/best_web.onnx`
+* **Model:** `public/object_detection_model/best0608.onnx`
 * **ONNX runtime:** prefer WebGPU bundle, fallback to WASM.
 * **Decisions:** Use section D (Decisions) from the project canvas: D1 mapping, D2 hybrid session cache, D3 bundles, D4 batching, D6 mobile adaptivity, D7 precision.
 * **Guardrails:** Small commits, no secrets, keep backward-compatible URLs/HTML, add tests for changes, ask unclear items in `QUESTIONS.md`.

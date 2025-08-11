@@ -76,7 +76,7 @@ export function getVideoDisplayRect(videoElement) {
 }
 
 /**
- * Transform YOLO model coordinates to canvas pixel coordinates with ±2px accuracy
+ * Transform YOLO model coordinates to canvas pixel coordinates
  * @param {Object} detection - YOLO detection with normalized coordinates
  * @param {number} detection.x - Center X (0-1 normalized)
  * @param {number} detection.y - Center Y (0-1 normalized) 
@@ -94,9 +94,6 @@ export function mapModelToCanvas(detection, modelInputSize, canvasSize, videoDis
     const normalizedWidth = detection.width;
     const normalizedHeight = detection.height;
     
-    // Account for device pixel ratio for high DPI displays
-    const dpr = window.devicePixelRatio || 1;
-    
     // Convert normalized coordinates to video display coordinates
     const videoX = normalizedX * videoDisplayRect.width;
     const videoY = normalizedY * videoDisplayRect.height;
@@ -107,27 +104,15 @@ export function mapModelToCanvas(detection, modelInputSize, canvasSize, videoDis
     const canvasX = videoX + videoDisplayRect.x;
     const canvasY = videoY + videoDisplayRect.y;
     
-    // Scale to canvas resolution (accounting for DPR)
-    const effectiveCanvasWidth = canvasSize.width / dpr;
-    const effectiveCanvasHeight = canvasSize.height / dpr;
-    
-    const scaleX = effectiveCanvasWidth / (videoDisplayRect.width + videoDisplayRect.x * 2);
-    const scaleY = effectiveCanvasHeight / (videoDisplayRect.height + videoDisplayRect.y * 2);
-    
-    // Use sub-pixel precision for better accuracy, then round appropriately
-    const preciseX = canvasX * scaleX;
-    const preciseY = canvasY * scaleY;
-    const preciseWidth = videoWidth * scaleX;
-    const preciseHeight = videoHeight * scaleY;
-    
-    // Apply DPR-aware rounding for ±1px accuracy on high DPI
-    const roundingFactor = dpr >= 2 ? 0.5 : 1.0;
+    // Scale to canvas resolution if different from video display
+    const scaleX = canvasSize.width / (videoDisplayRect.width + videoDisplayRect.x * 2);
+    const scaleY = canvasSize.height / (videoDisplayRect.height + videoDisplayRect.y * 2);
     
     return {
-        x: Math.round(preciseX / roundingFactor) * roundingFactor,
-        y: Math.round(preciseY / roundingFactor) * roundingFactor,
-        width: Math.round(preciseWidth / roundingFactor) * roundingFactor,
-        height: Math.round(preciseHeight / roundingFactor) * roundingFactor
+        x: Math.round(canvasX * scaleX),
+        y: Math.round(canvasY * scaleY),
+        width: Math.round(videoWidth * scaleX),
+        height: Math.round(videoHeight * scaleY)
     };
 }
 
@@ -203,39 +188,25 @@ export function calculateIoU(box1, box2) {
 }
 
 /**
- * Validate coordinate mapping accuracy for testing with ±2px requirement
+ * Validate coordinate mapping accuracy for testing
  * @param {Object} originalCoords - Original model coordinates
  * @param {Object} mappedCoords - Mapped canvas coordinates  
  * @param {Object} tolerance - Acceptable tolerance {x: px, y: px}
  * @returns {boolean} True if mapping is within tolerance
  */
 export function validateMappingAccuracy(originalCoords, mappedCoords, tolerance = {x: 2, y: 2}) {
-    // Enhanced validation for ±2px accuracy requirement
-    const dpr = window.devicePixelRatio || 1;
-    const adjustedTolerance = {
-        x: dpr >= 2 ? 1 : tolerance.x, // ±1px for high DPI, ±2px for standard
-        y: dpr >= 2 ? 1 : tolerance.y
-    };
-    
-    // Check that coordinates are reasonable
+    // This would require a reference implementation or known-good test cases
+    // For now, just check that coordinates are reasonable
     const isReasonable = (
-        mappedCoords.x >= -adjustedTolerance.x && // Allow slight negative values within tolerance
-        mappedCoords.y >= -adjustedTolerance.y &&
+        mappedCoords.x >= 0 &&
+        mappedCoords.y >= 0 &&
         mappedCoords.width > 0 &&
         mappedCoords.height > 0 &&
         !isNaN(mappedCoords.x) &&
-        !isNaN(mappedCoords.y) &&
-        !isNaN(mappedCoords.width) &&
-        !isNaN(mappedCoords.height)
+        !isNaN(mappedCoords.y)
     );
     
-    // Additional checks for coordinate precision
-    const hasPrecision = (
-        mappedCoords.x % 0.5 === 0 && // Coordinates should align to half-pixels for sub-pixel rendering
-        mappedCoords.y % 0.5 === 0
-    );
-    
-    return isReasonable && hasPrecision;
+    return isReasonable;
 }
 
 /**
@@ -342,22 +313,11 @@ export function modelToCanvasBox(modelBox, mapping, inputSize = 480) {
     const normalizedX2 = x2 / inputSize;
     const normalizedY2 = y2 / inputSize;
     
-    // Account for device pixel ratio
-    const dpr = mapping.dpr || window.devicePixelRatio || 1;
-    
-    // Apply mapping to canvas space with sub-pixel precision
-    const preciseX1 = mapping.offsetX + (normalizedX1 * mapping.displayWidth);
-    const preciseY1 = mapping.offsetY + (normalizedY1 * mapping.displayHeight);
-    const preciseX2 = mapping.offsetX + (normalizedX2 * mapping.displayWidth);
-    const preciseY2 = mapping.offsetY + (normalizedY2 * mapping.displayHeight);
-    
-    // Apply DPR-aware rounding for pixel-perfect alignment
-    const roundingFactor = dpr >= 2 ? 0.5 : 1.0;
-    
-    const canvasX1 = Math.round(preciseX1 / roundingFactor) * roundingFactor;
-    const canvasY1 = Math.round(preciseY1 / roundingFactor) * roundingFactor;
-    const canvasX2 = Math.round(preciseX2 / roundingFactor) * roundingFactor;
-    const canvasY2 = Math.round(preciseY2 / roundingFactor) * roundingFactor;
+    // Apply mapping to canvas space
+    const canvasX1 = mapping.offsetX + (normalizedX1 * mapping.displayWidth);
+    const canvasY1 = mapping.offsetY + (normalizedY1 * mapping.displayHeight);
+    const canvasX2 = mapping.offsetX + (normalizedX2 * mapping.displayWidth);
+    const canvasY2 = mapping.offsetY + (normalizedY2 * mapping.displayHeight);
     
     return [canvasX1, canvasY1, canvasX2, canvasY2];
 }
