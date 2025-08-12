@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>גלאי מפגעים</title>
+  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-sA+4ps/3wS45eeA0cnP0Pq4sz6W4k1yXgFfrxE0pZm4=" crossorigin="">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+</head>
+<body>
+<a class="skip-link" href="#main">דלג לתוכן</a>
+<header class="header" role="banner">
+  <div class="header__title">גלאי מפגעים <span class="status-pill" id="status-pill">Offline</span></div>
+  <div>
+    <button aria-label="התראות" id="btn-notifications">🔔</button>
+    <button aria-label="תפריט משתמש" id="btn-user">👤</button>
+  </div>
+</header>
+<nav class="nav-side" aria-label="ניווט ראשי">
+  <a href="#camera" class="nav__item" data-target="camera">📷 מצלמה</a>
+  <a href="#map" class="nav__item" data-target="map">🗺️ מפה</a>
+  <a href="#new" class="nav__item" data-target="new">➕ דיווח חדש</a>
+  <a href="#history" class="nav__item" data-target="history">📜 היסטוריה</a>
+  <a href="#settings" class="nav__item" data-target="settings">⚙️ הגדרות</a>
+</nav>
+<nav class="nav-bottom" aria-label="ניווט ראשי">
+  <a href="#camera" class="nav__item" data-target="camera">📷<br>מצלמה</a>
+  <a href="#map" class="nav__item" data-target="map">🗺️<br>מפה</a>
+  <a href="#new" class="nav__item" data-target="new">➕<br>דיווח</a>
+  <a href="#history" class="nav__item" data-target="history">📜<br>היסטוריה</a>
+  <a href="#settings" class="nav__item" data-target="settings">⚙️<br>הגדרות</a>
+</nav>
+<main id="main" class="main" tabindex="-1">
+  <section id="camera" class="section active" aria-labelledby="camera-title">
+    <h2 id="camera-title">זיהוי חי</h2>
+    <div id="camera-status" class="status-bar">מצב: <span id="camera-mode">מקומי</span></div>
+    <video id="video" autoplay playsinline></video>
+    <canvas id="overlay"></canvas>
+    <div>
+      <button class="btn btn-primary" id="btn-accept">✔️ קבל</button>
+      <button class="btn btn-secondary" id="btn-dismiss">✖️ דחה</button>
+      <button class="btn btn-secondary" id="btn-pause">⏸️ הפסק</button>
+    </div>
+    <div id="camera-error" role="alert" style="color:red"></div>
+  </section>
+
+  <section id="map" class="section" aria-labelledby="map-title">
+    <h2 id="map-title">מפה</h2>
+    <div id="map" role="region" aria-label="מפה"></div>
+  </section>
+
+  <section id="new" class="section" aria-labelledby="new-title">
+    <h2 id="new-title">דיווח חדש</h2>
+    <div class="settings-group">
+      <label for="new-photo">תמונה</label>
+      <input type="file" id="new-photo" accept="image/*">
+    </div>
+    <div class="settings-group">
+      <button class="btn btn-secondary" id="btn-use-location">השתמש במיקום הנוכחי</button>
+      <div id="new-map" style="height:200px;margin-top:0.5rem;"></div>
+    </div>
+    <div class="settings-group">
+      <label>סוג מפגע</label>
+      <div>
+        <button class="chip" data-type="pothole">בור</button>
+        <button class="chip" data-type="speedbump">במפר</button>
+        <button class="chip" data-type="manhole">ביוב</button>
+      </div>
+    </div>
+    <div class="settings-group">
+      <label for="severity">חומרה</label>
+      <select id="severity">
+        <option value="low">נמוכה</option>
+        <option value="medium">בינונית</option>
+        <option value="high">גבוהה</option>
+      </select>
+    </div>
+    <div class="settings-group">
+      <label for="details">פרטים</label>
+      <textarea id="details" maxlength="200" rows="3"></textarea>
+    </div>
+    <button class="btn btn-primary" id="btn-submit-report">שלח</button>
+  </section>
+
+  <section id="history" class="section" aria-labelledby="history-title">
+    <h2 id="history-title">היסטוריה</h2>
+    <ul class="history-list" id="history-list"></ul>
+  </section>
+
+  <section id="settings" class="section" aria-labelledby="settings-title">
+    <h2 id="settings-title">הגדרות</h2>
+    <div class="settings-group">
+      <label for="sensitivity">רגישות זיהוי: <span id="sensitivity-value">5</span></label>
+      <input type="range" id="sensitivity" min="1" max="10" value="5">
+    </div>
+    <div class="settings-group">
+      <label>מקור מודל</label>
+      <div>
+        <label><input type="radio" name="model-src" value="auto" checked> אוטומטי</label>
+        <label><input type="radio" name="model-src" value="cloud"> עדיף ענן</label>
+        <label><input type="radio" name="model-src" value="local"> מקומי בלבד</label>
+      </div>
+    </div>
+    <div class="settings-group">
+      <label><input type="checkbox" id="cellular"> אפשר העלאות סלולר</label>
+    </div>
+    <div class="settings-group">
+      <label for="lang">שפה</label>
+      <select id="lang">
+        <option value="he" selected>עברית</option>
+        <option value="en">English</option>
+      </select>
+    </div>
+    <div class="settings-group">
+      <button class="btn btn-secondary" id="btn-self-test">בדיקת מערכת</button>
+    </div>
+    <div class="settings-group">
+      <button class="btn btn-secondary" id="btn-export-logs">ייצא לוגים</button>
+    </div>
+    <div class="settings-group">
+      <p>גרסה: 0.1.0</p>
+    </div>
+  </section>
+</main>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<div id="modal" class="modal" role="dialog" aria-modal="true">
+  <div class="modal__content" id="modal-content"></div>
+</div>
+<script type="module" src="js/ui.js"></script>
+<script type="module" src="js/camera.js"></script>
+<script type="module" src="js/map.js"></script>
+<script type="module" src="js/reports.js"></script>
+<script type="module" src="js/settings.js"></script>
+<script type="module" src="js/storage.js"></script>
+</body>
+</html>
