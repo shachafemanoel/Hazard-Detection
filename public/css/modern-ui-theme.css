@@ -1,80 +1,215 @@
-/* --- Global Modern UI Theme for Hazard Reporter --- */
+/* --- Enhanced Modern UI Theme for Hazard Reporter --- */
 
 :root {
-  /* Replace these with colors from your icon.png logo */
-  --primary: #007bff; /* Example Primary Color (e.g., a main color from your logo) */
-  --secondary: #6c757d; /* Keep or adjust secondary color */
-  --accent: #28a745; /* Example Accent Color (e.g., a secondary color from your logo) */
-  --danger: #dc3545; /* Keep or adjust danger color */
-  --warning: #ffc107;
-  --light: #f8f9fa; /* For text on dark primary/accent backgrounds */
-  --dark-text: #212529; /* For text on light warning/light backgrounds */
+  /* Enhanced Color Palette */
+  --primary: #3b82f6; /* Modern blue */
+  --primary-hover: #2563eb;
+  --secondary: #6b7280; 
+  --accent: #22c55e; /* Modern green */
+  --accent-hover: #16a34a;
+  --danger: #ef4444;
+  --danger-hover: #dc2626;
+  --warning: #f59e0b;
+  --warning-hover: #d97706;
+  --light: #f8fafc;
+  --dark-text: #1e293b;
 
-  /* Dark Theme Defaults */
-  --bg: #1a1a1a; /* Slightly lighter dark background */
-  --text: #e0e0e0; /* Light grey text */
-  --card-bg: #2c2c2c; /* Darker card background */
-  --input-bg: #333333; /* Input background */
-  --border-color: #555555; /* Border color for inputs and other elements */
-  --sidebar-bg: #212529; /* Sidebar background, same as Bootstrap's dark */
-  --sidebar-text: #cccccc; /* Lighter text for dark sidebar */
-  --sidebar-hover-bg: #3a3a3a; /* Slightly lighter hover for dark sidebar */
-  --sidebar-hover-text: white;
+  /* Enhanced Dark Theme */
+  --bg: #0f172a; /* Deeper dark background */
+  --bg-secondary: #1e293b; /* Secondary background */
+  --text: #e2e8f0; /* Better contrast text */
+  --text-muted: #94a3b8; /* Muted text */
+  --card-bg: #1e293b; /* Card background */
+  --card-bg-hover: #334155; /* Card hover state */
+  --input-bg: #334155; /* Input background */
+  --border-color: #475569; /* Border color */
+  --sidebar-bg: #0f172a; /* Deeper sidebar */
+  --sidebar-text: #cbd5e1;
+  --sidebar-hover-bg: #1e293b;
+  --sidebar-hover-text: #f8fafc;
 
-  --radius: 10px; /* Slightly smaller radius for a sleeker look */
-  --shadow: 0 5px 15px rgba(0, 0, 0, 0.2); /* Softer, more diffused shadow */
-  --transition: 0.25s ease-in-out;
+  /* Enhanced Spacing & Effects */
+  --radius: 12px; /* More modern radius */
+  --radius-sm: 8px;
+  --radius-lg: 16px;
+  --shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.25);
+  --shadow-xl: 0 25px 50px rgba(0, 0, 0, 0.35);
+  --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* Glassmorphism Variables */
+  --glass-bg: rgba(30, 41, 59, 0.7);
+  --glass-border: rgba(148, 163, 184, 0.1);
+  --backdrop-blur: 12px;
 }
 
 body {
-  /* Background image has been removed as per request */
-
-  /* Fallback background color if the image fails to load or for transparency effects */
-  background-color: var(--bg); 
-
+  /* Enhanced gradient background with subtle texture */
+  background: linear-gradient(135deg, var(--bg) 0%, var(--bg-secondary) 50%, var(--bg) 100%);
+  background-attachment: fixed;
   color: var(--text);
-  font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  line-height: 1.6;
+  font-family: 'Inter', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.7;
   margin: 0;
   padding: 0;
-  transition: margin-left var(--transition); /* For sidebar push effect */ 
+  transition: margin-left var(--transition);
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+/* Enhanced scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+  transition: background var(--transition-fast);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }
 
 button, .btn {
   border-radius: var(--radius);
-  padding: 0.7rem 1.4rem; /* Slightly larger padding */
-  transition: background-color var(--transition), transform var(--transition), box-shadow var(--transition);
-  font-weight: 500;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.15); /* Subtle shadow for buttons */
-  border: none; /* Remove default browser borders if any */
+  padding: 0.75rem 1.5rem;
+  transition: all var(--transition);
+  font-weight: 600;
+  font-size: 0.875rem;
+  letter-spacing: 0.025em;
+  box-shadow: var(--shadow);
+  border: none;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  text-transform: uppercase;
+  backdrop-filter: blur(var(--backdrop-blur));
 }
 
 button:hover, .btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 10px rgba(0,0,0,0.2); /* Enhanced shadow on hover */
-  opacity: 0.9;
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+}
+
+button:active, .btn:active {
+  transform: translateY(-1px);
+  transition: all var(--transition-fast);
+}
+
+/* Ripple effect for buttons */
+button::before, .btn::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+  z-index: 0;
+}
+
+button:active::before, .btn:active::before {
+  width: 300px;
+  height: 300px;
+}
+
+button > *, .btn > * {
+  position: relative;
+  z-index: 1;
 }
 
 .card {
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  border: none;
-  background-color: var(--card-bg);
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--backdrop-blur));
+  transition: all var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.3), transparent);
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-xl);
+  background: var(--card-bg-hover);
+  border-color: rgba(59, 130, 246, 0.3);
 }
 
 input, select, textarea {
-  border-radius: var(--radius);
-  border: 1px solid var(--border-color);
-  padding: 0.6rem 0.8rem; /* Adjusted padding */
-  transition: border-color var(--transition), box-shadow var(--transition);
-  background-color: var(--input-bg);
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--border-color);
+  padding: 0.75rem 1rem;
+  transition: all var(--transition);
+  background: var(--input-bg);
   color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 500;
+  backdrop-filter: blur(8px);
+  position: relative;
 }
 
 input:focus, select:focus, textarea:focus {
   border-color: var(--primary);
   outline: none;
-  box-shadow: 0 0 0 0.2rem rgba(var(--primary), 0.25); /* Use primary color for focus ring */
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+  transform: translateY(-1px);
+  background: var(--card-bg);
+}
+
+input::placeholder {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* Floating label effect */
+.input-group {
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+
+.input-group input {
+  padding-top: 1.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.input-group label {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  transition: all var(--transition);
+  pointer-events: none;
+  font-size: 0.875rem;
+}
+
+.input-group input:focus + label,
+.input-group input:not(:placeholder-shown) + label {
+  top: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--primary);
+  transform: none;
 }
 
 /* Toast Style */
@@ -87,14 +222,34 @@ input:focus, select:focus, textarea:focus {
   box-shadow: var(--shadow);
 }
 
-/* Glassmorphism Overlay */
+/* Enhanced Glassmorphism */
 .glass {
-  backdrop-filter: blur(10px);
-  background: rgba(44, 44, 44, 0.3); /* Darker glass effect for dark theme */
+  backdrop-filter: blur(var(--backdrop-blur));
+  -webkit-backdrop-filter: blur(var(--backdrop-blur));
+  background: var(--glass-bg);
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 1rem;
-  border: 1px solid rgba(var(--border-color), 0.5);
+  box-shadow: var(--shadow-lg);
+  padding: 1.5rem;
+  border: 1px solid var(--glass-border);
+  position: relative;
+  overflow: hidden;
+}
+
+.glass::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+}
+
+.glass-strong {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.2);
 }
 
 /* Floating Action Button */
@@ -297,12 +452,197 @@ input:focus, select:focus, textarea:focus {
   box-shadow: var(--shadow);
   pointer-events: none; /* Ensure tooltip doesn't interfere with mouse events */
 }
-/* /Users/shachafemanoel/Documents/Hazard-Detection/public/css/modern-ui-theme.css */
-:root {
-    --primary: #3b82f6; /* Tailwind blue-500 */
-    --secondary: #6c757d; /* Keep or adjust */
-    --accent: #22c55e; /* Tailwind green-500 */
-    /* ... שאר המשתנים ... */
-    --indigo: #6366f1; /* Tailwind indigo-500 - אפשר להוסיף משתנה חדש אם רוצים */
+/* Modern Button Variants */
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+  color: white;
+  border: none;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, var(--primary-hover) 0%, #1d4ed8 100%);
+  box-shadow: 0 0 25px rgba(59, 130, 246, 0.4);
+}
+
+.btn-accent {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+  color: white;
+  border: none;
+}
+
+.btn-accent:hover {
+  background: linear-gradient(135deg, var(--accent-hover) 0%, #15803d 100%);
+  box-shadow: 0 0 25px rgba(34, 197, 94, 0.4);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, var(--danger) 0%, var(--danger-hover) 100%);
+  color: white;
+  border: none;
+}
+
+.btn-danger:hover {
+  background: linear-gradient(135deg, var(--danger-hover) 0%, #b91c1c 100%);
+  box-shadow: 0 0 25px rgba(239, 68, 68, 0.4);
+}
+
+.btn-warning {
+  background: linear-gradient(135deg, var(--warning) 0%, var(--warning-hover) 100%);
+  color: var(--dark-text);
+  border: none;
+}
+
+.btn-warning:hover {
+  background: linear-gradient(135deg, var(--warning-hover) 0%, #b45309 100%);
+  box-shadow: 0 0 25px rgba(245, 158, 11, 0.4);
+}
+
+.btn-outline-primary {
+  background: transparent;
+  color: var(--primary);
+  border: 2px solid var(--primary);
+}
+
+.btn-outline-primary:hover {
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+}
+
+/* Ghost button */
+.btn-ghost {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--primary);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  backdrop-filter: blur(8px);
+}
+
+.btn-ghost:hover {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: var(--primary);
+}
+
+/* Notification & Toast Enhancements */
+.toast {
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--backdrop-blur));
+  border: 1px solid var(--glass-border);
+  color: var(--text);
+  font-weight: 500;
+  box-shadow: var(--shadow-xl);
+  position: relative;
+  overflow: hidden;
+}
+
+.toast::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--primary);
+}
+
+.toast.toast-success::before {
+  background: var(--accent);
+}
+
+.toast.toast-error::before {
+  background: var(--danger);
+}
+
+.toast.toast-warning::before {
+  background: var(--warning);
+}
+
+/* Loading States */
+.loading-skeleton {
+  background: linear-gradient(90deg, 
+    var(--card-bg) 25%, 
+    var(--card-bg-hover) 50%, 
+    var(--card-bg) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+  border-radius: var(--radius-sm);
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
   }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Progress indicator */
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--border-color);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-bar::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  border-radius: 4px;
+  transition: width var(--transition);
+}
+
+/* Modern form styling */
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-label {
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+  display: block;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Toggle switch */
+.toggle-switch {
+  position: relative;
+  width: 60px;
+  height: 32px;
+  background: var(--border-color);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.toggle-switch.active {
+  background: var(--primary);
+}
+
+.toggle-switch::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 24px;
+  height: 24px;
+  background: white;
+  border-radius: 50%;
+  transition: all var(--transition);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch.active::after {
+  transform: translateX(28px);
+}
   

@@ -24,15 +24,96 @@
   <style>
     body {
       font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+      background-attachment: fixed;
     }
+    
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle at 30% 70%, rgba(59, 130, 246, 0.08) 0%, transparent 50%),
+                  radial-gradient(circle at 70% 30%, rgba(34, 197, 94, 0.08) 0%, transparent 50%);
+      pointer-events: none;
+      z-index: -1;
+    }
+    
     .btn-modern {
       font-size: 0.875rem;
-      font-weight: 500;
-      letter-spacing: 0.025em;
-      transition: all 0.2s;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      text-transform: uppercase;
+      position: relative;
+      overflow: hidden;
+      backdrop-filter: blur(12px);
     }
+    
     .btn-modern:hover {
-      transform: translateY(-1px);
+      transform: translateY(-3px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.25);
+    }
+    
+    .btn-modern::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      transition: width 0.6s, height 0.6s;
+      z-index: 0;
+    }
+    
+    .btn-modern:active::before {
+      width: 300px;
+      height: 300px;
+    }
+    
+    .btn-modern > * {
+      position: relative;
+      z-index: 1;
+    }
+    
+    /* Custom slider styling */
+    .slider-modern {
+      background: rgba(255, 255, 255, 0.1);
+      outline: none;
+      border-radius: 12px;
+    }
+    
+    .slider-modern::-webkit-slider-thumb {
+      appearance: none;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #3b82f6, #22c55e);
+      cursor: pointer;
+      border: 2px solid white;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    
+    .slider-modern::-moz-range-thumb {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #3b82f6, #22c55e);
+      cursor: pointer;
+      border: 2px solid white;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    
+    /* Glass effect for modal */
+    .glass-strong {
+      background: rgba(30, 41, 59, 0.8);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
     }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
@@ -118,15 +199,15 @@
       <img src="icon.png" alt="Hazard Detection Logo" class="w-full max-w-xs aspect-square mb-6 rounded-lg shadow-md">
       <h1 class="text-3xl font-bold text-gray-700 dark:text-white mb-8">Hazard Detection</h1>
       <div class="space-y-4 w-full max-w-xs">
-        <a href="/dashboard.html" class="btn-modern flex items-center justify-center w-full bg-blue-500 hover:bg-blue-600 text-white py-3 px-4 rounded-xl shadow-md">
+        <a href="/dashboard.html" class="btn-modern flex items-center justify-center w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-4 px-6 rounded-2xl shadow-lg">
           <i class="fas fa-chart-line text-xl mr-3"></i>
           <span class="text-sm font-medium">View Dashboard</span>
         </a>
-        <a href="/camera.html" class="btn-modern flex items-center justify-center w-full bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-xl shadow-md">
+        <a href="/camera.html" class="btn-modern flex items-center justify-center w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white py-4 px-6 rounded-2xl shadow-lg">
           <i class="fas fa-camera text-xl mr-3"></i>
           <span class="text-sm font-medium">Start Live Detection</span>
         </a>
-        <button id="show-upload-section-btn" class="btn-modern flex items-center justify-center w-full bg-indigo-500 hover:bg-indigo-600 text-white py-3 px-4 rounded-xl shadow-md">
+        <button id="show-upload-section-btn" class="btn-modern flex items-center justify-center w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-4 px-6 rounded-2xl shadow-lg">
           <i class="fas fa-upload text-xl mr-3"></i>
           <span class="text-sm font-medium">Upload Image for Detection</span>
         </button>
@@ -134,30 +215,30 @@
     </div>
 
     <!-- חלון צף במסך מלא -->
-    <div id="detection-section" style="display: none;" class="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
-      <div class="bg-white dark:bg-gray-900 w-full h-full md:h-[95vh] md:w-[95vw] md:rounded-2xl md:m-auto transform transition-all duration-300 scale-95 opacity-0 overflow-auto p-6">
-        <div class="flex justify-between items-center mb-8 border-b dark:border-gray-700 pb-4">
-          <h2 class="text-3xl font-bold text-gray-700 dark:text-white">Upload Image for Detection</h2>
-          <button id="close-upload-section-btn" class="text-gray-500 hover:text-red-500 text-3xl transition-colors duration-200 p-2">
+    <div id="detection-section" style="display: none;" class="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50">
+      <div class="glass-strong w-full h-full md:h-[95vh] md:w-[95vw] md:rounded-3xl md:m-auto transform transition-all duration-500 scale-95 opacity-0 overflow-auto p-8 border border-white/10">
+        <div class="flex justify-between items-center mb-10 border-b border-white/10 pb-6">
+          <h2 class="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">Upload Image for Detection</h2>
+          <button id="close-upload-section-btn" class="text-white/60 hover:text-red-400 text-3xl transition-all duration-300 p-3 rounded-full hover:bg-white/10">
             <i class="fas fa-times"></i>
           </button>
         </div>
         <div class="space-y-4">
           <div>
-            <label for="image-upload" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select Image:</label>
+            <label for="image-upload" class="block text-sm font-semibold text-white/90 mb-3 uppercase tracking-wider">Select Image:</label>
             <div class="flex items-center w-full">
-              <input type="file" id="image-upload" accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 file:transition-all file:duration-200 hover:file:shadow-md">
+              <input type="file" id="image-upload" accept="image/*" class="block w-full text-sm text-white/80 file:mr-4 file:py-3 file:px-6 file:rounded-2xl file:border-0 file:text-sm file:font-semibold file:bg-gradient-to-r file:from-indigo-600 file:to-purple-600 file:text-white hover:file:from-indigo-700 hover:file:to-purple-700 file:transition-all file:duration-300 hover:file:shadow-xl file:backdrop-blur-sm">
           </div>
           <div>
-            <label for="confidence-slider" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Confidence Threshold: <span id="conf-value" class="font-semibold text-indigo-600">0.5</span>
+            <label for="confidence-slider" class="block text-sm font-semibold text-white/90 uppercase tracking-wider">
+              Confidence Threshold: <span id="conf-value" class="font-bold text-blue-400">0.5</span>
             </label>
-            <input type="range" id="confidence-slider" min="0" max="1" step="0.05" value="0.5" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+            <input type="range" id="confidence-slider" min="0" max="1" step="0.05" value="0.5" class="slider-modern w-full h-3 rounded-full appearance-none cursor-pointer">
           </div>
-          <div class="canvas-container border-2 border-dashed border-gray-300 rounded-xl overflow-hidden bg-gray-50 flex items-center justify-center transition-all duration-200 hover:border-indigo-400 mx-auto" style="min-height: 400px; max-width: 800px;">
+          <div class="canvas-container border-2 border-dashed border-white/20 rounded-2xl overflow-hidden bg-white/5 backdrop-blur-sm flex items-center justify-center transition-all duration-300 hover:border-blue-400 hover:bg-white/10 mx-auto" style="min-height: 400px; max-width: 800px;">
             <canvas id="preview-canvas" class="max-w-full max-h-[60vh]"></canvas>
           </div>
-          <button id="save-detection" class="btn-modern flex items-center justify-center w-full bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-xl shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
+          <button id="save-detection" class="btn-modern flex items-center justify-center w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white py-4 px-6 rounded-2xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none">
             <i class="fas fa-save text-xl mr-3"></i>
             <span class="text-sm font-medium">Save Detection</span>
           </button>

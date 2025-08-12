@@ -111,57 +111,69 @@
         max-height: 40vh;
       }
     }
-    /* NEW: Floating Menu styles */
+    /* Enhanced Floating Menu styles */
     .floating-menu-btn {
       position: fixed;
-      bottom: 20px;
-      right: 20px;
-      background: #f7c873;
-      color: #12141d;
+      bottom: 2rem;
+      right: 2rem;
+      background: linear-gradient(135deg, #3b82f6 0%, #22c55e 100%);
+      color: white;
       border: none;
       border-radius: 50%;
-      width: 60px;
-      height: 60px;
+      width: 64px;
+      height: 64px;
       display: flex;
       justify-content: center;
       align-items: center;
       font-size: 1.5rem;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
       cursor: pointer;
       z-index: 1400;
-      transition: background 0.3s;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      backdrop-filter: blur(12px);
     }
     .floating-menu-btn:hover {
-      background: #e6b55f;
+      background: linear-gradient(135deg, #2563eb 0%, #16a34a 100%);
+      transform: scale(1.1) translateY(-2px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+    .floating-menu-btn:active {
+      transform: scale(0.95);
     }
     .floating-menu {
       position: fixed;
-      bottom: 80px;
-      right: 20px;
-      background: rgba(31,34,53,0.95);
-      border-radius: 8px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.7);
+      bottom: 100px;
+      right: 2rem;
+      background: rgba(30, 41, 59, 0.9);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(148, 163, 184, 0.1);
+      border-radius: 16px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
       display: none;
       flex-direction: column;
-      gap: 10px;
-      padding: 10px;
+      gap: 8px;
+      padding: 1rem;
       z-index: 1500;
+      min-width: 180px;
     }
     .floating-menu.active {
       display: flex;
     }
     .floating-menu a {
-      color: #cbd2d9;
+      color: #e2e8f0;
       text-decoration: none;
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 10px;
-      border-radius: 4px;
-      transition: background 0.3s;
+      gap: 12px;
+      padding: 12px 16px;
+      border-radius: 12px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      font-weight: 500;
     }
     .floating-menu a:hover {
-      background: rgba(247,200,115,0.1);
+      background: rgba(59, 130, 246, 0.2);
+      transform: translateX(4px);
+      color: #3b82f6;
     }
     .menu-overlay {
       position: fixed;

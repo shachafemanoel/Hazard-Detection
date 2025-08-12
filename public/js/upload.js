@@ -164,7 +164,7 @@ saveBtn.addEventListener("click", () => {
   const FIXED_SIZE =640;
 
   // רשימת המחלקות
-  const classNames = ['Alligator Crack', 'Block Crack', 'Construction Joint Crack', 'Crosswalk Blur', 'Lane Blur', 'Longitudinal Crack', 'Manhole', 'Patch Repair', 'Pothole', 'Transverse Crack', 'Wheel Mark Crack'];
+  const classNames = ['crack', 'pothole'];
 
   let session = null;
   
@@ -173,7 +173,7 @@ saveBtn.addEventListener("click", () => {
 
   try {
     session = await ort.InferenceSession.create(
-      '/object_detecion_model/road_damage_detection_last_version.onnx',
+      '/object_detecion_model/best-11-8-2025.onnx',
       { executionProviders: ['cpu'] }
     );
     
