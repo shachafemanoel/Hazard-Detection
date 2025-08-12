@@ -3,18 +3,28 @@ document.addEventListener("DOMContentLoaded", async () => {
     const video = document.getElementById("camera-stream");
     const canvas = document.getElementById("overlay-canvas");
     const ctx = canvas.getContext("2d");
+    const loadingOverlay = document.getElementById("loading-overlay");
 
     let localSession = null;
     let detecting = false;
     const API_URL = 'http://localhost:8000/api/v1/detect';
+
+    // --- Utility Functions ---
+    const hideLoadingOverlay = () => {
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'none';
+        }
+    };
 
     // --- 1. Initialize Local Fallback Engine ---
     try {
         ort.env.wasm.wasmPaths = '/ort/';
         localSession = await ort.InferenceSession.create('/object_detecion_model/best-11-8-2025.onnx');
         console.log("✅ Local fallback engine initialized for camera.");
+        hideLoadingOverlay(); // Hide loading on success
     } catch (e) {
         console.error("❌ Camera fallback engine failed to load.", e);
+        hideLoadingOverlay(); // Also hide loading on failure to allow API fallback
     }
 
     // --- 2. Main Detection Loop ---
