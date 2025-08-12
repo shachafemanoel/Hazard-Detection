@@ -4,27 +4,45 @@ document.addEventListener("DOMContentLoaded", async () => {
     const canvas = document.getElementById("overlay-canvas");
     const ctx = canvas.getContext("2d");
     const loadingOverlay = document.getElementById("loading-overlay");
+    const startBtn = document.getElementById("start-camera");
+    const stopBtn = document.getElementById("stop-camera");
+    const switchBtn = document.getElementById("switch-camera");
+    const cameraSelect = document.getElementById("camera-select");
+    const brightnessSlider = document.getElementById("brightness-slider");
+    const zoomSlider = document.getElementById("zoom-slider");
+
+    const controls = [startBtn, stopBtn, switchBtn, cameraSelect, brightnessSlider, zoomSlider];
 
     let localSession = null;
     let detecting = false;
     const API_URL = 'http://localhost:8000/api/v1/detect';
 
     // --- Utility Functions ---
+    const setControlsEnabled = (enabled) => {
+        controls.forEach(control => {
+            if (control) control.disabled = !enabled;
+        });
+    };
+
     const hideLoadingOverlay = () => {
         if (loadingOverlay) {
             loadingOverlay.style.display = 'none';
         }
     };
 
+    // --- Initial State ---
+    setControlsEnabled(false);
+
     // --- 1. Initialize Local Fallback Engine ---
     try {
         ort.env.wasm.wasmPaths = '/ort/';
         localSession = await ort.InferenceSession.create('/object_detecion_model/best-11-8-2025.onnx');
         console.log("✅ Local fallback engine initialized for camera.");
-        hideLoadingOverlay(); // Hide loading on success
     } catch (e) {
         console.error("❌ Camera fallback engine failed to load.", e);
-        hideLoadingOverlay(); // Also hide loading on failure to allow API fallback
+    } finally {
+        hideLoadingOverlay();
+        setControlsEnabled(true);
     }
 
     // --- 2. Main Detection Loop ---
@@ -100,7 +118,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     };
 
     // --- Camera start button logic ---
-    const startBtn = document.getElementById("start-camera");
     startBtn.addEventListener("click", () => {
         navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
             video.srcObject = stream;
