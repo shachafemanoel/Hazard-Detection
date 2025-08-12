@@ -15,7 +15,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     let localSession = null;
     let detecting = false;
-    const API_URL = 'http://localhost:8000/api/v1/detect';
+    const API_URL = 'https://hazard-detection-production-8735.up.railway.app/api/v1/detect';
 
     // --- Utility Functions ---
     const setControlsEnabled = (enabled) => {
@@ -79,10 +79,21 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const formData = new FormData();
                 formData.append("file", blob, "frame.jpg");
                 try {
-                    const response = await fetch(API_URL, { method: 'POST', body: formData });
-                    if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+                    const response = await fetch(API_URL, { 
+                        method: 'POST', 
+                        body: formData,
+                        mode: 'cors'
+                    });
+                    if (!response.ok) throw new Error(`API Error: ${response.status} ${response.statusText}`);
                     const data = await response.json();
-                    resolve(data.detections);
+                    // Handle both new /api/v1/detect format and legacy format
+                    const detections = data.detections || data.results || [];
+                    resolve(detections.map(det => ({
+                        ...det,
+                        box: det.box || det.bbox, // Handle both 'box' and 'bbox' formats
+                        confidence: det.confidence,
+                        class_name: det.class_name
+                    })));
                 } catch (error) {
                     reject(error);
                 }

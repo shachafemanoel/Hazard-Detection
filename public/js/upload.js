@@ -27,7 +27,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     let localSession = null;
     let currentImage = null;
-    const API_URL = 'http://localhost:8000/api/v1/detect';
+    const API_URL = 'https://hazard-detection-production-8735.up.railway.app/api/v1/detect';
 
     // --- Initialize Local Fallback Engine ---
     try {
@@ -61,12 +61,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     const getDetectionsFromAPI = async (file) => {
         const formData = new FormData();
         formData.append("file", file);
-        const response = await fetch(API_URL, { method: 'POST', body: formData });
-        if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+        const response = await fetch(API_URL, { 
+            method: 'POST', 
+            body: formData,
+            mode: 'cors'
+        });
+        if (!response.ok) throw new Error(`API Error: ${response.status} ${response.statusText}`);
         const data = await response.json();
-        return data.detections.map(det => ({
+        // Handle both new /api/v1/detect format and legacy format
+        const detections = data.detections || data.results || [];
+        return detections.map(det => ({
             ...det,
-            box: det.box.map(coord => Math.round(coord))
+            box: det.box || det.bbox, // Handle both 'box' and 'bbox' formats
+            confidence: det.confidence,
+            class_name: det.class_name
         }));
     };
 
