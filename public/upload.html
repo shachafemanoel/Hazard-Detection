@@ -20,6 +20,7 @@
 
   <!-- Modern UI Theme CSS -->
   <link rel="stylesheet" href="css/modern-ui-theme.css">
+  <link rel="stylesheet" href="css/main.css">
   
   <style>
     body {
@@ -192,6 +193,7 @@
   </style>
 </head>
 <body class="bg-gray-100 dark:bg-gray-900 dark:text-white">
+  <span id="mode-badge"></span>
   <div class="content-wrapper">
     <button id="logout-btn" class="fixed top-4 left-4 bg-red-500 hover:bg-red-600 text-white text-xs px-3 py-1.5 rounded-full shadow-sm z-50 uppercase tracking-wide">logout</button>
 
@@ -236,7 +238,7 @@
             </label>
             <input type="range" id="confidence-slider" min="0" max="1" step="0.05" value="0.5" class="slider-modern w-full h-3 rounded-full appearance-none cursor-pointer">
           </div>
-          <div class="canvas-container border-2 border-dashed border-white/20 rounded-2xl overflow-hidden bg-white/5 backdrop-blur-sm flex items-center justify-center transition-all duration-300 hover:border-blue-400 hover:bg-white/10 mx-auto" style="min-height: 400px; max-width: 800px;">
+          <div id="drop-zone" class="canvas-container border-2 border-dashed border-white/20 rounded-2xl overflow-hidden bg-white/5 backdrop-blur-sm flex items-center justify-center transition-all duration-300 hover:border-blue-400 hover:bg-white/10 mx-auto" style="min-height: 400px; max-width: 800px;">
             <canvas id="preview-canvas" class="max-w-full max-h-[60vh]"></canvas>
           </div>
           <button id="save-detection" class="btn-modern flex items-center justify-center w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white py-4 px-6 rounded-2xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none">
@@ -258,7 +260,7 @@
     </div>
   </div>
 
-  <script type="module" src="../js/upload.js" defer></script>
+  <script type="module" src="js/upload.js" defer></script>
   <script>
     const detectionSection = document.getElementById('detection-section');
     const showUploadSectionBtn = document.getElementById('show-upload-section-btn');
