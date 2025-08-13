@@ -33,12 +33,14 @@ document.addEventListener("DOMContentLoaded", () => {
   let detectedObjectCount = 0; // Initialize object count
   let uniqueHazardTypes = []; // Initialize array for unique hazard types    
   // ────────────────────────────────────────────────────────────────────────────────
-  //  📸  Enumerate devices once on load
+  //  📸  Function to enumerate and populate camera devices
   // ────────────────────────────────────────────────────────────────────────────────
-  (async () => {
+  async function enumerateAndPopulateCameras() {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       videoDevices = devices.filter((d) => d.kind === "videoinput");
+      
+      console.log(`📸 Found ${videoDevices.length} video devices:`, videoDevices);
       
       // Populate camera dropdown
       if (cameraSelect && videoDevices.length > 0) {
@@ -51,13 +53,22 @@ document.addEventListener("DOMContentLoaded", () => {
         });
       }
       
+      // Show switch button and dropdown if multiple cameras
       if (videoDevices.length > 1) {
         switchBtn.style.display = "inline-block";
         if (cameraSelect) cameraSelect.style.display = "inline-block";
+      } else {
+        switchBtn.style.display = "none";
+        if (cameraSelect) cameraSelect.style.display = "none";
       }
     } catch (err) {
       console.warn("⚠️ Could not enumerate video devices:", err);
     }
+  }
+
+  // Initial enumeration (may not have labels without permission)
+  (async () => {
+    await enumerateAndPopulateCameras();
 
     // --- טעינת המודל מיד עם טעינת הדף ---
     (async () => {
@@ -447,12 +458,22 @@ async function fallbackIpLocation() {
     // 2. אחר כך מבקשים הרשאה למצלמה
     try {
       stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      
+      // Re-enumerate cameras after permission is granted to get proper labels
+      await enumerateAndPopulateCameras();
+      
       video.srcObject = stream;
       startBtn.style.display = "none";
       stopBtn.style.display = "inline-block";
       detectedObjectCount = 0; // Initialize object count
       uniqueHazardTypes = []; // Initialize array for unique hazard types 
-      switchBtn.style.display = videoDevices.length > 1 ? "inline-block" : "none";
+      
+      // Show camera controls only if we have cameras
+      if (videoDevices.length > 1) {
+        switchBtn.style.display = "inline-block";
+        if (cameraSelect) cameraSelect.style.display = "inline-block";
+      }
+      
       video.addEventListener(
         "loadeddata",
         () => {
