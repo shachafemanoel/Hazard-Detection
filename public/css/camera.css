@@ -236,20 +236,110 @@
     max-width: 300px;
 }
 
-/* Loading Overlay */
+/* Enhanced Loading Overlay */
 #loading-overlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(31, 34, 53, 0.95);
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95));
+    backdrop-filter: blur(20px);
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     z-index: 9999;
     color: #f7c873;
+    font-family: 'Poppins', sans-serif;
+}
+
+.loading-content {
+    background: rgba(30, 41, 59, 0.8);
+    border: 1px solid rgba(247, 200, 115, 0.2);
+    border-radius: 24px;
+    padding: 3rem 2rem;
+    text-align: center;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    min-width: 300px;
+    max-width: 90vw;
+}
+
+.loading-spinner {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 2rem;
+    position: relative;
+}
+
+.spinner-ring {
+    display: inline-block;
+    width: 60px;
+    height: 60px;
+    border: 4px solid rgba(247, 200, 115, 0.2);
+    border-radius: 50%;
+    border-top: 4px solid #f7c873;
+    animation: spin 1s linear infinite;
+    position: relative;
+}
+
+.spinner-ring::after {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    right: -4px;
+    bottom: -4px;
+    border: 2px solid transparent;
+    border-top: 2px solid #3b82f6;
+    border-radius: 50%;
+    animation: spin 2s linear infinite reverse;
+}
+
+.loading-text {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    background: linear-gradient(135deg, #f7c873, #3b82f6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.loading-subtext {
+    font-size: 0.9rem;
+    color: #94a3b8;
+    margin-bottom: 1.5rem;
+    line-height: 1.4;
+}
+
+.loading-progress {
+    width: 100%;
+    height: 8px;
+    background: rgba(148, 163, 184, 0.2);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 1rem;
+}
+
+.loading-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #f7c873, #3b82f6);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+    width: 0%;
+    animation: progressPulse 2s ease-in-out infinite;
+}
+
+@keyframes progressPulse {
+    0%, 100% { opacity: 0.8; }
+    50% { opacity: 1; }
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
 
 /* --- Responsive camera wrapper with 16:9 aspect ratio --- */
@@ -293,6 +383,109 @@
   }
 }
 
+/* Performance Indicators */
+.performance-indicator {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    background: rgba(30, 41, 59, 0.9);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 12px;
+    padding: 12px 16px;
+    font-size: 12px;
+    color: #3b82f6;
+    font-weight: 600;
+    backdrop-filter: blur(8px);
+    z-index: 150;
+    font-family: 'Courier New', monospace;
+    min-width: 120px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.performance-indicator .fps {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 14px;
+}
+
+.performance-indicator .latency {
+    display: block;
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+.performance-indicator.good {
+    border-color: rgba(34, 197, 94, 0.4);
+    color: #22c55e;
+}
+
+.performance-indicator.warning {
+    border-color: rgba(245, 158, 11, 0.4);
+    color: #f59e0b;
+}
+
+.performance-indicator.poor {
+    border-color: rgba(239, 68, 68, 0.4);
+    color: #ef4444;
+}
+
+/* Real-time Detection Status */
+.detection-status {
+    position: fixed;
+    bottom: 140px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(30, 41, 59, 0.9);
+    border: 1px solid rgba(247, 200, 115, 0.3);
+    border-radius: 20px;
+    padding: 8px 16px;
+    font-size: 12px;
+    color: #f7c873;
+    font-weight: 500;
+    backdrop-filter: blur(8px);
+    z-index: 150;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+    transition: all 0.3s ease;
+}
+
+.detection-status.active {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+.detection-status .status-icon {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #22c55e;
+    animation: pulse 2s infinite;
+}
+
+.detection-status.processing .status-icon {
+    background: #f59e0b;
+    animation: spin 1s linear infinite;
+}
+
+.detection-status.idle .status-icon {
+    background: #6b7280;
+    animation: none;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.5;
+        transform: scale(1.2);
+    }
+}
+
 /* Animations */
 @keyframes slideIn {
     from {
@@ -332,83 +525,264 @@
     }
 }
 
-/* Mobile Responsiveness */
+/* Enhanced Mobile Responsiveness */
 @media (max-width: 768px) {
     #camera-container {
-        padding: 10px;
-        margin: 10px;
-        border-radius: 8px;
+        padding: 8px;
+        margin: 0;
+        height: 100vh;
+        border-radius: 0;
+    }
+
+    .camera-wrapper {
+        height: calc(100vh - 120px);
+        margin: 0;
+        border-radius: 0;
+        background: #000;
+    }
+
+    #camera-stream, #overlay-canvas {
+        border-radius: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
     }
 
     .camera-controls {
-        flex-direction: column;
-        gap: 8px;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        padding: 12px 16px;
+        background: rgba(20, 22, 33, 0.95);
+        backdrop-filter: blur(12px);
+        border-radius: 20px 20px 0 0;
+        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        z-index: 200;
+        transform: none;
+        max-height: 120px;
+        overflow: hidden;
     }
 
     .camera-controls button {
-        max-width: 100%;
+        min-width: 60px;
+        max-width: none;
+        padding: 12px 16px;
+        border-radius: 12px;
+        font-size: 14px;
+        font-weight: 600;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
     }
 
-    #object-count-overlay,
-    #hazard-types-overlay {
-        font-size: 12px;
-        padding: 8px 12px;
+    .camera-controls button i {
+        font-size: 16px;
+    }
+
+    .additional-controls {
+        width: 100%;
+        margin-top: 8px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .additional-controls > * {
+        flex: 1;
+        min-width: 80px;
     }
 
     #object-count-overlay {
-        top: 70px;
+        top: 60px;
+        right: 12px;
+        font-size: 11px;
+        padding: 6px 10px;
+        border-radius: 20px;
+        backdrop-filter: blur(8px);
+        background: rgba(31, 34, 53, 0.9);
+        border: 1px solid rgba(247, 200, 115, 0.3);
     }
 
-    .camera-controls {
-        width: calc(100% - 40px);
-        flex-direction: column;
-        bottom: 10px;
+    #hazard-types-overlay {
+        top: 100px;
+        right: 12px;
+        left: 12px;
+        bottom: auto;
+        max-width: calc(100% - 24px);
+        font-size: 11px;
+        padding: 8px 12px;
+        border-radius: 12px;
+        backdrop-filter: blur(8px);
+        background: rgba(31, 34, 53, 0.9);
+        border: 1px solid rgba(247, 200, 115, 0.3);
+        word-wrap: break-word;
+        line-height: 1.3;
     }
 
     .hazard-notification {
-        right: 10px;
-        left: 10px;
-        max-width: calc(100% - 20px);
+        right: 12px;
+        left: 12px;
+        top: 12px;
+        max-width: calc(100% - 24px);
+        border-radius: 12px;
+        padding: 12px 16px;
+        font-size: 13px;
     }
 
-    #object-count-overlay,
-    #hazard-types-overlay {
-        padding: 8px 12px;
+    .hazard-notification h3 {
+        font-size: 14px;
+        margin-bottom: 4px;
+    }
+
+    .hazard-notification p {
         font-size: 12px;
-    }
-
-    #hazard-types-overlay {
-        bottom: unset;
-        top: 70px;
-        max-width: calc(100% - 20px);
+        white-space: normal;
+        text-overflow: unset;
+        overflow: visible;
     }
 }
 
-/* Tablet */
+/* Enhanced Tablet Responsiveness */
 @media (min-width: 769px) and (max-width: 1024px) {
     #camera-container {
-        margin: 15px;
-        padding: 15px;
+        padding: 16px;
+        margin: 0;
+        height: 100vh;
+    }
+
+    .camera-wrapper {
+        height: calc(100vh - 140px);
+        max-width: 90%;
+        margin: 0 auto;
     }
 
     .camera-controls {
+        position: fixed;
+        bottom: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: auto;
+        min-width: 400px;
+        max-width: 600px;
+        padding: 12px 20px;
         justify-content: center;
+        gap: 16px;
+        border-radius: 16px;
+        backdrop-filter: blur(16px);
+        background: rgba(20, 22, 33, 0.92);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    .camera-controls button {
+        min-width: 80px;
+        padding: 10px 16px;
+        font-size: 14px;
+    }
+
+    #object-count-overlay {
+        top: 80px;
+        right: 24px;
+        font-size: 13px;
+        padding: 10px 16px;
+    }
+
+    #hazard-types-overlay {
+        top: 120px;
+        right: 24px;
+        max-width: 350px;
+        font-size: 13px;
+        padding: 12px 16px;
     }
 }
 
 .additional-controls {
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin-top: 10px;
+    gap: 12px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
 }
+
 .additional-controls label {
     color: #cbd2d9;
-    font-size: 14px;
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
 }
+
 .additional-controls input[type="range"] {
     -webkit-appearance: none;
-    width: 120px;
-    background: transparent;
+    width: 100px;
+    height: 6px;
+    background: rgba(203, 210, 217, 0.2);
+    border-radius: 3px;
     cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.additional-controls input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #3b82f6, #22c55e);
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    transition: all 0.2s ease;
+}
+
+.additional-controls input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+    box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+}
+
+.additional-controls select {
+    background: rgba(51, 65, 85, 0.9);
+    border: 1px solid rgba(203, 210, 217, 0.3);
+    border-radius: 8px;
+    color: #cbd2d9;
+    padding: 6px 10px;
+    font-size: 13px;
+    min-width: 100px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.additional-controls select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+/* Responsive adjustments for controls */
+@media (max-width: 480px) {
+    .additional-controls {
+        gap: 8px;
+    }
+    
+    .additional-controls input[type="range"] {
+        width: 80px;
+    }
+    
+    .additional-controls label {
+        font-size: 12px;
+    }
+    
+    .additional-controls select {
+        font-size: 12px;
+        padding: 4px 8px;
+        min-width: 80px;
+    }
 }

@@ -10,10 +10,15 @@ This is a hazard detection system for road infrastructure that combines AI/ML ob
 
 ### Core Components
 - **Node.js/Express Backend** (`server/server.js`): Main application server handling authentication, API routes, and Redis data storage
-- **Python FastAPI** (`server/app.py`): AI/ML inference service for YOLO object detection  
+- **Python FastAPI** (`server/app.py`): AI/ML inference service for YOLO object detection running on port 8000
 - **Frontend**: Static HTML/CSS/JS files in `public/` directory with dashboard, upload, and camera interfaces
 - **Redis**: Session storage and report data persistence
 - **AI Models**: YOLO-based road damage detection models in multiple formats (ONNX, PyTorch, TensorFlow)
+
+### Dual AI Inference Architecture
+- **Client-side**: ONNX Runtime Web for real-time browser inference (primary)
+- **Server-side**: Python FastAPI with PyTorch YOLO models (fallback/batch processing)
+- **Model files**: Stored in both `public/object_detecion_model/` and `public/object_detection_model/` directories
 
 ### Authentication & Session Management
 - Supports both Google OAuth2 and traditional username/password authentication
@@ -40,16 +45,31 @@ This is a hazard detection system for road infrastructure that combines AI/ML ob
 
 ### Server Development
 ```bash
-# Start development server with auto-reload
+# Start development server with auto-reload (watches server/ directory)
 npm run dev
 
 # Start production server  
 npm start
 ```
 
+### Python FastAPI Service
+```bash
+# Run the AI inference service (required for server-side YOLO detection)
+cd server
+python app.py
+# OR with uvicorn directly:
+uvicorn app:app --reload --host 0.0.0.0 --port 8000
+```
+
+### CSS Development
+```bash
+# Build Tailwind CSS (when making style changes)
+npx tailwindcss -i ./src/css/input.css -o ./dist/output.css --watch
+```
+
 ### Environment Setup
-Create environment files for different environments:
-- `.env` - Development environment variables
+Create environment files in the `server/` directory:
+- `server/.env` - Development environment variables (loaded by server.js)
 - `.env.production` - Production environment variables  
 - `.env.model` - Model-specific configuration
 
@@ -59,8 +79,20 @@ Required environment variables:
 - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALLBACK_URL` - Google OAuth
 - `SENDGRID_API_KEY` - Email service for password reset
 - `SESSION_SECRET` - Session encryption key
+- `PORT` - Server port (defaults to 3000)
 
-### Docker Deployment
+**Note**: Environment files must be placed in the `server/` directory as the application loads them from `path.join(__dirname, '.env')`
+
+### Deployment
+
+#### Render.com (Primary)
+```bash
+# Deploy configuration in render.yaml
+# Build: npm install
+# Start: npm start
+```
+
+#### Local Docker
 ```bash
 # Build Docker image
 docker build -t hazard-detection .
@@ -83,9 +115,11 @@ docker run -p 3000:3000 hazard-detection
 - `public/dashboard.html` - Admin dashboard with map view
 
 ### AI/ML Components
-- `public/object_detecion_model/` - Contains all model files (ONNX, PyTorch, TensorFlow)
+- `public/object_detecion_model/` - Primary ONNX model files for browser inference
+- `public/object_detection_model/` - PyTorch model files for server-side processing
 - `public/js/yolo_tfjs.js` - Client-side AI inference using ONNX Runtime
-- `public/ort/` - ONNX Runtime Web distribution files
+- `public/ort/` - ONNX Runtime Web distribution files (complete WebAssembly build)
+- `server/app.py` - FastAPI service using Ultralytics YOLO for server-side inference
 
 ### Styling
 - `tailwind.config.js` - Tailwind CSS configuration
@@ -152,4 +186,14 @@ docker run -p 3000:3000 hazard-detection
 - Support for real-time browser inference via ONNX Runtime Web
 - Fallback from WebGL to CPU execution providers
 - Models located in `public/object_detecion_model/` directory
-- Primary model: `road_damage_detection_last_version.onnx`
+- Primary models:
+  - Browser: `road_damage_detection_last_version.onnx` 
+  - Server: `road_damage_detection_last_version.pt`
+- Multiple model versions available for different performance/accuracy tradeoffs
+
+### Python Dependencies
+The FastAPI service requires:
+- `fastapi` - Web framework
+- `ultralytics` - YOLO model inference
+- `PIL` (Pillow) - Image processing
+- `uvicorn` - ASGI server (for standalone FastAPI deployment)
