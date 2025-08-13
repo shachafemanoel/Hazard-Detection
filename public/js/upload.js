@@ -12,6 +12,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   const ctx = canvas ? canvas.getContext("2d") : null; // Check if canvas exists
   const logoutBtn = document.getElementById("logout-btn");
   const saveBtn = document.getElementById("save-detection");
+  const getLocationBtn = document.getElementById("get-location-btn");
 
   // Toast Notification Elements
   const toastElement = document.getElementById('toast-notification');
@@ -36,6 +37,56 @@ document.addEventListener("DOMContentLoaded", async function () {
   }
 
   let geoData = null;
+  let currentLocationData = null;
+
+  // פונקציה לקבלת מיקום נוכחי
+  async function getCurrentLocation() {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error("Geolocation not supported"));
+        return;
+      }
+
+      const options = {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 300000 // 5 דקות מטמון
+      };
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const locationData = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracy: position.coords.accuracy
+          };
+          console.log("📍 Got current location:", locationData);
+          resolve(JSON.stringify(locationData));
+        },
+        (error) => {
+          console.warn("⚠️ Location error:", error);
+          // נסיון עם הגדרות פחות מדויקות
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              const locationData = {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude,
+                accuracy: position.coords.accuracy
+              };
+              console.log("📍 Got fallback location:", locationData);
+              resolve(JSON.stringify(locationData));
+            },
+            (fallbackError) => {
+              console.error("❌ Both location attempts failed:", fallbackError);
+              reject(fallbackError);
+            },
+            { enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 }
+          );
+        },
+        options
+      );
+    });
+  }
 
   function getGeoDataFromImage(file) {
     // ... (קוד פונקציה זהה)
@@ -107,15 +158,27 @@ document.addEventListener("DOMContentLoaded", async function () {
 
 
 // שמירת התמונה והנתונים
-saveBtn.addEventListener("click", () => {
+saveBtn.addEventListener("click", async () => {
   if (!canvas) {
     showToast("❌ Canvas element not found.", "error");
     return;
   }
 
+  // אם אין מיקום, ננסה לקבל עכשיו
   if (!geoData) {
-    showToast("❌ Cannot save report without geolocation data.", "error");
-    return;
+    console.log("⚠️ No location data available, trying to get current location...");
+    try {
+      const currentLoc = await getCurrentLocation();
+      geoData = currentLoc;
+      currentLocationData = currentLoc;
+      console.log("✅ Got location for save");
+      showToast("📍 Got current location for report", "success");
+    } catch (err) {
+      console.warn("⚠️ Could not get location for save:", err);
+      // נמשיך בלי מיקום - נשתמש במיקום ברירת מחדל
+      geoData = JSON.stringify({ lat: 32.0853, lng: 34.7818 }); // תל אביב
+      showToast("⚠️ Using default location (Tel Aviv)", "warning");
+    }
   }
 
   canvas.toBlob(async (blob) => {
@@ -126,7 +189,17 @@ saveBtn.addEventListener("click", () => {
       formData.append("file", file);
       formData.append("geoData", geoData);  // הוספת המיקום לפורם דאטה
       formData.append("hazardTypes", hazardTypes.join(","));
-      formData.append("locationNote","GPS");
+      
+      // הוספת הערת מיקום מתאימה
+      let locationNote = "Unknown";
+      if (currentLocationData === geoData) {
+        locationNote = "Current GPS";
+      } else if (geoData.includes('32.0853')) {
+        locationNote = "Default Location";
+      } else {
+        locationNote = "EXIF GPS";
+      }
+      formData.append("locationNote", locationNote);
 
 
       try {
@@ -159,6 +232,39 @@ saveBtn.addEventListener("click", () => {
       }, 2500);
   }, "image/jpeg", 0.95);
 });
+
+  // כפתור קבלת מיקום ידני
+  if (getLocationBtn) {
+    getLocationBtn.addEventListener("click", async () => {
+      console.log("📍 Manual location request...");
+      getLocationBtn.disabled = true;
+      getLocationBtn.innerHTML = '<i class="fas fa-spinner fa-spin text-xl mr-3"></i><span class="text-sm font-medium">Getting Location...</span>';
+      
+      try {
+        const currentLoc = await getCurrentLocation();
+        geoData = currentLoc;
+        currentLocationData = currentLoc;
+        console.log("✅ Manual location acquired");
+        showToast("📍 Location acquired successfully", "success");
+        getLocationBtn.innerHTML = '<i class="fas fa-check text-xl mr-3"></i><span class="text-sm font-medium">Location Acquired</span>';
+        
+        setTimeout(() => {
+          getLocationBtn.innerHTML = '<i class="fas fa-map-marker-alt text-xl mr-3"></i><span class="text-sm font-medium">Get Current Location</span>';
+          getLocationBtn.disabled = false;
+        }, 2000);
+        
+      } catch (err) {
+        console.error("❌ Manual location failed:", err);
+        showToast("❌ Failed to get location. Check permissions.", "error");
+        getLocationBtn.innerHTML = '<i class="fas fa-exclamation-triangle text-xl mr-3"></i><span class="text-sm font-medium">Location Failed</span>';
+        
+        setTimeout(() => {
+          getLocationBtn.innerHTML = '<i class="fas fa-map-marker-alt text-xl mr-3"></i><span class="text-sm font-medium">Get Current Location</span>';
+          getLocationBtn.disabled = false;
+        }, 3000);
+      }
+    });
+  }
   
   // המודל (YOLO באון-אן-אקס) מיוצא לגודל 640x640
   const FIXED_SIZE =640;
@@ -199,14 +305,36 @@ saveBtn.addEventListener("click", () => {
   const file = event.target.files[0];
   if (!file || !canvas) return; // Add check for canvas
 
+  console.log("📷 Image selected, checking for location data...");
+
   // 1. נתחיל קריאת EXIF ברקע (לא חוסם את התצוגה)
-  getGeoDataFromImage(file).then(data => {
-    if (data) {
-      geoData = data;      // שומר מיקום אם קיים
+  try {
+    const exifData = await getGeoDataFromImage(file);
+    if (exifData) {
+      geoData = exifData;
+      currentLocationData = exifData;
+      console.log("✅ Using EXIF location data");
+      showToast("📍 Found location in image EXIF data", "success");
     } else {
-      console.warn("אין נתוני EXIF גיאו בתמונה הזאת");
+      console.log("⚠️ No EXIF location data, trying current location...");
+      // אם אין EXIF, ננסה לקבל מיקום נוכחי
+      try {
+        const currentLoc = await getCurrentLocation();
+        geoData = currentLoc;
+        currentLocationData = currentLoc;
+        console.log("✅ Using current location");
+        showToast("📍 Using current location", "success");
+      } catch (locationErr) {
+        console.warn("⚠️ Could not get current location:", locationErr);
+        showToast("⚠️ No location available - you can still analyze the image", "warning");
+        geoData = null;
+        currentLocationData = null;
+      }
     }
-  });
+  } catch (err) {
+    console.error("❌ Error getting location data:", err);
+    showToast("⚠️ Location error - you can still analyze the image", "warning");
+  }
 
   // 2. תמיד תציג תצוגה ותריץ את המודל
   const reader = new FileReader();
