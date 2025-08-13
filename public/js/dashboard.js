@@ -201,9 +201,11 @@ async function updateMapWithFilteredReports() {
     if (typeof window.plotReports === 'function') {
       await window.plotReports(state.filteredReports);
       console.log('✅ Map updated successfully with filtered reports');
+      setMapZoomToUser();
     } else if (typeof plotReports === 'function') {
       await plotReports(state.filteredReports);
       console.log('✅ Map updated successfully with filtered reports');
+      setMapZoomToUser();
     } else {
       console.warn('❌ plotReports function not available - map not updated');
     }
@@ -212,6 +214,19 @@ async function updateMapWithFilteredReports() {
     console.error('❌ Failed to update map with filtered reports:', error);
   }
 }
+
+export function setMapZoomToUser() {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(pos => {
+    const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    try {
+      centerMap(coords, 14);
+    } catch (e) {
+      console.warn('centerMap failed', e);
+    }
+  });
+}
+window.setMapZoomToUser = setMapZoomToUser;
 
 function getCurrentUser() {
   // Try to get current user from various sources

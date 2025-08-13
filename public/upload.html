@@ -20,6 +20,7 @@
 
   <!-- Modern UI Theme CSS -->
   <link rel="stylesheet" href="css/modern-ui-theme.css">
+  <link rel="stylesheet" href="css/main.css">
   
   <style>
     body {
@@ -117,13 +118,7 @@
     }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
-  <script type="module">
-    import * as ort from '/ort/ort.min.mjs';
-    ort.env.wasm.wasmPaths = '/ort/';
-    const isIsolated = typeof window !== 'undefined' && window.crossOriginIsolated === true;
-    ort.env.wasm.numThreads = isIsolated ? Math.min(navigator.hardwareConcurrency || 1, 4) : 1;
-    window.ort = ort;
-  </script>
+  <script src="ort/ort.min.js"></script>
 
   <style>
     :root {
@@ -192,6 +187,7 @@
   </style>
 </head>
 <body class="bg-gray-100 dark:bg-gray-900 dark:text-white">
+  <span id="mode-badge"></span>
   <div class="content-wrapper">
     <button id="logout-btn" class="fixed top-4 left-4 bg-red-500 hover:bg-red-600 text-white text-xs px-3 py-1.5 rounded-full shadow-sm z-50 uppercase tracking-wide">logout</button>
 
@@ -236,8 +232,24 @@
             </label>
             <input type="range" id="confidence-slider" min="0" max="1" step="0.05" value="0.5" class="slider-modern w-full h-3 rounded-full appearance-none cursor-pointer">
           </div>
-          <div class="canvas-container border-2 border-dashed border-white/20 rounded-2xl overflow-hidden bg-white/5 backdrop-blur-sm flex items-center justify-center transition-all duration-300 hover:border-blue-400 hover:bg-white/10 mx-auto" style="min-height: 400px; max-width: 800px;">
-            <canvas id="preview-canvas" class="max-w-full max-h-[60vh]"></canvas>
+          <div id="drop-zone" class="canvas-container border-2 border-dashed border-white/20 rounded-2xl overflow-hidden bg-white/5 backdrop-blur-sm flex items-center justify-center transition-all duration-300 hover:border-blue-400 hover:bg-white/10 mx-auto" style="min-height: 400px; max-width: 800px;">
+            <div class="position-relative w-100 h-100">
+              <video id="video" autoplay playsinline class="w-100 h-100 object-cover"></video>
+              <canvas id="overlay" class="position-absolute top-0 start-0 w-100 h-100"></canvas>
+            </div>
+          </div>
+          <div class="camera-controls d-flex flex-wrap gap-2">
+            <button id="start" class="btn btn-primary btn-sm">Start Camera</button>
+            <button id="stop" class="btn btn-secondary btn-sm">Stop Camera</button>
+            <button id="switch" class="btn btn-secondary btn-sm">Switch Camera</button>
+            <button id="toggle-detection" class="btn btn-warning btn-sm">Pause Detection</button>
+            <select id="camera-select" class="form-select form-select-sm w-auto"></select>
+          </div>
+          <div id="loading-overlay" class="d-none justify-content-center align-items-center flex-column" style="position:absolute; top:0; left:0; right:0; bottom:0; backdrop-filter:blur(2px);">
+            <div class="spinner-border text-light" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <p>Loading model...</p>
           </div>
           <button id="save-detection" class="btn-modern flex items-center justify-center w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white py-4 px-6 rounded-2xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none">
             <i class="fas fa-save text-xl mr-3"></i>
@@ -258,7 +270,7 @@
     </div>
   </div>
 
-  <script type="module" src="../js/upload.js" defer></script>
+  <script type="module" src="js/upload_tf.js"></script>
   <script>
     const detectionSection = document.getElementById('detection-section');
     const showUploadSectionBtn = document.getElementById('show-upload-section-btn');
@@ -311,6 +323,15 @@
         }
       });
     }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      if (window.UploadTF) {
+        window.UploadTF.init({
+          videoEl: document.getElementById('video'),
+          canvasEl: document.getElementById('overlay')
+        });
+      }
+    });
   </script>
 </body>
 </html>
