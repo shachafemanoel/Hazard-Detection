@@ -763,18 +763,31 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
     try {
         // עיבוד המידע
         const geoData = JSON.parse(jsonString);
-        if (!geoData || !geoData.lat || !geoData.lng) {
+        if (!geoData || typeof geoData.lat !== 'number' || typeof geoData.lng !== 'number') {
             return res.status(400).json({ error: 'Invalid geolocation data' });
         }
 
-        const apiKey = "AIzaSyAXxZ7niDaxuyPEzt4j9P9U0kFzKHO9pZk";
-        const geoCodingUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${geoData.lat},${geoData.lng}&language=he&key=${apiKey}`;
-
-        const geoResponse = await axios.get(geoCodingUrl);
-        if (!geoResponse.data.results.length) {
-            return res.status(500).json({ error: 'Failed to get address from geolocation' });
+        // אם אין מפתח, נשתמש בקואורדינטות ככתובת כדי לא לשבור שמירה
+        const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+        let address;
+        if (!apiKey) {
+            console.warn('⚠️ GOOGLE_MAPS_API_KEY missing. Falling back to coordinates as address');
+            address = `${geoData.lat.toFixed(6)}, ${geoData.lng.toFixed(6)}`;
+        } else {
+            try {
+                const geoCodingUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${geoData.lat},${geoData.lng}&language=he&key=${apiKey}`;
+                const geoResponse = await axios.get(geoCodingUrl, { timeout: 6000 });
+                if (geoResponse.data && geoResponse.data.results && geoResponse.data.results.length > 0) {
+                    address = geoResponse.data.results[0]?.formatted_address || 'כתובת לא זמינה';
+                } else {
+                    console.warn('⚠️ No geocoding results. Using coordinates');
+                    address = `${geoData.lat.toFixed(6)}, ${geoData.lng.toFixed(6)}`;
+                }
+            } catch (geocodeErr) {
+                console.warn('⚠️ Geocoding failed. Using coordinates:', geocodeErr.message);
+                address = `${geoData.lat.toFixed(6)}, ${geoData.lng.toFixed(6)}`;
+            }
         }
-        const address = geoResponse.data.results[0]?.formatted_address || 'כתובת לא זמינה';
         
         // העלאה ל-Cloudinary
         const streamUpload = (buffer) => {
@@ -838,6 +851,6 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
         });
     } catch (e) {
         console.error('🔥 Upload error:', e);
-        res.status(500).json({ error: 'Failed to upload report' });
+        res.status(500).json({ error: 'Failed to upload report', details: e?.message || 'unknown' });
     }
 });
