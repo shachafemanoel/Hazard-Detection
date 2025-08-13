@@ -13,9 +13,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const controls = [startBtn, stopBtn, switchBtn, cameraSelect, brightnessSlider, zoomSlider];
 
-    let localSession = null;
+    let modelManager = null;
     let detecting = false;
-    const API_URL = 'https://hazard-detection-production-8735.up.railway.app/api/v1/detect';
+    let currentStream = null;
+    let frameCanvas = null; // Reuse canvas to prevent memory leaks
 
     // --- Utility Functions ---
     const setControlsEnabled = (enabled) => {
@@ -30,114 +31,297 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     };
 
+    const showLoadingOverlay = (message = 'Loading...') => {
+        if (loadingOverlay) {
+            const loadingText = loadingOverlay.querySelector('p');
+            if (loadingText) loadingText.textContent = message;
+            loadingOverlay.style.display = 'flex';
+        }
+    };
+
     // --- Initial State ---
     setControlsEnabled(false);
 
-    // --- 1. Initialize Local Fallback Engine ---
+    // --- Initialize Model Manager ---
     try {
-        ort.env.wasm.wasmPaths = '/ort/';
-        localSession = await ort.InferenceSession.create('/object_detecion_model/best-11-8-2025.onnx');
-        console.log("✅ Local fallback engine initialized for camera.");
+        showLoadingOverlay('Initializing detection engine...');
+        
+        // Import the enhanced model manager
+        const { default: manager } = await import('./modelManager.js');
+        modelManager = manager;
+        
+        // Initialize the local model proactively
+        await modelManager.initializeLocalModel();
+        console.log("✅ Model manager initialized for camera.");
+        
     } catch (e) {
-        console.error("❌ Camera fallback engine failed to load.", e);
+        console.error("❌ Model manager initialization failed:", e);
+        console.warn("⚠️ Camera will use API-only mode");
     } finally {
         hideLoadingOverlay();
         setControlsEnabled(true);
     }
 
-    // --- 2. Main Detection Loop ---
+    // --- Enhanced Detection Loop ---
     async function detectLoop() {
-        if (!detecting) return;
-
-        const frameCanvas = document.createElement('canvas');
-        frameCanvas.width = video.videoWidth;
-        frameCanvas.height = video.videoHeight;
-        const frameCtx = frameCanvas.getContext('2d');
-        frameCtx.drawImage(video, 0, 0, frameCanvas.width, frameCanvas.height);
-
-        try {
-            const detections = await getDetectionsFromAPI(frameCanvas);
-            drawResults(detections);
-        } catch (apiError) {
-            console.warn("API detection failed, using local fallback.", apiError.message);
-            if (localSession) {
-                const detections = await runInferenceLocally(video);
-                drawResults(detections);
-            }
+        if (!detecting || !video.videoWidth || !video.videoHeight) {
+            requestAnimationFrame(detectLoop);
+            return;
         }
 
+        if (!modelManager) {
+            console.warn("Model manager not available for detection");
+            requestAnimationFrame(detectLoop);
+            return;
+        }
+
+        try {
+            // Create or reuse canvas from current video frame (prevent memory leaks)
+            if (!frameCanvas) {
+                frameCanvas = document.createElement('canvas');
+            }
+            
+            // Only resize if dimensions changed
+            if (frameCanvas.width !== video.videoWidth || frameCanvas.height !== video.videoHeight) {
+                frameCanvas.width = video.videoWidth;
+                frameCanvas.height = video.videoHeight;
+            }
+            
+            const frameCtx = frameCanvas.getContext('2d');
+            frameCtx.drawImage(video, 0, 0, frameCanvas.width, frameCanvas.height);
+
+            // Use model manager for detection with fallback
+            const detections = await modelManager.detectHazards(frameCanvas, {
+                confidenceThreshold: 0.5,
+                useLocalOnly: false
+            });
+
+            drawResults(detections);
+
+        } catch (error) {
+            console.warn("Detection failed in camera loop:", error.message);
+            
+            // Show user feedback for persistent errors
+            if (error.message.includes('Model not initialized') || error.message.includes('ONNX Runtime not loaded')) {
+                updateDetectionStatus(0);
+                console.error("🚨 Critical model error - stopping detection");
+                detecting = false;
+                return; // Stop the loop
+            }
+            
+            // For network errors, continue but show status
+            updateDetectionStatus(0);
+        }
+
+        // Schedule next detection
         requestAnimationFrame(detectLoop);
     }
 
-    // --- 3. API Fetcher for Camera Frame ---
-    const getDetectionsFromAPI = (canvasElement) => {
-        return new Promise((resolve, reject) => {
-            canvasElement.toBlob(async (blob) => {
-                if (!blob) {
-                    return reject(new Error("Canvas to Blob conversion failed."));
-                }
-                const formData = new FormData();
-                formData.append("file", blob, "frame.jpg");
-                try {
-                    const response = await fetch(API_URL, { 
-                        method: 'POST', 
-                        body: formData,
-                        mode: 'cors'
-                    });
-                    if (!response.ok) throw new Error(`API Error: ${response.status} ${response.statusText}`);
-                    const data = await response.json();
-                    // Handle both new /api/v1/detect format and legacy format
-                    const detections = data.detections || data.results || [];
-                    resolve(detections.map(det => ({
-                        ...det,
-                        box: det.box || det.bbox, // Handle both 'box' and 'bbox' formats
-                        confidence: det.confidence,
-                        class_name: det.class_name
-                    })));
-                } catch (error) {
-                    reject(error);
-                }
-            }, 'image/jpeg');
-        });
-    };
 
-    // --- 4. Local Inference Fallback ---
-    const runInferenceLocally = async (videoElement) => {
-        if (!videoElement) return [];
-        console.log("Running local inference for camera...");
-        // Placeholder for actual ONNX.js inference logic
-        return [];
-    };
-
-    // --- 5. Universal Drawing Function ---
+    // --- Enhanced Drawing Function for Real-time Detection ---
     const drawResults = (detections) => {
-        if (!ctx || !video || !detections) return;
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        if (!ctx || !video) {
+            return;
+        }
 
-        detections.forEach(det => {
-            const [x1, y1, x2, y2] = det.box;
-            const label = `${det.class_name} (${(det.confidence * 100).toFixed(1)}%)`;
-            ctx.strokeStyle = '#00FF00';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
-            ctx.fillStyle = '#00FF00';
-            ctx.font = '14px sans-serif';
-            ctx.fillText(label, x1, y1 > 10 ? y1 - 5 : 10);
+        // Ensure canvas dimensions match video
+        if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+        }
+
+        // Clear previous overlay (video feed is handled by HTML video element)
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (!detections || detections.length === 0) {
+            updateDetectionStatus(0);
+            return;
+        }
+
+        const confidenceThreshold = 0.5; // Could be made configurable
+        let validDetections = 0;
+
+        detections.forEach((det, index) => {
+            if (det.confidence >= confidenceThreshold) {
+                validDetections++;
+                const [x1, y1, x2, y2] = det.box;
+                const width = x2 - x1;
+                const height = y2 - y1;
+                const label = `${det.class_name} (${(det.confidence * 100).toFixed(1)}%)`;
+                
+                // Color coding based on confidence
+                let color = '#00FF00'; // Green for high confidence
+                if (det.confidence < 0.7) color = '#FFA500'; // Orange for medium
+                if (det.confidence < 0.5) color = '#FF0000'; // Red for low
+                
+                // Draw bounding box with enhanced visibility
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 3;
+                ctx.strokeRect(x1, y1, width, height);
+                
+                // Draw semi-transparent fill for better visibility
+                ctx.fillStyle = color + '20'; // Add transparency
+                ctx.fillRect(x1, y1, width, height);
+                
+                // Draw label with background
+                ctx.font = '14px Arial, sans-serif';
+                const textMetrics = ctx.measureText(label);
+                const textWidth = textMetrics.width + 8;
+                const textHeight = 20;
+                const labelY = y1 > textHeight ? y1 - 2 : y1 + height + textHeight;
+                
+                // Label background
+                ctx.fillStyle = color;
+                ctx.fillRect(x1, labelY - textHeight, textWidth, textHeight);
+                
+                // Label text
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillText(label, x1 + 4, labelY - 6);
+                
+                // Draw corner indicators for better tracking
+                const cornerSize = 10;
+                ctx.fillStyle = color;
+                // Top-left corner
+                ctx.fillRect(x1 - 2, y1 - 2, cornerSize, 3);
+                ctx.fillRect(x1 - 2, y1 - 2, 3, cornerSize);
+                // Top-right corner
+                ctx.fillRect(x2 - cornerSize + 2, y1 - 2, cornerSize, 3);
+                ctx.fillRect(x2 - 1, y1 - 2, 3, cornerSize);
+                // Bottom-left corner
+                ctx.fillRect(x1 - 2, y2 - 1, cornerSize, 3);
+                ctx.fillRect(x1 - 2, y2 - cornerSize + 2, 3, cornerSize);
+                // Bottom-right corner
+                ctx.fillRect(x2 - cornerSize + 2, y2 - 1, cornerSize, 3);
+                ctx.fillRect(x2 - 1, y2 - cornerSize + 2, 3, cornerSize);
+            }
         });
+
+        updateDetectionStatus(validDetections);
+        
+        // Show hazard notification for real-time alerts
+        if (validDetections > 0) {
+            showHazardNotification(validDetections, detections);
+        }
     };
 
-    // --- Camera start button logic ---
-    startBtn.addEventListener("click", () => {
-        navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
-            video.srcObject = stream;
+    // --- Detection Status Updates ---
+    const updateDetectionStatus = (count) => {
+        const statusOverlay = document.getElementById('object-count-overlay');
+        if (statusOverlay) {
+            statusOverlay.textContent = count > 0 ? `${count} hazard(s) detected` : '';
+            statusOverlay.className = count > 0 ? 'detection-active' : '';
+        }
+    };
+
+    // --- Hazard Notification System ---
+    const showHazardNotification = (count, detections) => {
+        // This would integrate with the hazard notification template in camera.html
+        const template = document.getElementById('hazard-notification-template');
+        if (template) {
+            const notification = template.content.cloneNode(true);
+            const content = notification.querySelector('.hazard-notification-content p');
+            if (content) {
+                const hazardTypes = [...new Set(detections.map(d => d.class_name))].join(', ');
+                content.textContent = `${count} hazard(s) detected: ${hazardTypes}`;
+            }
+            
+            // Add to page temporarily (implement proper notification system)
+            console.log(`🚨 Real-time alert: ${count} hazard(s) detected`);
+        }
+    };
+
+    // --- Enhanced Camera Controls ---
+    startBtn.addEventListener("click", async () => {
+        try {
+            showLoadingOverlay('Starting camera...');
+            
+            const constraints = {
+                video: {
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    facingMode: 'environment' // Prefer back camera on mobile
+                }
+            };
+            
+            currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+            video.srcObject = currentStream;
+            
             video.onloadedmetadata = () => {
                 video.play();
                 detecting = true;
                 detectLoop();
+                
+                // Update UI state
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                
+                console.log('✅ Camera started with enhanced detection');
+                hideLoadingOverlay();
             };
-        });
+            
+        } catch (error) {
+            console.error('❌ Failed to start camera:', error);
+            hideLoadingOverlay();
+            alert('Failed to access camera. Please check permissions and try again.');
+        }
     });
+
+    // Camera stop logic
+    stopBtn.addEventListener("click", () => {
+        detecting = false;
+        
+        if (currentStream) {
+            currentStream.getTracks().forEach(track => track.stop());
+            currentStream = null;
+        }
+        
+        video.srcObject = null;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Update UI state
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+        
+        updateDetectionStatus(0);
+        console.log('🛑 Camera stopped');
+    });
+
+    // Camera switch logic
+    switchBtn.addEventListener("click", async () => {
+        if (!currentStream) return;
+        
+        try {
+            // Stop current stream
+            currentStream.getTracks().forEach(track => track.stop());
+            
+            // Switch facing mode
+            const videoTrack = currentStream.getVideoTracks()[0];
+            const currentFacingMode = videoTrack.getSettings().facingMode;
+            const newFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
+            
+            const constraints = {
+                video: {
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    facingMode: newFacingMode
+                }
+            };
+            
+            currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+            video.srcObject = currentStream;
+            
+            console.log(`📱 Switched to ${newFacingMode} camera`);
+            
+        } catch (error) {
+            console.error('❌ Failed to switch camera:', error);
+            // Try to restart with default settings
+            startBtn.click();
+        }
+    });
+
+    // Initialize button states
+    stopBtn.disabled = true;
+    
+    console.log("✅ Camera interface initialized with enhanced model management");
 });
 

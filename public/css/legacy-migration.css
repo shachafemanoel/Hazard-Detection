@@ -1,0 +1,301 @@
+/* =============================================================================
+   LEGACY MIGRATION CSS
+   Maps old CSS classes to new design system for backward compatibility
+   ============================================================================= */
+
+/* Legacy button mapping */
+.btn {
+  @apply hd-btn;
+}
+
+.btn-primary {
+  @apply hd-btn hd-btn--primary;
+}
+
+.btn-secondary {
+  @apply hd-btn hd-btn--secondary;
+}
+
+.btn-outline-primary {
+  @apply hd-btn hd-btn--outline;
+}
+
+.btn-ghost {
+  @apply hd-btn hd-btn--ghost;
+}
+
+.btn-sm {
+  @apply hd-btn--sm;
+}
+
+.btn-lg {
+  @apply hd-btn--lg;
+}
+
+/* Legacy card mapping */
+.card {
+  @apply hd-card;
+}
+
+.card-header {
+  @apply hd-card__header;
+}
+
+.card-body {
+  @apply hd-card__body;
+}
+
+.card-footer {
+  @apply hd-card__footer;
+}
+
+/* Legacy form mapping */
+input,
+select,
+textarea {
+  @apply hd-input;
+}
+
+.form-group {
+  @apply hd-form-group;
+}
+
+.form-label,
+label {
+  @apply hd-label;
+}
+
+/* Legacy typography mapping */
+h1 {
+  @apply hd-heading-1;
+}
+
+h2 {
+  @apply hd-heading-2;
+}
+
+h3 {
+  @apply hd-heading-3;
+}
+
+p {
+  @apply hd-text;
+}
+
+/* Legacy layout mapping */
+.container {
+  @apply hd-container;
+}
+
+/* Temporary CSS fallbacks for browsers that don't support @apply */
+/* These will be removed once Tailwind CSS or similar is integrated */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--hd-space-2);
+  padding: var(--hd-space-3) var(--hd-space-4);
+  font-family: inherit;
+  font-size: var(--hd-font-size-sm);
+  font-weight: var(--hd-font-weight-medium);
+  line-height: 1;
+  border: 1px solid transparent;
+  border-radius: var(--hd-radius-md);
+  cursor: pointer;
+  transition: all var(--hd-transition-base);
+  text-decoration: none;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.btn-primary {
+  background-color: var(--hd-primary-600);
+  color: white;
+  border-color: var(--hd-primary-600);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--hd-primary-700);
+  border-color: var(--hd-primary-700);
+}
+
+.btn-secondary {
+  background-color: var(--hd-bg-tertiary);
+  color: var(--hd-text-primary);
+  border-color: var(--hd-gray-600);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--hd-gray-600);
+}
+
+.card {
+  background-color: var(--hd-bg-secondary);
+  border: 1px solid var(--hd-gray-700);
+  border-radius: var(--hd-radius-xl);
+  box-shadow: var(--hd-shadow-sm);
+  transition: all var(--hd-transition-base);
+}
+
+.card:hover {
+  box-shadow: var(--hd-shadow-md);
+  transform: translateY(-1px);
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  padding: var(--hd-space-3) var(--hd-space-4);
+  font-family: inherit;
+  font-size: var(--hd-font-size-sm);
+  color: var(--hd-text-primary);
+  background-color: var(--hd-bg-tertiary);
+  border: 1px solid var(--hd-gray-600);
+  border-radius: var(--hd-radius-md);
+  transition: all var(--hd-transition-base);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--hd-primary-500);
+  box-shadow: 0 0 0 3px rgb(59 130 246 / 0.1);
+}
+
+h1 {
+  font-family: var(--hd-font-family-heading);
+  font-size: var(--hd-font-size-4xl);
+  font-weight: var(--hd-font-weight-bold);
+  line-height: var(--hd-line-height-tight);
+  color: var(--hd-text-primary);
+  margin: 0 0 var(--hd-space-6) 0;
+}
+
+h2 {
+  font-family: var(--hd-font-family-heading);
+  font-size: var(--hd-font-size-3xl);
+  font-weight: var(--hd-font-weight-bold);
+  line-height: var(--hd-line-height-tight);
+  color: var(--hd-text-primary);
+  margin: 0 0 var(--hd-space-5) 0;
+}
+
+h3 {
+  font-family: var(--hd-font-family-heading);
+  font-size: var(--hd-font-size-2xl);
+  font-weight: var(--hd-font-weight-semibold);
+  line-height: var(--hd-line-height-tight);
+  color: var(--hd-text-primary);
+  margin: 0 0 var(--hd-space-4) 0;
+}
+
+p {
+  font-size: var(--hd-font-size-base);
+  color: var(--hd-text-secondary);
+  margin: 0 0 var(--hd-space-4) 0;
+}
+
+/* Migration helpers */
+.legacy-override {
+  /* Use this class to temporarily override new styles for problematic legacy components */
+  all: revert;
+}
+
+/* Legacy color mappings */
+:root {
+  --color-primary: var(--hd-primary-600);
+  --color-success: var(--hd-success-500);
+  --color-warning: var(--hd-warning-500);
+  --color-danger: var(--hd-danger-500);
+  --color-secondary: var(--hd-gray-500);
+  
+  /* Old variable mappings */
+  --primary: var(--hd-primary-600);
+  --primary-hover: var(--hd-primary-700);
+  --secondary: var(--hd-gray-500);
+  --accent: var(--hd-success-500);
+  --accent-hover: var(--hd-success-600);
+  --danger: var(--hd-danger-500);
+  --danger-hover: var(--hd-danger-600);
+  --warning: var(--hd-warning-500);
+  --warning-hover: var(--hd-warning-600);
+  
+  /* Text colors */
+  --text: var(--hd-text-primary);
+  --text-muted: var(--hd-text-muted);
+  --dark-text: var(--hd-text-primary);
+  
+  /* Background colors */
+  --bg: var(--hd-bg-primary);
+  --bg-secondary: var(--hd-bg-secondary);
+  --card-bg: var(--hd-bg-secondary);
+  --card-bg-hover: var(--hd-bg-tertiary);
+  --input-bg: var(--hd-bg-tertiary);
+  
+  /* Border and shadow */
+  --border-color: var(--hd-gray-600);
+  --radius: var(--hd-radius-md);
+  --radius-sm: var(--hd-radius-base);
+  --radius-lg: var(--hd-radius-xl);
+  --shadow: var(--hd-shadow-base);
+  --shadow-lg: var(--hd-shadow-lg);
+  --shadow-xl: var(--hd-shadow-xl);
+  
+  /* Transitions */
+  --transition: var(--hd-transition-base);
+  --transition-fast: var(--hd-transition-fast);
+}
+
+/* Legacy responsive breakpoints */
+@media (max-width: 576px) {
+  .container {
+    padding: 0 var(--hd-space-3);
+  }
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 0 var(--hd-space-3);
+  }
+}
+
+@media (max-width: 992px) {
+  .container {
+    padding: 0 var(--hd-space-4);
+  }
+}
+
+/* Legacy RTL support */
+[dir="rtl"] .btn {
+  flex-direction: row-reverse;
+}
+
+[dir="rtl"] .card {
+  text-align: right;
+}
+
+/* Legacy accessibility fixes */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 6px;
+  background: var(--hd-primary-600);
+  color: white;
+  padding: 8px;
+  text-decoration: none;
+  border-radius: var(--hd-radius-base);
+  z-index: var(--hd-z-tooltip);
+}
+
+.skip-link:focus {
+  top: 6px;
+}
+
+/* Legacy focus styles */
+:focus {
+  outline: 2px solid var(--hd-primary-500);
+  outline-offset: 2px;
+}

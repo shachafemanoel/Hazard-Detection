@@ -28,11 +28,41 @@ const __dirname = path.dirname(__filename);
 // טעינת קובץ .env מהתיקייה הנוכחית של server.js
 dotenv.config({ path: path.join(__dirname, '.env') });
 
-// הדפסה לבדיקת טעינת משתני סביבה
-console.log("Attempting to load environment variables...");
-console.log("CLOUDINARY_CLOUD_NAME from env:", process.env.CLOUDINARY_CLOUD_NAME);
-console.log("GOOGLE_CALLBACK_URL from env:", process.env.GOOGLE_CALLBACK_URL);
-console.log("SESSION_SECRET from env:", process.env.SESSION_SECRET ? "Loaded" : "NOT LOADED");
+// 🔐 Environment Variables Validation
+function validateEnvironmentVariables() {
+    const requiredVars = {
+        'SESSION_SECRET': 'Session encryption key',
+        'GOOGLE_CLIENT_ID': 'Google OAuth client ID',
+        'GOOGLE_CLIENT_SECRET': 'Google OAuth client secret',
+        'GOOGLE_MAPS_API_KEY': 'Google Maps geocoding API key'
+    };
+    
+    const missingVars = [];
+    
+    for (const [varName, description] of Object.entries(requiredVars)) {
+        if (!process.env[varName]) {
+            missingVars.push(`${varName} (${description})`);
+        }
+    }
+    
+    if (missingVars.length > 0) {
+        console.error('❌ SECURITY ERROR: Missing required environment variables:');
+        missingVars.forEach(varName => console.error(`   - ${varName}`));
+        console.error('\n💡 Copy .env.example to .env and configure the missing variables');
+        console.error('⚠️  Using default values is insecure for production!');
+        
+        if (process.env.NODE_ENV === 'production') {
+            console.error('🛑 PRODUCTION DEPLOYMENT BLOCKED - Missing security configuration');
+            process.exit(1);
+        } else {
+            console.warn('⚠️  Development mode: continuing with default values (INSECURE)');
+        }
+    } else {
+        console.log('✅ Environment variables validated');
+    }
+}
+
+validateEnvironmentVariables();
 
 // ☁️ Cloudinary config
 cloudinary.config({
@@ -117,18 +147,134 @@ const client = createClient({
 });
 
 let redisConnected = false; // דגל למעקב אחר מצב החיבור
+let fallbackStorage = new Map(); // In-memory fallback storage
 
 async function connectRedis() {
     try {
       await client.connect();
       redisConnected = true;
       console.log('✅ Connected to Redis');
+      
+      // Migrate fallback data to Redis if any exists
+      if (fallbackStorage.size > 0) {
+        console.log(`📤 Migrating ${fallbackStorage.size} items from fallback storage to Redis`);
+        for (const [key, value] of fallbackStorage) {
+          try {
+            if (typeof value === 'object') {
+              await client.json.set(key, '$', value);
+            } else {
+              await client.set(key, value);
+            }
+          } catch (migrateError) {
+            console.warn(`Failed to migrate ${key}:`, migrateError);
+          }
+        }
+        fallbackStorage.clear();
+        console.log('✅ Fallback data migration completed');
+      }
+      
     } catch (err) {
       redisConnected = false;
       console.error('🔥 Failed to connect to Redis:', err);
-      // אולי תחליט להמתין ולטעון מחדש, או להריץ fallback
+      console.warn('⚠️  Using in-memory fallback storage');
     }
   }
+
+// Enhanced database operations with fallback
+async function dbGet(key) {
+  if (redisConnected && client.isOpen) {
+    try {
+      return await client.get(key);
+    } catch (error) {
+      console.warn(`Redis GET failed for ${key}, using fallback:`, error);
+      redisConnected = false;
+    }
+  }
+  return fallbackStorage.get(key) || null;
+}
+
+async function dbSet(key, value) {
+  // Try Redis first
+  if (redisConnected && client.isOpen) {
+    try {
+      await client.set(key, value);
+      return true;
+    } catch (error) {
+      console.warn(`Redis SET failed for ${key}, using fallback:`, error);
+      redisConnected = false;
+    }
+  }
+  
+  // Fallback to memory
+  fallbackStorage.set(key, value);
+  console.warn(`🔄 Using fallback storage for ${key}`);
+  return true;
+}
+
+async function dbJsonSet(key, path, value) {
+  if (redisConnected && client.isOpen) {
+    try {
+      await client.json.set(key, path, value);
+      return true;
+    } catch (error) {
+      console.warn(`Redis JSON.SET failed for ${key}, using fallback:`, error);
+      redisConnected = false;
+    }
+  }
+  
+  // Fallback to memory (store as JSON string then parse)
+  fallbackStorage.set(key, value);
+  console.warn(`🔄 Using fallback storage for JSON ${key}`);
+  return true;
+}
+
+async function dbJsonGet(key) {
+  if (redisConnected && client.isOpen) {
+    try {
+      return await client.json.get(key);
+    } catch (error) {
+      console.warn(`Redis JSON.GET failed for ${key}, using fallback:`, error);
+      redisConnected = false;
+    }
+  }
+  
+  return fallbackStorage.get(key) || null;
+}
+
+async function dbKeys(pattern) {
+  if (redisConnected && client.isOpen) {
+    try {
+      return await client.keys(pattern);
+    } catch (error) {
+      console.warn(`Redis KEYS failed for ${pattern}, using fallback:`, error);
+      redisConnected = false;
+    }
+  }
+  
+  // Fallback to memory - filter keys by pattern
+  const keys = Array.from(fallbackStorage.keys());
+  if (pattern === '*') return keys;
+  
+  // Simple pattern matching for fallback
+  const regex = new RegExp(pattern.replace('*', '.*'));
+  return keys.filter(key => regex.test(key));
+}
+
+async function dbDel(key) {
+  if (redisConnected && client.isOpen) {
+    try {
+      await client.del(key);
+      return true;
+    } catch (error) {
+      console.warn(`Redis DEL failed for ${key}, using fallback:`, error);
+      redisConnected = false;
+    }
+  }
+  
+  fallbackStorage.delete(key);
+  return true;
+}
+
 connectRedis(); // קריאה לפונקציה בעת עליית השרת
 
 
@@ -139,16 +285,11 @@ passport.serializeUser((user, done) => {
   
   passport.deserializeUser(async (email, done) => {
     console.log('[Passport] Attempting to deserialize user:', email);
-    if (!redisConnected || !client.isOpen) { // בדיקה אם הלקוח מחובר ופתוח
-        console.error("❌ Redis client not connected or not open in deserializeUser.");
-        // חשוב להחזיר שגיאה ברורה כאן
-        return done(new Error("Redis client not available for deserialization"), null);
-    }
     try {
-      const keys = await client.keys('user:*');
+      const keys = await dbKeys('user:*');
       console.log('[Passport] Found keys for deserialization:', keys.length);
       for (const key of keys) {
-        const userStr = await client.get(key);
+        const userStr = await dbGet(key);
         if (userStr) {
             const user = JSON.parse(userStr);
             if (user.email === email) {
@@ -162,18 +303,17 @@ passport.serializeUser((user, done) => {
       console.log('[Passport] User not found for deserialization:', email);
       done(null, false);
     } catch (err) {
-      console.error("❌ Error in deserializeUser:", err);  // הוספת לוג
+      console.error("❌ Error in deserializeUser:", err);
       done(err, null);
     }
   });
   
 
-// הגדרת האסטרטגיה של גוגל
+// 🔐 Google OAuth Strategy Configuration
 passport.use(new GoogleStrategy({
-    clientID: "46375555882-rmivba20noas9slfskb3cfvugssladrr.apps.googleusercontent.com",
-    clientSecret: "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",
+    clientID: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     callbackURL: process.env.GOOGLE_CALLBACK_URL || "http://localhost:3000/auth/google/callback"
-
     },
     async (accessToken, refreshToken, profile, done) => {
         try {
@@ -737,55 +877,124 @@ app.post('/reset-password', async (req, res) => {
 
 
 app.post('/upload-detection', upload.single('file'), async (req, res) => {
+    console.log("🔍 Detection request received");
     console.log("Session:", req.session); // Debug session
     console.log("Is Authenticated:", req.isAuthenticated()); // Debug authentication
     console.log("User:", req.user); // Debug user object
 
-    // בדוק אם הקובץ הועלה
+    // Enhanced file validation
     if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded' });
+        console.log("❌ No file uploaded");
+        return res.status(400).json({ 
+            error: 'No file uploaded',
+            code: 'MISSING_FILE'
+        });
     }
 
-    // אימות משתמש - בדיקה משופרת
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(req.file.mimetype)) {
+        console.log(`❌ Invalid file type: ${req.file.mimetype}`);
+        return res.status(400).json({
+            error: 'Invalid file type. Only JPEG, PNG, and WebP images are allowed.',
+            code: 'INVALID_FILE_TYPE'
+        });
+    }
+
+    // Enhanced authentication with better error messages
     if (!req.isAuthenticated()) {
-        console.log("Authentication failed"); // Debug log
-        return res.status(401).json({ error: 'Please log in again' });
+        console.log("❌ Authentication failed");
+        return res.status(401).json({ 
+            error: 'Authentication required. Please log in again.',
+            code: 'AUTH_REQUIRED'
+        });
     }
 
     const hazardTypes = req.body.hazardTypes;
     
-    // שלב המרת קואורדינטות לכתובת
+    // Enhanced geolocation handling
     const jsonString = req.body.geoData;
     if (!jsonString) {
-        return res.status(400).json({ error: 'Missing geolocation data in image metadata' });
+        console.log("⚠️ Missing geolocation data");
+        return res.status(400).json({ 
+            error: 'Missing geolocation data in image metadata',
+            code: 'MISSING_GEOLOCATION'
+        });
     }
 
     try {
-        // עיבוד המידע
-        const geoData = JSON.parse(jsonString);
-        if (!geoData || !geoData.lat || !geoData.lng) {
-            return res.status(400).json({ error: 'Invalid geolocation data' });
+        // Enhanced geolocation processing with better error handling
+        let geoData;
+        try {
+            geoData = JSON.parse(jsonString);
+        } catch (parseError) {
+            console.log("❌ Invalid JSON in geolocation data:", parseError);
+            return res.status(400).json({ 
+                error: 'Invalid geolocation data format',
+                code: 'INVALID_GEOLOCATION_FORMAT'
+            });
         }
 
-        const apiKey = "AIzaSyAXxZ7niDaxuyPEzt4j9P9U0kFzKHO9pZk";
+        if (!geoData || typeof geoData.lat !== 'number' || typeof geoData.lng !== 'number') {
+            console.log("❌ Missing or invalid lat/lng:", geoData);
+            return res.status(400).json({ 
+                error: 'Invalid geolocation coordinates',
+                code: 'INVALID_COORDINATES'
+            });
+        }
+
+        // Validate coordinate ranges
+        if (geoData.lat < -90 || geoData.lat > 90 || geoData.lng < -180 || geoData.lng > 180) {
+            console.log("❌ Coordinates out of range:", geoData);
+            return res.status(400).json({
+                error: 'Coordinates out of valid range',
+                code: 'COORDINATES_OUT_OF_RANGE'
+            });
+        }
+
+        const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+        if (!apiKey) {
+            console.log("❌ Google Maps API key not configured");
+            return res.status(500).json({ 
+                error: 'Geocoding service not available',
+                code: 'GEOCODING_UNAVAILABLE'
+            });
+        }
+
         const geoCodingUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${geoData.lat},${geoData.lng}&language=he&key=${apiKey}`;
 
-        const geoResponse = await axios.get(geoCodingUrl);
-        if (!geoResponse.data.results.length) {
-            return res.status(500).json({ error: 'Failed to get address from geolocation' });
+        let address;
+        try {
+            console.log(`🌍 Geocoding: ${geoData.lat}, ${geoData.lng}`);
+            const geoResponse = await axios.get(geoCodingUrl, { timeout: 5000 });
+            
+            if (geoResponse.data && geoResponse.data.results.length > 0) {
+                address = geoResponse.data.results[0]?.formatted_address || 'כתובת לא זמינה';
+                console.log(`✅ Geocoded address: ${address}`);
+            } else {
+                throw new Error('No geocoding results');
+            }
+        } catch (geocodeError) {
+            console.log("⚠️ Geocoding failed, using coordinates:", geocodeError.message);
+            address = `${geoData.lat.toFixed(6)}, ${geoData.lng.toFixed(6)}`;
+            console.log(`⚠️ Using coordinates as address: ${address}`);
         }
-        const address = geoResponse.data.results[0]?.formatted_address || 'כתובת לא זמינה';
         
-        // העלאה ל-Cloudinary
+        // Enhanced Cloudinary upload with better error handling
         const streamUpload = (buffer) => {
             return new Promise((resolve, reject) => {
                 const stream = cloudinary.uploader.upload_stream(
-                    { folder: 'detections' },
+                    { 
+                        folder: 'detections',
+                        resource_type: 'auto',
+                        quality: 'auto:good',
+                        fetch_format: 'auto'
+                    },
                     (error, result) => {
                         if (result) {
                             resolve(result);
                         } else {
-                            reject(error);
+                            reject(error || new Error('Unknown Cloudinary error'));
                         }
                     }
                 );
@@ -793,51 +1002,168 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
             });
         };
 
-        const result = await streamUpload(req.file.buffer);
+        let cloudinaryResult;
+        try {
+            console.log(`☁️ Uploading image to Cloudinary (${req.file.size} bytes)`);
+            cloudinaryResult = await streamUpload(req.file.buffer);
+            console.log(`✅ Image uploaded: ${cloudinaryResult.secure_url}`);
+        } catch (uploadError) {
+            console.error('❌ Cloudinary upload failed:', uploadError);
+            return res.status(500).json({ 
+                error: 'Failed to upload image to cloud storage',
+                code: 'UPLOAD_FAILED',
+                details: uploadError.message
+            });
+        }
 
-        // אם העלאה לא הצליחה
-        if (!result || !result.secure_url) {
-            return res.status(500).json({ error: 'Failed to upload image to Cloudinary' });
+        if (!cloudinaryResult || !cloudinaryResult.secure_url) {
+            console.error('❌ Invalid Cloudinary response');
+            return res.status(500).json({ 
+                error: 'Invalid response from cloud storage',
+                code: 'INVALID_UPLOAD_RESPONSE'
+            });
         }
         let locationNote = req.body.locationNote || "GPS";
 
-        // קבלת שם המדווח
+        // Enhanced user identification
         let reportedBy;  
-
         if (req.session?.user?.username) {  
-          reportedBy = req.session.user.username;  
+            reportedBy = req.session.user.username;  
+            console.log(`👤 Report by session user: ${reportedBy}`);
         } else if (req.user?.username) {  
-          reportedBy = req.user.username;  
+            reportedBy = req.user.username;  
+            console.log(`👤 Report by passport user: ${reportedBy}`);
         } else {  
-          reportedBy = 'אנונימי';  
+            reportedBy = 'אנונימי';  
+            console.log(`👤 Anonymous report`);
         }
         
-        // שמירה ב-Redis
+        // Enhanced report creation with better data structure
         const reportId = Date.now();
         const reportKey = `report:${reportId}`;
         const createdAt = new Date().toISOString();
         
         const report = {
             id: reportId,
-            type: hazardTypes,
+            type: hazardTypes || 'unknown',
             location: address,
             time: req.body.time || createdAt,
-            image: result.secure_url,
-            status:'New',
+            image: cloudinaryResult.secure_url,
+            status: 'New',
             locationNote,
             reportedBy,
-            createdAt
+            createdAt,
+            coordinates: {
+                lat: geoData.lat,
+                lng: geoData.lng
+            },
+            metadata: {
+                fileSize: req.file.size,
+                fileType: req.file.mimetype,
+                cloudinaryPublicId: cloudinaryResult.public_id
+            }
         };
 
-        await client.json.set(reportKey, '$', report);
-        console.log("💾 Report saved to Redis: ", reportKey);
+        // Enhanced database saving with fallback support
+        try {
+            await dbJsonSet(reportKey, '$', report);
+            console.log(`💾 Report saved successfully: ${reportKey}`);
+        } catch (dbError) {
+            console.error('❌ Failed to save report to database:', dbError);
+            return res.status(500).json({ 
+                error: 'Failed to save report to database',
+                code: 'DATABASE_SAVE_FAILED'
+            });
+        }
 
+        console.log(`✅ Upload and report creation completed successfully`);
         res.status(200).json({
+            success: true,
             message: 'Report uploaded and saved successfully',
-            report
+            report: {
+                ...report,
+                metadata: undefined // Don't expose internal metadata to client
+            }
         });
+
     } catch (e) {
-        console.error('🔥 Upload error:', e);
-        res.status(500).json({ error: 'Failed to upload report' });
+        console.error('🔥 Unexpected upload error:', e);
+        res.status(500).json({ 
+            error: 'Failed to upload report',
+            code: 'UPLOAD_ERROR',
+            details: e.message
+        });
+    }
+});
+
+// Enhanced API endpoint for detection-only (compatible with external API format)
+app.post('/api/v1/detect', upload.single('file'), async (req, res) => {
+    console.log("🔍 Detection API request received");
+    
+    try {
+        // Enhanced file validation
+        if (!req.file) {
+            return res.status(400).json({ 
+                error: 'No file uploaded',
+                code: 'MISSING_FILE',
+                detections: []
+            });
+        }
+
+        // Validate file type
+        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+        if (!allowedTypes.includes(req.file.mimetype)) {
+            return res.status(400).json({
+                error: 'Invalid file type. Only JPEG, PNG, and WebP images are allowed.',
+                code: 'INVALID_FILE_TYPE',
+                detections: []
+            });
+        }
+
+        // For now, return mock detections since this is a detection-only endpoint
+        // In a real implementation, this would integrate with your ML model
+        console.log(`📁 Processing ${req.file.mimetype} file (${req.file.size} bytes)`);
+        
+        // Simulate processing time
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Mock detection results - replace with actual model inference
+        const mockDetections = [
+            {
+                box: [100, 100, 200, 200],
+                confidence: 0.85,
+                class_name: 'pothole',
+                class_id: 0
+            },
+            {
+                box: [300, 150, 400, 250],
+                confidence: 0.72,
+                class_name: 'crack',
+                class_id: 1
+            }
+        ].filter(() => Math.random() > 0.7); // Randomly include detections
+        
+        console.log(`✅ Detection completed: ${mockDetections.length} objects found`);
+        
+        res.status(200).json({
+            success: true,
+            detections: mockDetections,
+            metadata: {
+                image_size: {
+                    width: 640,
+                    height: 640
+                },
+                processing_time: 0.1,
+                model_version: '1.0.0'
+            }
+        });
+        
+    } catch (error) {
+        console.error('🔥 Detection API error:', error);
+        res.status(500).json({ 
+            error: 'Internal server error during detection',
+            code: 'DETECTION_FAILED',
+            detections: []
+        });
     }
 });

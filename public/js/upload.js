@@ -25,90 +25,156 @@ document.addEventListener("DOMContentLoaded", async () => {
         }, 5000);
     }
 
-    let localSession = null;
     let currentImage = null;
-    const API_URL = 'https://hazard-detection-production-8735.up.railway.app/api/v1/detect';
-
-    // --- Initialize Local Fallback Engine ---
+    let modelManager = null;
+    let currentDetections = [];
+    
+    // --- Initialize Model Manager ---
     try {
-        ort.env.wasm.wasmPaths = '/ort/';
-        localSession = await ort.InferenceSession.create('/object_detecion_model/best-11-8-2025.onnx');
-        console.log("✅ Local fallback engine initialized for uploads.");
+        // Import the enhanced model manager
+        const { default: manager } = await import('./modelManager.js');
+        modelManager = manager;
+        
+        // Initialize the local model proactively
+        showToast("🚀 Initializing detection engine...", "info");
+        await modelManager.initializeLocalModel();
+        console.log("✅ Model manager initialized for uploads.");
+        showToast("✅ Detection engine ready!", "success");
     } catch (e) {
-        console.error("❌ Local fallback engine failed to load.", e);
-        showToast("Warning: Local detection unavailable.", "error");
+        console.error("❌ Model manager initialization failed:", e);
+        showToast("⚠️ Local detection may be limited. API fallback available.", "warning");
     }
 
     // --- Main image processing function ---
     const processImage = async (file) => {
+        if (!modelManager) {
+            showToast("❌ Detection engine not available", "error");
+            return;
+        }
+
         try {
-            showToast("🔍 Using fast server analysis...", "info");
-            const detections = await getDetectionsFromAPI(file);
-            drawResults(detections);
-        } catch (apiError) {
-            console.warn("API detection failed. Attempting local fallback.", apiError);
-            if (localSession) {
-                showToast("⚠️ Server unavailable. Using local browser detection.", "warning");
-                const detections = await runInferenceLocally(currentImage);
-                drawResults(detections);
+            showToast("🔍 Analyzing image...", "info");
+            
+            const confidenceThreshold = parseFloat(confidenceSlider.value);
+            const detections = await modelManager.detectHazards(file, {
+                confidenceThreshold,
+                useLocalOnly: false
+            });
+            
+            enhancedDrawResults(detections);
+            
+            if (detections.length === 0) {
+                showToast("No hazards detected in the image", "info");
             } else {
-                showToast("❌ Both server and local detection are unavailable.", "error");
+                showToast(`Found ${detections.length} potential hazard(s)`, "success");
+            }
+            
+        } catch (error) {
+            console.error("Detection failed:", error);
+            showToast(`❌ Detection failed: ${error.message}`, "error");
+            
+            // Fallback: try to show the image anyway
+            if (currentImage) {
+                enhancedDrawResults([]);
             }
         }
     };
 
-    // --- API Fetcher ---
-    const getDetectionsFromAPI = async (file) => {
-        const formData = new FormData();
-        formData.append("file", file);
-        const response = await fetch(API_URL, { 
-            method: 'POST', 
-            body: formData,
-            mode: 'cors'
-        });
-        if (!response.ok) throw new Error(`API Error: ${response.status} ${response.statusText}`);
-        const data = await response.json();
-        // Handle both new /api/v1/detect format and legacy format
-        const detections = data.detections || data.results || [];
-        return detections.map(det => ({
-            ...det,
-            box: det.box || det.bbox, // Handle both 'box' and 'bbox' formats
-            confidence: det.confidence,
-            class_name: det.class_name
-        }));
-    };
 
-    // --- Local Inference Fallback ---
-    const runInferenceLocally = async (image) => {
-        if (!image) return [];
-        console.log("Running local inference for upload...");
-        // Placeholder for actual ONNX.js inference logic
-        return [];
-    };
-
-    // --- Universal Drawing Function ---
+    // --- Enhanced Drawing Function ---
     const drawResults = (detections) => {
-        if (!ctx || !currentImage || !detections) return;
+        if (!ctx || !currentImage) {
+            console.warn("Cannot draw results: missing context or image");
+            return;
+        }
+        
+        // Clear and redraw the base image
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(currentImage, 0, 0, canvas.width, canvas.height);
-        detections.forEach(det => {
-            if (det.confidence >= parseFloat(confidenceSlider.value)) {
+        
+        if (!detections || detections.length === 0) {
+            return;
+        }
+
+        const confidenceThreshold = parseFloat(confidenceSlider.value);
+        
+        detections.forEach((det, index) => {
+            if (det.confidence >= confidenceThreshold) {
                 const [x1, y1, x2, y2] = det.box;
+                const width = x2 - x1;
+                const height = y2 - y1;
                 const label = `${det.class_name} (${(det.confidence * 100).toFixed(1)}%)`;
-                ctx.strokeStyle = '#00FF00';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
-                ctx.fillStyle = '#00FF00';
-                ctx.font = '14px sans-serif';
-                ctx.fillText(label, x1, y1 > 10 ? y1 - 5 : 10);
+                
+                // Color coding based on confidence
+                let color = '#00FF00'; // Green for high confidence
+                if (det.confidence < 0.7) color = '#FFA500'; // Orange for medium
+                if (det.confidence < 0.5) color = '#FF0000'; // Red for low
+                
+                // Draw bounding box
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 3;
+                ctx.strokeRect(x1, y1, width, height);
+                
+                // Draw label background
+                ctx.font = '14px Arial, sans-serif';
+                const textMetrics = ctx.measureText(label);
+                const textWidth = textMetrics.width + 8;
+                const textHeight = 20;
+                const labelY = y1 > textHeight ? y1 - 2 : y1 + height + textHeight;
+                
+                ctx.fillStyle = color;
+                ctx.fillRect(x1, labelY - textHeight, textWidth, textHeight);
+                
+                // Draw label text
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillText(label, x1 + 4, labelY - 6);
+                
+                // Draw corner indicators for better visibility
+                const cornerSize = 8;
+                ctx.fillStyle = color;
+                // Top-left corner
+                ctx.fillRect(x1 - 2, y1 - 2, cornerSize, 2);
+                ctx.fillRect(x1 - 2, y1 - 2, 2, cornerSize);
+                // Top-right corner
+                ctx.fillRect(x2 - cornerSize + 2, y1 - 2, cornerSize, 2);
+                ctx.fillRect(x2, y1 - 2, 2, cornerSize);
+                // Bottom-left corner
+                ctx.fillRect(x1 - 2, y2, cornerSize, 2);
+                ctx.fillRect(x1 - 2, y2 - cornerSize + 2, 2, cornerSize);
+                // Bottom-right corner
+                ctx.fillRect(x2 - cornerSize + 2, y2, cornerSize, 2);
+                ctx.fillRect(x2, y2 - cornerSize + 2, 2, cornerSize);
             }
         });
+        
+        // Update save button state
+        updateSaveButtonState(detections.length > 0);
+    };
+    
+    // --- Save Button State Management ---
+    const updateSaveButtonState = (hasDetections) => {
+        const saveBtn = document.getElementById('save-detection');
+        if (saveBtn) {
+            saveBtn.disabled = !hasDetections;
+            if (hasDetections) {
+                saveBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                saveBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        }
     };
 
-    // --- Updated Event Listener ---
+    // Enhanced drawing function that stores detections
+    const enhancedDrawResults = (detections) => {
+        currentDetections = detections || [];
+        drawResults(detections);
+    };
+
+    // --- Event Listeners ---
     imageUpload.addEventListener("change", async (e) => {
         const file = e.target.files[0];
         if (!file) return;
+        
         const reader = new FileReader();
         reader.onload = (event) => {
             const img = new Image();
@@ -123,5 +189,23 @@ document.addEventListener("DOMContentLoaded", async () => {
         };
         reader.readAsDataURL(file);
     });
+
+    // Confidence threshold slider
+    confidenceSlider.addEventListener("input", (e) => {
+        const confValue = document.getElementById("conf-value");
+        if (confValue) {
+            confValue.textContent = e.target.value;
+        }
+        
+        // Redraw with new threshold
+        if (currentDetections.length > 0) {
+            drawResults(currentDetections);
+        }
+    });
+
+    // Initialize save button state
+    updateSaveButtonState(false);
+    
+    console.log("✅ Upload interface initialized with enhanced model management");
 });
 

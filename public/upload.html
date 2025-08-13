@@ -117,11 +117,17 @@
     }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
+  <!-- ONNX Runtime for global access -->
+  <script src="ort/ort.min.js"></script>
   <script type="module">
-    import * as ort from '/ort/ort.min.mjs';
-    ort.env.wasm.wasmPaths = '/ort/';
-    ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
-    window.ort = ort;
+    // Configure ONNX Runtime
+    if (typeof ort !== 'undefined') {
+      ort.env.wasm.wasmPaths = '/ort/';
+      ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
+      console.log('✅ ONNX Runtime configured for upload interface');
+    } else {
+      console.error('❌ ONNX Runtime not loaded');
+    }
   </script>
 
   <style>

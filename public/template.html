@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Hazard Detection System - AI-powered road hazard detection and reporting">
+    <title>Hazard Detection System</title>
+    
+    <!-- Preload critical fonts -->
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap"></noscript>
+    
+    <!-- Critical CSS inlined -->
+    <style>
+        /* Critical CSS from critical.css */
+        :root{--hd-primary-600:#2563eb;--hd-gray-900:#0f172a;--hd-gray-800:#1e293b;--hd-gray-700:#334155;--hd-gray-100:#f1f5f9;--hd-font-family-base:'Inter',system-ui,sans-serif;--hd-font-size-base:1rem;--hd-space-4:1rem;--hd-radius-md:0.375rem;--hd-transition-base:300ms cubic-bezier(0.4,0,0.2,1)}*,*::before,*::after{box-sizing:border-box}html{font-size:16px;-webkit-text-size-adjust:100%}body{margin:0;padding:0;font-family:var(--hd-font-family-base);font-size:var(--hd-font-size-base);line-height:1.5;color:var(--hd-gray-100);background-color:var(--hd-gray-900);-webkit-font-smoothing:antialiased}.hd-container{width:100%;max-width:1200px;margin:0 auto;padding:0 var(--hd-space-4)}.hd-btn{display:inline-flex;align-items:center;padding:0.75rem 1rem;font-family:inherit;font-size:0.875rem;font-weight:500;border:1px solid transparent;border-radius:var(--hd-radius-md);cursor:pointer;transition:all var(--hd-transition-base);text-decoration:none}.hd-btn--primary{background-color:var(--hd-primary-600);color:white}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+    </style>
+    
+    <!-- Load non-critical CSS asynchronously -->
+    <link rel="preload" href="css/design-system.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <link rel="preload" href="css/responsive.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <link rel="preload" href="css/browser-compat.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    
+    <!-- Fallback for no-JS -->
+    <noscript>
+        <link rel="stylesheet" href="css/design-system.css">
+        <link rel="stylesheet" href="css/responsive.css">
+        <link rel="stylesheet" href="css/browser-compat.css">
+    </noscript>
+    
+    <!-- Legacy migration for backward compatibility -->
+    <link rel="stylesheet" href="css/legacy-migration.css">
+    
+    <!-- Theme toggle script (critical for UX) -->
+    <script>
+        (function() {
+            const theme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', theme);
+        })();
+    </script>
+</head>
+<body>
+    <!-- Skip link for accessibility -->
+    <a href="#main" class="sr-only focus:not-sr-only">Skip to main content</a>
+    
+    <!-- Header -->
+    <header role="banner" class="hd-header">
+        <div class="hd-container">
+            <nav role="navigation" aria-label="Main navigation">
+                <div class="hd-flex hd-items-center hd-justify-between">
+                    <div class="hd-flex hd-items-center hd-gap-4">
+                        <img src="icon.png" alt="Hazard Detection" class="hd-logo" width="40" height="40">
+                        <h1 class="hd-heading-3">Hazard Detection</h1>
+                    </div>
+                    
+                    <!-- Mobile menu button -->
+                    <button type="button" 
+                            class="hd-nav-mobile hd-btn hd-btn--ghost" 
+                            aria-expanded="false" 
+                            aria-controls="mobile-menu"
+                            aria-label="Open main menu">
+                        <span class="sr-only">Open main menu</span>
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                        </svg>
+                    </button>
+                    
+                    <!-- Desktop navigation -->
+                    <div class="hd-nav-desktop hd-flex hd-gap-4">
+                        <a href="/dashboard.html" class="hd-btn hd-btn--ghost">Dashboard</a>
+                        <a href="/camera.html" class="hd-btn hd-btn--ghost">Camera</a>
+                        <a href="/upload.html" class="hd-btn hd-btn--ghost">Upload</a>
+                        <a href="/logout" class="hd-btn hd-btn--outline">Logout</a>
+                    </div>
+                </div>
+                
+                <!-- Mobile menu -->
+                <div id="mobile-menu" class="hd-nav-mobile hidden">
+                    <div class="hd-flex hd-flex--column hd-gap-2 mt-4">
+                        <a href="/dashboard.html" class="hd-btn hd-btn--ghost">Dashboard</a>
+                        <a href="/camera.html" class="hd-btn hd-btn--ghost">Camera</a>
+                        <a href="/upload.html" class="hd-btn hd-btn--ghost">Upload</a>
+                        <a href="/logout" class="hd-btn hd-btn--outline">Logout</a>
+                    </div>
+                </div>
+            </nav>
+        </div>
+    </header>
+    
+    <!-- Main content -->
+    <main id="main" class="hd-main" role="main">
+        <div class="hd-container hd-space-responsive">
+            <!-- Page title -->
+            <div class="hd-text-center-mobile mb-8">
+                <h2 class="hd-heading-responsive">Welcome to Hazard Detection</h2>
+                <p class="hd-text hd-text--muted">AI-powered road hazard detection and reporting system</p>
+            </div>
+            
+            <!-- Feature cards -->
+            <div class="hd-grid hd-grid--cols-1 hd-col-md-2 hd-col-lg-3 hd-gap-6">
+                <div class="hd-card hd-card-responsive">
+                    <div class="hd-card__header">
+                        <h3 class="hd-heading-3">Real-time Detection</h3>
+                    </div>
+                    <div class="hd-card__body">
+                        <p class="hd-text">Use your camera to detect road hazards in real-time with AI-powered analysis.</p>
+                        <a href="/camera.html" class="hd-btn hd-btn--primary hd-btn-responsive">Start Camera</a>
+                    </div>
+                </div>
+                
+                <div class="hd-card hd-card-responsive">
+                    <div class="hd-card__header">
+                        <h3 class="hd-heading-3">Upload & Analyze</h3>
+                    </div>
+                    <div class="hd-card__body">
+                        <p class="hd-text">Upload images for analysis and get detailed hazard detection reports.</p>
+                        <a href="/upload.html" class="hd-btn hd-btn--primary hd-btn-responsive">Upload Image</a>
+                    </div>
+                </div>
+                
+                <div class="hd-card hd-card-responsive">
+                    <div class="hd-card__header">
+                        <h3 class="hd-heading-3">Dashboard</h3>
+                    </div>
+                    <div class="hd-card__body">
+                        <p class="hd-text">View reports, analytics, and manage your hazard detection history.</p>
+                        <a href="/dashboard.html" class="hd-btn hd-btn--primary hd-btn-responsive">View Dashboard</a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Demo form with all components -->
+            <div class="hd-card hd-card-responsive mt-8">
+                <div class="hd-card__header">
+                    <h3 class="hd-heading-3">Component Showcase</h3>
+                </div>
+                <div class="hd-card__body">
+                    <form class="hd-space-y-6">
+                        <div class="hd-form-group">
+                            <label for="demo-input" class="hd-label">Text Input</label>
+                            <input type="text" id="demo-input" class="hd-input" placeholder="Enter text here">
+                        </div>
+                        
+                        <div class="hd-form-group">
+                            <label for="demo-select" class="hd-label">Select</label>
+                            <select id="demo-select" class="hd-input">
+                                <option>Option 1</option>
+                                <option>Option 2</option>
+                                <option>Option 3</option>
+                            </select>
+                        </div>
+                        
+                        <div class="hd-flex hd-gap-4 hd-flex-column-mobile">
+                            <button type="button" class="hd-btn hd-btn--primary">Primary Button</button>
+                            <button type="button" class="hd-btn hd-btn--secondary">Secondary Button</button>
+                            <button type="button" class="hd-btn hd-btn--outline">Outline Button</button>
+                            <button type="button" class="hd-btn hd-btn--ghost">Ghost Button</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Footer -->
+    <footer role="contentinfo" class="hd-footer mt-16">
+        <div class="hd-container">
+            <div class="hd-text-center-mobile hd-space-responsive">
+                <p class="hd-text hd-text--muted">
+                    &copy; 2024 Hazard Detection System. Built with accessibility and performance in mind.
+                </p>
+            </div>
+        </div>
+    </footer>
+    
+    <!-- Theme toggle -->
+    <button type="button" 
+            id="theme-toggle" 
+            class="hd-btn hd-btn--ghost fixed bottom-4 right-4 z-50"
+            aria-label="Toggle dark/light theme">
+        <span class="sr-only">Toggle theme</span>
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+        </svg>
+    </button>
+    
+    <!-- Toast notification container -->
+    <div id="toast-container" class="fixed top-4 right-4 z-50" role="region" aria-label="Notifications"></div>
+    
+    <!-- JavaScript -->
+    <script>
+        // Critical JavaScript for immediate functionality
+        
+        // Mobile menu toggle
+        document.addEventListener('DOMContentLoaded', function() {
+            const mobileMenuButton = document.querySelector('[aria-controls="mobile-menu"]');
+            const mobileMenu = document.getElementById('mobile-menu');
+            
+            if (mobileMenuButton && mobileMenu) {
+                mobileMenuButton.addEventListener('click', function() {
+                    const expanded = this.getAttribute('aria-expanded') === 'true';
+                    this.setAttribute('aria-expanded', !expanded);
+                    mobileMenu.classList.toggle('hidden');
+                });
+            }
+            
+            // Theme toggle
+            const themeToggle = document.getElementById('theme-toggle');
+            if (themeToggle) {
+                themeToggle.addEventListener('click', function() {
+                    const currentTheme = document.documentElement.getAttribute('data-theme');
+                    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                    document.documentElement.setAttribute('data-theme', newTheme);
+                    localStorage.setItem('theme', newTheme);
+                });
+            }
+        });
+        
+        // Toast notification system
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            
+            const toast = document.createElement('div');
+            toast.className = `hd-card p-4 mb-2 fade-in toast toast-${type}`;
+            toast.setAttribute('role', 'alert');
+            toast.setAttribute('aria-live', 'polite');
+            toast.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <span>${message}</span>
+                    <button type="button" class="ml-4 text-sm" onclick="this.parentElement.parentElement.remove()">
+                        <span aria-hidden="true">&times;</span>
+                        <span class="sr-only">Close</span>
+                    </button>
+                </div>
+            `;
+            
+            container.appendChild(toast);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.classList.add('fade-out');
+                    setTimeout(() => toast.remove(), 300);
+                }
+            }, 5000);
+        }
+        
+        // Load non-critical JavaScript
+        if ('requestIdleCallback' in window) {
+            requestIdleCallback(function() {
+                // Load additional scripts when browser is idle
+                const script = document.createElement('script');
+                script.src = 'js/app.js';
+                script.defer = true;
+                document.head.appendChild(script);
+            });
+        } else {
+            // Fallback for browsers without requestIdleCallback
+            setTimeout(function() {
+                const script = document.createElement('script');
+                script.src = 'js/app.js';
+                script.defer = true;
+                document.head.appendChild(script);
+            }, 1000);
+        }
+    </script>
+</body>
+</html>

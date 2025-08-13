@@ -50,13 +50,34 @@ btnSelfTest?.addEventListener('click',async()=>{
   document.getElementById('close-modal').addEventListener('click',()=>modal.classList.remove('active'));
 });
 
-btnExport?.addEventListener('click',()=>{
-  const data = localStorage.getItem('reports')||'[]';
-  const blob = new Blob([data],{type:'application/json'});
-  const a = document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='logs.json';
-  a.click();
+btnExport?.addEventListener('click', async () => {
+  try {
+    // Import enhanced localStorage functions
+    const { loadReports, getStorageInfo } = await import('./utils.js');
+    
+    const reports = await loadReports();
+    const storageInfo = getStorageInfo();
+    
+    const exportData = {
+      metadata: {
+        exportDate: new Date().toISOString(),
+        reportCount: storageInfo.reportCount,
+        dataSize: storageInfo.reportsSize
+      },
+      reports: reports
+    };
+    
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `hazard-reports-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    
+    showToast(`Exported ${reports.length} reports successfully`, 'success');
+  } catch (error) {
+    console.error('Export failed:', error);
+    showToast('Export failed: ' + error.message, 'error');
+  }
 });
 
 modal.addEventListener('click',e=>{if(e.target===modal)modal.classList.remove('active');});

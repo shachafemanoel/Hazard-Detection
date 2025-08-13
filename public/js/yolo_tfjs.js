@@ -10,16 +10,21 @@
  */
 export async function loadModel(modelPath) {
   try {
+    // Set WASM paths consistently
+    if (typeof ort !== 'undefined') {
+      ort.env.wasm.wasmPaths = '/ort/';
+    }
+    
     let session;
     try {
-      // ניסיון לטעון עם WebGL
-      session = await ort.InferenceSession.create(modelPath, { executionProviders: ['webgl'] });
+      // ניסיון לטעון עם WebGL + WASM fallback
+      session = await ort.InferenceSession.create(modelPath, { executionProviders: ['webgl', 'wasm'] });
       console.log("✅ YOLO model loaded with WebGL!");
     } catch (err) {
       // נסיגה למעבד אם WebGL נכשל
-      console.warn("WebGL backend failed, falling back to CPU:", err);
-      session = await ort.InferenceSession.create(modelPath);
-      console.log("✅ YOLO model loaded with CPU!");
+      console.warn("WebGL backend failed, falling back to WASM:", err);
+      session = await ort.InferenceSession.create(modelPath, { executionProviders: ['wasm'] });
+      console.log("✅ YOLO model loaded with WASM!");
     }
     return session;
   } catch (err) {
