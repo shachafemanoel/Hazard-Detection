@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const startBtn = document.getElementById("start-camera");
   const stopBtn = document.getElementById("stop-camera");
   const switchBtn = document.getElementById("switch-camera");
+  const cameraSelect = document.getElementById("camera-select");
   const video = document.getElementById("camera-stream");
   const canvas = document.getElementById("overlay-canvas");
   const ctx = canvas.getContext("2d");
@@ -38,8 +39,21 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       videoDevices = devices.filter((d) => d.kind === "videoinput");
+      
+      // Populate camera dropdown
+      if (cameraSelect && videoDevices.length > 0) {
+        cameraSelect.innerHTML = ""; // Clear existing options
+        videoDevices.forEach((device, index) => {
+          const option = document.createElement("option");
+          option.value = device.deviceId;
+          option.textContent = device.label || `Camera ${index + 1}`;
+          cameraSelect.appendChild(option);
+        });
+      }
+      
       if (videoDevices.length > 1) {
         switchBtn.style.display = "inline-block";
+        if (cameraSelect) cameraSelect.style.display = "inline-block";
       }
     } catch (err) {
       console.warn("⚠️ Could not enumerate video devices:", err);
@@ -456,22 +470,94 @@ async function fallbackIpLocation() {
   });
   
   
+  // Camera selection dropdown handler
+  if (cameraSelect) {
+    cameraSelect.addEventListener("change", async () => {
+      if (!stream) {
+        console.warn("⚠️ Cannot change camera - no active stream");
+        return;
+      }
+      
+      const selectedDeviceId = cameraSelect.value;
+      if (!selectedDeviceId) return;
+      
+      try {
+        // Stop current stream
+        stream.getTracks().forEach((t) => t.stop());
+        
+        // Find the selected camera index
+        currentCamIndex = videoDevices.findIndex(device => device.deviceId === selectedDeviceId);
+        if (currentCamIndex === -1) currentCamIndex = 0;
+        
+        console.log(`🔄 Switching to selected camera: ${cameraSelect.options[cameraSelect.selectedIndex].text}`);
+
+        // Request new camera stream
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { deviceId: { exact: selectedDeviceId } },
+        });
+
+        video.srcObject = stream;
+        letterboxParams = null; // Force recalculation on next frame
+        
+        console.log("✅ Camera switched successfully via dropdown");
+      } catch (err) {
+        console.error("❌ Failed to switch camera via dropdown:", err);
+        // Try to fallback to default camera if specific camera fails
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          video.srcObject = stream;
+          letterboxParams = null;
+          console.log("🔄 Fell back to default camera");
+        } catch (fallbackErr) {
+          console.error("❌ Fallback camera also failed:", fallbackErr);
+          alert("⚠️ Failed to switch camera. Please try restarting the camera.");
+        }
+      }
+    });
+  }
+
   switchBtn.addEventListener("click", async () => {
     try {
-      if (!stream || videoDevices.length < 2) return;
+      if (!stream || videoDevices.length < 2) {
+        console.warn("⚠️ Cannot switch camera - no active stream or insufficient cameras");
+        return;
+      }
+      
+      // Stop current stream
       stream.getTracks().forEach((t) => t.stop());
 
+      // Cycle to next camera
       currentCamIndex = (currentCamIndex + 1) % videoDevices.length;
       const newDeviceId = videoDevices[currentCamIndex].deviceId;
+      
+      // Update dropdown selection to match
+      if (cameraSelect) {
+        cameraSelect.value = newDeviceId;
+      }
+      
+      console.log(`🔄 Switching to camera ${currentCamIndex + 1}/${videoDevices.length}`);
 
+      // Request new camera stream
       stream = await navigator.mediaDevices.getUserMedia({
         video: { deviceId: { exact: newDeviceId } },
       });
 
       video.srcObject = stream;
-      letterboxParams = null; // יגרום לחישוב מחדש בפריים הבא
+      letterboxParams = null; // Force recalculation on next frame
+      
+      console.log("✅ Camera switched successfully");
     } catch (err) {
       console.error("❌ Failed to switch camera:", err);
+      // Try to fallback to default camera if specific camera fails
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+        letterboxParams = null;
+        console.log("🔄 Fell back to default camera");
+      } catch (fallbackErr) {
+        console.error("❌ Fallback camera also failed:", fallbackErr);
+        alert("⚠️ Failed to switch camera. Please try restarting the camera.");
+      }
     }
   });
   stopBtn.addEventListener("click", () => {
