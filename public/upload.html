@@ -239,10 +239,16 @@
           <div class="canvas-container border-2 border-dashed border-white/20 rounded-2xl overflow-hidden bg-white/5 backdrop-blur-sm flex items-center justify-center transition-all duration-300 hover:border-blue-400 hover:bg-white/10 mx-auto" style="min-height: 400px; max-width: 800px;">
             <canvas id="preview-canvas" class="max-w-full max-h-[60vh]"></canvas>
           </div>
-          <button id="save-detection" class="btn-modern flex items-center justify-center w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white py-4 px-6 rounded-2xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none">
-            <i class="fas fa-save text-xl mr-3"></i>
-            <span class="text-sm font-medium">Save Detection</span>
-          </button>
+          <div class="flex gap-4">
+            <button id="get-location-btn" class="btn-modern flex items-center justify-center bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white py-4 px-6 rounded-2xl shadow-lg flex-1">
+              <i class="fas fa-map-marker-alt text-xl mr-3"></i>
+              <span class="text-sm font-medium">Get Current Location</span>
+            </button>
+            <button id="save-detection" class="btn-modern flex items-center justify-center bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white py-4 px-6 rounded-2xl shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex-1">
+              <i class="fas fa-save text-xl mr-3"></i>
+              <span class="text-sm font-medium">Save Detection</span>
+            </button>
+          </div>
           <div id="tooltip" class="hidden absolute bg-gray-800 text-white text-xs rounded py-1 px-2 z-50 pointer-events-none">
             ⚠️ No Hazard Detected. Cannot save detection
           </div>
