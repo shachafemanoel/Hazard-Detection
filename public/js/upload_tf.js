@@ -1,4 +1,4 @@
-// upload_tf_fixed.js
+
 import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js";
 import { storage } from "./firebaseConfig.js";
 
@@ -418,7 +418,7 @@ async function fallbackIpLocation() {
     ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
     const EPs = ort.env.webgl?.isSupported ? ['webgl','wasm'] : ['wasm','webgl'];
     session = await ort.InferenceSession.create(
-      '/object_detecion_model/last_model_train12052025.onnx',
+      '/object_detecion_model/best-11-8-2025.onnx',
       { executionProviders: EPs, graphOptimizationLevel: 'all' }
     );
   }
