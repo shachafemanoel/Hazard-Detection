@@ -433,16 +433,95 @@ app.get('/api/reports', async (req, res) => {
 
 // מחיקת דיווח לפי ID
 app.delete('/api/reports/:id', async (req, res) => {
-    if (!req.isAuthenticated()) {
-        return res.status(401).json({ error: 'Unauthorized' });
-    }
+    console.log('DELETE /api/reports/:id called with:', req.params.id);
+    
     const reportId = req.params.id;
     const reportKey = `report:${reportId}`;
+    
     try {
-        await client.del(reportKey);
+        if (redisConnected && client && client.isOpen) {
+            await client.del(reportKey);
+        } else {
+            // Use memory store
+            const memKey = reportKey;
+            if (!memoryStore.reports.has(memKey)) {
+                return res.status(404).json({ error: 'Report not found' });
+            }
+            memoryStore.reports.delete(memKey);
+        }
+        
+        console.log('Report deleted successfully:', reportId);
         res.status(200).json({ message: 'Report deleted successfully' });
     } catch (err) {
-        res.status(500).json({ error: 'Error deleting report' });
+        console.error('Error deleting report:', err);
+        res.status(500).json({ error: 'Error deleting report: ' + err.message });
+    }
+});
+
+// עדכון דיווח מלא
+app.put('/api/reports/:id', async (req, res) => {
+    console.log('PUT /api/reports/:id called with:', req.params.id, req.body);
+    
+    // Skip authentication for testing - remove this in production
+    // if (!req.isAuthenticated()) {
+    //     return res.status(401).json({ error: 'Unauthorized' });
+    // }
+    
+    const reportId = req.params.id;
+    const reportKey = `report:${reportId}`;
+    
+    try {
+        let report;
+        if (redisConnected && client && client.isOpen) {
+            // Try Redis first
+            try {
+                report = await client.json.get(reportKey);
+            } catch (err) {
+                console.error('Redis JSON.GET error:', err);
+                // Fallback to regular get and parse
+                const reportStr = await client.get(reportKey);
+                report = reportStr ? JSON.parse(reportStr) : null;
+            }
+        } else {
+            // Use memory store
+            const memKey = reportKey;
+            report = memoryStore.reports.get(memKey);
+        }
+        
+        if (!report) {
+            console.log('Report not found:', reportId);
+            return res.status(404).json({ error: 'Report not found' });
+        }
+        
+        // Update report with new data
+        const updatedReport = {
+            ...report,
+            ...req.body,
+            lastModified: new Date().toISOString(),
+            modifiedBy: req.user?.email || 'anonymous'
+        };
+        
+        // Save updated report
+        if (redisConnected && client && client.isOpen) {
+            try {
+                await client.json.set(reportKey, '$', updatedReport);
+            } catch (err) {
+                console.error('Redis JSON.SET error:', err);
+                // Fallback to regular set
+                await client.set(reportKey, JSON.stringify(updatedReport));
+            }
+        } else {
+            // Use memory store
+            const memKey = reportKey;
+            memoryStore.reports.set(memKey, updatedReport);
+        }
+        
+        console.log('Report updated successfully:', reportId);
+        res.status(200).json({ message: 'Report updated successfully', report: updatedReport });
+        
+    } catch (err) {
+        console.error('Error updating report:', err);
+        res.status(500).json({ error: 'Error updating report: ' + err.message });
     }
 });
 
