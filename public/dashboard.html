@@ -1,36 +1,23 @@
-<!--
-  Redesigned dashboard.html for a world-class, modern, TrafficDot2-inspired dark-mode interface.
-  - Modular card-style panels for all widgets and reports
-  - Responsive, accessible layout
-  - Real-time data, management actions, deduplication UI
-  - All logic hooks (JS) for management, search, sort, deduplication
--->
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="icon.png" type="image/png">
-  <title>Hazard Detection Dashboard</title>
-  <link rel="stylesheet" href="css/modern-ui-theme.css">
+  <title>RoadGuardian Dashboard</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/dashboard.css">
-  <link rel="stylesheet" href="css/floating-menu.css">
   <style>
-    /* New comprehensive layout for an urban command-center look */
     body {
-      background: #f5f7fb;
-      font-family: 'Poppins', sans-serif;
-      color: #1f2937;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #e2e8f0;
       margin: 0;
       padding: 0;
     }
     header {
-      background: rgba(31,34,53,0.95);
-      border-bottom: 2px solid #f7c873;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.7);
+      background: rgba(15,23,42,0.95);
+      border-bottom: 2px solid #3b82f6;
       padding: 1rem 1.5rem;
       position: sticky;
       top: 0;
@@ -39,235 +26,330 @@
     }
     header h1 {
       margin: 0;
-      font-size: 1.8rem; /* smaller title */
+      font-size: 1.8rem;
       font-weight: 700;
-      color: #f7c873;
-    }
-    .container-flex {
-      display: flex;
-      flex-direction: column;
-      gap: 2rem;
-      padding: 2rem;
-    }
-    /* New modular panel styling */
-    .dashboard-panel {
-      background: rgba(31,34,53,0.92);
-      border: 1px solid #2c2c2c;
-      border-radius: 12px;
-      padding: 1rem;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-    }
-    /* Map: enlarged and centered */
-    #map {
-      width: 100%;
-      height: 70vh;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
-    }
-    /* Reports log: smaller table container placed below map */
-    #reports-table-container {
-      max-height: 30vh;
-      overflow-y: auto;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      border-radius: 8px;
-      background: #ffffff;
-      padding: 1rem;
-    }
-    #reports-table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    #reports-table th, #reports-table td {
-      padding: 0.5rem 0.75rem;
-      border: 1px solid #2c2c2c;
-      text-align: left;
-    }
-    #reports-table th {
-      background: #f3f4f6;
-      color: #111827;
-      font-weight: 600;
-    }
-    #reports-table tbody tr:hover {
-      background: rgba(247,200,115,0.1);
-    }
-    footer {
-      background: #232946;
-      color: #fff;
-      text-align: center;
-      padding: 1.5rem;
-      border-top: 2px solid #f7c873;
-    }
-    @media (max-width: 768px) {
-      .container-flex {
-        padding: 1rem;
-        gap: 1rem;
-      }
-      #map {
-        height: 50vh;
-      }
-      #reports-table-container {
-        max-height: 40vh;
-      }
-    }
-    /* Enhanced Floating Menu styles */
-    .floating-menu-btn {
-      position: fixed;
-      bottom: 2rem;
-      right: 2rem;
-      background: linear-gradient(135deg, #3b82f6 0%, #22c55e 100%);
-      color: white;
-      border: none;
-      border-radius: 50%;
-      width: 64px;
-      height: 64px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      font-size: 1.5rem;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
-      cursor: pointer;
-      z-index: 1400;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      backdrop-filter: blur(12px);
-    }
-    .floating-menu-btn:hover {
-      background: linear-gradient(135deg, #2563eb 0%, #16a34a 100%);
-      transform: scale(1.1) translateY(-2px);
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
-    }
-    .floating-menu-btn:active {
-      transform: scale(0.95);
-    }
-    .floating-menu {
-      position: fixed;
-      bottom: 100px;
-      right: 2rem;
-      background: rgba(30, 41, 59, 0.9);
-      backdrop-filter: blur(20px);
-      border: 1px solid rgba(148, 163, 184, 0.1);
-      border-radius: 16px;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-      display: none;
-      flex-direction: column;
-      gap: 8px;
-      padding: 1rem;
-      z-index: 1500;
-      min-width: 180px;
-    }
-    .floating-menu.active {
-      display: flex;
-    }
-    .floating-menu a {
-      color: #e2e8f0;
-      text-decoration: none;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 16px;
-      border-radius: 12px;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      font-weight: 500;
-    }
-    .floating-menu a:hover {
-      background: rgba(59, 130, 246, 0.2);
-      transform: translateX(4px);
       color: #3b82f6;
     }
-    .menu-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
+    .container-fluid {
+      padding: 2rem;
+    }
+    .dashboard-panel {
+      background: rgba(15,23,42,0.8);
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    #map {
       width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.7);
-      display: none;
-      z-index: 1400;
+      height: 60vh;
+      border-radius: 8px;
+      border: 1px solid #334155;
     }
-    .menu-overlay.active {
-      display: block;
+    
+    /* Filter Panel Styling */
+    .filter-panel {
+      background: rgba(30,41,59,0.8);
+      border: 1px solid #475569;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
     }
-    /* Updated: Styles for the legend toggle button repositioned to the right between header and map */
-    #legend-toggle-btn {
-      position: absolute;
-      top: 80px; /* adjusted to be below the header */
-      right: 20px; /* aligned to the right */
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      background: #f7c873;
-      color: #12141d;
-      border: none;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.4);
-      cursor: pointer;
-      z-index: 1500;
+    .filter-row {
       display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 1.25rem;
-      transition: background 0.3s;
+      gap: 1rem;
+      margin-bottom: 0.5rem;
+      flex-wrap: wrap;
     }
-    #legend-toggle-btn:hover {
-      background: #e6b55f;
+    .filter-input {
+      flex: 1;
+      min-width: 200px;
+    }
+    .form-control, .form-select {
+      background: rgba(51,65,85,0.8);
+      border: 1px solid #64748b;
+      color: #e2e8f0;
+    }
+    .form-control:focus, .form-select:focus {
+      background: rgba(51,65,85,0.9);
+      border-color: #3b82f6;
+      color: #e2e8f0;
+      box-shadow: 0 0 0 0.2rem rgba(59,130,246,0.25);
+    }
+    
+    /* Table Styling */
+    #reports-table-container {
+      max-height: 50vh;
+      overflow-y: auto;
+      border-radius: 8px;
+      background: rgba(15,23,42,0.6);
+      border: 1px solid #334155;
+    }
+    .table-dark {
+      --bs-table-bg: transparent;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 1.1rem;
+    }
+    .table-dark th {
+      border: 1px solid #475569;
+      color: #3b82f6;
+      font-weight: 700;
+      font-size: 1.15rem;
+      background: rgba(30,41,59,0.9);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      padding: 1rem 0.75rem;
+      text-align: center;
+      white-space: nowrap;
+    }
+    .table-dark td {
+      border: 1px solid #334155;
+      padding: 1rem 0.75rem;
+      vertical-align: middle;
+      font-size: 1.05rem;
+      font-weight: 500;
+    }
+    .table-dark tbody tr:hover {
+      background-color: rgba(59,130,246,0.1);
+    }
+    
+    /* Column widths for better layout */
+    #reports-table th:nth-child(1), #reports-table td:nth-child(1) { width: 8%; text-align: center; } /* ID */
+    #reports-table th:nth-child(2), #reports-table td:nth-child(2) { width: 15%; text-align: center; } /* Type */
+    #reports-table th:nth-child(3), #reports-table td:nth-child(3) { width: 25%; } /* Location */
+    #reports-table th:nth-child(4), #reports-table td:nth-child(4) { width: 18%; text-align: center; } /* Time */
+    #reports-table th:nth-child(5), #reports-table td:nth-child(5) { width: 12%; text-align: center; } /* Status */
+    #reports-table th:nth-child(6), #reports-table td:nth-child(6) { width: 15%; text-align: center; } /* Reporter */
+    #reports-table th:nth-child(7), #reports-table td:nth-child(7) { width: 7%; text-align: center; } /* Actions */
+    
+    /* Type Badge Colors */
+    .type-pothole { 
+      background-color: #dc2626 !important; 
+      color: white; 
+      font-size: 0.95rem;
+      font-weight: 600;
+      padding: 0.5rem 0.75rem;
+    }
+    .type-crack { 
+      background-color: #16a34a !important; 
+      color: white; 
+      font-size: 0.95rem;
+      font-weight: 600;
+      padding: 0.5rem 0.75rem;
+    }
+    .type-other { 
+      background-color: #7c3aed !important; 
+      color: white;
+      font-size: 0.95rem;
+      font-weight: 600;
+      padding: 0.5rem 0.75rem;
+    }
+    
+    /* Action Buttons */
+    .btn-action {
+      padding: 0.5rem 0.75rem;
+      margin: 0 0.25rem;
+      border-radius: 6px;
+      border: none;
+      color: white;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 1rem;
+      font-weight: 500;
+      min-width: 40px;
+    }
+    .btn-view { background: #3b82f6; }
+    .btn-view:hover { background: #2563eb; transform: scale(1.05); }
+    .btn-image { background: #16a34a; }
+    .btn-image:hover { background: #15803d; transform: scale(1.05); }
+    
+    /* Modal Styling */
+    .modal-content {
+      background: rgba(15,23,42,0.95);
+      border: 1px solid #334155;
+      color: #e2e8f0;
+    }
+    .modal-header {
+      border-bottom: 1px solid #334155;
+    }
+    .modal-footer {
+      border-top: 1px solid #334155;
+    }
+    
+    /* Status Badge */
+    .status-new { 
+      background-color: #dc2626; 
+      font-size: 0.9rem;
+      font-weight: 600;
+      padding: 0.4rem 0.6rem;
+    }
+    .status-open { 
+      background-color: #ea580c; 
+      font-size: 0.9rem;
+      font-weight: 600;
+      padding: 0.4rem 0.6rem;
+    }
+    .status-resolved { 
+      background-color: #16a34a; 
+      font-size: 0.9rem;
+      font-weight: 600;
+      padding: 0.4rem 0.6rem;
+    }
+    .status-closed { 
+      background-color: #6b7280; 
+      font-size: 0.9rem;
+      font-weight: 600;
+      padding: 0.4rem 0.6rem;
+    }
+    
+    .btn-refresh {
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      border: none;
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      transition: all 0.3s;
+    }
+    .btn-refresh:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(59,130,246,0.3);
+    }
+    
+    /* Navigation Menu Styling */
+    .dropdown-menu {
+      background: rgba(15,23,42,0.95);
+      border: 1px solid #334155;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.4);
+    }
+    .dropdown-item {
+      color: #e2e8f0;
+      padding: 0.75rem 1rem;
+      transition: all 0.2s;
+    }
+    .dropdown-item:hover, .dropdown-item:focus {
+      background: rgba(59,130,246,0.2);
+      color: #3b82f6;
+    }
+    .dropdown-item.active {
+      background: rgba(59,130,246,0.3);
+      color: #3b82f6;
+      font-weight: 600;
+    }
+    .dropdown-divider {
+      border-color: #334155;
+    }
+    @media (max-width: 768px) {
+      .container-fluid { padding: 1rem; }
+      #map { height: 50vh; }
+      #reports-table-container { max-height: 35vh; }
+      .filter-row { flex-direction: column; }
+      .filter-input { min-width: auto; }
+      .table-dark { font-size: 0.95rem; }
+      .table-dark th { font-size: 1rem; padding: 0.75rem 0.5rem; }
+      .table-dark td { padding: 0.75rem 0.5rem; font-size: 0.9rem; }
+      .btn-action { padding: 0.4rem 0.6rem; font-size: 0.9rem; }
+      
+      /* Mobile navigation adjustments */
+      header h1 { font-size: 1.4rem; }
+      .d-flex.align-items-center.gap-2 { gap: 0.5rem !important; }
+      .dropdown-menu { min-width: 180px; }
     }
   </style>
 </head>
 <body>
-  <!-- Floating Menu Button -->
-  <button class="floating-menu-btn" id="menuBtn">
-    <i class="fas fa-bars"></i>
+    <header>
+    <div class="d-flex justify-content-between align-items-center">
+      <h1><i class="fas fa-road me-2"></i>RoadGuardian Dashboard</h1>
+      <div class="d-flex align-items-center gap-2">
+        <!-- Navigation Menu -->
+        <div class="dropdown">
+          <button class="btn btn-outline-light dropdown-toggle" type="button" id="navDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="fas fa-bars me-1"></i>Menu
   </button>
-
-  <!-- Floating Menu -->
-  <div class="floating-menu" id="floatingMenu">
-    <a href="/dashboard.html"><i class="fas fa-chart-line"></i><span>Dashboard</span></a>
-    <a href="/camera.html"><i class="fas fa-camera"></i><span>Camera</span></a>
-    <a href="/upload.html"><i class="fas fa-upload"></i><span>Upload</span></a>
-    <a href="/logout"><i class="fas fa-sign-out-alt"></i><span>Logout</span></a>
+          <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="navDropdown">
+            <li><a class="dropdown-item active" href="/dashboard.html"><i class="fas fa-tachometer-alt me-2"></i>Dashboard</a></li>
+            <li><a class="dropdown-item" href="/upload.html"><i class="fas fa-upload me-2"></i>Upload Report</a></li>
+            <li><a class="dropdown-item" href="/camera.html"><i class="fas fa-camera me-2"></i>Live Camera</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="/login.html"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
+          </ul>
   </div>
-
-  <!-- Menu Overlay -->
-  <div class="menu-overlay" id="menuOverlay"></div>
-
-  <!-- Existing Header -->
-  <header class="my-3">
-  <div class="d-flex flex-column align-items-center">
-    <h1><i class="fas fa-road me-2"></i>RoadGuardian: Live Hazard Tracker</h1>
-    <button id="refresh-info-btn" class="btn btn-accent mt-2" title="Refresh Info">
-      <i class="fas fa-rotate-right"></i>
+        <button id="refresh-btn" class="btn btn-refresh" title="Refresh Dashboard">
+          <i class="fas fa-sync-alt me-1"></i>Refresh
     </button>
+      </div>
   </div>
 </header>
 
-  <main class="container-flex">
-    <!-- MAP SECTION wrapped in a panel -->
-    <section id="map-section" class="dashboard-panel">
+  <main class="container-fluid">
+    <!-- MAP SECTION -->
+    <section class="dashboard-panel">
+      <h5 class="mb-3"><i class="fas fa-map-marked-alt me-2"></i>Live Map</h5>
       <div id="map"></div>
     </section>
-    <!-- REPORTS LOG SECTION wrapped in a panel -->
-    <section id="reports-section" class="dashboard-panel">
-      <!-- New Filters Panel -->
-      <div id="reports-filters" class="d-flex flex-wrap gap-3 mb-3">
-        <input id="report-search-input" class="form-control" type="search" placeholder="Search reports..." aria-label="Search reports">
-        <select id="report-sort-select" class="form-select">
-          <option value="time-desc">Newest</option>
-          <option value="time-asc">Oldest</option>
-          <option value="type-asc">Hazard Type A-Z</option>
-          <option value="type-desc">Hazard Type Z-A</option>
+
+    <!-- REPORTS TABLE SECTION -->
+    <section class="dashboard-panel">
+      <h5 class="mb-3"><i class="fas fa-list me-2"></i>Reports Log</h5>
+      
+      <!-- Advanced Filters -->
+      <div class="filter-panel">
+        <div class="filter-row">
+          <div class="filter-input">
+            <label class="form-label small">Search (ID, User, Location, Type):</label>
+            <input type="text" id="search-filter" class="form-control" placeholder="חיפוש חופשי...">
+          </div>
+          <div class="filter-input">
+            <label class="form-label small">Status:</label>
+            <select id="status-filter" class="form-select">
+              <option value="">All Statuses</option>
+              <option value="new">New</option>
+              <option value="open">Open</option>
+              <option value="resolved">Resolved</option>
+              <option value="closed">Closed</option>
+            </select>
+          </div>
+          <div class="filter-input">
+            <label class="form-label small">Type:</label>
+            <select id="type-filter" class="form-select">
+              <option value="">All Types</option>
+              <option value="pothole">Pothole</option>
+              <option value="crack">Crack</option>
+              <option value="manhole">Manhole</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+        </div>
+        <div class="filter-row">
+          <div class="filter-input">
+            <label class="form-label small">Sort By:</label>
+            <select id="sort-filter" class="form-select">
+              <option value="time-desc">Newest First</option>
+              <option value="time-asc">Oldest First</option>
+              <option value="id-desc">ID High to Low</option>
+              <option value="id-asc">ID Low to High</option>
+              <option value="type-asc">Type A-Z</option>
+              <option value="type-desc">Type Z-A</option>
           <option value="status-asc">Status A-Z</option>
           <option value="status-desc">Status Z-A</option>
-          <option value="location-asc">Location A-Z</option>
-          <option value="location-desc">Location Z-A</option>
-          <option value="reportedBy-asc">Reporter A-Z</option>
-          <option value="reportedBy-desc">Reporter Z-A</option>
         </select>
-        <!-- Container for hazard type checkboxes -->
-        <div id="hazard-types-container" class="d-flex flex-wrap gap-2"></div>
+          </div>
+          <div class="filter-input d-flex align-items-end">
+            <button id="clear-filters" class="btn btn-outline-warning">
+              <i class="fas fa-times me-1"></i>Clear Filters
+            </button>
+          </div>
+        </div>
       </div>
+      
       <div id="reports-table-container">
-        <table id="reports-table" class="table table-dark table-hover">
+        <table id="reports-table" class="table table-dark table-striped table-hover">
           <thead>
             <tr>
-              <th>Image</th>
+              <th>ID</th>
               <th>Type</th>
               <th>Location</th>
               <th>Time</th>
@@ -277,92 +359,406 @@
             </tr>
           </thead>
           <tbody id="reports-table-body">
-            <!-- ...Report rows will be injected via dashboard.js... -->
+            <tr>
+              <td colspan="7" class="text-center">Loading reports...</td>
+            </tr>
           </tbody>
         </table>
       </div>
     </section>
   </main>
   
-  <!-- Modals -->
   <!-- Image Modal -->
-  <div id="image-modal" class="image-modal-overlay" tabindex="-1" role="dialog">
-    <img id="modal-image" alt="Enlarged Hazard Image">
-    <button onclick="document.getElementById('image-modal').style.display='none'" aria-label="Close" class="image-modal-close-btn">
-      <i class="fas fa-times"></i>
-    </button>
-  </div>
-  <!-- Report Details Modal (Bootstrap) -->
-  <div class="modal fade" id="reportDetailsModal" tabindex="-1" aria-labelledby="reportDetailsModalLabel" aria-hidden="true">
+  <div class="modal fade" id="imageModal" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-centered">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title" id="reportDetailsModalLabel">Report Details</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          <h5 class="modal-title">Report Image</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
-        <div class="modal-body">
-          <!-- ...existing modal content... -->
-          <div class="row">
-            <div class="col-md-5">
-              <img id="modal-report-image" src="" alt="Hazard" class="img-fluid rounded shadow">
-            </div>
-            <div class="col-md-7">
-              <ul class="list-group list-group-flush">
-                <li class="list-group-item bg-transparent"><strong>ID:</strong> <span id="modal-hazard-id"></span></li>
-                <li class="list-group-item bg-transparent"><strong>Type:</strong> <span id="modal-type"></span></li>
-                <li class="list-group-item bg-transparent"><strong>Location:</strong> <span id="modal-location"></span></li>
-                <li class="list-group-item bg-transparent"><strong>Time:</strong> <span id="modal-time"></span></li>
-                <li class="list-group-item bg-transparent"><strong>Status:</strong> <span id="modal-status"></span></li>
-                <li class="list-group-item bg-transparent"><strong>Reported By:</strong> <span id="modal-user"></span></li>
-              </ul>
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+        <div class="modal-body text-center">
+          <img id="modal-image" src="" alt="Report Image" class="img-fluid rounded">
         </div>
       </div>
     </div>
   </div>
-  <!-- Updated: Legend Toggle Button label remains "info" -->
-  <button id="legend-toggle-btn">info</button>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
-  <script src="js/dashboard.js" type="module"></script>
-  <!-- NEW: Load Google Maps API with visualization library -->
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCN0O4198LX8nzVAKSMRD6YC1zKSNp_Maw&callback=initMap&libraries=visualization&loading=async"></script>
+
+  <!-- Details Modal -->
+  <div class="modal fade" id="detailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Report Details</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row">
+            <div class="col-md-6">
+              <img id="details-image" src="" alt="Report Image" class="img-fluid rounded mb-3">
+            </div>
+            <div class="col-md-6">
+              <table class="table table-dark">
+                <tr><td><strong>ID:</strong></td><td id="details-id"></td></tr>
+                <tr><td><strong>Type:</strong></td><td id="details-type"></td></tr>
+                <tr><td><strong>Status:</strong></td><td id="details-status"></td></tr>
+                <tr><td><strong>Location:</strong></td><td id="details-location"></td></tr>
+                <tr><td><strong>Time:</strong></td><td id="details-time"></td></tr>
+                <tr><td><strong>Reporter:</strong></td><td id="details-reporter"></td></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    // Menu functionality
-    document.addEventListener('DOMContentLoaded', function() {
-      const menuBtn = document.getElementById('menuBtn');
-      const floatingMenu = document.getElementById('floatingMenu');
-      const menuOverlay = document.getElementById('menuOverlay');
+    // Self-contained dashboard script
+    let mapInstance = null;
+    let mapMarkers = [];
+    let geocoder = null;
+    let allReports = [];
+    let filteredReports = [];
 
-      menuBtn.addEventListener('click', () => {
-        floatingMenu.classList.toggle('active');
-        menuOverlay.classList.toggle('active');
-      });
+    // Geocoding cache
+    const GEOCODE_CACHE_KEY = 'geocodeCache:v1';
+    function loadGeocodeCache() {
+      try { return JSON.parse(localStorage.getItem(GEOCODE_CACHE_KEY) || '{}'); } catch (_) { return {}; }
+    }
+    function saveGeocodeCache(cache) {
+      try { localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(cache)); } catch (_) {}
+    }
+    const geocodeCache = loadGeocodeCache();
 
-      menuOverlay.addEventListener('click', () => {
-        floatingMenu.classList.remove('active');
-        menuOverlay.classList.remove('active');
-      });
-    });
+    // Notification function
+    function notify(message, type = 'info') {
+      console.log(`[${type.toUpperCase()}] ${message}`);
+      if (type === 'error') alert(`Error: ${message}`);
+    }
 
-    // ...existing bootstrap modal initialization...
-    document.addEventListener('DOMContentLoaded', function() {
-      const modalEl = document.getElementById('reportDetailsModal');
-      if (modalEl && window.bootstrap) {
-        window.reportDetailsBootstrapModal = new bootstrap.Modal(modalEl, {});
+    // Utils
+    async function fetchWithTimeout(url, { timeout = 10000, ...options } = {}) {
+      try {
+        const res = await fetch(url, { ...options, credentials: 'include' });
+        return res;
+      } catch (err) {
+        console.error('Fetch error:', err);
+        throw err;
       }
-    });
-    // NEW: Bind the legend toggle button to toggleLegend() defined in dashboard.js
+    }
+
+    function parseCoordsFromString(locationStr) {
+      if (!locationStr) return null;
+      const s = String(locationStr);
+      let m = s.match(/(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)/);
+      if (m) return { lat: Number(m[1]), lng: Number(m[2]) };
+      m = s.match(/Lat:\s*(-?\d+\.?\d*)[^\d-]+Long:\s*(-?\d+\.?\d*)/i);
+      if (m) return { lat: Number(m[1]), lng: Number(m[2]) };
+      return null;
+    }
+
+    async function geocodeAddress(address) {
+      if (!address) return null;
+      if (geocodeCache[address]) return geocodeCache[address];
+      if (!geocoder && window.google && google.maps) geocoder = new google.maps.Geocoder();
+      if (!geocoder) return null;
+
+      return new Promise((resolve) => {
+        geocoder.geocode({ address }, (results, status) => {
+          if (status === 'OK' && results && results[0]) {
+            const loc = results[0].geometry.location;
+            const coords = { lat: loc.lat(), lng: loc.lng() };
+            geocodeCache[address] = coords;
+            saveGeocodeCache(geocodeCache);
+            resolve(coords);
+          } else {
+            resolve(null);
+          }
+        });
+      });
+    }
+
+    function clearMarkers() {
+      mapMarkers.forEach(m => m.setMap(null));
+      mapMarkers = [];
+    }
+
+    function getTypeClass(type) {
+      if (!type) return 'type-other';
+      const t = type.toLowerCase();
+      if (t.includes('pothole')) return 'type-pothole';
+      if (t.includes('crack')) return 'type-crack';
+      return 'type-other';
+    }
+
+    function getStatusClass(status) {
+      if (!status) return 'status-new';
+      const s = status.toLowerCase();
+      if (s === 'new') return 'status-new';
+      if (s === 'open') return 'status-open';
+      if (s === 'resolved') return 'status-resolved';
+      if (s === 'closed') return 'status-closed';
+      return 'status-new';
+    }
+
+    function showImageModal(imageUrl) {
+      const modal = new bootstrap.Modal(document.getElementById('imageModal'));
+      document.getElementById('modal-image').src = imageUrl;
+      modal.show();
+    }
+
+    function showDetailsModal(report) {
+      const modal = new bootstrap.Modal(document.getElementById('detailsModal'));
+      document.getElementById('details-image').src = report.image || report.image_url || '';
+      document.getElementById('details-id').textContent = report.id || '';
+      document.getElementById('details-type').textContent = report.type || report.class_name || '';
+      document.getElementById('details-status').textContent = report.status || '';
+      document.getElementById('details-location').textContent = report.location || '';
+      document.getElementById('details-time').textContent = report.time ? new Date(report.time).toLocaleString() : '';
+      document.getElementById('details-reporter').textContent = report.reportedBy || report.username || report.user || '';
+      modal.show();
+    }
+
+    function applyFilters() {
+      const searchTerm = document.getElementById('search-filter').value.toLowerCase();
+      const statusFilter = document.getElementById('status-filter').value.toLowerCase();
+      const typeFilter = document.getElementById('type-filter').value.toLowerCase();
+      const sortFilter = document.getElementById('sort-filter').value;
+
+      filteredReports = allReports.filter(report => {
+        // Search filter
+        if (searchTerm) {
+          const searchFields = [
+            (report.id?.toString() || '').toLowerCase(),
+            (report.type || report.class_name || '').toLowerCase(),
+            (report.location || '').toLowerCase(),
+            (report.reportedBy || report.username || report.user || '').toLowerCase()
+          ];
+          if (!searchFields.some(field => field.includes(searchTerm))) return false;
+        }
+
+        // Status filter
+        if (statusFilter && (report.status || '').toLowerCase() !== statusFilter) return false;
+
+        // Type filter
+        if (typeFilter) {
+          const reportType = (report.type || report.class_name || '').toLowerCase();
+          if (typeFilter === 'pothole' && !reportType.includes('pothole')) return false;
+          if (typeFilter === 'crack' && !reportType.includes('crack')) return false;
+          if (typeFilter === 'manhole' && !reportType.includes('manhole')) return false;
+          if (typeFilter === 'other' && (reportType.includes('pothole') || reportType.includes('crack') || reportType.includes('manhole'))) return false;
+        }
+
+        return true;
+      });
+
+      // Apply sorting
+      const [field, direction] = sortFilter.split('-');
+      filteredReports.sort((a, b) => {
+        let aVal, bVal;
+        if (field === 'time') {
+          aVal = new Date(a.time || 0);
+          bVal = new Date(b.time || 0);
+        } else if (field === 'id') {
+          aVal = parseInt(a.id) || 0;
+          bVal = parseInt(b.id) || 0;
+        } else {
+          aVal = (a[field] || '').toString().toLowerCase();
+          bVal = (b[field] || '').toString().toLowerCase();
+        }
+
+        if (direction === 'desc') {
+          return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
+        } else {
+          return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+        }
+      });
+
+      renderTableRows(filteredReports);
+      plotReportsOnMap(filteredReports);
+    }
+
+    function renderTableRows(reports) {
+      const tbody = document.getElementById('reports-table-body');
+      if (!tbody) return;
+      tbody.replaceChildren();
+      
+      if (!Array.isArray(reports) || reports.length === 0) {
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 7;
+        td.className = 'text-center';
+        td.textContent = 'No reports found.';
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+        return;
+      }
+
+      for (const r of reports) {
+        const tr = document.createElement('tr');
+        const typeClass = getTypeClass(r.type || r.class_name);
+        const statusClass = getStatusClass(r.status);
+        
+        tr.innerHTML = `
+          <td>${r.id ?? ''}</td>
+          <td><span class="badge ${typeClass}">${(r.type || r.class_name || '').toString()}</span></td>
+          <td>${(r.location || '').toString()}</td>
+          <td>${r.time ? new Date(r.time).toLocaleString() : ''}</td>
+          <td><span class="badge ${statusClass}">${r.status || ''}</span></td>
+          <td>${r.reportedBy || r.username || r.user || ''}</td>
+          <td>
+            <button class="btn-action btn-view" onclick="showDetailsModal(${JSON.stringify(r).replace(/"/g, '&quot;')})" title="View Details">
+              <i class="fas fa-eye"></i>
+            </button>
+            <button class="btn-action btn-image" onclick="showImageModal('${r.image || r.image_url || ''}')" title="View Image">
+              <i class="fas fa-camera"></i>
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      }
+    }
+
+    async function plotReportsOnMap(reports) {
+      if (!mapInstance || !Array.isArray(reports)) return;
+      clearMarkers();
+      const bounds = new google.maps.LatLngBounds();
+      let count = 0;
+
+      for (const r of reports) {
+        let coords = null;
+        if (Number.isFinite(Number(r.latitude)) && Number.isFinite(Number(r.longitude))) {
+          coords = { lat: Number(r.latitude), lng: Number(r.longitude) };
+        }
+        if (!coords) coords = parseCoordsFromString(r.location);
+        if (!coords && r.coordinates) coords = parseCoordsFromString(`${r.coordinates.lat}, ${r.coordinates.lng}`);
+        if (!coords) coords = await geocodeAddress(r.location);
+        if (!coords) continue;
+
+        const marker = new google.maps.Marker({
+          map: mapInstance,
+          position: coords,
+          title: `#${r.id} ${(r.type || r.class_name || '').toString()}`.trim(),
+        });
+
+        // Add click listener to marker
+        const infoWindow = new google.maps.InfoWindow({
+          content: `
+            <div style="color: #000; min-width: 200px;">
+              <h6><strong>Report #${r.id}</strong></h6>
+              <p><strong>Type:</strong> ${r.type || r.class_name || ''}</p>
+              <p><strong>Status:</strong> ${r.status || ''}</p>
+              <p><strong>Location:</strong> ${r.location || ''}</p>
+              <p><strong>Reporter:</strong> ${r.reportedBy || r.username || r.user || ''}</p>
+              <button onclick="showDetailsModal(${JSON.stringify(r).replace(/"/g, '&quot;')})" 
+                      style="background: #3b82f6; color: white; border: none; padding: 5px 10px; border-radius: 3px; margin: 2px;">
+                View Details
+              </button>
+              <button onclick="showImageModal('${r.image || r.image_url || ''}')" 
+                      style="background: #16a34a; color: white; border: none; padding: 5px 10px; border-radius: 3px; margin: 2px;">
+                View Image
+              </button>
+            </div>
+          `
+        });
+
+        marker.addListener('click', () => {
+          infoWindow.open(mapInstance, marker);
+        });
+
+        mapMarkers.push(marker);
+        bounds.extend(coords);
+        count++;
+      }
+
+      if (count > 0) {
+        mapInstance.fitBounds(bounds);
+      }
+      console.log(`Plotted ${count} markers on map`);
+    }
+
+    async function fetchAllReports() {
+      console.log('🔄 Fetching reports from /api/reports...');
+      const res = await fetchWithTimeout('/api/reports');
+      console.log('📡 Response status:', res.status);
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      const data = await res.json();
+      console.log('📊 Raw data received:', Array.isArray(data) ? `${data.length} reports` : typeof data);
+      return Array.isArray(data) ? data : [];
+    }
+
+    async function loadAndRender() {
+      try {
+        console.log('🚀 Starting loadAndRender...');
+        notify('Loading reports...', 'info');
+        allReports = await fetchAllReports();
+        filteredReports = [...allReports];
+        console.log('✅ Got reports, applying filters...');
+        applyFilters();
+        console.log('✅ Dashboard loaded successfully');
+        notify(`Loaded ${allReports.length} reports`, 'success');
+      } catch (err) {
+        console.error('❌ Error in loadAndRender:', err);
+        notify(`Failed to load dashboard: ${err.message}`, 'error');
+      }
+    }
+
+    // Google Maps callback
+    window.initMap = async function initMap() {
+      try {
+        const el = document.getElementById('map');
+        if (!el) throw new Error('Map container not found');
+        
+        mapInstance = new google.maps.Map(el, {
+          center: { lat: 32.0853, lng: 34.7818 }, // Tel Aviv
+          zoom: 12,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: true,
+        });
+        
+        geocoder = new google.maps.Geocoder();
+        console.log('Map initialized successfully');
+        await loadAndRender();
+      } catch (e) {
+        notify(`Map init failed: ${e.message}`, 'error');
+      }
+    };
+
+    // Event listeners
     document.addEventListener('DOMContentLoaded', () => {
-      const legendBtn = document.getElementById('legend-toggle-btn');
-      if (legendBtn && window.toggleLegend) {
-        legendBtn.addEventListener('click', window.toggleLegend);
+      // Refresh button
+      const refreshBtn = document.getElementById('refresh-btn');
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => {
+          refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Loading...';
+          refreshBtn.disabled = true;
+          loadAndRender().finally(() => {
+            refreshBtn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Refresh';
+            refreshBtn.disabled = false;
+          });
+        });
       }
+
+      // Filter event listeners
+      document.getElementById('search-filter').addEventListener('input', applyFilters);
+      document.getElementById('status-filter').addEventListener('change', applyFilters);
+      document.getElementById('type-filter').addEventListener('change', applyFilters);
+      document.getElementById('sort-filter').addEventListener('change', applyFilters);
+
+      // Clear filters
+      document.getElementById('clear-filters').addEventListener('click', () => {
+        document.getElementById('search-filter').value = '';
+        document.getElementById('status-filter').value = '';
+        document.getElementById('type-filter').value = '';
+        document.getElementById('sort-filter').value = 'time-desc';
+        applyFilters();
+      });
     });
   </script>
-  <!-- Ensure the document ends correctly with the closing </body> and </html> tags -->
+  
+  <!-- Google Maps API -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCN0O4198LX8nzVAKSMRD6YC1zKSNp_Maw&callback=initMap&loading=async"></script>
 </body>
 </html>

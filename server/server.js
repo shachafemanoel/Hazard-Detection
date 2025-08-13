@@ -768,7 +768,7 @@ app.post('/upload-detection', upload.single('file'), async (req, res) => {
         }
 
         // אם אין מפתח, נשתמש בקואורדינטות ככתובת כדי לא לשבור שמירה
-        const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+        const apiKey = process.env.GOOGLE_MAP_GEOCODE;
         let address;
         if (!apiKey) {
             console.warn('⚠️ GOOGLE_MAPS_API_KEY missing. Falling back to coordinates as address');
