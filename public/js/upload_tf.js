@@ -49,8 +49,30 @@ document.addEventListener("DOMContentLoaded", () => {
       
       videoDevices = devices.filter((d) => d.kind === "videoinput");
       
-      console.log(`📸 Found ${videoDevices.length} video devices:`, 
-        videoDevices.map(d => ({ id: d.deviceId, label: d.label, groupId: d.groupId })));
+      // מיון מצלמות - העדפת מצלמה אחורית על מובייל
+      videoDevices.sort((a, b) => {
+        const aLabel = (a.label || '').toLowerCase();
+        const bLabel = (b.label || '').toLowerCase();
+        
+        // מצלמה אחורית לפני קדמית
+        const aIsRear = aLabel.includes('back') || aLabel.includes('rear') || aLabel.includes('environment');
+        const bIsRear = bLabel.includes('back') || bLabel.includes('rear') || bLabel.includes('environment');
+        
+        if (aIsRear && !bIsRear) return -1;
+        if (!aIsRear && bIsRear) return 1;
+        
+        return 0;
+      });
+      
+      console.log(`📸 Found ${videoDevices.length} video devices (sorted):`, 
+        videoDevices.map((d, i) => ({ 
+          index: i, 
+          id: d.deviceId, 
+          label: d.label, 
+          isRear: (d.label || '').toLowerCase().includes('back') || 
+                  (d.label || '').toLowerCase().includes('rear') ||
+                  (d.label || '').toLowerCase().includes('environment')
+        })));
       
       // Populate camera dropdown
       if (cameraSelect && videoDevices.length > 0) {
@@ -59,7 +81,11 @@ document.addEventListener("DOMContentLoaded", () => {
         videoDevices.forEach((device, index) => {
           const option = document.createElement("option");
           option.value = device.deviceId;
-          option.textContent = device.label || `Camera ${index + 1}`;
+          const label = device.label || `Camera ${index + 1}`;
+          const isRear = label.toLowerCase().includes('back') || 
+                        label.toLowerCase().includes('rear') || 
+                        label.toLowerCase().includes('environment');
+          option.textContent = isRear ? `📷 ${label} (Rear)` : `🤳 ${label} (Front)`;
           cameraSelect.appendChild(option);
           console.log(`Added option: ${option.textContent} (${device.deviceId})`);
         });
@@ -133,9 +159,12 @@ document.addEventListener("DOMContentLoaded", () => {
  */
 function initLocationTracking() {
   return new Promise(resolve => {
+    console.log("🌍 Starting location tracking...");
+    
     if (!navigator.geolocation) {
-      alert("מצטערים, הדפדפן שלך לא תומך בגיאולוקציה.");
-      return resolve(null);
+      console.warn("⚠️ Geolocation not supported");
+      resolve(null);
+      return;
     }
 
     // פונקציית עזר לרישום המיקום הראשון
@@ -144,50 +173,54 @@ function initLocationTracking() {
       if (done) return;
       done = true;
       _lastCoords = coords;
-      console.log("📍 initial location:", coords);
+      console.log("📍 Location acquired:", coords.latitude, coords.longitude);
       resolve(coords);
     }
 
-    // 1️⃣ ניסיון High-Accuracy
+    // בדיקה אם כבר יש מיקום שמור
+    if (_lastCoords) {
+      console.log("📍 Using existing location cache");
+      return resolve(_lastCoords);
+    }
+
+    // 1️⃣ ניסיון ראשון: High-Accuracy עם timeout קצר
     navigator.geolocation.getCurrentPosition(
       pos => handleCoords(pos.coords),
       err => {
         console.warn("High-Accuracy failed:", err.code, err.message);
-        if (err.code === err.PERMISSION_DENIED) {
-          alert("אנא אפשר גישה למיקום כדי להשתמש ב-Live Detection.");
-          return resolve(null);
-        }
-        // 2️⃣ ניסיון Low-Accuracy
+        
+        // 2️⃣ ניסיון שני: Low-Accuracy עם הגדרות נוחות יותר
         navigator.geolocation.getCurrentPosition(
           pos2 => handleCoords(pos2.coords),
           err2 => {
             console.warn("Low-Accuracy failed:", err2.code, err2.message);
-            // 3️⃣ fallback IP
-            fetch("https://ipapi.co/json/")
-              .then(r => r.json())
-              .then(data => handleCoords({ latitude: data.latitude, longitude: data.longitude }))
-              .catch(() => resolve(null));
+            
+            // 3️⃣ אם נדחה לגמרי, עדיין ממשיכים - saveDetection יטפל בזה
+            console.log("⚠️ Location access failed, continuing without initial location");
+            resolve(null);
           },
-          { enableHighAccuracy: false, timeout: 5000, maximumAge: 0 }
+          { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 } // 5 דקות מטמון
         );
       },
-      { enableHighAccuracy: true,  timeout: 5000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 3000, maximumAge: 60000 } // דקה מטמון
     );
 
-    // 4️⃣ watchPosition לעדכונים רציפים
-    _watchId = navigator.geolocation.watchPosition(
-      pos => {
-        _lastCoords = pos.coords;
-      },
-      err => {
-        console.warn("watchPosition error:", err.code, err.message);
-        if (err.code === err.PERMISSION_DENIED) {
-          alert("אנא אפשר גישה למיקום כדי להשתמש ב-Live Detection.");
-          navigator.geolocation.clearWatch(_watchId);
-        }
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+    // 4️⃣ watchPosition לעדכונים רציפים (לא בלוקינג)
+    try {
+      _watchId = navigator.geolocation.watchPosition(
+        pos => {
+          _lastCoords = pos.coords;
+          console.log("📍 Location updated:", pos.coords.latitude, pos.coords.longitude);
+        },
+        err => {
+          console.warn("watchPosition error:", err.code, err.message);
+          // לא עוצרים את הזיהוי גם אם watchPosition נכשל
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
+      );
+    } catch (watchErr) {
+      console.warn("Failed to start watchPosition:", watchErr);
+    }
   });
 }
 
@@ -257,27 +290,92 @@ async function fallbackIpLocation() {
     setTimeout(() => toast.remove(), 3000);
   }
 
+  function showLocationStatus(message, type = "info") {
+    const toast = document.createElement("div");
+    const icons = {
+      info: "ℹ️",
+      success: "✅", 
+      warning: "⚠️",
+      error: "❌"
+    };
+    const colors = {
+      info: "#2196F3",
+      success: "#4CAF50",
+      warning: "#FF9800", 
+      error: "#F44336"
+    };
+    
+    toast.innerHTML = `${icons[type]} ${message}`;
+    toast.style.position = "fixed";
+    toast.style.top = "70px"; // מתחת להודעות אחרות
+    toast.style.right = "20px";
+    toast.style.backgroundColor = colors[type];
+    toast.style.color = "white";
+    toast.style.padding = "10px 14px";
+    toast.style.borderRadius = "6px";
+    toast.style.boxShadow = "0 3px 6px rgba(0,0,0,0.2)";
+    toast.style.zIndex = "9998";
+    toast.style.fontSize = "13px";
+    toast.style.maxWidth = "300px";
+    
+    // מסיר הודעות קודמות מאותו סוג
+    const existingToasts = document.querySelectorAll('[data-location-status]');
+    existingToasts.forEach(t => t.remove());
+    
+    toast.setAttribute('data-location-status', 'true');
+    document.body.appendChild(toast);
+    
+    // הסרה אוטומטית
+    const duration = type === 'error' ? 8000 : 4000;
+    setTimeout(() => toast.remove(), duration);
+  }
+
   async function saveDetection(canvas, label = "Unknown") {
     let geoData;
     let locationNote;
   
-    // 1️⃣ נסיון ראשון: GPS
-    try {
-      geoData = await getLatestLocation();
-      locationNote = "GPS";
-    } catch (gpsErr) {
-      console.warn("GPS failed:", gpsErr);
-  
-      // 2️⃣ נסיון שני: IP fallback
+    // מנסה לקבל מיקום בכמה דרכים שונות
+    console.log("🔍 Attempting to get location for detection save...");
+    
+    // 1️⃣ נסיון ראשון: המיקום האחרון שנשמר
+    if (_lastCoords) {
+      geoData = JSON.stringify({ lat: _lastCoords.latitude, lng: _lastCoords.longitude });
+      locationNote = "GPS (Cached)";
+      console.log("✅ Using cached GPS location");
+    } else {
+      // 2️⃣ נסיון שני: בקשה חדשה למיקום
       try {
-        const ipRes  = await fetch("https://ipapi.co/json/");
-        const ipJson = await ipRes.json();
-        geoData = JSON.stringify({ lat: ipJson.latitude, lng: ipJson.longitude });
-        locationNote = "Approximate (IP)";
-      } catch (ipErr) {
-        console.error("IP fallback failed:", ipErr);
-        alert("אנא אפשר גישה למיקום כדי לבצע Live Detection.");
-        return;  // בלי מיקום – לא שומרים
+        const position = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(
+            resolve,
+            reject,
+            { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 } // פחות מדויק אבל מהיר יותר
+          );
+        });
+        
+        geoData = JSON.stringify({ lat: position.coords.latitude, lng: position.coords.longitude });
+        locationNote = "GPS (Fresh)";
+        _lastCoords = position.coords; // עדכון המטמון
+        console.log("✅ Got fresh GPS location");
+        
+      } catch (gpsErr) {
+        console.warn("GPS failed:", gpsErr);
+        
+        // 3️⃣ נסיון שלישי: IP fallback
+        try {
+          const ipRes  = await fetch("https://ipapi.co/json/");
+          const ipJson = await ipRes.json();
+          geoData = JSON.stringify({ lat: ipJson.latitude, lng: ipJson.longitude });
+          locationNote = "Approximate (IP)";
+          console.log("✅ Using IP-based location");
+        } catch (ipErr) {
+          console.error("IP fallback failed:", ipErr);
+          
+          // 4️⃣ כברירת מחדל אחרונה: שמירה בלי מיקום
+          geoData = JSON.stringify({ lat: 32.0853, lng: 34.7818 }); // תל אביב כברירת מחדל
+          locationNote = "Default Location";
+          console.warn("⚠️ Using default location (Tel Aviv)");
+        }
       }
     }
   
@@ -299,8 +397,9 @@ async function fallbackIpLocation() {
           credentials: "include",
         });
         if (!res.ok) throw new Error(await res.text());
-        console.log("✅ Detection saved:", (await res.json()).message);
-        showSuccessToast();
+        const response = await res.json();
+        console.log("✅ Detection saved:", response.message);
+        showSuccessToast(`✅ ${label} detected & saved (${locationNote})`);
       } catch (err) {
         console.error("❌ Failed to save detection:", err);
       }
@@ -319,7 +418,7 @@ async function fallbackIpLocation() {
     ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
     const EPs = ort.env.webgl?.isSupported ? ['webgl','wasm'] : ['wasm','webgl'];
     session = await ort.InferenceSession.create(
-      '/object_detecion_model/best-11-8-2025.onnx',
+      '/object_detecion_model/last_model_train12052025.onnx',
       { executionProviders: EPs, graphOptimizationLevel: 'all' }
     );
   }
@@ -466,21 +565,65 @@ async function fallbackIpLocation() {
   }
 
   startBtn.addEventListener("click", async () => {
-    initLocationTracking();               // ① הפעלת המעקב
-    // המודל כבר אמור להיות טעון או בתהליך טעינה
+    console.log("🚀 Starting camera and location tracking...");
+    
+    // הצגת הודעת סטטוס למשתמש
+    showLocationStatus("Starting location services...", "info");
+    
+    // ① הפעלת המעקב
     try {
-         await getLatestLocation();
-         console.log("📍 Location preloaded:", _lastCoords);
-       } catch (err) {
-         console.warn("⚠️ Could not preload location:", err);
-       }
+      const locationResult = await initLocationTracking();
+      if (locationResult) {
+        showLocationStatus("Location tracking active ✓", "success");
+        console.log("📍 Location services started successfully");
+      } else {
+        showLocationStatus("Location failed - using fallback methods", "warning");
+        console.log("⚠️ Location services partially failed");
+      }
+    } catch (err) {
+      showLocationStatus("Location unavailable - using default location", "warning");
+      console.warn("⚠️ Location tracking failed:", err);
+    }
     
     // 2. אחר כך מבקשים הרשאה למצלמה
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      // קודם נבקש הרשאה כללית
+      const initialStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      initialStream.getTracks().forEach(track => track.stop()); // עוצרים זמנית
       
       // Re-enumerate cameras after permission is granted to get proper labels
       await enumerateAndPopulateCameras();
+      
+      // עכשיו נפתח את המצלמה הנכונה (ראשונה ברשימה = אחורית אם קיימת)
+      const preferredDevice = videoDevices.length > 0 ? videoDevices[0] : null;
+      const constraints = preferredDevice ? 
+        { 
+          video: { 
+            deviceId: { exact: preferredDevice.deviceId },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: { ideal: 'environment' } // העדפה למצלמה אחורית
+          } 
+        } : 
+        { 
+          video: { 
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          } 
+        };
+      
+      console.log("🎥 Starting camera with constraints:", constraints);
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
+      
+      // עדכון האינדקס הנוכחי
+      if (preferredDevice) {
+        currentCamIndex = 0; // תמיד מתחילים מהראשונה
+        if (cameraSelect) {
+          cameraSelect.value = preferredDevice.deviceId;
+        }
+        console.log(`📱 Started with camera: ${preferredDevice.label || 'Unknown'}`);
+      }
       
       video.srcObject = stream;
       startBtn.style.display = "none";
@@ -549,15 +692,19 @@ async function fallbackIpLocation() {
         console.log(`🔄 Switching from camera ${oldIndex} to ${currentCamIndex}`);
         console.log(`📱 Selected camera: ${cameraSelect.options[cameraSelect.selectedIndex].text}`);
 
-        // Request new camera stream
-        console.log("🎥 Requesting new camera stream via dropdown...");
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { 
-            deviceId: { exact: selectedDeviceId },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          },
-        });
+              // Request new camera stream with better constraints
+      console.log("🎥 Requesting new camera stream via dropdown...");
+      const constraints = {
+        video: { 
+          deviceId: { exact: selectedDeviceId },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 }
+        }
+      };
+      
+      console.log("📋 Using constraints:", constraints);
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
 
         console.log("🎯 Setting new stream to video element via dropdown...");
         video.srcObject = stream;
@@ -639,15 +786,19 @@ async function fallbackIpLocation() {
         console.log("📋 Updated dropdown selection");
       }
 
-      // Request new camera stream
+      // Request new camera stream with better constraints
       console.log("🎥 Requesting new camera stream...");
-      stream = await navigator.mediaDevices.getUserMedia({
+      const constraints = {
         video: { 
           deviceId: { exact: newDeviceId },
           width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
-      });
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 }
+        }
+      };
+      
+      console.log("🔄 Switch constraints:", constraints);
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
 
       console.log("🎯 Setting new stream to video element...");
       video.srcObject = stream;
