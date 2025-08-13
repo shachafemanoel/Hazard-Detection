@@ -7,10 +7,10 @@
   <title>Hazard Detection - Modern UI</title>
 
   <!-- TailwindCSS CDN with dark mode -->
+  <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = { darkMode: 'class' };
   </script>
-  <script src="https://cdn.tailwindcss.com"></script>
 
   <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -120,7 +120,8 @@
   <script type="module">
     import * as ort from '/ort/ort.min.mjs';
     ort.env.wasm.wasmPaths = '/ort/';
-    ort.env.wasm.numThreads = navigator.hardwareConcurrency || 4;
+    const isIsolated = typeof window !== 'undefined' && window.crossOriginIsolated === true;
+    ort.env.wasm.numThreads = isIsolated ? Math.min(navigator.hardwareConcurrency || 1, 4) : 1;
     window.ort = ort;
   </script>
 
@@ -265,7 +266,7 @@
     const body = document.body;
 
     if (showUploadSectionBtn && closeUploadSectionBtn && detectionSection) {
-      const modalContent = detectionSection.querySelector('.bg-white');
+      const modalContent = detectionSection.querySelector('.glass-strong');
       let scrollPosition;
       
       function lockScroll() {
