@@ -1,0 +1,22 @@
+/* Minimal utility styles for mode badge and toasts */
+#mode-badge {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  background: rgba(0,0,0,0.6);
+  color: #fff;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  z-index: 1000;
+}
+
+#toast-container .toast-message {
+  background: rgba(0,0,0,0.8);
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 0.25rem;
+  margin-top: 0.5rem;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  max-width: 260px;
+}
