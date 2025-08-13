@@ -1,7 +1,7 @@
 import { syncCanvasToVideo, drawBoxes } from './draw.js';
 import { reportError, ErrorCodes, toastOnce } from './notifications.js';
 
-const MODEL_PATH = '/object_detecion_model/best.onnx';
+const MODEL_PATH = '/object_detecion_model/best-11-8-2025.onnx';
 const INPUT_SIZE = 640;
 
 let session; // onnx session
