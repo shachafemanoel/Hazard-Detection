@@ -674,13 +674,8 @@ async function fallbackIpLocation() {
       console.log(`📱 Selected device ID: ${selectedDeviceId}`);
       
       try {
-        // Stop current stream
-        console.log("🛑 Stopping current stream via dropdown...");
-        stream.getTracks().forEach((track) => {
-          console.log(`Stopping track: ${track.kind} - ${track.label}`);
-          track.stop();
-        });
-        
+        const oldStream = stream;
+
         // Find the selected camera index
         const oldIndex = currentCamIndex;
         currentCamIndex = videoDevices.findIndex(device => device.deviceId === selectedDeviceId);
@@ -688,28 +683,30 @@ async function fallbackIpLocation() {
           console.warn("Selected device not found in videoDevices, defaulting to 0");
           currentCamIndex = 0;
         }
-        
+
         console.log(`🔄 Switching from camera ${oldIndex} to ${currentCamIndex}`);
         console.log(`📱 Selected camera: ${cameraSelect.options[cameraSelect.selectedIndex].text}`);
 
-              // Request new camera stream with better constraints
-      console.log("🎥 Requesting new camera stream via dropdown...");
-      const constraints = {
-        video: { 
-          deviceId: { exact: selectedDeviceId },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 30 }
-        }
-      };
-      
-      console.log("📋 Using constraints:", constraints);
-      stream = await navigator.mediaDevices.getUserMedia(constraints);
+        // Request new camera stream with better constraints
+        console.log("🎥 Requesting new camera stream via dropdown...");
+        const constraints = {
+          video: {
+            deviceId: { exact: selectedDeviceId },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 30 }
+          }
+        };
+
+        console.log("📋 Using constraints:", constraints);
+        const newStream = await navigator.mediaDevices.getUserMedia(constraints);
 
         console.log("🎯 Setting new stream to video element via dropdown...");
-        video.srcObject = stream;
+        video.srcObject = newStream;
+        stream = newStream;
         letterboxParams = null; // Force recalculation on next frame
-        
+        video.play();
+
         // Wait for video to load new stream
         await new Promise((resolve) => {
           const handleLoadedData = () => {
@@ -718,25 +715,41 @@ async function fallbackIpLocation() {
           };
           video.addEventListener('loadeddata', handleLoadedData);
         });
-        
+
+        // Stop old stream after new one is ready for faster switching
+        if (oldStream) {
+          console.log("🛑 Stopping previous stream via dropdown...");
+          oldStream.getTracks().forEach((track) => {
+            console.log(`Stopping track: ${track.kind} - ${track.label}`);
+            track.stop();
+          });
+        }
+
         console.log("✅ Camera switched successfully via dropdown");
         console.log(`📹 New video dimensions: ${video.videoWidth}x${video.videoHeight}`);
-        
+
       } catch (err) {
         console.error("❌ Failed to switch camera via dropdown:", err);
         // Try to fallback to default camera if specific camera fails
         try {
           console.log("🔄 Attempting fallback to default camera from dropdown...");
-          stream = await navigator.mediaDevices.getUserMedia({ video: true });
-          video.srcObject = stream;
+          const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          video.srcObject = fallbackStream;
+          stream = fallbackStream;
           letterboxParams = null;
+          video.play();
+          await new Promise((resolve) => {
+            const handleLoadedData = () => {
+              video.removeEventListener('loadeddata', handleLoadedData);
+              resolve();
+            };
+            video.addEventListener('loadeddata', handleLoadedData);
+          });
+
           console.log("🔄 Fell back to default camera");
         } catch (fallbackErr) {
           console.error("❌ Fallback camera also failed:", fallbackErr);
           alert("⚠️ Failed to switch camera. Please try restarting the camera.");
-          // Reset to no stream state
-          stream = null;
-          video.srcObject = null;
         }
       }
     });
@@ -764,22 +777,16 @@ async function fallbackIpLocation() {
         return;
       }
       
-      console.log("🛑 Stopping current stream...");
-      // Stop current stream
-      stream.getTracks().forEach((track) => {
-        console.log(`Stopping track: ${track.kind} - ${track.label}`);
-        track.stop();
-      });
-
       // Cycle to next camera
+      const oldStream = stream;
       const oldIndex = currentCamIndex;
       currentCamIndex = (currentCamIndex + 1) % videoDevices.length;
       const newDevice = videoDevices[currentCamIndex];
       const newDeviceId = newDevice.deviceId;
-      
+
       console.log(`🔄 Switching from camera ${oldIndex} to ${currentCamIndex}`);
       console.log(`📱 New device: ${newDevice.label || 'Unknown'} (${newDeviceId})`);
-      
+
       // Update dropdown selection to match
       if (cameraSelect) {
         cameraSelect.value = newDeviceId;
@@ -789,21 +796,23 @@ async function fallbackIpLocation() {
       // Request new camera stream with better constraints
       console.log("🎥 Requesting new camera stream...");
       const constraints = {
-        video: { 
+        video: {
           deviceId: { exact: newDeviceId },
           width: { ideal: 1280 },
           height: { ideal: 720 },
           frameRate: { ideal: 30 }
         }
       };
-      
+
       console.log("🔄 Switch constraints:", constraints);
-      stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const newStream = await navigator.mediaDevices.getUserMedia(constraints);
 
       console.log("🎯 Setting new stream to video element...");
-      video.srcObject = stream;
+      video.srcObject = newStream;
+      stream = newStream;
       letterboxParams = null; // Force recalculation on next frame
-      
+      video.play();
+
       // Wait for video to load new stream
       await new Promise((resolve) => {
         const handleLoadedData = () => {
@@ -812,25 +821,43 @@ async function fallbackIpLocation() {
         };
         video.addEventListener('loadeddata', handleLoadedData);
       });
-      
+
+      // Stop old stream after new one is ready
+      if (oldStream) {
+        console.log("🛑 Stopping previous stream...");
+        oldStream.getTracks().forEach((track) => {
+          console.log(`Stopping track: ${track.kind} - ${track.label}`);
+          track.stop();
+        });
+      }
+
       console.log("✅ Camera switched successfully");
       console.log(`📹 New video dimensions: ${video.videoWidth}x${video.videoHeight}`);
-      
+
     } catch (err) {
       console.error("❌ Failed to switch camera:", err);
       // Try to fallback to default camera if specific camera fails
       try {
         console.log("🔄 Attempting fallback to default camera...");
-        stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        video.srcObject = stream;
+        const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = fallbackStream;
+        stream = fallbackStream;
         letterboxParams = null;
+        video.play();
+        await new Promise((resolve) => {
+          const handleLoadedData = () => {
+            video.removeEventListener('loadeddata', handleLoadedData);
+            resolve();
+          };
+          video.addEventListener('loadeddata', handleLoadedData);
+        });
+        if (oldStream) {
+          oldStream.getTracks().forEach((track) => track.stop());
+        }
         console.log("🔄 Fell back to default camera");
       } catch (fallbackErr) {
         console.error("❌ Fallback camera also failed:", fallbackErr);
         alert("⚠️ Failed to switch camera. Please try restarting the camera.");
-        // Reset to no stream state
-        stream = null;
-        video.srcObject = null;
       }
     }
   });
