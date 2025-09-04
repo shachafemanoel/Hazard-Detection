@@ -48,13 +48,13 @@
 
     <!-- Enhanced Camera Container with glassmorphism -->
     <div class="page-content">
-    <main id="camera-container" class="min-h-screen p-4" role="main" aria-label="Camera detection interface">
+    <main id="camera-container" class="container-fluid min-vh-100 p-4" role="main" aria-label="Camera detection interface">
         <div class="camera-wrapper backdrop-blur-lg bg-white/10 rounded-3xl p-6 shadow-2xl border border-white/20 mb-6">
             <div style="position:relative;width:100%;height:100%;" role="img" aria-label="Camera feed with hazard detection overlay">
-                <video id="camera-stream" autoplay playsinline 
+                <video id="camera-stream" autoplay playsinline muted
                        aria-label="Live camera feed for hazard detection"
                        tabindex="-1"></video>
-                <canvas id="overlay-canvas" 
+                <canvas id="overlay-canvas"
                         aria-label="Detection results overlay"
                         role="img"
                         tabindex="-1"></canvas>
@@ -62,29 +62,29 @@
         </div>
         
         <!-- Enhanced Camera Controls -->
-        <section class="camera-controls backdrop-blur-lg bg-white/10 rounded-2xl p-6 shadow-xl border border-white/20 mb-4" 
-                 role="group" 
+        <section class="camera-controls backdrop-blur-lg bg-white/10 rounded-2xl p-6 shadow-xl border border-white/20 mb-4 d-flex flex-wrap justify-content-center gap-2"
+                 role="group"
                  aria-label="Camera controls">
-            <button id="start-camera" 
-                    aria-label="Start camera for hazard detection" 
+            <button id="start-camera" class="btn btn-primary"
+                    aria-label="Start camera for hazard detection"
                     aria-describedby="start-camera-desc"
                     tabindex="1">
                 <i class="fas fa-video" aria-hidden="true"></i>
                 <span>Start Camera</span>
             </button>
             <span id="start-camera-desc" class="sr-only">Activates camera and begins real-time hazard detection</span>
-            
-            <button id="stop-camera" 
-                    aria-label="Stop camera and detection" 
+
+            <button id="stop-camera" class="btn btn-danger"
+                    aria-label="Stop camera and detection"
                     aria-describedby="stop-camera-desc"
                     tabindex="2">
                 <i class="fas fa-video-slash" aria-hidden="true"></i>
                 <span>Stop Camera</span>
             </button>
             <span id="stop-camera-desc" class="sr-only">Stops camera feed and hazard detection</span>
-            
-            <button id="switch-camera" 
-                    aria-label="Switch to next available camera" 
+
+            <button id="switch-camera" class="btn btn-secondary"
+                    aria-label="Switch to next available camera"
                     aria-describedby="switch-camera-desc"
                     tabindex="3">
                 <i class="fas fa-sync" aria-hidden="true"></i>
@@ -95,7 +95,7 @@
             <!-- NEW: Camera selection dropdown -->
             <div class="additional-controls" role="group" aria-label="Camera settings">
                 <label for="camera-select" class="control-label">Camera</label>
-                <select id="camera-select" 
+                <select id="camera-select" class="form-select"
                         aria-label="Select camera device"
                         tabindex="4">
                     <!-- Options will be populated dynamically -->
