@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hazard Detection Test Suite Verification</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1a1a1a;
+            color: #00ff00;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #00ff00;
+            text-align: center;
+        }
+        .test-button {
+            background: #003300;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            font-family: inherit;
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .test-button:hover {
+            background: #004400;
+        }
+        #output {
+            background: #000;
+            border: 1px solid #00ff00;
+            padding: 20px;
+            margin-top: 20px;
+            height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-size: 12px;
+        }
+        .description {
+            background: #002200;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 3px solid #00ff00;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 HAZARD DETECTION TEST SUITE VERIFICATION 🔧</h1>
+        
+        <div class="description">
+            <h3>Test Suite Overview</h3>
+            <p>This verification page demonstrates the smoke test functionality for the hazard detection system. 
+            The tests verify camera access, upload functionality, model loading, and core system components.</p>
+            
+            <p><strong>Usage:</strong> Click the buttons below to run different test suites. Results will appear in the console output area.</p>
+        </div>
+
+        <button class="test-button" onclick="runQuickCheck()">⚡ Quick System Check</button>
+        <button class="test-button" onclick="runCameraTests()">📹 Camera Tests</button>
+        <button class="test-button" onclick="runUploadTests()">📤 Upload Tests</button>
+        <button class="test-button" onclick="runAllTests()">🎯 Complete Test Suite</button>
+        <button class="test-button" onclick="listTests()">📋 List Available Tests</button>
+        <button class="test-button" onclick="showHelp()">🆘 Help</button>
+        <button class="test-button" onclick="clearOutput()">🧹 Clear Output</button>
+
+        <div id="output"></div>
+    </div>
+
+    <!-- Load required dependencies -->
+    <script src="ort/ort.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exif-js/2.3.0/exif.min.js"></script>
+    <script src="js/smoke-tests.js"></script>
+
+    <script>
+        // Capture console output and display in the output div
+        const outputDiv = document.getElementById('output');
+        const originalConsoleLog = console.log;
+        const originalConsoleError = console.error;
+        const originalConsoleWarn = console.warn;
+
+        function addToOutput(message, type = 'log') {
+            const timestamp = new Date().toTimeString().split(' ')[0];
+            const colorClass = type === 'error' ? 'color: #ff0000' : 
+                              type === 'warn' ? 'color: #ffaa00' : 
+                              'color: #00ff00';
+            
+            const div = document.createElement('div');
+            div.style.cssText = colorClass;
+            div.textContent = `[${timestamp}] ${message}`;
+            outputDiv.appendChild(div);
+            outputDiv.scrollTop = outputDiv.scrollHeight;
+        }
+
+        console.log = function(...args) {
+            originalConsoleLog.apply(console, args);
+            addToOutput(args.join(' '), 'log');
+        };
+
+        console.error = function(...args) {
+            originalConsoleError.apply(console, args);
+            addToOutput(args.join(' '), 'error');
+        };
+
+        console.warn = function(...args) {
+            originalConsoleWarn.apply(console, args);
+            addToOutput(args.join(' '), 'warn');
+        };
+
+        // Test runner functions
+        async function runQuickCheck() {
+            console.log("Starting quick system check...");
+            try {
+                await window.HDTests.quickCheck();
+            } catch (err) {
+                console.error("Quick check failed:", err.message);
+            }
+        }
+
+        async function runCameraTests() {
+            console.log("Starting camera tests...");
+            try {
+                if (window.HDTests.runSmokeTestCamera) {
+                    await window.HDTests.runSmokeTestCamera();
+                } else {
+                    console.warn("Camera tests not available - camera page may need to be visited first");
+                }
+            } catch (err) {
+                console.error("Camera tests failed:", err.message);
+            }
+        }
+
+        async function runUploadTests() {
+            console.log("Starting upload tests...");
+            try {
+                if (window.HDTests.runSmokeTestUpload) {
+                    await window.HDTests.runSmokeTestUpload();
+                } else {
+                    console.warn("Upload tests not available - upload page may need to be visited first");
+                }
+            } catch (err) {
+                console.error("Upload tests failed:", err.message);
+            }
+        }
+
+        async function runAllTests() {
+            console.log("Starting complete test suite...");
+            try {
+                await window.HDTests.runAllTests();
+            } catch (err) {
+                console.error("Complete test suite failed:", err.message);
+            }
+        }
+
+        function listTests() {
+            console.log("Listing available tests...");
+            try {
+                window.HDTests.listAvailableTests();
+            } catch (err) {
+                console.error("Failed to list tests:", err.message);
+            }
+        }
+
+        function showHelp() {
+            console.log("Showing help information...");
+            try {
+                window.HDTests.help();
+            } catch (err) {
+                console.error("Failed to show help:", err.message);
+            }
+        }
+
+        function clearOutput() {
+            outputDiv.innerHTML = '';
+            console.log("Output cleared");
+        }
+
+        // Initialize
+        window.addEventListener('load', function() {
+            console.log("🔧 Test verification page loaded!");
+            console.log("Click buttons above to run different test suites.");
+            console.log("Note: Some tests may require visiting camera.html or upload.html first to load full functionality.");
+        });
+    </script>
+</body>
+</html>

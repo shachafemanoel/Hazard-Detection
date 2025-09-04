@@ -3,389 +3,179 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="RoadGuardian Dashboard - Monitor and manage road hazards">
   <link rel="icon" href="icon.png" type="image/png">
   <title>RoadGuardian Dashboard</title>
+  
+  <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  
+  <!-- Map Dependencies -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" 
+        crossorigin="anonymous" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+  
+  <!-- Font Awesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="css/design-system.css">
+  <link rel="stylesheet" href="css/floating-menu.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+  
+  <!-- JavaScript Dependencies -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+          crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+  
   <style>
-    body {
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      color: #e2e8f0;
-      margin: 0;
-      padding: 0;
-    }
-    header {
-      background: rgba(15,23,42,0.95);
-      border-bottom: 2px solid #3b82f6;
-      padding: 1rem 1.5rem;
-      position: sticky;
-      top: 0;
-      z-index: 1100;
-      text-align: center;
-    }
-    header h1 {
-      margin: 0;
-      font-size: 1.8rem;
-      font-weight: 700;
-      color: #3b82f6;
-    }
-    .container-fluid {
-      padding: 2rem;
-    }
-    .dashboard-panel {
-      background: rgba(15,23,42,0.8);
-      border: 1px solid #334155;
-      border-radius: 12px;
-      padding: 1.5rem;
-      margin-bottom: 2rem;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    }
-    #map {
-      width: 100%;
-      height: 60vh;
-      border-radius: 8px;
-      border: 1px solid #334155;
-    }
-    
-    /* Filter Panel Styling */
-    .filter-panel {
-      background: rgba(30,41,59,0.8);
-      border: 1px solid #475569;
-      border-radius: 8px;
-      padding: 1rem;
-      margin-bottom: 1rem;
-    }
-    .filter-row {
-      display: flex;
-      gap: 1rem;
-      margin-bottom: 0.5rem;
-      flex-wrap: wrap;
-    }
-    .filter-input {
-      flex: 1;
-      min-width: 200px;
-    }
-    .form-control, .form-select {
-      background: rgba(51,65,85,0.8);
-      border: 1px solid #64748b;
-      color: #e2e8f0;
-    }
-    .form-control:focus, .form-select:focus {
-      background: rgba(51,65,85,0.9);
-      border-color: #3b82f6;
-      color: #e2e8f0;
-      box-shadow: 0 0 0 0.2rem rgba(59,130,246,0.25);
-    }
-    
-    /* Table Styling */
-    #reports-table-container {
-      max-height: 50vh;
-      overflow-y: auto;
-      border-radius: 8px;
-      background: rgba(15,23,42,0.6);
-      border: 1px solid #334155;
-    }
-    .table-dark {
-      --bs-table-bg: transparent;
-      border-collapse: separate;
-      border-spacing: 0;
-      font-size: 1.1rem;
-    }
-    .table-dark th {
-      border: 1px solid #475569;
-      color: #3b82f6;
-      font-weight: 700;
-      font-size: 1.15rem;
-      background: rgba(30,41,59,0.9);
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      padding: 1rem 0.75rem;
-      text-align: center;
-      white-space: nowrap;
-    }
-    .table-dark td {
-      border: 1px solid #334155;
-      padding: 1rem 0.75rem;
-      vertical-align: middle;
-      font-size: 1.05rem;
-      font-weight: 500;
-    }
-    .table-dark tbody tr:hover {
-      background-color: rgba(59,130,246,0.1);
-    }
-    
-    /* Column widths for better layout */
-    #reports-table th:nth-child(1), #reports-table td:nth-child(1) { width: 5%; text-align: center; } /* Checkbox */
-    #reports-table th:nth-child(2), #reports-table td:nth-child(2) { width: 7%; text-align: center; } /* ID */
-    #reports-table th:nth-child(3), #reports-table td:nth-child(3) { width: 13%; text-align: center; } /* Type */
-    #reports-table th:nth-child(4), #reports-table td:nth-child(4) { width: 22%; } /* Location */
-    #reports-table th:nth-child(5), #reports-table td:nth-child(5) { width: 16%; text-align: center; } /* Time */
-    #reports-table th:nth-child(6), #reports-table td:nth-child(6) { width: 10%; text-align: center; } /* Status */
-    #reports-table th:nth-child(7), #reports-table td:nth-child(7) { width: 13%; text-align: center; } /* Reporter */
-    #reports-table th:nth-child(8), #reports-table td:nth-child(8) { width: 14%; text-align: center; } /* Actions */
-    
-    /* Type Badge Colors */
-    .type-pothole { 
-      background-color: #dc2626 !important; 
-      color: white; 
-      font-size: 0.95rem;
-      font-weight: 600;
-      padding: 0.5rem 0.75rem;
-    }
-    .type-crack { 
-      background-color: #16a34a !important; 
-      color: white; 
-      font-size: 0.95rem;
-      font-weight: 600;
-      padding: 0.5rem 0.75rem;
-    }
-    .type-other { 
-      background-color: #7c3aed !important; 
-      color: white;
-      font-size: 0.95rem;
-      font-weight: 600;
-      padding: 0.5rem 0.75rem;
-    }
-    
-    /* Action Buttons */
-    .btn-action {
-      padding: 0.5rem 0.75rem;
-      margin: 0 0.25rem;
-      border-radius: 6px;
-      border: none;
-      color: white;
-      cursor: pointer;
-      transition: all 0.2s;
-      font-size: 1rem;
-      font-weight: 500;
-      min-width: 40px;
-    }
-    .btn-view { background: #3b82f6; }
-    .btn-view:hover { background: #2563eb; transform: scale(1.05); }
-    .btn-image { background: #16a34a; }
-    .btn-image:hover { background: #15803d; transform: scale(1.05); }
-    .btn-edit { background: #f59e0b; }
-    .btn-edit:hover { background: #d97706; transform: scale(1.05); }
-    
-    /* Modal Styling */
-    .modal-content {
-      background: rgba(15,23,42,0.95);
-      border: 1px solid #334155;
-      color: #e2e8f0;
-    }
-    .modal-header {
-      border-bottom: 1px solid #334155;
-    }
-    .modal-footer {
-      border-top: 1px solid #334155;
-    }
-    
-    /* Status Badge */
-    .status-new { 
-      background-color: #dc2626; 
-      font-size: 0.9rem;
-      font-weight: 600;
-      padding: 0.4rem 0.6rem;
-    }
-    .status-open { 
-      background-color: #ea580c; 
-      font-size: 0.9rem;
-      font-weight: 600;
-      padding: 0.4rem 0.6rem;
-    }
-    .status-resolved { 
-      background-color: #16a34a; 
-      font-size: 0.9rem;
-      font-weight: 600;
-      padding: 0.4rem 0.6rem;
-    }
-    .status-closed { 
-      background-color: #6b7280; 
-      font-size: 0.9rem;
-      font-weight: 600;
-      padding: 0.4rem 0.6rem;
-    }
-    
-    .btn-refresh {
-      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-      border: none;
-      color: white;
-      padding: 0.5rem 1rem;
-      border-radius: 6px;
-      transition: all 0.3s;
-    }
-    .btn-refresh:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(59,130,246,0.3);
-    }
-    
-    /* Navigation Menu Styling */
-    .dropdown-menu {
-      background: rgba(15,23,42,0.95);
-      border: 1px solid #334155;
-      box-shadow: 0 8px 16px rgba(0,0,0,0.4);
-    }
-    .dropdown-item {
-      color: #e2e8f0;
-      padding: 0.75rem 1rem;
-      transition: all 0.2s;
-    }
-    .dropdown-item:hover, .dropdown-item:focus {
-      background: rgba(59,130,246,0.2);
-      color: #3b82f6;
-    }
-    .dropdown-item.active {
-      background: rgba(59,130,246,0.3);
-      color: #3b82f6;
-      font-weight: 600;
-    }
-    .dropdown-divider {
-      border-color: #334155;
-    }
-    @media (max-width: 768px) {
-      .container-fluid { padding: 1rem; }
-      #map { height: 50vh; }
-      #reports-table-container { max-height: 35vh; }
-      .filter-row { flex-direction: column; }
-      .filter-input { min-width: auto; }
-      .table-dark { font-size: 0.95rem; }
-      .table-dark th { font-size: 1rem; padding: 0.75rem 0.5rem; }
-      .table-dark td { padding: 0.75rem 0.5rem; font-size: 0.9rem; }
-      .btn-action { padding: 0.4rem 0.6rem; font-size: 0.9rem; }
-      
-      /* Mobile navigation adjustments */
-      header h1 { font-size: 1.4rem; }
-      .d-flex.align-items-center.gap-2 { gap: 0.5rem !important; }
-      .dropdown-menu { min-width: 180px; }
-    }
+    .navbar { backdrop-filter: blur(10px); background-color: rgba(15, 23, 42, 0.95) !important; }
+    .card { background-color: rgba(15, 23, 42, 0.95) !important; border: 1px solid rgba(255, 255, 255, 0.1); }
+    .input-group-text { background-color: rgba(30, 41, 59, 0.95); border-color: rgba(255, 255, 255, 0.1); color: #94a3b8; }
+    .form-control, .form-select { background-color: rgba(15, 23, 42, 0.95); border-color: rgba(255, 255, 255, 0.1); color: #e2e8f0; }
+    .form-control:focus, .form-select:focus { background-color: rgba(15, 23, 42, 0.95); border-color: #3b82f6; color: #e2e8f0; box-shadow: 0 0 0 0.25rem rgba(59, 130, 246, 0.25); }
+    #map { width: 100%; height: 60vh; min-height: 400px; border-radius: 8px; border: 1px solid #334155; z-index: 1; position: relative; }
+    .dropdown-menu { background: rgba(15,23,42,0.95); border: 1px solid #334155; box-shadow: 0 8px 16px rgba(0,0,0,0.4); }
   </style>
 </head>
-<body>
-    <header>
-    <div class="d-flex justify-content-between align-items-center">
-      <h1><i class="fas fa-road me-2"></i>RoadGuardian Dashboard</h1>
-      <div class="d-flex align-items-center gap-2">
-        <!-- Navigation Menu -->
-        <div class="dropdown">
-          <button class="btn btn-outline-light dropdown-toggle" type="button" id="navDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-            <i class="fas fa-bars me-1"></i>Menu
-  </button>
-          <ul class="dropdown-menu dropdown-menu-dark" aria-labelledby="navDropdown">
-            <li><a class="dropdown-item active" href="/dashboard.html"><i class="fas fa-tachometer-alt me-2"></i>Dashboard</a></li>
-            <li><a class="dropdown-item" href="/upload.html"><i class="fas fa-upload me-2"></i>Upload Report</a></li>
-            <li><a class="dropdown-item" href="/camera.html"><i class="fas fa-camera me-2"></i>Live Camera</a></li>
-            <li><hr class="dropdown-divider"></li>
-            <li><a class="dropdown-item" href="/login.html"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
-          </ul>
-  </div>
-        <button id="refresh-btn" class="btn btn-refresh" title="Refresh Dashboard">
-          <i class="fas fa-sync-alt me-1"></i>Refresh
-    </button>
-      </div>
-  </div>
-</header>
-
-  <main class="container-fluid">
-    <!-- MAP SECTION -->
-    <section class="dashboard-panel">
-      <h5 class="mb-3"><i class="fas fa-map-marked-alt me-2"></i>Live Map</h5>
-      <div id="map"></div>
-    </section>
-
-    <!-- REPORTS TABLE SECTION -->
-    <section class="dashboard-panel">
-      <h5 class="mb-3"><i class="fas fa-list me-2"></i>Reports Log</h5>
-      
-      <!-- Bulk Actions -->
-      <div id="bulk-actions" class="mb-3" style="display: none;">
-        <button id="bulk-delete-btn" class="btn btn-danger">
-          <i class="fas fa-trash me-1"></i>Delete Selected (<span id="selected-count">0</span>)
-        </button>
-      </div>
-
-      <!-- Advanced Filters -->
-      <div class="filter-panel">
-        <div class="filter-row">
-          <div class="filter-input">
-            <label class="form-label small">Search (ID, User, Location, Type):</label>
-            <input type="text" id="search-filter" class="form-control" placeholder="חיפוש חופשי...">
-          </div>
-          <div class="filter-input">
-            <label class="form-label small">Status:</label>
-            <select id="status-filter" class="form-select">
-              <option value="">All Statuses</option>
-              <option value="new">New</option>
-              <option value="open">Open</option>
-              <option value="resolved">Resolved</option>
-              <option value="closed">Closed</option>
-            </select>
-          </div>
-          <div class="filter-input">
-            <label class="form-label small">Type:</label>
-            <select id="type-filter" class="form-select">
-              <option value="">All Types</option>
-              <option value="pothole">Pothole</option>
-              <option value="crack">Crack</option>
-              <option value="manhole">Manhole</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-        </div>
-        <div class="filter-row">
-          <div class="filter-input">
-            <label class="form-label small">Sort By:</label>
-            <select id="sort-filter" class="form-select">
-              <option value="time-desc">Newest First</option>
-              <option value="time-asc">Oldest First</option>
-              <option value="id-desc">ID High to Low</option>
-              <option value="id-asc">ID Low to High</option>
-              <option value="type-asc">Type A-Z</option>
-              <option value="type-desc">Type Z-A</option>
-          <option value="status-asc">Status A-Z</option>
-          <option value="status-desc">Status Z-A</option>
-        </select>
-          </div>
-          <div class="filter-input d-flex align-items-end">
-            <button id="clear-filters" class="btn btn-outline-warning">
-              <i class="fas fa-times me-1"></i>Clear Filters
+<body class="d-flex flex-column vh-100">
+  <!-- Floating Menu -->
+  <button class="floating-menu-btn" id="menuBtn" title="Menu"><i class="fas fa-bars"></i></button>
+  <nav class="floating-menu" id="floatingMenu">
+      <a href="/dashboard.html" class="active"><i class="fas fa-chart-line"></i><span>Dashboard</span></a>
+      <a href="/camera.html"><i class="fas fa-camera"></i><span>Camera</span></a>
+      <a href="/upload.html"><i class="fas fa-upload"></i><span>Upload</span></a>
+      <a href="/logout"><i class="fas fa-sign-out-alt"></i><span>Logout</span></a>
+  </nav>
+  <div class="menu-overlay" id="menuOverlay"></div>
+  <!-- Navbar -->
+  <div class="page-content">
+  <nav class="navbar navbar-expand-lg navbar-dark shadow-sm">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="#">
+        <i class="fas fa-road me-2" aria-hidden="true"></i>
+        RoadGuardian Dashboard
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarContent">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+            <button id="refresh-btn" class="btn btn-outline-primary">
+              <i class="fas fa-sync-alt me-1"></i>Refresh
             </button>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Container -->
+  <div class="container-fluid flex-grow-1 py-3">
+    <!-- Stats Row -->
+    <div class="row g-3 mb-3">
+      <div class="col-md-3"><div class="card h-100"><div class="card-body text-center"><h5 class="card-title text-muted">Total Reports</h5><p class="display-4 mb-0" id="total-reports">0</p></div></div></div>
+      <div class="col-md-3"><div class="card h-100"><div class="card-body text-center"><h5 class="card-title text-muted">New Reports</h5><p class="display-4 mb-0 text-primary" id="new-reports">0</p></div></div></div>
+      <div class="col-md-3"><div class="card h-100"><div class="card-body text-center"><h5 class="card-title text-muted">In Progress</h5><p class="display-4 mb-0 text-warning" id="in-progress-reports">0</p></div></div></div>
+      <div class="col-md-3"><div class="card h-100"><div class="card-body text-center"><h5 class="card-title text-muted">Resolved</h5><p class="display-4 mb-0 text-success" id="resolved-reports">0</p></div></div></div>
+    </div>
+
+    <!-- Filters Row -->
+    <div class="row mb-3">
+      <div class="col">
+        <div class="card"><div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-3"><div class="input-group"><label class="input-group-text" for="status-filter">Status</label><select class="form-select" id="status-filter"><option value="">All</option><option value="new">New</option><option value="open">Open</option><option value="in_progress">In Progress</option><option value="closed">Closed</option></select></div></div>
+            <div class="col-md-3"><div class="input-group"><label class="input-group-text" for="type-filter">Type</label><select class="form-select" id="type-filter"><option value="">All</option><option value="pothole">Pothole</option><option value="speed_bump">Speed Bump</option><option value="manhole">Manhole</option><option value="other">Other</option></select></div></div>
+            <div class="col-md-4"><div class="input-group"><label class="input-group-text" for="date-filter-start">Date Range</label><input type="date" class="form-control" id="date-filter-start"><input type="date" class="form-control" id="date-filter-end"></div></div>
+            <div class="col-md-2"><div class="input-group"><input type="search" class="form-control" id="search-filter" placeholder="Search..."><button class="btn btn-outline-primary" type="button"><i class="fas fa-search"></i></button></div></div>
           </div>
-        </div>
+          <div class="row mt-2">
+            <div class="col-md-8">
+              <div id="legend-filters" class="d-flex flex-wrap gap-2">
+                <button type="button" class="btn btn-sm btn-outline-light legend-chip" data-type="pothole">Pothole</button>
+                <button type="button" class="btn btn-sm btn-outline-light legend-chip" data-type="crack">Crack</button>
+                <button type="button" class="btn btn-sm btn-outline-light legend-chip" data-type="manhole">Manhole</button>
+                <button type="button" class="btn btn-sm btn-outline-light legend-chip" data-type="other">Other</button>
+              </div>
+            </div>
+            <div class="col-md-4 text-md-end mt-2 mt-md-0">
+              <button id="clear-filters" class="btn btn-outline-warning">
+                <i class="fas fa-times me-1"></i>Clear Filters
+              </button>
+            </div>
+          </div>
+        </div></div>
       </div>
-      
-      <div id="reports-table-container">
-        <table id="reports-table" class="table table-dark table-striped table-hover">
-          <thead>
-            <tr>
-              <th><input type="checkbox" id="select-all-checkbox" title="Select All"></th>
-              <th>ID</th>
-              <th>Type</th>
-              <th>Location</th>
-              <th>Time</th>
-              <th>Status</th>
-              <th>Reporter</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="reports-table-body">
-            <tr>
-              <td colspan="8" class="text-center">Loading reports...</td>
-            </tr>
-          </tbody>
-        </table>
+    </div>
+
+    <!-- Content Row -->
+    <div class="row g-3">
+      <!-- Reports List -->
+      <div class="col-md-5">
+        <div class="card h-100"><div class="card-body">
+          <h5 class="card-title d-flex justify-content-between align-items-center mb-3"><span><i class="fas fa-list me-2"></i>Reports Log</span><span class="badge bg-primary" id="reports-count">0</span></h5>
+          <!-- Bulk Actions -->
+          <div id="bulk-actions" class="mb-3" style="display: none;" role="group" aria-label="Bulk actions">
+            <button id="bulk-delete-btn" class="btn btn-danger" aria-describedby="bulk-delete-desc"><i class="fas fa-trash me-1"></i>Delete Selected (<span id="selected-count" aria-live="polite">0</span>)</button>
+            <span id="bulk-delete-desc" class="visually-hidden">Delete all selected reports permanently</span>
+          </div>
+          <div id="reports-table-container">
+            <table id="reports-table" class="table table-dark table-striped table-hover">
+              <thead>
+                <tr>
+                  <th><input type="checkbox" id="select-all-reports" title="Select All"></th>
+                  <th>Image</th>
+                  <th>Type</th>
+                  <th>Location</th>
+                  <th>Status</th>
+                  <th>Time</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="reports-table-body">
+                <tr><td colspan="7" class="text-center">Loading reports...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div></div>
       </div>
-    </section>
-  </main>
-  
+
+      <!-- Map -->
+      <div class="col-md-7">
+        <div class="card h-100"><div class="card-body">
+          <h5 class="card-title mb-3">Interactive Map</h5>
+          <div class="map-container" id="map-container">
+            <div id="map" class="rounded"></div>
+            <div class="map-controls">
+              <button id="center-map" class="btn btn-sm btn-secondary" title="Center map"><i class="fas fa-crosshairs"></i></button>
+              <button id="toggle-clusters" class="btn btn-sm btn-secondary" title="Toggle clustering"><i class="fas fa-layer-group"></i></button>
+              <button id="locate-me" class="btn btn-sm btn-secondary" title="Locate me"><i class="fas fa-location-crosshairs"></i></button>
+            </div>
+            <div id="map-loader" class="position-absolute top-50 start-50 translate-middle d-none" style="z-index: 1000;">
+              <div class="spinner-border text-primary" role="status" aria-live="polite" aria-label="Loading map"></div>
+            </div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toast-container"></div>
+  </div><!-- /.page-content -->
+
   <!-- Image Modal -->
-  <div class="modal fade" id="imageModal" tabindex="-1">
+  <div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">Report Image</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          <h5 class="modal-title" id="imageModalLabel">Report Image</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body text-center">
           <img id="modal-image" src="" alt="Report Image" class="img-fluid rounded">
@@ -394,649 +184,45 @@
     </div>
   </div>
 
-  <!-- Details Modal -->
-  <div class="modal fade" id="detailsModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Report Details</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <div class="row">
-            <div class="col-md-6">
-              <img id="details-image" src="" alt="Report Image" class="img-fluid rounded mb-3">
-            </div>
-            <div class="col-md-6">
-              <table class="table table-dark">
-                <tr><td><strong>ID:</strong></td><td id="details-id"></td></tr>
-                <tr><td><strong>Type:</strong></td><td id="details-type"></td></tr>
-                <tr><td><strong>Status:</strong></td><td id="details-status"></td></tr>
-                <tr><td><strong>Location:</strong></td><td id="details-location"></td></tr>
-                <tr><td><strong>Time:</strong></td><td id="details-time"></td></tr>
-                <tr><td><strong>Reporter:</strong></td><td id="details-reporter"></td></tr>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Edit Modal -->
-  <div class="modal fade" id="editModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Edit Report</h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-        </div>
-        <form id="edit-form">
-          <div class="modal-body">
-            <input type="hidden" id="edit-report-id">
-            <div class="row">
-              <div class="col-md-6">
-                <div class="mb-3">
-                  <label for="edit-status" class="form-label">Status:</label>
-                  <select id="edit-status" class="form-select" required>
-                    <option value="New">New</option>
-                    <option value="Open">Open</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Resolved">Resolved</option>
-                    <option value="Closed">Closed</option>
-                  </select>
-                </div>
-                <div class="mb-3">
-                  <label for="edit-type" class="form-label">Type:</label>
-                  <select id="edit-type" class="form-select" required>
-                    <option value="pothole">Pothole</option>
-                    <option value="crack">Crack</option>
-                    <option value="manhole">Manhole</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-                <div class="mb-3">
-                  <label for="edit-location" class="form-label">Location:</label>
-                  <input type="text" id="edit-location" class="form-control" required>
-                </div>
-                <div class="mb-3">
-                  <label for="edit-reporter" class="form-label">Reporter:</label>
-                  <input type="text" id="edit-reporter" class="form-control" required>
-                </div>
-              </div>
-              <div class="col-md-6">
-                <div class="mb-3">
-                  <label for="edit-time" class="form-label">Time:</label>
-                  <input type="datetime-local" id="edit-time" class="form-control" required>
-                </div>
-                <div class="mb-3">
-                  <label for="edit-image-url" class="form-label">Image URL:</label>
-                  <input type="url" id="edit-image-url" class="form-control">
-                </div>
-                <div class="mb-3">
-                  <label for="edit-latitude" class="form-label">Latitude:</label>
-                  <input type="number" id="edit-latitude" class="form-control" step="any">
-                </div>
-                <div class="mb-3">
-                  <label for="edit-longitude" class="form-label">Longitude:</label>
-                  <input type="number" id="edit-longitude" class="form-control" step="any">
-                </div>
-              </div>
-            </div>
-            <div class="row">
-              <div class="col-12">
-                <img id="edit-preview-image" src="" alt="Preview" class="img-fluid rounded" style="max-height: 200px; display: none;">
-              </div>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-outline-danger" id="delete-single-btn">
-              <i class="fas fa-trash me-1"></i>Delete Report
-            </button>
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-            <button type="submit" class="btn btn-success">
-              <i class="fas fa-save me-1"></i>Save Changes
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-
+  <!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/dashboard.js" type="module"></script>
   <script>
-    // Self-contained dashboard script
-    let mapInstance = null;
-    let mapMarkers = [];
-    let geocoder = null;
-    let allReports = [];
-    let filteredReports = [];
-    let selectedReports = new Set();
-
-    // Geocoding cache
-    const GEOCODE_CACHE_KEY = 'geocodeCache:v1';
-    function loadGeocodeCache() {
-      try { return JSON.parse(localStorage.getItem(GEOCODE_CACHE_KEY) || '{}'); } catch (_) { return {}; }
-    }
-    function saveGeocodeCache(cache) {
-      try { localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(cache)); } catch (_) {}
-    }
-    const geocodeCache = loadGeocodeCache();
-
-    // Notification function
-    function notify(message, type = 'info') {
-      console.log(`[${type.toUpperCase()}] ${message}`);
-      if (type === 'error') alert(`Error: ${message}`);
-    }
-
-    // Utils
-    async function fetchWithTimeout(url, { timeout = 10000, ...options } = {}) {
-      try {
-        const res = await fetch(url, { ...options, credentials: 'include' });
-        return res;
-      } catch (err) {
-        console.error('Fetch error:', err);
-        throw err;
-      }
-    }
-
-    function parseCoordsFromString(locationStr) {
-      if (!locationStr) return null;
-      const s = String(locationStr);
-      let m = s.match(/(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)/);
-      if (m) return { lat: Number(m[1]), lng: Number(m[2]) };
-      m = s.match(/Lat:\s*(-?\d+\.?\d*)[^\d-]+Long:\s*(-?\d+\.?\d*)/i);
-      if (m) return { lat: Number(m[1]), lng: Number(m[2]) };
-      return null;
-    }
-
-    async function geocodeAddress(address) {
-      if (!address) return null;
-      if (geocodeCache[address]) return geocodeCache[address];
-      if (!geocoder && window.google && google.maps) geocoder = new google.maps.Geocoder();
-      if (!geocoder) return null;
-
-      return new Promise((resolve) => {
-        geocoder.geocode({ address }, (results, status) => {
-          if (status === 'OK' && results && results[0]) {
-            const loc = results[0].geometry.location;
-            const coords = { lat: loc.lat(), lng: loc.lng() };
-            geocodeCache[address] = coords;
-            saveGeocodeCache(geocodeCache);
-            resolve(coords);
-          } else {
-            resolve(null);
-          }
-        });
-      });
-    }
-
-    function clearMarkers() {
-      mapMarkers.forEach(m => m.setMap(null));
-      mapMarkers = [];
-    }
-
-    function getTypeClass(type) {
-      if (!type) return 'type-other';
-      const t = type.toLowerCase();
-      if (t.includes('pothole')) return 'type-pothole';
-      if (t.includes('crack')) return 'type-crack';
-      return 'type-other';
-    }
-
-    function getStatusClass(status) {
-      if (!status) return 'status-new';
-      const s = status.toLowerCase();
-      if (s === 'new') return 'status-new';
-      if (s === 'open') return 'status-open';
-      if (s === 'resolved') return 'status-resolved';
-      if (s === 'closed') return 'status-closed';
-      return 'status-new';
-    }
-
-    function showImageModal(imageUrl) {
-      const modal = new bootstrap.Modal(document.getElementById('imageModal'));
-      document.getElementById('modal-image').src = imageUrl;
-      modal.show();
-    }
-
-    function showDetailsModal(report) {
-      const modal = new bootstrap.Modal(document.getElementById('detailsModal'));
-      document.getElementById('details-image').src = report.image || report.image_url || '';
-      document.getElementById('details-id').textContent = report.id || '';
-      document.getElementById('details-type').textContent = report.type || report.class_name || '';
-      document.getElementById('details-status').textContent = report.status || '';
-      document.getElementById('details-location').textContent = report.location || '';
-      document.getElementById('details-time').textContent = report.time ? new Date(report.time).toLocaleString() : '';
-      document.getElementById('details-reporter').textContent = report.reportedBy || report.username || report.user || '';
-      modal.show();
-    }
-
-    function showEditModal(report) {
-      const modal = new bootstrap.Modal(document.getElementById('editModal'));
-      
-      // Fill form with current data
-      document.getElementById('edit-report-id').value = report.id || '';
-      document.getElementById('edit-status').value = report.status || 'New';
-      document.getElementById('edit-type').value = (report.type || report.class_name || '').toLowerCase();
-      document.getElementById('edit-location').value = report.location || '';
-      document.getElementById('edit-reporter').value = report.reportedBy || report.username || report.user || '';
-      document.getElementById('edit-image-url').value = report.image || report.image_url || '';
-      document.getElementById('edit-latitude').value = report.latitude || '';
-      document.getElementById('edit-longitude').value = report.longitude || '';
-      
-      // Format time for datetime-local input
-      if (report.time) {
-        const date = new Date(report.time);
-        const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-        document.getElementById('edit-time').value = localDate.toISOString().slice(0, 16);
-      }
-      
-      // Show preview image if URL exists
-      const previewImg = document.getElementById('edit-preview-image');
-      const imageUrl = report.image || report.image_url;
-      if (imageUrl) {
-        previewImg.src = imageUrl;
-        previewImg.style.display = 'block';
-      } else {
-        previewImg.style.display = 'none';
-      }
-      
-      modal.show();
-    }
-
-    function updateSelectedCount() {
-      const count = selectedReports.size;
-      document.getElementById('selected-count').textContent = count;
-      document.getElementById('bulk-actions').style.display = count > 0 ? 'block' : 'none';
-    }
-
-    function deleteReport(reportId) {
-      return fetch(`/api/reports/${reportId}`, {
-        method: 'DELETE',
-        credentials: 'include'
-      }).then(response => {
-        if (!response.ok) throw new Error(`Failed to delete report: ${response.status}`);
-        return response.json();
-      });
-    }
-
-    function updateReport(reportId, data) {
-      return fetch(`/api/reports/${reportId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(data)
-      }).then(response => {
-        if (!response.ok) throw new Error(`Failed to update report: ${response.status}`);
-        return response.json();
-      });
-    }
-
-    function applyFilters() {
-      const searchTerm = document.getElementById('search-filter').value.toLowerCase();
-      const statusFilter = document.getElementById('status-filter').value.toLowerCase();
-      const typeFilter = document.getElementById('type-filter').value.toLowerCase();
-      const sortFilter = document.getElementById('sort-filter').value;
-
-      filteredReports = allReports.filter(report => {
-        // Search filter
-        if (searchTerm) {
-          const searchFields = [
-            (report.id?.toString() || '').toLowerCase(),
-            (report.type || report.class_name || '').toLowerCase(),
-            (report.location || '').toLowerCase(),
-            (report.reportedBy || report.username || report.user || '').toLowerCase()
-          ];
-          if (!searchFields.some(field => field.includes(searchTerm))) return false;
+    // Adjust layout so menu doesn't overlap content on desktop
+    (function(){
+      const style = document.createElement('style');
+      style.innerHTML = `
+        .page-content{ transition: margin-left .3s ease; }
+        @media (min-width:1024px){
+          .page-content{ margin-left:72px; }
+          .floating-menu:hover ~ .page-content{ margin-left:280px; }
         }
-
-        // Status filter
-        if (statusFilter && (report.status || '').toLowerCase() !== statusFilter) return false;
-
-        // Type filter
-        if (typeFilter) {
-          const reportType = (report.type || report.class_name || '').toLowerCase();
-          if (typeFilter === 'pothole' && !reportType.includes('pothole')) return false;
-          if (typeFilter === 'crack' && !reportType.includes('crack')) return false;
-          if (typeFilter === 'manhole' && !reportType.includes('manhole')) return false;
-          if (typeFilter === 'other' && (reportType.includes('pothole') || reportType.includes('crack') || reportType.includes('manhole'))) return false;
-        }
-
-        return true;
+      `;
+      document.head.appendChild(style);
+    })();
+  </script>
+  <script>
+    // Floating menu logic
+    document.addEventListener('DOMContentLoaded', function() {
+      const menuBtn = document.getElementById('menuBtn');
+      const floatingMenu = document.getElementById('floatingMenu');
+      const menuOverlay = document.getElementById('menuOverlay');
+      if (!menuBtn || !floatingMenu || !menuOverlay) return;
+      menuBtn.addEventListener('click', () => {
+        const isOpen = floatingMenu.classList.toggle('active');
+        menuOverlay.classList.toggle('active', isOpen);
       });
-
-      // Apply sorting
-      const [field, direction] = sortFilter.split('-');
-      filteredReports.sort((a, b) => {
-        let aVal, bVal;
-        if (field === 'time') {
-          aVal = new Date(a.time || 0);
-          bVal = new Date(b.time || 0);
-        } else if (field === 'id') {
-          aVal = parseInt(a.id) || 0;
-          bVal = parseInt(b.id) || 0;
-        } else {
-          aVal = (a[field] || '').toString().toLowerCase();
-          bVal = (b[field] || '').toString().toLowerCase();
-        }
-
-        if (direction === 'desc') {
-          return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
-        } else {
-          return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
-        }
+      menuOverlay.addEventListener('click', () => {
+        floatingMenu.classList.remove('active');
+        menuOverlay.classList.remove('active');
       });
-
-      renderTableRows(filteredReports);
-      plotReportsOnMap(filteredReports);
-    }
-
-    function renderTableRows(reports) {
-      const tbody = document.getElementById('reports-table-body');
-      if (!tbody) return;
-      tbody.replaceChildren();
-      
-      if (!Array.isArray(reports) || reports.length === 0) {
-        const tr = document.createElement('tr');
-        const td = document.createElement('td');
-        td.colSpan = 8;
-        td.className = 'text-center';
-        td.textContent = 'No reports found.';
-        tr.appendChild(td);
-        tbody.appendChild(tr);
-        return;
-      }
-
-      for (const r of reports) {
-        const tr = document.createElement('tr');
-        const typeClass = getTypeClass(r.type || r.class_name);
-        const statusClass = getStatusClass(r.status);
-        tr.dataset.reportId = r.id;
-        
-        tr.innerHTML = `
-          <td><input type="checkbox" class="report-checkbox" data-report-id="${r.id}" ${selectedReports.has(r.id) ? 'checked' : ''}></td>
-          <td>${r.id ?? ''}</td>
-          <td><span class="badge ${typeClass}">${(r.type || r.class_name || '').toString()}</span></td>
-          <td>${(r.location || '').toString()}</td>
-          <td>${r.time ? new Date(r.time).toLocaleString() : ''}</td>
-          <td><span class="badge ${statusClass}">${r.status || ''}</span></td>
-          <td>${r.reportedBy || r.username || r.user || ''}</td>
-          <td>
-            <button class="btn-action btn-view" onclick="showDetailsModal(${JSON.stringify(r).replace(/"/g, '&quot;')})" title="View Details">
-              <i class="fas fa-eye"></i>
-            </button>
-            <button class="btn-action btn-image" onclick="showImageModal('${r.image || r.image_url || ''}')" title="View Image">
-              <i class="fas fa-camera"></i>
-            </button>
-            <button class="btn-action btn-edit" onclick="showEditModal(${JSON.stringify(r).replace(/"/g, '&quot;')})" title="Edit Report">
-              <i class="fas fa-edit"></i>
-            </button>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      }
-    }
-
-    async function plotReportsOnMap(reports) {
-      if (!mapInstance || !Array.isArray(reports)) return;
-      clearMarkers();
-      const bounds = new google.maps.LatLngBounds();
-      let count = 0;
-
-      for (const r of reports) {
-        let coords = null;
-        if (Number.isFinite(Number(r.latitude)) && Number.isFinite(Number(r.longitude))) {
-          coords = { lat: Number(r.latitude), lng: Number(r.longitude) };
-        }
-        if (!coords) coords = parseCoordsFromString(r.location);
-        if (!coords && r.coordinates) coords = parseCoordsFromString(`${r.coordinates.lat}, ${r.coordinates.lng}`);
-        if (!coords) coords = await geocodeAddress(r.location);
-        if (!coords) continue;
-
-        const marker = new google.maps.Marker({
-          map: mapInstance,
-          position: coords,
-          title: `#${r.id} ${(r.type || r.class_name || '').toString()}`.trim(),
-        });
-
-        // Add click listener to marker
-        const infoWindow = new google.maps.InfoWindow({
-          content: `
-            <div style="color: #000; min-width: 200px;">
-              <h6><strong>Report #${r.id}</strong></h6>
-              <p><strong>Type:</strong> ${r.type || r.class_name || ''}</p>
-              <p><strong>Status:</strong> ${r.status || ''}</p>
-              <p><strong>Location:</strong> ${r.location || ''}</p>
-              <p><strong>Reporter:</strong> ${r.reportedBy || r.username || r.user || ''}</p>
-              <button onclick="showDetailsModal(${JSON.stringify(r).replace(/"/g, '&quot;')})" 
-                      style="background: #3b82f6; color: white; border: none; padding: 5px 10px; border-radius: 3px; margin: 2px;">
-                View Details
-              </button>
-              <button onclick="showImageModal('${r.image || r.image_url || ''}')" 
-                      style="background: #16a34a; color: white; border: none; padding: 5px 10px; border-radius: 3px; margin: 2px;">
-                View Image
-              </button>
-            </div>
-          `
-        });
-
-        marker.addListener('click', () => {
-          infoWindow.open(mapInstance, marker);
-        });
-
-        mapMarkers.push(marker);
-        bounds.extend(coords);
-        count++;
-      }
-
-      if (count > 0) {
-        mapInstance.fitBounds(bounds);
-      }
-      console.log(`Plotted ${count} markers on map`);
-    }
-
-    async function fetchAllReports() {
-      console.log('🔄 Fetching reports from /api/reports...');
-      const res = await fetchWithTimeout('/api/reports');
-      console.log('📡 Response status:', res.status);
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      const data = await res.json();
-      console.log('📊 Raw data received:', Array.isArray(data) ? `${data.length} reports` : typeof data);
-      return Array.isArray(data) ? data : [];
-    }
-
-    async function loadAndRender() {
-      try {
-        console.log('🚀 Starting loadAndRender...');
-        notify('Loading reports...', 'info');
-        allReports = await fetchAllReports();
-        filteredReports = [...allReports];
-        console.log('✅ Got reports, applying filters...');
-        applyFilters();
-        console.log('✅ Dashboard loaded successfully');
-        notify(`Loaded ${allReports.length} reports`, 'success');
-      } catch (err) {
-        console.error('❌ Error in loadAndRender:', err);
-        notify(`Failed to load dashboard: ${err.message}`, 'error');
-      }
-    }
-
-    // Google Maps callback
-    window.initMap = async function initMap() {
-      try {
-        const el = document.getElementById('map');
-        if (!el) throw new Error('Map container not found');
-        
-        mapInstance = new google.maps.Map(el, {
-          center: { lat: 32.0853, lng: 34.7818 }, // Tel Aviv
-          zoom: 12,
-          mapTypeControl: false,
-          streetViewControl: false,
-          fullscreenControl: true,
-        });
-        
-        geocoder = new google.maps.Geocoder();
-        console.log('Map initialized successfully');
-        await loadAndRender();
-      } catch (e) {
-        notify(`Map init failed: ${e.message}`, 'error');
-      }
-    };
-
-    // Event listeners
-    document.addEventListener('DOMContentLoaded', () => {
-      // Refresh button
-      const refreshBtn = document.getElementById('refresh-btn');
-      if (refreshBtn) {
-        refreshBtn.addEventListener('click', () => {
-          refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Loading...';
-          refreshBtn.disabled = true;
-          loadAndRender().finally(() => {
-            refreshBtn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Refresh';
-            refreshBtn.disabled = false;
-          });
-        });
-      }
-
-      // Filter event listeners
-      document.getElementById('search-filter').addEventListener('input', applyFilters);
-      document.getElementById('status-filter').addEventListener('change', applyFilters);
-      document.getElementById('type-filter').addEventListener('change', applyFilters);
-      document.getElementById('sort-filter').addEventListener('change', applyFilters);
-
-      // Clear filters
-      document.getElementById('clear-filters').addEventListener('click', () => {
-        document.getElementById('search-filter').value = '';
-        document.getElementById('status-filter').value = '';
-        document.getElementById('type-filter').value = '';
-        document.getElementById('sort-filter').value = 'time-desc';
-        applyFilters();
-      });
-
-      // Select all checkbox
-      document.getElementById('select-all-checkbox').addEventListener('change', (e) => {
-        const checkboxes = document.querySelectorAll('.report-checkbox');
-        checkboxes.forEach(cb => {
-          cb.checked = e.target.checked;
-          const reportId = cb.getAttribute('data-report-id');
-          if (e.target.checked) {
-            selectedReports.add(reportId);
-          } else {
-            selectedReports.delete(reportId);
-          }
-        });
-        updateSelectedCount();
-      });
-
-      // Individual checkboxes (event delegation)
-      document.addEventListener('change', (e) => {
-        if (e.target.classList.contains('report-checkbox')) {
-          const reportId = e.target.getAttribute('data-report-id');
-          if (e.target.checked) {
-            selectedReports.add(reportId);
-          } else {
-            selectedReports.delete(reportId);
-          }
-          updateSelectedCount();
-        }
-      });
-
-      // Bulk delete button
-      document.getElementById('bulk-delete-btn').addEventListener('click', async () => {
-        if (selectedReports.size === 0) return;
-        
-        if (!confirm(`Are you sure you want to delete ${selectedReports.size} selected reports?`)) return;
-        
-        const deletePromises = Array.from(selectedReports).map(id => deleteReport(id));
-        
-        try {
-          await Promise.all(deletePromises);
-          notify(`Successfully deleted ${selectedReports.size} reports`, 'success');
-          
-          // Remove deleted reports from local arrays
-          const deletedIds = Array.from(selectedReports);
-          allReports = allReports.filter(r => !deletedIds.includes(r.id.toString()));
-          selectedReports.clear();
-          
-          applyFilters();
-          updateSelectedCount();
-        } catch (error) {
-          notify(`Error deleting reports: ${error.message}`, 'error');
-        }
-      });
-
-      // Edit form submission
-      document.getElementById('edit-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        const reportId = document.getElementById('edit-report-id').value;
-        const data = {
-          status: document.getElementById('edit-status').value,
-          type: document.getElementById('edit-type').value,
-          location: document.getElementById('edit-location').value,
-          reportedBy: document.getElementById('edit-reporter').value,
-          image_url: document.getElementById('edit-image-url').value,
-          latitude: parseFloat(document.getElementById('edit-latitude').value) || null,
-          longitude: parseFloat(document.getElementById('edit-longitude').value) || null,
-          time: new Date(document.getElementById('edit-time').value).toISOString()
-        };
-        
-        try {
-          await updateReport(reportId, data);
-          notify('Report updated successfully', 'success');
-          
-          // Update local data
-          const reportIndex = allReports.findIndex(r => r.id == reportId);
-          if (reportIndex !== -1) {
-            allReports[reportIndex] = { ...allReports[reportIndex], ...data };
-          }
-          
-          applyFilters();
-          bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
-        } catch (error) {
-          notify(`Error updating report: ${error.message}`, 'error');
-        }
-      });
-
-      // Delete single report from edit modal
-      document.getElementById('delete-single-btn').addEventListener('click', async () => {
-        const reportId = document.getElementById('edit-report-id').value;
-        
-        if (!confirm('Are you sure you want to delete this report?')) return;
-        
-        try {
-          await deleteReport(reportId);
-          notify('Report deleted successfully', 'success');
-          
-          // Remove from local data
-          allReports = allReports.filter(r => r.id != reportId);
-          selectedReports.delete(reportId);
-          
-          applyFilters();
-          updateSelectedCount();
-          bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
-        } catch (error) {
-          notify(`Error deleting report: ${error.message}`, 'error');
-        }
-      });
-
-      // Image URL preview in edit modal
-      document.getElementById('edit-image-url').addEventListener('input', (e) => {
-        const previewImg = document.getElementById('edit-preview-image');
-        const url = e.target.value;
-        if (url) {
-          previewImg.src = url;
-          previewImg.style.display = 'block';
-          previewImg.onerror = () => previewImg.style.display = 'none';
-        } else {
-          previewImg.style.display = 'none';
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          floatingMenu.classList.remove('active');
+          menuOverlay.classList.remove('active');
         }
       });
     });
   </script>
-  
-  <!-- Google Maps API -->
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCN0O4198LX8nzVAKSMRD6YC1zKSNp_Maw&callback=initMap&loading=async"></script>
 </body>
 </html>

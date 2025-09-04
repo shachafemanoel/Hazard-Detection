@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="RoadGuardian Dashboard - Monitor and manage road hazards">
+  <link rel="icon" href="icon.png" type="image/png">
+  <title>RoadGuardian Dashboard</title>
+  
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  
+  <!-- Map Dependencies -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" 
+        crossorigin="anonymous" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+  
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="css/design-system.css">
+  <link rel="stylesheet" href="css/dashboard.css">
+  
+  <!-- Map JavaScript Dependencies -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+          crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+</head>
+<body class="d-flex flex-column vh-100">
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark shadow-sm">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="#">
+        <i class="fas fa-road me-2" aria-hidden="true"></i>
+        RoadGuardian Dashboard
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarContent">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+            <button id="refresh-btn" class="btn btn-outline-primary">
+              <i class="fas fa-sync-alt me-1"></i>Refresh
+            </button>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container-fluid py-3" role="main">
+    <!-- Stats Section -->
+    <section class="row g-3 mb-3" aria-labelledby="stats-title">
+      <h2 id="stats-title" class="visually-hidden">Statistics Overview</h2>
+      <div class="col-md-3">
+        <div class="card h-100">
+          <div class="card-body text-center">
+            <h5 class="card-title text-muted">Total Reports</h5>
+            <p class="display-4 mb-0" id="total-reports">0</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card h-100">
+          <div class="card-body text-center">
+            <h5 class="card-title text-muted">New Reports</h5>
+            <p class="display-4 mb-0 text-primary" id="new-reports">0</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card h-100">
+          <div class="card-body text-center">
+            <h5 class="card-title text-muted">In Progress</h5>
+            <p class="display-4 mb-0 text-warning" id="in-progress-reports">0</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card h-100">
+          <div class="card-body text-center">
+            <h5 class="card-title text-muted">Resolved</h5>
+            <p class="display-4 mb-0 text-success" id="resolved-reports">0</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Filters Section -->
+    <section class="card mb-3" aria-labelledby="filters-title">
+      <div class="card-body">
+        <h2 id="filters-title" class="h5 mb-3">Filters</h2>
+        <div class="row g-3">
+          <div class="col-md-3">
+            <div class="input-group">
+              <label class="input-group-text" for="status-filter">Status</label>
+              <select class="form-select" id="status-filter">
+                <option value="">All Statuses</option>
+                <option value="new">New</option>
+                <option value="open">Open</option>
+                <option value="in_progress">In Progress</option>
+                <option value="resolved">Resolved</option>
+                <option value="closed">Closed</option>
+              </select>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="input-group">
+              <label class="input-group-text" for="type-filter">Type</label>
+              <select class="form-select" id="type-filter">
+                <option value="">All Types</option>
+                <option value="pothole">Pothole</option>
+                <option value="crack">Crack</option>
+                <option value="manhole">Manhole</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="input-group">
+              <label class="input-group-text" for="date-filter-start">Date Range</label>
+              <input type="date" class="form-control" id="date-filter-start" aria-label="Start date">
+              <input type="date" class="form-control" id="date-filter-end" aria-label="End date">
+            </div>
+          </div>
+          <div class="col-md-2">
+            <div class="input-group">
+              <input type="search" class="form-control" id="search-filter" placeholder="Search..." aria-label="Search reports">
+              <button class="btn btn-outline-primary" type="button" id="search-btn">
+                <i class="fas fa-search"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="row mt-3">
+          <div class="col-md-3">
+            <div class="input-group">
+              <label class="input-group-text" for="sort-filter">Sort By</label>
+              <select class="form-select" id="sort-filter">
+                <option value="time-desc">Newest First</option>
+                <option value="time-asc">Oldest First</option>
+                <option value="id-desc">ID High to Low</option>
+                <option value="id-asc">ID Low to High</option>
+                <option value="type-asc">Type A-Z</option>
+                <option value="type-desc">Type Z-A</option>
+                <option value="status-asc">Status A-Z</option>
+                <option value="status-desc">Status Z-A</option>
+              </select>
+            </div>
+          </div>
+          <div class="col-md-2">
+            <button id="clear-filters" class="btn btn-outline-warning w-100">
+              <i class="fas fa-times me-1"></i>Clear Filters
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Content Section -->
+    <div class="row g-3">
+      <!-- Map Section -->
+      <div class="col-md-7">
+        <section class="card h-100" aria-labelledby="map-title">
+          <div class="card-body">
+            <h2 id="map-title" class="h5 mb-3">
+              <i class="fas fa-map-marked-alt me-2"></i>Live Map
+            </h2>
+            <div id="map-overlay-ui" class="position-absolute top-0 end-0 p-3" style="z-index: 10;">
+              <div class="card bg-dark text-light p-2">
+                <div id="legend-filters" class="d-flex flex-wrap gap-2">
+                  <button class="btn btn-sm btn-outline-light legend-chip" data-type="pothole">Pothole</button>
+                  <button class="btn btn-sm btn-outline-light legend-chip" data-type="crack">Crack</button>
+                  <button class="btn btn-sm btn-outline-light legend-chip" data-type="manhole">Manhole</button>
+                  <button class="btn btn-sm btn-outline-light legend-chip" data-type="other">Other</button>
+                </div>
+              </div>
+            </div>
+            <div class="map-container">
+              <div id="map" class="rounded" role="application" aria-label="Interactive map showing hazard locations"></div>
+              <div class="map-controls">
+                <button id="center-map" class="btn btn-sm btn-secondary" title="Center map">
+                  <i class="fas fa-crosshairs"></i>
+                </button>
+                <button id="toggle-clusters" class="btn btn-sm btn-secondary" title="Toggle clustering">
+                  <i class="fas fa-layer-group"></i>
+                </button>
+              </div>
+              <div id="map-loader" class="skeleton-loader" style="display: none;">
+                <div class="spinner-border text-primary"></div>
+                <p>Loading map data...</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Reports Section -->
+      <div class="col-md-5">
+        <section class="card h-100" aria-labelledby="reports-title">
+          <div class="card-body">
+            <h2 id="reports-title" class="h5 d-flex justify-content-between align-items-center mb-3">
+              <span><i class="fas fa-list me-2"></i>Reports Log</span>
+              <span class="badge bg-primary" id="reports-count">0</span>
+            </h2>
+            
+            <!-- Bulk Actions -->
+            <div id="bulk-actions" class="mb-3" style="display: none;" role="group" aria-label="Bulk actions">
+              <button id="bulk-delete-btn" class="btn btn-danger" aria-describedby="bulk-delete-desc">
+                <i class="fas fa-trash me-1"></i>
+                Delete Selected (<span id="selected-count" aria-live="polite">0</span>)
+              </button>
+              <span id="bulk-delete-desc" class="visually-hidden">Delete all selected reports permanently</span>
+            </div>
+
+            <div id="reports-table-container">
+              <table id="reports-table" class="table table-dark table-striped table-hover">
+                <thead>
+                  <tr>
+                    <th><input type="checkbox" id="select-all-checkbox" title="Select All"></th>
+                    <th>ID</th>
+                    <th>Type</th>
+                    <th>Location</th>
+                    <th>Time</th>
+                    <th>Status</th>
+                    <th>Reporter</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="reports-table-body">
+                  <tr>
+                    <td colspan="8" class="text-center">Loading reports...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <!-- Toast Container -->
+  <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toast-container"></div>
+
+  <!-- Modals -->
+  <div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="imageModalLabel">Report Image</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body text-center">
+          <img id="modal-image" src="" alt="Report Image" class="img-fluid rounded">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="editModalLabel">Edit Report</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="edit-form">
+          <div class="modal-body">
+            <input type="hidden" id="edit-report-id">
+            <div class="row">
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label for="edit-status" class="form-label">Status:</label>
+                  <select id="edit-status" class="form-select" required>
+                    <option value="new">New</option>
+                    <option value="open">Open</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="resolved">Resolved</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                </div>
+                <div class="mb-3">
+                  <label for="edit-type" class="form-label">Type:</label>
+                  <select id="edit-type" class="form-select" required>
+                    <option value="pothole">Pothole</option>
+                    <option value="crack">Crack</option>
+                    <option value="manhole">Manhole</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div class="mb-3">
+                  <label for="edit-location" class="form-label">Location:</label>
+                  <input type="text" id="edit-location" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                  <label for="edit-reporter" class="form-label">Reporter:</label>
+                  <input type="text" id="edit-reporter" class="form-control" required>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="mb-3">
+                  <label for="edit-time" class="form-label">Time:</label>
+                  <input type="datetime-local" id="edit-time" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                  <label for="edit-image-url" class="form-label">Image URL:</label>
+                  <input type="url" id="edit-image-url" class="form-control">
+                </div>
+                <div class="mb-3">
+                  <label for="edit-coordinates" class="form-label">Coordinates:</label>
+                  <div class="input-group">
+                    <input type="number" id="edit-latitude" class="form-control" step="any" placeholder="Latitude">
+                    <input type="number" id="edit-longitude" class="form-control" step="any" placeholder="Longitude">
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-12">
+                <img id="edit-preview-image" src="" alt="Preview" class="img-fluid rounded" style="max-height: 200px; display: none;">
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-danger" id="delete-single-btn">
+              <i class="fas fa-trash me-1"></i>Delete Report
+            </button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-success">
+              <i class="fas fa-save me-1"></i>Save Changes
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="js/dashboard.js" type="module"></script>
+</body>
+</html>

@@ -8,6 +8,11 @@ class NotificationSystem {
         this.container = null;
         this.notifications = new Map();
         this.createContainer();
+        
+        // Periodic cleanup to prevent memory leaks
+        this.cleanupInterval = setInterval(() => {
+            this.cleanup();
+        }, 30000); // Clean up every 30 seconds
     }
 
     createContainer() {
@@ -39,11 +44,12 @@ class NotificationSystem {
         this.container.appendChild(notification);
         this.notifications.set(id, notification);
 
-        // Animate in
-        requestAnimationFrame(() => {
+        // Animate in - use single RAF call to avoid multiple frames
+        const animate = () => {
             notification.style.transform = 'translateX(0)';
             notification.style.opacity = '1';
-        });
+        };
+        requestAnimationFrame(animate);
 
         // Auto-dismiss
         const duration = options.duration || this.getDefaultDuration(type);
@@ -191,6 +197,45 @@ class NotificationSystem {
 
     hideAll() {
         this.notifications.forEach((_, id) => this.hide(id));
+    }
+
+    // Cleanup orphaned notifications and prevent memory leaks
+    cleanup() {
+        const orphaned = [];
+        this.notifications.forEach((notification, id) => {
+            if (!notification.parentNode || !document.contains(notification)) {
+                orphaned.push(id);
+            }
+        });
+        
+        orphaned.forEach(id => {
+            this.notifications.delete(id);
+        });
+        
+        if (orphaned.length > 0) {
+            console.log(`Cleaned up ${orphaned.length} orphaned notifications`);
+        }
+    }
+
+    // Destroy the notification system and clean up all resources
+    destroy() {
+        // Clear cleanup interval
+        if (this.cleanupInterval) {
+            clearInterval(this.cleanupInterval);
+            this.cleanupInterval = null;
+        }
+        
+        // Hide all notifications
+        this.hideAll();
+        
+        // Remove container
+        if (this.container && this.container.parentNode) {
+            this.container.parentNode.removeChild(this.container);
+        }
+        
+        // Clear maps
+        this.notifications.clear();
+        this.container = null;
     }
 
     getTypeColors(type) {

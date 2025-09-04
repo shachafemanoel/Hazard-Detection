@@ -67,6 +67,19 @@ uvicorn app:app --reload --host 0.0.0.0 --port 8000
 npx tailwindcss -i ./src/css/input.css -o ./dist/output.css --watch
 ```
 
+### Testing & Validation
+Test framework is configured with Jest:
+```bash
+# Run tests
+npm test
+
+# Check server health
+curl http://localhost:3000/api/reports
+
+# Verify AI inference service
+curl -X POST http://localhost:8000/detect -F "file=@test_image.jpg"
+```
+
 ### Environment Setup
 Create environment files in the `server/` directory:
 - `server/.env` - Development environment variables (loaded by server.js)
@@ -115,7 +128,7 @@ docker run -p 3000:3000 hazard-detection
 - `public/dashboard.html` - Admin dashboard with map view
 
 ### AI/ML Components
-- `public/object_detecion_model/` - Primary ONNX model files for browser inference
+- `public/object_detecion_model/` - Primary ONNX model files for browser inference (note: intentional typo in directory name)
 - `public/object_detection_model/` - PyTorch model files for server-side processing
 - `public/js/yolo_tfjs.js` - Client-side AI inference using ONNX Runtime
 - `public/ort/` - ONNX Runtime Web distribution files (complete WebAssembly build)
@@ -185,7 +198,7 @@ docker run -p 3000:3000 hazard-detection
 - Models trained on road damage dataset with YOLO architecture
 - Support for real-time browser inference via ONNX Runtime Web
 - Fallback from WebGL to CPU execution providers
-- Models located in `public/object_detecion_model/` directory
+- Models located in `public/object_detecion_model/` directory (note: intentional typo in directory name)
 - Primary models:
   - Browser: `road_damage_detection_last_version.onnx` 
   - Server: `road_damage_detection_last_version.pt`
@@ -197,3 +210,69 @@ The FastAPI service requires:
 - `ultralytics` - YOLO model inference
 - `PIL` (Pillow) - Image processing
 - `uvicorn` - ASGI server (for standalone FastAPI deployment)
+
+## Frontend Architecture
+
+### Static File Structure
+- `public/` - Static assets served directly by Express
+- `public/css/` - Component-specific stylesheets with dark theme support
+- `public/js/` - Client-side JavaScript modules
+- `src/` - Source files for build process (Tailwind CSS)
+- `tests/` - Jest test suite for unit testing
+
+### Key Frontend Features
+- Responsive design with mobile-first approach
+- Dark theme with custom color palette (see style-guide.md)
+- Real-time hazard detection using ONNX Runtime Web
+- Interactive Google Maps integration
+- Camera capture with geolocation
+- Session-based authentication state management
+- Error handling and accessibility features
+
+### Cross-Origin Isolation
+The application sets specific headers for SharedArrayBuffer support:
+- `Cross-Origin-Opener-Policy: same-origin`
+- `Cross-Origin-Embedder-Policy: require-corp`
+Required for ONNX Runtime Web with WebAssembly threading.
+
+## Development Notes
+
+### Model Directory Naming
+**CRITICAL**: `public/object_detecion_model/` contains an intentional typo ("detecion" instead of "detection"). This is hardcoded throughout the application. Do not rename without updating all references in:
+- `public/js/yolo_tfjs.js`
+- `server/app.py`
+- Any configuration files
+
+### Session Management
+- Redis-backed sessions with 24-hour expiry
+- Development: HTTP cookies with SameSite=lax
+- Production: HTTPS cookies with SameSite=none
+- Session data includes user info and authentication state
+
+### Image Processing Pipeline
+1. Client uploads image via multer (in-memory)
+2. Image uploaded to Cloudinary for storage
+3. YOLO inference (client-side ONNX or server-side PyTorch)
+4. Results stored in Redis with geocoded location
+5. Real-time updates to dashboard via JavaScript
+
+### Environment Variables Location
+**IMPORTANT**: All environment files must be placed in the `server/` directory:
+- `server/.env` (development)
+- `server/.env.production` (production)
+- `server/.env.model` (model configuration)
+
+The application loads environment variables using `path.join(__dirname, '.env')` from the server directory.
+
+### ONNX Runtime Web Configuration
+- Session caching for performance optimization
+- Execution provider fallback: WebGL → WebGPU → WASM → CPU
+- Warmup tensor for initial model loading
+- Support for SharedArrayBuffer and multithreading
+
+### Code Quality & Testing
+- Jest configuration in `jest.config.js`
+- Babel transpilation for ES modules
+- Unit tests for YOLO detection functionality
+- Error handling utilities in `public/js/error-handler.js`
+- Smoke tests for basic functionality verification

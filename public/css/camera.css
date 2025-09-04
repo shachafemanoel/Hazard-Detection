@@ -1,788 +1,261 @@
-/* camera.css - גרסה מותאמת ל-Bootstrap */
+/* ====================================================================
+   CAMERA.CSS - Refactored & Consolidated Styles
+   ================================================================= */
 
-/* אפשר להשאיר אם רוצים צבע רקע ספציפי שלא מגיע מ-Bootstrap */
-/* body {
-  background-color: #f3f5f7;
-} */
-
-/* סגנונות ספציפיים לקנבס שאולי נרצה לשמור או להתאים */
-#overlay-canvas {
-  /* border: 1px solid #dee2e6; /* אפשר להגדיר כאן במקום ב-inline style */
-  border-radius: 8px; /* אם רוצים פינות מעוגלות */
-  background-color: #fff; /* אם רוצים רקע לבן מובטח */
-  /* ודא שאין כאן הגדרות width/height קבועות */
-  /* max-width: 100% ו-height: auto מטופלים ב-inline style ב-HTML */
-  /* display: block ו-margin: 0 auto מטופלים ב-inline style ב-HTML */
+/* --- Global & Accessibility --- */
+:root {
+    --primary-bg: #0f172a;
+    --secondary-bg: #1e293b;
+    --primary-text: #e2e8f0;
+    --primary-accent: #3b82f6;
+    --secondary-accent: #2563eb;
+    --error-color: #ef4444;
+    --error-text: #f87171;
+    --border-color: #334155;
+    --overlay-bg: rgba(0, 0, 0, 0.85);
 }
 
-
-/* אם יש צורך בסגנונות נוספים שאינם מכוסים על ידי Bootstrap,
-   ניתן להוסיף אותם כאן. */
-
-/* לדוגמה, אם רוצים שהכותרת תהיה בצבע אחר מברירת המחדל של Bootstrap: */
-/* h1 {
-  color: #2c3e50;
-} */
-
-#camera-container {
-    width: 100%;
-    height: 100vh;
+body {
+    background: linear-gradient(135deg, var(--primary-bg) 0%, var(--secondary-bg) 100%);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: var(--primary-text);
     margin: 0;
     padding: 0;
-    position: relative;
-    background: rgba(31, 34, 53, 0.95);
+}
+
+.sr-only {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}
+
+/* --- Main Layout --- */
+#camera-container {
+    min-height: 100vh;
+    padding: 1rem;
 }
 
 .camera-wrapper {
-    width: 100%;
-    height: 100%;
     position: relative;
+    width: 100%;
+    max-width: 960px; /* Increased max-width for larger screens */
+    aspect-ratio: 16/9;
+    margin: 1rem auto;
     overflow: hidden;
+    border-radius: 16px;
+    background: #000;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(148, 163, 184, 0.2);
 }
 
-#camera-stream {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
+#camera-stream, #overlay-canvas {
     position: absolute;
     top: 0;
     left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 #overlay-canvas {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
     z-index: 2;
+    pointer-events: none; /* Allow interaction with video element if needed */
 }
 
-.camera-wrapper {
-    position: relative;
-    width: 100%;
-    margin: 0 auto;
-    overflow: hidden;
-    border-radius: 8px;
-}
-
-#camera-stream {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.camera-controls {
+/* --- Loading & Status Overlays --- */
+#loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--overlay-bg);
     display: flex;
-    gap: 10px;
-    margin: 20px 0;
-    flex-wrap: wrap;
     justify-content: center;
-}
-
-.camera-controls button {
-    flex: 1;
-    min-width: 120px;
-    max-width: 200px;
-    padding: 12px;
-    border: none;
-    border-radius: 8px;
-    font-weight: 600;
-    transition: all 0.3s ease;
-}
-
-.camera-controls button:hover {
-    background: #e5b85f;
-    transform: translateY(-2px);
-}
-
-#object-count-overlay,
-#hazard-types-overlay {
-    position: fixed;
-    background: rgba(31, 34, 53, 0.9);
-    padding: 10px 15px;
-    border-radius: 6px;
-    color: #f7c873;
-    font-size: 14px;
-    z-index: 100;
-}
-
-#object-count-overlay {
-    top: 80px;
-    right: 20px;
-}
-
-#hazard-types-overlay {
-    bottom: 20px;
-    right: 20px;
-    max-width: 80%;
-}
-
-/* Hazard Detection Notifications */
-.hazard-notification {
-    position: fixed;
-    right: 15px;
-    top: 15px;
-    background: rgba(31, 34, 53, 0.95);
-    color: #f7c873;
-    padding: 8px 12px;
-    border-radius: 6px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-    z-index: 1000;
-    display: flex;
     align-items: center;
-    gap: 8px;
-    animation: notificationSlide 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    max-width: 280px;
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(247, 200, 115, 0.2);
-    transform-origin: top right;
+    z-index: 2000;
+    backdrop-filter: blur(5px);
 }
 
-.hazard-notification i {
-    font-size: 16px;
-    color: #f7c873;
-    animation: notificationPulse 2s infinite;
+.loading-status {
+    background: rgba(15, 23, 42, 0.95);
+    padding: 2rem;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    text-align: center;
+    max-width: 400px;
+    width: 90%;
+    color: var(--primary-text);
 }
 
-.hazard-notification-content {
-    flex-grow: 1;
+.progress {
+    height: 6px;
+    margin-block-start: 1rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
     overflow: hidden;
 }
 
-.hazard-notification h3 {
-    margin: 0;
-    font-size: 13px;
-    font-weight: 600;
-    color: #f7c873;
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-accent), var(--secondary-accent));
+    transition: width 0.5s ease-in-out;
 }
 
-.hazard-notification p {
-    margin: 2px 0 0;
-    font-size: 12px;
-    opacity: 0.9;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+.error-message {
+    color: var(--error-color);
+    text-align: center;
+    padding: 2rem;
 }
 
-/* Camera Controls */
-.camera-controls {
-    position: fixed;
-    bottom: 15px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 10px;
-    z-index: 100;
-    background: rgba(20, 22, 33, 0.9);
-    padding: 8px;
-    border-radius: 8px;
-    backdrop-filter: blur(8px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+.error-message i {
+    font-size: 3rem;
+    margin-block-end: 1rem;
 }
 
-.camera-controls button {
-    padding: 8px 16px;
+.error-message p {
+    margin: 1rem 0;
+    color: var(--error-text);
+}
+
+.error-message button {
+    background: var(--secondary-accent);
+    color: white;
     border: none;
+    padding: 0.5rem 1rem;
     border-radius: 6px;
-    background: rgba(31, 34, 53, 0.95);
-    color: #cbd2d9;
-    font-size: 14px;
-    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.error-message button:hover {
+    background: var(--primary-accent);
+}
+
+/* --- Controls --- */
+.camera-controls {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 1rem;
+    background: rgba(30, 41, 59, 0.8);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 16px;
+    max-width: 960px;
+    margin: 1rem auto;
+}
+
+.camera-controls button, .additional-controls select {
+    padding: 0.75rem 1.25rem;
+    border: none;
+    border-radius: 8px;
+    background: rgba(51, 65, 85, 0.9);
+    color: #e2e8f0;
+    font-size: 1rem;
+    font-weight: 600;
     cursor: pointer;
     transition: all 0.2s ease;
     display: flex;
     align-items: center;
-    gap: 6px;
-    min-width: 40px;
-    justify-content: center;
+    gap: 0.5rem;
 }
 
-.camera-controls button:hover {
-    background: rgba(47, 51, 73, 0.95);
-    transform: translateY(-1px);
+.camera-controls button:hover, .additional-controls select:hover {
+    background: #3b82f6;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
-.camera-controls button:active {
-    transform: translateY(0);
+.additional-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
 }
 
-/* Status Overlays */
-#object-count-overlay,
-#hazard-types-overlay {
+.control-label {
+    font-weight: 500;
+    color: #e2e8f0;
+    margin-right: -0.5rem; /* Pull label closer to its control */
+}
+
+.additional-controls input[type="range"] {
+    -webkit-appearance: none;
+    width: 120px;
+    height: 8px;
+    background: rgba(203, 210, 217, 0.2);
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.additional-controls input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #3b82f6, #22c55e);
+    border: 2px solid white;
+}
+
+/* --- Overlays & Notifications --- */
+.status-overlay {
     position: fixed;
-    background: rgba(31, 34, 53, 0.9);
-    padding: 12px 20px;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(30, 41, 59, 0.9);
+    color: white;
+    padding: 0.75rem 1rem;
     border-radius: 8px;
-    color: #f7c873;
-    font-size: 14px;
-    z-index: 100;
-    backdrop-filter: blur(5px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    font-size: 0.9rem;
+    z-index: 1000;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 
-#object-count-overlay {
-    top: 20px;
-    right: 20px;
-}
+#object-count-overlay { bottom: 70px; }
 
-#hazard-types-overlay {
-    bottom: 80px;
-    right: 20px;
-    max-width: 300px;
-}
-
-/* Enhanced Loading Overlay */
 #loading-overlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95));
-    backdrop-filter: blur(20px);
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(12px);
     display: flex;
-    flex-direction: column;
     justify-content: center;
     align-items: center;
     z-index: 9999;
-    color: #f7c873;
-    font-family: 'Poppins', sans-serif;
 }
 
-.loading-content {
-    background: rgba(30, 41, 59, 0.8);
-    border: 1px solid rgba(247, 200, 115, 0.2);
-    border-radius: 24px;
-    padding: 3rem 2rem;
-    text-align: center;
-    backdrop-filter: blur(12px);
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-    min-width: 300px;
-    max-width: 90vw;
-}
-
-.loading-spinner {
-    width: 60px;
-    height: 60px;
-    margin: 0 auto 2rem;
-    position: relative;
-}
-
-.spinner-ring {
-    display: inline-block;
-    width: 60px;
-    height: 60px;
-    border: 4px solid rgba(247, 200, 115, 0.2);
-    border-radius: 50%;
-    border-top: 4px solid #f7c873;
-    animation: spin 1s linear infinite;
-    position: relative;
-}
-
-.spinner-ring::after {
-    content: '';
-    position: absolute;
-    top: -4px;
-    left: -4px;
-    right: -4px;
-    bottom: -4px;
-    border: 2px solid transparent;
-    border-top: 2px solid #3b82f6;
-    border-radius: 50%;
-    animation: spin 2s linear infinite reverse;
-}
-
-.loading-text {
-    font-size: 1.25rem;
-    font-weight: 600;
-    margin-bottom: 0.5rem;
-    background: linear-gradient(135deg, #f7c873, #3b82f6);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
-
-.loading-subtext {
-    font-size: 0.9rem;
-    color: #94a3b8;
-    margin-bottom: 1.5rem;
-    line-height: 1.4;
-}
-
-.loading-progress {
-    width: 100%;
-    height: 8px;
-    background: rgba(148, 163, 184, 0.2);
-    border-radius: 4px;
-    overflow: hidden;
-    margin-top: 1rem;
-}
-
-.loading-progress-bar {
-    height: 100%;
-    background: linear-gradient(90deg, #f7c873, #3b82f6);
-    border-radius: 4px;
-    transition: width 0.3s ease;
-    width: 0%;
-    animation: progressPulse 2s ease-in-out infinite;
-}
-
-@keyframes progressPulse {
-    0%, 100% { opacity: 0.8; }
-    50% { opacity: 1; }
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-/* --- Responsive camera wrapper with 16:9 aspect ratio --- */
-.camera-wrapper {
-    position: relative;
-    width: 100%;
-    max-width: 700px;
-    aspect-ratio: 16/9;
-    margin: 40px auto 0 auto;
-    overflow: hidden;
-    border-radius: 16px;
-    background: #181a2b;
-    box-shadow: 0 4px 32px rgba(0,0,0,0.25);
-}
-
-#camera-stream, #overlay-canvas {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    border-radius: 16px;
-    background: #000;
-}
-
-#camera-stream {
-    z-index: 1;
-}
-#overlay-canvas {
-    z-index: 2;
-    pointer-events: none;
-}
-
-@media (max-width: 800px) {
-  .camera-wrapper {
-    max-width: 100vw;
-    border-radius: 0;
-  }
-  #camera-stream, #overlay-canvas {
-    border-radius: 0;
-  }
-}
-
-/* Performance Indicators */
-.performance-indicator {
-    position: fixed;
-    top: 20px;
-    left: 20px;
-    background: rgba(30, 41, 59, 0.9);
-    border: 1px solid rgba(59, 130, 246, 0.3);
-    border-radius: 12px;
-    padding: 12px 16px;
-    font-size: 12px;
+.spinner-border {
+    width: 3rem;
+    height: 3rem;
     color: #3b82f6;
-    font-weight: 600;
-    backdrop-filter: blur(8px);
-    z-index: 150;
-    font-family: 'Courier New', monospace;
-    min-width: 120px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
-.performance-indicator .fps {
-    display: block;
-    margin-bottom: 4px;
-    font-size: 14px;
-}
-
-.performance-indicator .latency {
-    display: block;
-    font-size: 11px;
-    color: #94a3b8;
-}
-
-.performance-indicator.good {
-    border-color: rgba(34, 197, 94, 0.4);
-    color: #22c55e;
-}
-
-.performance-indicator.warning {
-    border-color: rgba(245, 158, 11, 0.4);
-    color: #f59e0b;
-}
-
-.performance-indicator.poor {
-    border-color: rgba(239, 68, 68, 0.4);
-    color: #ef4444;
-}
-
-/* Real-time Detection Status */
-.detection-status {
-    position: fixed;
-    bottom: 140px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(30, 41, 59, 0.9);
-    border: 1px solid rgba(247, 200, 115, 0.3);
-    border-radius: 20px;
-    padding: 8px 16px;
-    font-size: 12px;
-    color: #f7c873;
-    font-weight: 500;
-    backdrop-filter: blur(8px);
-    z-index: 150;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    opacity: 0;
-    transform: translateX(-50%) translateY(20px);
-    transition: all 0.3s ease;
-}
-
-.detection-status.active {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-}
-
-.detection-status .status-icon {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #22c55e;
-    animation: pulse 2s infinite;
-}
-
-.detection-status.processing .status-icon {
-    background: #f59e0b;
-    animation: spin 1s linear infinite;
-}
-
-.detection-status.idle .status-icon {
-    background: #6b7280;
-    animation: none;
-}
-
-@keyframes pulse {
-    0%, 100% {
-        opacity: 1;
-        transform: scale(1);
-    }
-    50% {
-        opacity: 0.5;
-        transform: scale(1.2);
-    }
-}
-
-/* Animations */
-@keyframes slideIn {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
-}
-
-/* Notification Animations */
-@keyframes notificationSlide {
-    0% {
-        transform: translateX(100%) scale(0.8);
-        opacity: 0;
-    }
-    60% {
-        transform: translateX(-5%) scale(1.02);
-    }
-    100% {
-        transform: translateX(0) scale(1);
-        opacity: 1;
-    }
-}
-
-@keyframes notificationPulse {
-    0% {
-        box-shadow: 0 2px 8px rgba(247, 200, 115, 0);
-    }
-    50% {
-        box-shadow: 0 2px 12px rgba(247, 200, 115, 0.3);
-    }
-    100% {
-        box-shadow: 0 2px 8px rgba(247, 200, 115, 0);
-    }
-}
-
-/* Enhanced Mobile Responsiveness */
+/* --- Media Queries for Responsiveness --- */
 @media (max-width: 768px) {
-    #camera-container {
-        padding: 8px;
-        margin: 0;
-        height: 100vh;
-        border-radius: 0;
-    }
-
-    .camera-wrapper {
-        height: calc(100vh - 120px);
-        margin: 0;
-        border-radius: 0;
-        background: #000;
-    }
-
-    #camera-stream, #overlay-canvas {
-        border-radius: 0;
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-    }
-
-    .camera-controls {
+    body { font-size: 14px; }
+    .container-fluid { padding: 1rem; }
+    .camera-wrapper { border-radius: 0; margin: 0; height: calc(100vh - 150px); }
+    .camera-controls { 
+        flex-direction: column;
         position: fixed;
         bottom: 0;
         left: 0;
         right: 0;
         width: 100%;
-        padding: 12px 16px;
-        background: rgba(20, 22, 33, 0.95);
-        backdrop-filter: blur(12px);
-        border-radius: 20px 20px 0 0;
-        box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
-        display: flex;
-        justify-content: center;
-        gap: 12px;
-        flex-wrap: wrap;
-        z-index: 200;
-        transform: none;
-        max-height: 120px;
-        overflow: hidden;
-    }
-
-    .camera-controls button {
-        min-width: 60px;
-        max-width: none;
-        padding: 12px 16px;
-        border-radius: 12px;
-        font-size: 14px;
-        font-weight: 600;
-        flex: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
-    }
-
-    .camera-controls button i {
-        font-size: 16px;
-    }
-
-    .additional-controls {
-        width: 100%;
-        margin-top: 8px;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .additional-controls > * {
-        flex: 1;
-        min-width: 80px;
-    }
-
-    #object-count-overlay {
-        top: 60px;
-        right: 12px;
-        font-size: 11px;
-        padding: 6px 10px;
-        border-radius: 20px;
-        backdrop-filter: blur(8px);
-        background: rgba(31, 34, 53, 0.9);
-        border: 1px solid rgba(247, 200, 115, 0.3);
-    }
-
-    #hazard-types-overlay {
-        top: 100px;
-        right: 12px;
-        left: 12px;
-        bottom: auto;
-        max-width: calc(100% - 24px);
-        font-size: 11px;
-        padding: 8px 12px;
-        border-radius: 12px;
-        backdrop-filter: blur(8px);
-        background: rgba(31, 34, 53, 0.9);
-        border: 1px solid rgba(247, 200, 115, 0.3);
-        word-wrap: break-word;
-        line-height: 1.3;
-    }
-
-    .hazard-notification {
-        right: 12px;
-        left: 12px;
-        top: 12px;
-        max-width: calc(100% - 24px);
-        border-radius: 12px;
-        padding: 12px 16px;
-        font-size: 13px;
-    }
-
-    .hazard-notification h3 {
-        font-size: 14px;
-        margin-bottom: 4px;
-    }
-
-    .hazard-notification p {
-        font-size: 12px;
-        white-space: normal;
-        text-overflow: unset;
-        overflow: visible;
-    }
-}
-
-/* Enhanced Tablet Responsiveness */
-@media (min-width: 769px) and (max-width: 1024px) {
-    #camera-container {
-        padding: 16px;
+        border-radius: 16px 16px 0 0;
         margin: 0;
-        height: 100vh;
+        padding: 1rem;
+        max-height: 150px;
     }
-
-    .camera-wrapper {
-        height: calc(100vh - 140px);
-        max-width: 90%;
-        margin: 0 auto;
-    }
-
-    .camera-controls {
-        position: fixed;
-        bottom: 16px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: auto;
-        min-width: 400px;
-        max-width: 600px;
-        padding: 12px 20px;
-        justify-content: center;
-        gap: 16px;
-        border-radius: 16px;
-        backdrop-filter: blur(16px);
-        background: rgba(20, 22, 33, 0.92);
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-    }
-
-    .camera-controls button {
-        min-width: 80px;
-        padding: 10px 16px;
-        font-size: 14px;
-    }
-
-    #object-count-overlay {
-        top: 80px;
-        right: 24px;
-        font-size: 13px;
-        padding: 10px 16px;
-    }
-
-    #hazard-types-overlay {
-        top: 120px;
-        right: 24px;
-        max-width: 350px;
-        font-size: 13px;
-        padding: 12px 16px;
-    }
-}
-
-.additional-controls {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-top: 12px;
-    flex-wrap: wrap;
-    justify-content: center;
-}
-
-.additional-controls label {
-    color: #cbd2d9;
-    font-size: 13px;
-    font-weight: 500;
-    white-space: nowrap;
-}
-
-.additional-controls input[type="range"] {
-    -webkit-appearance: none;
-    width: 100px;
-    height: 6px;
-    background: rgba(203, 210, 217, 0.2);
-    border-radius: 3px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.additional-controls input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #3b82f6, #22c55e);
-    cursor: pointer;
-    border: 2px solid white;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-    transition: all 0.2s ease;
-}
-
-.additional-controls input[type="range"]::-webkit-slider-thumb:hover {
-    transform: scale(1.1);
-    box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
-}
-
-.additional-controls select {
-    background: rgba(51, 65, 85, 0.9);
-    border: 1px solid rgba(203, 210, 217, 0.3);
-    border-radius: 8px;
-    color: #cbd2d9;
-    padding: 6px 10px;
-    font-size: 13px;
-    min-width: 100px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.additional-controls select:focus {
-    outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
-}
-
-/* Responsive adjustments for controls */
-@media (max-width: 480px) {
-    .additional-controls {
-        gap: 8px;
-    }
-    
-    .additional-controls input[type="range"] {
-        width: 80px;
-    }
-    
-    .additional-controls label {
-        font-size: 12px;
-    }
-    
-    .additional-controls select {
-        font-size: 12px;
-        padding: 4px 8px;
-        min-width: 80px;
-    }
+    .additional-controls { justify-content: center; }
 }

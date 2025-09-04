@@ -8,31 +8,52 @@ import { createClient } from 'redis';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import sgMail from '@sendgrid/mail';
-import fs from 'fs'; // 👈 הוספת ייבוא של מודול fs
+import fs from 'fs';
 import crypto from 'crypto';
 import axios from 'axios';
 import cors from 'cors';
-import os from 'os'; // מייבאים את המודול os
-
-// 📦 Firebase & Cloudinary
-import { v2 as cloudinary } from 'cloudinary';
-import multer from 'multer';
-import streamifier from 'streamifier';
+import os from 'os';
 
 // 🌍 ES Modules __dirname polyfill
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 📁 Load environment variables
-// ודא שאתה טוען את משתני הסביבה לפני כל שימוש בהם
-// טעינת קובץ .env מהתיקייה הנוכחית של server.js
+// Load environment variables from .env file
 dotenv.config({ path: path.join(__dirname, '.env') });
 
-// הדפסה לבדיקת טעינת משתני סביבה
-console.log("Attempting to load environment variables...");
-console.log("CLOUDINARY_CLOUD_NAME from env:", process.env.CLOUDINARY_CLOUD_NAME);
-console.log("GOOGLE_CALLBACK_URL from env:", process.env.GOOGLE_CALLBACK_URL);
-console.log("SESSION_SECRET from env:", process.env.SESSION_SECRET ? "Loaded" : "NOT LOADED");
+// Validate required environment variables
+const requiredEnvVars = [
+  'SESSION_SECRET',
+  'CLOUDINARY_CLOUD_NAME',
+  'CLOUDINARY_API_KEY',
+  'CLOUDINARY_API_SECRET',
+  'REDIS_HOST',
+  'REDIS_PORT',
+  'REDIS_PASSWORD',
+  'SENDGRID_API_KEY'
+];
+
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    console.error(`🔥 FATAL ERROR: ${envVar} environment variable is not set.`);
+    process.exit(1);
+  }
+}
+
+// Configure CORS options
+const corsOptions = {
+  origin: process.env.NODE_ENV === 'production' 
+    ? process.env.BASE_URL
+    : ['http://localhost:3000', 'http://localhost:5000', 'http://127.0.0.1:5000'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'x-requested-with']
+};
+
+// 📦 Cloudinary
+import { v2 as cloudinary } from 'cloudinary';
+import multer from 'multer';
+import streamifier from 'streamifier';
 
 // ☁️ Cloudinary config
 cloudinary.config({
@@ -41,49 +62,40 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
+// startup check for cloudinary config
+if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+    console.error('🔥🔥🔥 FATAL ERROR: Cloudinary environment variables are not set., please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in your .env file.');
+    process.exit(1);
+}
+
 // 🎛️ Setup multer (in-memory uploads)
 const upload = multer();
 
 // 🚀 Initialize Express app
-// 🚀 Initialize Express app
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Serving static files from the "public" directory
-// Make sure to set index: false to prevent serving index.html by default
-app.use(express.static(path.join(__dirname, '../public'), { 
-    index: false,
-    extensions: ['html'] // This will allow serving .html files without the extension
-}));
-
-
+// Set Cross-Origin-Isolation headers as the very first middleware
 app.use((req, res, next) => {
-    // Enable COOP and COEP for all routes
-    res.set({
-        'Cross-Origin-Embedder-Policy': 'require-corp',
-        'Cross-Origin-Opener-Policy': 'same-origin',
-        'Cross-Origin-Resource-Policy': 'cross-origin'
-    });
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+    res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
     next();
 });
 
-/* ───── Core middleware (סדר חשוב!) ───── */
+// Serving static files from the "public" directory
+/* ───── Core middleware ───── */
+// Apply CORS middleware with configured options
+app.use(cors(corsOptions));
+
+app.use(express.static(path.join(__dirname, '../public'), { 
+    index: false,
+    extensions: ['html']
+}));
+
 app.use(
     '/ort',
-    (req, res, next) => {
-      res.set('Cross-Origin-Resource-Policy', 'cross-origin');
-      next();
-    },
     express.static(path.join(__dirname, '../public/ort'))
-  );
-  
-  /* ───── Core middleware ───── */
-  app.use(cors({
-    origin: ['https://hazard-detection.onrender.com', 'http://localhost:3000'],
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with']
-}));
+);
 
 app.use(express.json());
 
@@ -109,14 +121,14 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 // 🔌 Redis client
 const client = createClient({
   username: 'default',
-  password: process.env.REDIS_PASSWORD, // מומלץ לשמור סיסמאות במשתני סביבה
+  password: process.env.REDIS_PASSWORD,
   socket: {
     host: process.env.REDIS_HOST,
     port: process.env.REDIS_PORT
   }
 });
 
-let redisConnected = false; // דגל למעקב אחר מצב החיבור
+let redisConnected = false;
 
 async function connectRedis() {
     try {
@@ -126,410 +138,297 @@ async function connectRedis() {
     } catch (err) {
       redisConnected = false;
       console.error('🔥 Failed to connect to Redis:', err);
-      // אולי תחליט להמתין ולטעון מחדש, או להריץ fallback
     }
   }
-connectRedis(); // קריאה לפונקציה בעת עליית השרת
+connectRedis();
 
-
+// --- 💡 Refactored Passport Logic --- 
 passport.serializeUser((user, done) => {
-    console.log('[Passport] Serializing user:', user.email);
-    done(null, user.email);  // מזהה יחיד
-  });
-  
-  passport.deserializeUser(async (email, done) => {
-    console.log('[Passport] Attempting to deserialize user:', email);
-    if (!redisConnected || !client.isOpen) { // בדיקה אם הלקוח מחובר ופתוח
-        console.error("❌ Redis client not connected or not open in deserializeUser.");
-        // חשוב להחזיר שגיאה ברורה כאן
-        return done(new Error("Redis client not available for deserialization"), null);
+    // Store only the user's unique redis key in the session
+    console.log(`[Passport] Serializing user key: ${user.redisKey}`);
+    done(null, user.redisKey);
+});
+
+passport.deserializeUser(async (redisKey, done) => {
+    // Fetch the user directly by their key
+    console.log(`[Passport] Deserializing user key: ${redisKey}`);
+    if (!redisConnected || !client.isOpen) {
+        return done(new Error("Redis client not available for deserialization"));
     }
     try {
-      const keys = await client.keys('user:*');
-      console.log('[Passport] Found keys for deserialization:', keys.length);
-      for (const key of keys) {
-        const userStr = await client.get(key);
+        const userStr = await client.get(redisKey);
         if (userStr) {
             const user = JSON.parse(userStr);
-            if (user.email === email) {
-              console.log('[Passport] User deserialized successfully:', user.email);
-              return done(null, user);
-            }
+            user.redisKey = redisKey; // Re-attach the key to the user object
+            return done(null, user);
         } else {
-            console.warn(`[Passport] No data found for key: ${key}`);
+            return done(null, false, { message: 'User not found in Redis.' });
         }
-      }
-      console.log('[Passport] User not found for deserialization:', email);
-      done(null, false);
     } catch (err) {
-      console.error("❌ Error in deserializeUser:", err);  // הוספת לוג
-      done(err, null);
+        console.error("❌ Error in deserializeUser:", err);
+        return done(err);
     }
-  });
-  
+});
 
-// הגדרת האסטרטגיה של גוגל
+// Helper function to find user key by email
+async function findUserKeyByEmail(email) {
+    // This is still a scan, but we will create an index to optimize it.
+    // For now, we create an email-to-key mapping.
+    const userKey = await client.get(`email:${email}`);
+    return userKey;
+}
+
 passport.use(new GoogleStrategy({
-    clientID: "46375555882-rmivba20noas9slfskb3cfvugssladrr.apps.googleusercontent.com",
-    clientSecret: "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",
+    clientID: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     callbackURL: process.env.GOOGLE_CALLBACK_URL || "http://localhost:3000/auth/google/callback"
-
     },
     async (accessToken, refreshToken, profile, done) => {
         try {
-          const googleId = profile.id;
-          const email = profile.emails[0].value;
-          const username = profile.displayName;
-    
-          const googleKey = `user:${googleId}`;
-          const googleUser = await client.get(googleKey);
-    
-          if (googleUser) {
-            // קיים משתמש עם גוגל ID → התחברות
-            return done(null, JSON.parse(googleUser));
-          }
-    
-          // בדיקה אם מייל כבר קיים אצל משתמש עם timestamp (רישום רגיל)
-          const keys = await client.keys('user:*');
-          for (const key of keys) {
-            if (key === googleKey) continue; // דלג על מפתח הגוגל שכבר בדקנו
-            const user = JSON.parse(await client.get(key));
-            if (user.email === email) {
-              // מייל כבר קיים מרישום רגיל → אל תיצור
-              return done(null, false, { message: 'EmailExists' });
+            const email = profile.emails[0].value;
+            const username = profile.displayName;
+            const googleId = profile.id;
+
+            // Check if user exists via Google ID
+            const googleKey = `user:google:${googleId}`;
+            const googleUserStr = await client.get(googleKey);
+            if (googleUserStr) {
+                const user = JSON.parse(googleUserStr);
+                user.redisKey = googleKey; // Attach key
+                return done(null, user);
             }
-          }
-    
-          // לא קיים בכלל → צור משתמש חדש עם גוגל
-          const newUser = {
-            email,
-            username,
-            type: 'user'
-          };
-          await client.set(googleKey, JSON.stringify(newUser));
-    
-          return done(null, newUser);
-    
+            // Check if email is already registered via local auth
+            const existingUserKey = await findUserKeyByEmail(email);
+            if (existingUserKey) {
+                return done(null, false, { message: 'Email already registered locally.' });
+            }
+            // Create new Google-linked user
+            const newUser = { email, username, googleId, type: 'user' };
+            await client.set(googleKey, JSON.stringify(newUser));
+            // Also create an email-to-key index for lookups
+            await client.set(`email:${email}`, googleKey);
+            newUser.redisKey = googleKey; // Attach key
+            return done(null, newUser);
+
         } catch (err) {
-          console.error('Google Strategy Error:', err);
-          return done(err, null);
+            console.error('Google Strategy Error:', err);
+            return done(err, null);
         }
-      }
-    ));
+    }
+));
 
-// כפתור התחברות/הרשמה עם Google  
-app.get('/auth/google', async (req, res, next) => {  
-    const mode = req.query.mode || 'login';  
-    req.session.authMode = mode; // נשמור את המצב (login/signup) ב-session  
+app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'], prompt: 'select_account' }));
 
-    // אם המשתמש כבר מחובר, ננתק אותו כדי למנוע בלבול בהרשמה או התחברות חדשה  
-    if (req.isAuthenticated()) {  
-        req.logout(function(err) {  
-            if (err) {  
-                console.error('Error during logout:', err);  
-                return res.redirect('/login.html?error=LogoutFailed');  
-            }  
-            req.session.destroy(() => {  
-                next(); // נמשיך רק אחרי שה-session נוקתה  
-            });  
-        });  
-    } else {  
-        next(); // אם המשתמש לא מחובר, ממשיכים ישירות  
-    }  
-}, passport.authenticate('google', {  
-    scope: ['profile', 'email'],  
-    prompt: 'select_account' // מוודא שהמשתמש בוחר חשבון כל פעם  
-}));  
-
-
-
-// נקודת חזרה לאחר ההתחברות  
 app.get('/auth/google/callback', (req, res, next) => {
-    passport.authenticate('google', async (err, user, info) => {
-        const mode = req.session.authMode || 'login';
-        
-        if (err) {
-            console.error('Google Auth Error:', err);
-            return res.redirect('/login.html?error=ServerError');
-        }
-        
+    passport.authenticate('google', (err, user, info) => {
+        if (err) return res.redirect('/login.html?error=ServerError');
         if (!user) {
-            // משתמש לא אותנטי → בדוק אם זה בגלל שהמייל כבר תפוס
-            if (info && info.message === 'EmailExists') {
-                return res.redirect('/login.html?error=EmailExists');
-            }
+            if (info && info.message) return res.redirect(`/login.html?error=${info.message}`);
             return res.redirect('/login.html?error=AuthFailed');
         }
-        
-        // התחברות או רישום מוצלחים
-        req.login(user, async (err) => {
-            if (err) {
-                console.error('Login Error:', err);
-                return res.redirect('/login.html?error=LoginFailed');
-            }
-            
+        req.login(user, (err) => {
+            if (err) return res.redirect('/login.html?error=LoginFailed');
             req.session.user = { email: user.email, username: user.username };
-            
             return res.redirect('/upload.html');
         });
     })(req, res, next);
 });
 
+// --- End of Refactored Passport Logic ---
 
-
-// דף העלאת קבצים (Upload)
-app.get('/upload', async (req, res) => {
-    if (!req.isAuthenticated()) { // שימוש ב-req.isAuthenticated()
-        return res.redirect('/'); // אם לא מחובר, מחזירים לדף הבית
+// --- Secure API Key Endpoint ---
+app.get('/api/config/maps-key', (req, res) => {
+    if (!req.isAuthenticated()) {
+        return res.status(401).json({ error: 'Unauthorized' });
     }
-    // הצגת דף ה-upload
+    // The API key is not a sensitive secret that needs to be protected from unauthenticated access.
+    // Google's API restrictions handle unauthorized usage.
+  res.json({ apiKey: process.env.GOOGLE_MAP_GEOCODE });
+});
+
+// Forward geocoding endpoint using server-side API key
+app.get('/api/geocode', async (req, res) => {
+    try {
+        if (!req.isAuthenticated()) {
+            return res.status(401).json({ error: 'Authentication required' });
+        }
+        const address = (req.query.q || req.query.address || '').toString().trim();
+        if (!address) return res.status(400).json({ error: 'Missing address query (q or address)' });
+
+        // Prefer Google Geocoding if key present
+        if (process.env.GOOGLE_MAP_GEOCODE) {
+            const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${process.env.GOOGLE_MAP_GEOCODE}`;
+            const resp = await axios.get(url, { timeout: 8000 });
+            const result = resp.data?.results?.[0];
+            if (result?.geometry?.location) {
+                return res.json({
+                    lat: result.geometry.location.lat,
+                    lng: result.geometry.location.lng,
+                    address: result.formatted_address || address,
+                    provider: 'google'
+                });
+            }
+        }
+
+        // Fallback to Nominatim if Google fails or no key
+        const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`;
+        const nomResp = await axios.get(nomUrl, { timeout: 8000, headers: { 'User-Agent': 'RoadGuardian/1.0' } });
+        const item = Array.isArray(nomResp.data) ? nomResp.data[0] : null;
+        if (item && item.lat && item.lon) {
+            return res.json({
+                lat: parseFloat(item.lat),
+                lng: parseFloat(item.lon),
+                address: item.display_name || address,
+                provider: 'nominatim'
+            });
+        }
+        return res.status(404).json({ error: 'Address could not be geocoded' });
+    } catch (e) {
+        console.error('🔥 Geocode API error:', e.response?.data || e.message);
+        return res.status(500).json({ error: 'Geocoding failed' });
+    }
+});
+
+app.get('/upload', async (req, res) => {
+    if (!req.isAuthenticated()) return res.redirect('/');
     res.sendFile(path.join(__dirname, '../public/upload.html'));
 });
 
 app.get('/camera.html', (req, res) => {
-    if (!req.isAuthenticated()) { // שימוש ב-req.isAuthenticated()
-      return res.redirect('/'); // הפניה לדף הבית (login.html)
-    }
+    if (!req.isAuthenticated()) return res.redirect('/');
     res.sendFile(path.join(__dirname, '../public/camera.html'));
   });
 
-// יציאה מהמערכת
 app.get('/logout', (req, res) => {
-    req.logout(function(err) { // Passport 0.6.0 דורש callback
-        if (err) { 
-            console.error('Logout error:', err);
-            // אפשר להוסיף טיפול בשגיאה, למשל להפנות לדף שגיאה
-            return res.redirect('/'); // או לדף אחר מתאים
-        }
-        req.session.destroy((err) => {
-            if (err) {
-                console.error('Session destruction error during logout:', err);
-            }
-            res.redirect('/');
-        });
+    req.logout(function(err) {
+        if (err) return res.redirect('/');
+        req.session.destroy(() => { res.redirect('/'); });
     });
 });
 
-// דף ברירת מחדל
 app.get('/', (req, res) => {
-    if (req.isAuthenticated()) {
-        return res.redirect('/upload');
-    }
-    res.redirect('/login.html');
+    if (!req.isAuthenticated()) return res.redirect('/login.html');
+    res.redirect('/upload');
 });
 
 app.get('/dashboard', (req, res) => {
-    if (!req.isAuthenticated()) { // שימוש ב-req.isAuthenticated()
-        return res.redirect('/');
-    }
+    if (!req.isAuthenticated()) return res.redirect('/');
     res.sendFile(path.join(__dirname, '../public/dashboard.html'));
 });
 
-// יצירת דיווח חדש
-app.post('/api/reports', async (req, res) => {
-    if (!req.isAuthenticated()) { // מספיק לבדוק req.isAuthenticated()
-        return res.status(401).json({ error: 'Unauthorized' });
-    }
-    
-    const { type, location, time, image, status, reportedBy } = req.body;
-    
-    const report = {
-        id: new Date().getTime(), // מזהה ייחודי לדיווח (מזמן היצירה)
-        type,
-        location,
-        time,
-        image,
-        status,
-        reportedBy,
-        locationNote: req.body.locationNote || 'GPS'
+// CORS middleware already applied above
 
-    };
-    
-    const reportKey = `report:${report.id}`;  // יצירת המפתח הייחודי לכל דיווח
-    
+// Add error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Server Error:', {
+    message: err.message,
+    stack: err.stack,
+    path: req.path,
+    method: req.method
+  });
+  res.status(err.status || 500).json({ 
+    error: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message,
+    code: err.code
+  });
+});
+
+app.post('/api/reports', async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ error: 'Unauthorized' });
+    const { type, location, time, image, status, reportedBy } = req.body;
+    const report = { id: new Date().getTime(), type, location, time, image, status, reportedBy, locationNote: req.body.locationNote || 'GPS' };
+    const reportKey = `report:${report.id}`;
     try {
-        // שמירה ב-Redis תחת המפתח הייחודי
-        await client.json.set(reportKey, '$', report);  // משתמשים ב-JSON.SET כדי לשמור את הדיווח
-        
+        await client.json.set(reportKey, '$', report);
         res.status(200).json({ message: 'Report saved successfully' });
     } catch (err) {
         res.status(500).json({ error: 'Error saving report' });
     }
 });
 
-// שליפת כל הדיווחים
 app.get('/api/reports', async (req, res) => {
-    const filters = req.query;
-
-    if (filters.hazardType && typeof filters.hazardType === 'string') {
-        filters.hazardType = filters.hazardType.split(',').map(type => type.trim());
-    }
-
     try {
+        if (!req.isAuthenticated()) {
+            console.log('❌ Unauthorized access attempt to /api/reports');
+            return res.status(401).json({ error: 'Authentication required' });
+        }
+
+        if (!redisConnected || !client.isOpen) {
+            console.error('🔥 Redis client is not connected');
+            return res.status(503).json({ error: 'Database service unavailable' });
+        }
+
+        console.log('📝 API Request received for /api/reports');
+        const filters = req.query;
+        if (filters.hazardType && typeof filters.hazardType === 'string') {
+            filters.hazardType = filters.hazardType.split(',').map(type => type.trim());
+        }
+
+        console.log('🔍 Searching for reports in Redis...');
         const keys = await client.keys('report:*');
+        console.log(`📊 Found ${keys.length} reports`);
+        
         const reports = [];
+        const updatePromises = [];
 
         for (const key of keys) {
-            let report;
             try {
-                report = await client.json.get(key);
+                const report = await client.json.get(key);
+                if (report) {
+                    if (report.status === 'new') {
+                        const updatePromise = client.json.set(key, '$.status', 'open')
+                            .then(() => { report.status = 'open'; })
+                            .catch(err => console.error(`Failed to update status for ${key}:`, err));
+                        updatePromises.push(updatePromise);
+                    }
+                    reports.push(report);
+                }
             } catch (err) {
-                console.error(`Skipping key ${key} due to Redis type error:`, err.message);
-                continue;
-            }
-            if (!report) continue;
-
-            let match = true;
-
-            // סוגי מפגעים: לפחות אחד מתוך הרשימה
-            if (filters.hazardType) {
-                const hazardArray = Array.isArray(filters.hazardType) ? filters.hazardType : [filters.hazardType];
-            
-                const reportTypes = (report.type || '').split(',').map(t => t.trim().toLowerCase());
-                const hasMatch = hazardArray.some(type => reportTypes.includes(type.toLowerCase()));
-                
-                if (!hasMatch) match = false;
-            }
-                     
-
-            // מיקום
-            if (filters.location) {
-                const reportLoc = (report.location || '').toLowerCase();
-                const pattern = filters.location.trim().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const regex = new RegExp(pattern, 'i');
-                if (!regex.test(reportLoc)) match = false;
-            }
-
-            // תאריך
-            if (filters.startDate && new Date(report.time) < new Date(filters.startDate)) match = false;
-            if (filters.endDate && new Date(report.time) > new Date(filters.endDate)) match = false;
-
-            // סטטוס
-            if (filters.status) {
-                const reportStatus = report.status.toLowerCase();
-                const filterStatus = filters.status.toLowerCase();
-                if (reportStatus !== filterStatus) match = false;
-            }
-
-            // מחפש לפי מדווח
-            if (filters.reportedBy) {
-                const reporter = (report.reportedBy || '').toLowerCase();
-                const search = filters.reportedBy.toLowerCase();
-                if (!reporter.includes(search)) match = false;
-            }
-
-            if (match) {
-                reports.push(report);
+                console.error(`Failed to fetch report ${key}:`, err);
+                // Continue with other reports even if one fails
             }
         }
 
+        // Wait for all status updates to complete
+        await Promise.all(updatePromises);
+        
         res.status(200).json(reports);
     } catch (err) {
         console.error('🔥 Error fetching reports:', err);
-        res.status(500).json({ error: 'Error fetching reports' });
+        res.status(500).json({ 
+            error: 'Error fetching reports',
+            details: err.message,
+            code: err.code
+        });
     }
 });
 
-
-// מחיקת דיווח לפי ID
 app.delete('/api/reports/:id', async (req, res) => {
-    console.log('DELETE /api/reports/:id called with:', req.params.id);
-    
     const reportId = req.params.id;
     const reportKey = `report:${reportId}`;
-    
     try {
-        if (redisConnected && client && client.isOpen) {
-            await client.del(reportKey);
-        } else {
-            // Use memory store
-            const memKey = reportKey;
-            if (!memoryStore.reports.has(memKey)) {
-                return res.status(404).json({ error: 'Report not found' });
-            }
-            memoryStore.reports.delete(memKey);
-        }
-        
-        console.log('Report deleted successfully:', reportId);
+        await client.del(reportKey);
         res.status(200).json({ message: 'Report deleted successfully' });
     } catch (err) {
-        console.error('Error deleting report:', err);
         res.status(500).json({ error: 'Error deleting report: ' + err.message });
     }
 });
 
-// עדכון דיווח מלא
 app.put('/api/reports/:id', async (req, res) => {
-    console.log('PUT /api/reports/:id called with:', req.params.id, req.body);
-    
-    // Skip authentication for testing - remove this in production
-    // if (!req.isAuthenticated()) {
-    //     return res.status(401).json({ error: 'Unauthorized' });
-    // }
-    
     const reportId = req.params.id;
     const reportKey = `report:${reportId}`;
-    
     try {
-        let report;
-        if (redisConnected && client && client.isOpen) {
-            // Try Redis first
-            try {
-                report = await client.json.get(reportKey);
-            } catch (err) {
-                console.error('Redis JSON.GET error:', err);
-                // Fallback to regular get and parse
-                const reportStr = await client.get(reportKey);
-                report = reportStr ? JSON.parse(reportStr) : null;
-            }
-        } else {
-            // Use memory store
-            const memKey = reportKey;
-            report = memoryStore.reports.get(memKey);
-        }
-        
-        if (!report) {
-            console.log('Report not found:', reportId);
-            return res.status(404).json({ error: 'Report not found' });
-        }
-        
-        // Update report with new data
-        const updatedReport = {
-            ...report,
-            ...req.body,
-            lastModified: new Date().toISOString(),
-            modifiedBy: req.user?.email || 'anonymous'
-        };
-        
-        // Save updated report
-        if (redisConnected && client && client.isOpen) {
-            try {
-                await client.json.set(reportKey, '$', updatedReport);
-            } catch (err) {
-                console.error('Redis JSON.SET error:', err);
-                // Fallback to regular set
-                await client.set(reportKey, JSON.stringify(updatedReport));
-            }
-        } else {
-            // Use memory store
-            const memKey = reportKey;
-            memoryStore.reports.set(memKey, updatedReport);
-        }
-        
-        console.log('Report updated successfully:', reportId);
+        let report = await client.json.get(reportKey);
+        if (!report) return res.status(404).json({ error: 'Report not found' });
+        const updatedReport = { ...report, ...req.body, lastModified: new Date().toISOString(), modifiedBy: req.user?.email || 'anonymous' };
+        await client.json.set(reportKey, '$', updatedReport);
         res.status(200).json({ message: 'Report updated successfully', report: updatedReport });
-        
     } catch (err) {
-        console.error('Error updating report:', err);
         res.status(500).json({ error: 'Error updating report: ' + err.message });
     }
 });
 
-// עדכון סטטוס דיווח
 app.patch('/api/reports/:id/status', async (req, res) => {
-    if (!req.isAuthenticated()) {
-        return res.status(401).json({ error: 'Unauthorized' });
-    }
+    if (!req.isAuthenticated()) return res.status(401).json({ error: 'Unauthorized' });
     const reportId = req.params.id;
     const newStatus = req.body.status;
     const reportKey = `report:${reportId}`;
@@ -537,399 +436,208 @@ app.patch('/api/reports/:id/status', async (req, res) => {
         const report = await client.json.get(reportKey);
         if (!report) return res.status(404).json({ error: 'Report not found' });
         report.status = newStatus;
+        report.lastModified = new Date().toISOString();
+        report.modifiedBy = req.user?.email || 'anonymous';
         await client.json.set(reportKey, '$', report);
         res.status(200).json({ message: 'Status updated', report });
     } catch (err) {
+        console.error('Error updating status:', err);
         res.status(500).json({ error: 'Error updating status' });
     }
 });
 
-// עדכון דיווח (עריכה מלאה)
 app.patch('/api/reports/:id', async (req, res) => {
-    if (!req.isAuthenticated()) {
-        return res.status(401).json({ error: 'Authentication required' });
-    }
-
+    if (!req.isAuthenticated()) return res.status(401).json({ error: 'Authentication required' });
     const reportId = req.params.id;
     const reportKey = `report:${reportId}`;
-
     try {
-        // Get existing report
         const existingReport = await client.get(reportKey);
-        if (!existingReport) {
-            return res.status(404).json({ error: 'Report not found' });
-        }
-
+        if (!existingReport) return res.status(404).json({ error: 'Report not found' });
         const report = JSON.parse(existingReport);
-        
-        // Update only the fields that are provided
         const updates = req.body;
-        Object.keys(updates).forEach(key => {
-            if (updates[key] !== undefined) {
-                report[key] = updates[key];
-            }
-        });
-
-        // Add audit information
+        Object.keys(updates).forEach(key => { if (updates[key] !== undefined) report[key] = updates[key]; });
         report.lastModified = new Date().toISOString();
         report.modifiedBy = req.user.email;
-
-        // Save back to Redis
         await client.set(reportKey, JSON.stringify(report));
-
         res.json({ message: 'Report updated successfully', report });
     } catch (err) {
-        console.error('Error updating report:', err);
         res.status(500).json({ error: 'Failed to update report' });
     }
 });
 
-// NEW: GET a single report by ID (for editing)
 app.get('/api/reports/:id', async (req, res) => {
-    if (!req.isAuthenticated()) {
-        return res.status(401).json({ error: 'Unauthorized' });
-    }
+    if (!req.isAuthenticated()) return res.status(401).json({ error: 'Unauthorized' });
     const reportId = req.params.id;
     const reportKey = `report:${reportId}`;
     try {
         const report = await client.json.get(reportKey);
-        if (!report) {
-            return res.status(404).json({ error: 'Report not found' });
-        }
+        if (!report) return res.status(404).json({ error: 'Report not found' });
         res.status(200).json(report);
     } catch (err) {
-        console.error('🔥 Error fetching report:', err);
         res.status(500).json({ error: 'Error fetching report' });
     }
 });
 
-
-// הרצת השרת
 app.listen(port, '0.0.0.0', () => {
     const networkInterfaces = os.networkInterfaces();
     let localIp = 'localhost';
-    
     for (const interfaceKey of Object.keys(networkInterfaces)) {
       for (const net of networkInterfaces[interfaceKey]) {
-        if (net.family === 'IPv4' && !net.internal) {
-          localIp = net.address;
-        }
+        if (net.family === 'IPv4' && !net.internal) localIp = net.address;
       }
     }
-  
     console.log(`✅ Server running locally: http://localhost:${port}`);
     console.log(`✅ Server running on your network: http://${localIp}:${port}`);
   });
 
-// To run the server in debug mode, execute in terminal:
-//   node --inspect server.js
-
-// פונקציה לבדוק אם המייל קיים ב-Redis
-async function emailExists(email) {  
-    const existingUserKeys = await client.keys('user:*');  
-    for (const key of existingUserKeys) {  
-        const userData = JSON.parse(await client.get(key));  // קבלת המידע כ-string
-        if (userData.email === email) {  
-            return true; // מייל קיים  
-        }  
-    }  
-    return false; // מייל לא קיים  
-}  
-
-// רישום משתמש רגיל (לא Google)
 app.post('/register', async (req, res) => {  
     const { email, username, password } = req.body;  
-
-    if (!email || !username || !password) {  
-        return res.status(400).json({ error: 'Missing required fields' });  
-    }  
-
-    // בדוק אם המייל קיים בעזרת פונקציה שנבנתה קודם
-    const existingUser = await emailExists(email);  
-    if (existingUser) {  
-        return res.status(400).json({ error: 'User already registered with this email.' }); // הודעת שגיאה  
-    }  
-
-    const userId = `user:${Date.now()}`;  // יצירת מזהה ייחודי למשתמש
-    const newUser = {  
-        email,  
-        username,  
-        password,  
-        type: 'user'  
-    };  
-
-    // שמירה ב-Redis כ-string
+    if (!email || !username || !password) return res.status(400).json({ error: 'Missing required fields' });  
+    if (await findUserKeyByEmail(email)) return res.status(400).json({ error: 'User already registered with this email.' });
+    const userId = `user:local:${Date.now()}`;
+    const newUser = { email, username, password, type: 'user' };
     try {
-        await client.set(userId, JSON.stringify(newUser));  // שמירה כ-string
+        await client.set(userId, JSON.stringify(newUser));
+        await client.set(`email:${email}`, userId);
     } catch (err) {
-        console.error('Error saving user to Redis:', err);
         return res.status(500).json({ error: 'Internal server error' });
     }
-
-    req.session.user = {  
-        email,  
-        username  
-    };  
-
-    res.status(201).json({   
-        message: 'User registered successfully',   
-        user: { email, username }   
-    });  
+    newUser.redisKey = userId;
+    req.login(newUser, (err) => {
+        if (err) return res.status(500).json({ error: 'Login after registration failed' });
+        res.status(201).json({ message: 'User registered successfully', user: { email, username } });
+    });
 });
 
+app.post('/login', async (req, res, next) => {
+    const { email, password } = req.body;  
+    if (!email || !password) return res.status(400).json({ error: 'Missing email or password' });
+    try {
+        const userKey = await findUserKeyByEmail(email);
+        if (!userKey) return res.status(404).json({ error: 'User not found' });
 
-
-app.post('/login', async (req, res) => {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-        return res.status(400).json({ error: 'Missing email or password' });
-    }
-
-    const userKeys = await client.keys('user:*');
-    for (const key of userKeys) {
-        const userData = await client.get(key);
+        const userData = await client.get(userKey);
         const user = JSON.parse(userData);
 
-        if (user.email === email) {
-            if (user.password === password) {
-
-                // ✅ שמירה בסשן – כמו שעשית בהתחברות עם גוגל
-                req.session.user = {
-                    email: user.email,
-                    username: user.username
-                };
-
+        if (user.password === password) {
+            user.redisKey = userKey;
+            req.login(user, (err) => {
+                if (err) { return next(err); }
                 return res.status(200).json({ message: 'Login successful', user: { email, username: user.username } });
-            } else {
-                return res.status(401).json({ error: 'Incorrect password' });
-            }
+            });
+        } else {
+            return res.status(401).json({ error: 'Incorrect password' });
         }
+    } catch (err) {
+        return next(err);
     }
-
-    return res.status(404).json({ error: 'User not found' });
 });
 
-
-
-// שליחה למייל של קישור לאיפוס סיסמה
 app.post('/forgot-password', async (req, res) => {
     const { email } = req.body;
-    if (!email) {
-        return res.status(400).json({ error: 'Email is required' });
-    }
-
-    const userKeys = await client.keys('user:*');
-    let userId = null;
-    let userData = null;
-    for (const key of userKeys) {
-        const data = JSON.parse(await client.get(key));
-        if (data.email === email) {
-            userId = key;
-            userData = data;
-            break;
-        }
-    }
-
-    if (!userId || !userData) {
-        return res.status(404).json({ error: 'Email not found' });
-    }
-
-    if (!userData.password) {
-        return res.status(400).json({ error: 'This account uses Google login and cannot reset password.' });
-    }
-
-
-    // ✅ מחיקת טוקנים קודמים של אותו משתמש אם קיימים
-    const existingTokens = await client.keys('reset:*');
-    for (const key of existingTokens) {
-        const value = await client.get(key);
-        if (value === userId) {
-            await client.del(key);
-        }
-    }
-
-    // יצירת טוקן ייחודי
+    if (!email) return res.status(400).json({ error: 'Email is required' });
+    const userKey = await findUserKeyByEmail(email);
+    if (!userKey) return res.status(404).json({ error: 'Email not found' });
+    const userData = JSON.parse(await client.get(userKey));
+    if (!userData.password) return res.status(400).json({ error: 'This account uses Google login and cannot reset password.' });
     const token = crypto.randomBytes(20).toString('hex');
     const tokenKey = `reset:${token}`;
-
-    // שמירת הטוקן עם תוקף של 10 דקות
-    await client.setEx(tokenKey, 600, userId); // 600 שניות = 10 דקות
-
+    await client.setEx(tokenKey, 600, userKey);
     const resetUrl = `https://hazard-detection.onrender.com/reset-password.html?token=${token}`;
-
-    const message = {
-        to: email,
-        from: 'hazard.reporter@outlook.com', // כתובת שנרשמה ואושרה ב-SendGrid
-        subject: 'Password Reset Request',
-        html: `
-            <h3>Hello,</h3>
-            <p>You requested to reset your password. Click the link below to reset it:</p>
-            <a href="${resetUrl}">${resetUrl}</a>
-            <p>This link will expire in 10 minutes.</p>
-        `
-    };
-
+    const message = { to: email, from: 'hazard.reporter@outlook.com', subject: 'Password Reset Request', html: `<p>Click <a href="${resetUrl}">here</a> to reset your password. Link expires in 10 minutes.</p>` };
     try {
         await sgMail.send(message); 
-        console.log("Reset email sent successfully to", email);
         res.status(200).json({ message: 'Reset link sent to your email' });
     } catch (error) {
-        console.error("Error sending email: ", error);
         res.status(500).json({ error: 'Failed to send email' });
     } 
 });
 
-
-// איפוס סיסמה לפי טוקן
 app.post('/reset-password', async (req, res) => {
     const { token, password } = req.body;
-    if (!token || !password) {
-        return res.status(400).json({ error: 'Missing token or password' });
-    }
-
-    const valid = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$/.test(password);
-    if (!valid) {
-        return res.status(400).json({ error: 'Invalid password format' });
-    }
-
+    if (!token || !password) return res.status(400).json({ error: 'Missing token or password' });
+    if (!/^(?=.*[A-Za-z])(?=.*\d).{8,}$/.test(password)) return res.status(400).json({ error: 'Invalid password format' });
     const tokenKey = `reset:${token}`;
     const userKey = await client.get(tokenKey);
-
-    if (!userKey) {
-        return res.status(400).json({ error: 'Token expired or invalid' });
-    }
-
+    if (!userKey) return res.status(400).json({ error: 'Token expired or invalid' });
     const userData = JSON.parse(await client.get(userKey));
     userData.password = password;
-
     await client.set(userKey, JSON.stringify(userData));
     await client.del(tokenKey);
-
-    req.session.user = {
-        email: userData.email,
-        username: userData.username
-    };
-
-    res.status(200).json({ message: 'Password reset successfully' });
+    req.login(userData, (err) => {
+        if (err) return res.status(500).json({ error: 'Login after reset failed' });
+        res.status(200).json({ message: 'Password reset successfully' });
+    });
 });
 
-
 app.post('/upload-detection', upload.single('file'), async (req, res) => {
-    console.log("Session:", req.session); // Debug session
-    console.log("Is Authenticated:", req.isAuthenticated()); // Debug authentication
-    console.log("User:", req.user); // Debug user object
-
-    // בדוק אם הקובץ הועלה
     if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
     }
-
-    // אימות משתמש - בדיקה משופרת
     if (!req.isAuthenticated()) {
-        console.log("Authentication failed"); // Debug log
         return res.status(401).json({ error: 'Please log in again' });
     }
 
-    const hazardTypes = req.body.hazardTypes;
-    
-    // שלב המרת קואורדינטות לכתובת
-    const jsonString = req.body.geoData;
-    if (!jsonString) {
-        return res.status(400).json({ error: 'Missing geolocation data in image metadata' });
+    const { hazardTypes, geoData, locationNote } = req.body;
+    if (!geoData) {
+        return res.status(400).json({ error: 'Missing geolocation data' });
     }
-
     try {
-        // עיבוד המידע
-        const geoData = JSON.parse(jsonString);
-        if (!geoData || typeof geoData.lat !== 'number' || typeof geoData.lng !== 'number') {
+        const coords = JSON.parse(geoData);
+        if (!coords || typeof coords.lat !== 'number' || typeof coords.lng !== 'number') {
             return res.status(400).json({ error: 'Invalid geolocation data' });
         }
 
-        // אם אין מפתח, נשתמש בקואורדינטות ככתובת כדי לא לשבור שמירה
-        const apiKey = process.env.GOOGLE_MAP_GEOCODE;
-        let address;
-        if (!apiKey) {
-            console.warn('⚠️ GOOGLE_MAPS_API_KEY missing. Falling back to coordinates as address');
-            address = `${geoData.lat.toFixed(6)}, ${geoData.lng.toFixed(6)}`;
-        } else {
+        let address = `${coords.lat.toFixed(6)}, ${coords.lng.toFixed(6)}`;
+        if (process.env.GOOGLE_MAP_GEOCODE) {
             try {
-                const geoCodingUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${geoData.lat},${geoData.lng}&language=he&key=${apiKey}`;
-                const geoResponse = await axios.get(geoCodingUrl, { timeout: 6000 });
-                if (geoResponse.data && geoResponse.data.results && geoResponse.data.results.length > 0) {
-                    address = geoResponse.data.results[0]?.formatted_address || 'כתובת לא זמינה';
-                } else {
-                    console.warn('⚠️ No geocoding results. Using coordinates');
-                    address = `${geoData.lat.toFixed(6)}, ${geoData.lng.toFixed(6)}`;
+                const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${coords.lat},${coords.lng}&language=he&key=${process.env.GOOGLE_MAP_GEOCODE}`;
+                const geoResponse = await axios.get(geoUrl, { timeout: 6000 });
+                if (geoResponse.data?.results?.length > 0) {
+                    address = geoResponse.data.results[0].formatted_address || address;
                 }
             } catch (geocodeErr) {
                 console.warn('⚠️ Geocoding failed. Using coordinates:', geocodeErr.message);
-                address = `${geoData.lat.toFixed(6)}, ${geoData.lng.toFixed(6)}`;
             }
         }
-        
-        // העלאה ל-Cloudinary
+
         const streamUpload = (buffer) => {
             return new Promise((resolve, reject) => {
-                const stream = cloudinary.uploader.upload_stream(
-                    { folder: 'detections' },
-                    (error, result) => {
-                        if (result) {
-                            resolve(result);
-                        } else {
-                            reject(error);
-                        }
-                    }
-                );
+                const stream = cloudinary.uploader.upload_stream({ folder: 'detections' }, (error, result) => {
+                    if (error) return reject(error);
+                    resolve(result);
+                });
                 streamifier.createReadStream(buffer).pipe(stream);
             });
         };
 
         const result = await streamUpload(req.file.buffer);
 
-        // אם העלאה לא הצליחה
-        if (!result || !result.secure_url) {
+        if (!result?.secure_url) {
             return res.status(500).json({ error: 'Failed to upload image to Cloudinary' });
         }
-        let locationNote = req.body.locationNote || "GPS";
 
-        // קבלת שם המדווח
-        let reportedBy;  
-
-        if (req.session?.user?.username) {  
-          reportedBy = req.session.user.username;  
-        } else if (req.user?.username) {  
-          reportedBy = req.user.username;  
-        } else {  
-          reportedBy = 'אנונימי';  
-        }
-        
-        // שמירה ב-Redis
+        const reportedBy = req.user?.username || req.session?.user?.username || 'Anonymous';
         const reportId = Date.now();
         const reportKey = `report:${reportId}`;
-        const createdAt = new Date().toISOString();
-        
-        const report = {
-            id: reportId,
-            type: hazardTypes,
-            location: address,
-            time: req.body.time || createdAt,
-            image: result.secure_url,
-            status:'New',
-            locationNote,
-            reportedBy,
-            createdAt
+        const report = { 
+            id: reportId, 
+            type: hazardTypes, 
+            location: address, 
+            time: req.body.time || new Date().toISOString(), 
+            image: result.secure_url, 
+            status:'New', 
+            locationNote, 
+            reportedBy, 
+            createdAt: new Date().toISOString() 
         };
 
         await client.json.set(reportKey, '$', report);
-        console.log("💾 Report saved to Redis: ", reportKey);
+        
 
-        res.status(200).json({
-            message: 'Report uploaded and saved successfully',
-            report
-        });
+        res.status(200).json({ message: 'Report uploaded and saved successfully', report });
     } catch (e) {
-        console.error('🔥 Upload error:', e);
+        console.error('🔥 Cloudinary Upload Error:', e);
         res.status(500).json({ error: 'Failed to upload report', details: e?.message || 'unknown' });
     }
 });

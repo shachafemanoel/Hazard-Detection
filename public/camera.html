@@ -4,71 +4,137 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Camera - Hazard Detection</title>
-    <link rel="stylesheet" href="css/camera.css">
-    <link rel="stylesheet" href="css/floating-menu.css">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/design-system.css">
+    <link rel="stylesheet" href="css/camera.css">
+    <link rel="stylesheet" href="css/floating-menu.css">
 </head>
 <body class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
     <!-- Floating Menu Button -->
-    <button class="floating-menu-btn" id="menuBtn">
-        <i class="fas fa-bars"></i>
+    <button class="floating-menu-btn" id="menuBtn" 
+            aria-label="Open navigation menu" 
+            aria-expanded="false" 
+            aria-haspopup="true"
+            tabindex="0">
+        <i class="fas fa-bars" aria-hidden="true"></i>
     </button>
 
     <!-- Floating Menu -->
-    <div class="floating-menu" id="floatingMenu">
-        <a href="/dashboard.html"><i class="fas fa-chart-line"></i><span>Dashboard</span></a>
-        <a href="/camera.html"><i class="fas fa-camera"></i><span>Camera</span></a>
-        <a href="/upload.html"><i class="fas fa-upload"></i><span>Upload</span></a>
-        <a href="/logout"><i class="fas fa-sign-out-alt"></i><span>Logout</span></a>
-    </div>
+    <nav class="floating-menu" id="floatingMenu" 
+         role="navigation" 
+         aria-label="Main navigation"
+         aria-hidden="true">
+        <a href="/dashboard.html" tabindex="-1" aria-label="Go to Dashboard">
+            <i class="fas fa-chart-line" aria-hidden="true"></i>
+            <span>Dashboard</span>
+        </a>
+        <a href="/camera.html" tabindex="-1" aria-current="page" aria-label="Camera page (current)">
+            <i class="fas fa-camera" aria-hidden="true"></i>
+            <span>Camera</span>
+        </a>
+        <a href="/upload.html" tabindex="-1" aria-label="Go to Upload page">
+            <i class="fas fa-upload" aria-hidden="true"></i>
+            <span>Upload</span>
+        </a>
+        <a href="/logout" tabindex="-1" aria-label="Logout from application">
+            <i class="fas fa-sign-out-alt" aria-hidden="true"></i>
+            <span>Logout</span>
+        </a>
+    </nav>
 
     <!-- Menu Overlay -->
-    <div class="menu-overlay" id="menuOverlay"></div>
+    <div class="menu-overlay" id="menuOverlay" aria-hidden="true"></div>
 
     <!-- Enhanced Camera Container with glassmorphism -->
-    <div id="camera-container" class="min-h-screen p-4">
+    <div class="page-content">
+    <main id="camera-container" class="min-h-screen p-4" role="main" aria-label="Camera detection interface">
         <div class="camera-wrapper backdrop-blur-lg bg-white/10 rounded-3xl p-6 shadow-2xl border border-white/20 mb-6">
-            <div style="position:relative;width:100%;height:100%;">
-                <video id="camera-stream" autoplay playsinline></video>
-                <canvas id="overlay-canvas"></canvas>
+            <div style="position:relative;width:100%;height:100%;" role="img" aria-label="Camera feed with hazard detection overlay">
+                <video id="camera-stream" autoplay playsinline 
+                       aria-label="Live camera feed for hazard detection"
+                       tabindex="-1"></video>
+                <canvas id="overlay-canvas" 
+                        aria-label="Detection results overlay"
+                        role="img"
+                        tabindex="-1"></canvas>
             </div>
         </div>
         
         <!-- Enhanced Camera Controls -->
-        <div class="camera-controls backdrop-blur-lg bg-white/10 rounded-2xl p-6 shadow-xl border border-white/20 mb-4">
-            <button id="start-camera">
-                <i class="fas fa-video"></i>
+        <section class="camera-controls backdrop-blur-lg bg-white/10 rounded-2xl p-6 shadow-xl border border-white/20 mb-4" 
+                 role="group" 
+                 aria-label="Camera controls">
+            <button id="start-camera" 
+                    aria-label="Start camera for hazard detection" 
+                    aria-describedby="start-camera-desc"
+                    tabindex="1">
+                <i class="fas fa-video" aria-hidden="true"></i>
                 <span>Start Camera</span>
             </button>
-            <button id="stop-camera">
-                <i class="fas fa-video-slash"></i>
+            <span id="start-camera-desc" class="sr-only">Activates camera and begins real-time hazard detection</span>
+            
+            <button id="stop-camera" 
+                    aria-label="Stop camera and detection" 
+                    aria-describedby="stop-camera-desc"
+                    tabindex="2">
+                <i class="fas fa-video-slash" aria-hidden="true"></i>
                 <span>Stop Camera</span>
             </button>
-            <button id="switch-camera">
-                <i class="fas fa-sync"></i>
+            <span id="stop-camera-desc" class="sr-only">Stops camera feed and hazard detection</span>
+            
+            <button id="switch-camera" 
+                    aria-label="Switch to next available camera" 
+                    aria-describedby="switch-camera-desc"
+                    tabindex="3">
+                <i class="fas fa-sync" aria-hidden="true"></i>
                 <span>Switch Camera</span>
             </button>
+            <span id="switch-camera-desc" class="sr-only">Cycles through available cameras on device</span>
+            
             <!-- NEW: Camera selection dropdown -->
-            <div class="additional-controls">
-                <label for="camera-select">Camera</label>
-                <select id="camera-select">
+            <div class="additional-controls" role="group" aria-label="Camera settings">
+                <label for="camera-select" class="control-label">Camera</label>
+                <select id="camera-select" 
+                        aria-label="Select camera device"
+                        tabindex="4">
                     <!-- Options will be populated dynamically -->
                 </select>
-                <label for="brightness-slider">Brightness</label>
-                <input type="range" id="brightness-slider" min="50" max="150" value="100" step="1">
-                <label for="zoom-slider">Zoom</label>
-                <input type="range" id="zoom-slider" min="1" max="3" value="1" step="0.1">
+                
+                <label for="brightness-slider" class="control-label">Brightness</label>
+                <input type="range" id="brightness-slider" 
+                       min="50" max="150" value="100" step="1"
+                       aria-label="Adjust camera brightness"
+                       aria-valuemin="50" aria-valuemax="150" aria-valuenow="100"
+                       tabindex="5">
+                       
+                <label for="zoom-slider" class="control-label">Zoom</label>
+                <input type="range" id="zoom-slider" 
+                       min="1" max="3" value="1" step="0.1"
+                       aria-label="Adjust camera zoom level"
+                       aria-valuemin="1" aria-valuemax="3" aria-valuenow="1"
+                       tabindex="6">
             </div>
-        </div>
+        </section>
 
         <!-- Status Overlays -->
-        <div id="object-count-overlay"></div>
-        <div id="hazard-types-overlay"></div>
+        <div id="object-count-overlay" 
+             role="status" 
+             aria-live="polite" 
+             aria-label="Detected objects count"
+             class="status-overlay"></div>
+        <div id="hazard-types-overlay" 
+             role="status" 
+             aria-live="assertive" 
+             aria-label="Detected hazard types"
+             class="status-overlay"></div>
 
         <!-- Loading Overlay -->
-        <div id="loading-overlay">
-            <div class="spinner-border text-light" role="status">
+        <div id="loading-overlay" 
+             role="status" 
+             aria-live="assertive" 
+             aria-label="Loading detection model">
+            <div class="spinner-border text-light" role="progressbar" aria-label="Loading in progress">
                 <span class="visually-hidden">Loading...</span>
             </div>
             <p>Loading model...</p>
@@ -76,18 +142,25 @@
 
         <!-- Hazard Notification Template -->
         <template id="hazard-notification-template">
-            <div class="hazard-notification">
-                <i class="fas fa-exclamation-triangle"></i>
+            <div class="hazard-notification" 
+                 role="alert" 
+                 aria-live="assertive" 
+                 aria-label="Hazard detection alert">
+                <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
                 <div class="hazard-notification-content">
                     <h3>Hazard Detected!</h3>
                     <p></p>
                 </div>
             </div>
         </template>
-    </div>
+    </main>
+    </div><!-- /.page-content -->
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="ort/ort.min.js"></script>
+    <script src="js/error-handler.js"></script>
+    <script src="js/notifications.js"></script>
+    <script src="js/smoke-tests.js"></script>
     <script src="js/upload_tf.js" type="module"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -95,16 +168,108 @@
             const floatingMenu = document.getElementById('floatingMenu');
             const menuOverlay = document.getElementById('menuOverlay');
 
-            menuBtn.addEventListener('click', () => {
-                floatingMenu.classList.toggle('active');
-                menuOverlay.classList.toggle('active');
-            });
+            function openMenu() {
+                floatingMenu.classList.add('active');
+                menuOverlay.classList.add('active');
+                menuBtn.setAttribute('aria-expanded', 'true');
+                floatingMenu.setAttribute('aria-hidden', 'false');
+                menuOverlay.setAttribute('aria-hidden', 'false');
+                
+                const firstMenuItem = floatingMenu.querySelector('a');
+                if (firstMenuItem) {
+                    firstMenuItem.tabIndex = 0;
+                    firstMenuItem.focus();
+                }
+                
+                const menuItems = floatingMenu.querySelectorAll('a');
+                menuItems.forEach(item => item.tabIndex = 0);
+            }
 
-            menuOverlay.addEventListener('click', () => {
+            function closeMenu() {
                 floatingMenu.classList.remove('active');
                 menuOverlay.classList.remove('active');
+                menuBtn.setAttribute('aria-expanded', 'false');
+                floatingMenu.setAttribute('aria-hidden', 'true');
+                menuOverlay.setAttribute('aria-hidden', 'true');
+                
+                menuBtn.focus();
+                
+                const menuItems = floatingMenu.querySelectorAll('a');
+                menuItems.forEach(item => item.tabIndex = -1);
+            }
+
+            menuBtn.addEventListener('click', () => {
+                const isOpen = floatingMenu.classList.contains('active');
+                if (isOpen) {
+                    closeMenu();
+                } else {
+                    openMenu();
+                }
             });
+
+            menuOverlay.addEventListener('click', closeMenu);
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && floatingMenu.classList.contains('active')) {
+                    closeMenu();
+                }
+            });
+
+            floatingMenu.addEventListener('keydown', (e) => {
+                const menuItems = Array.from(floatingMenu.querySelectorAll('a'));
+                const currentIndex = menuItems.indexOf(document.activeElement);
+
+                switch(e.key) {
+                    case 'ArrowDown':
+                        e.preventDefault();
+                        const nextIndex = (currentIndex + 1) % menuItems.length;
+                        menuItems[nextIndex].focus();
+                        break;
+                    case 'ArrowUp':
+                        e.preventDefault();
+                        const prevIndex = currentIndex === 0 ? menuItems.length - 1 : currentIndex - 1;
+                        menuItems[prevIndex].focus();
+                        break;
+                    case 'Home':
+                        e.preventDefault();
+                        menuItems[0].focus();
+                        break;
+                    case 'End':
+                        e.preventDefault();
+                        menuItems[menuItems.length - 1].focus();
+                        break;
+                }
+            });
+
+            function announceStatus(message, priority = 'polite') {
+                const announcement = document.createElement('div');
+                announcement.setAttribute('aria-live', priority);
+                announcement.setAttribute('aria-atomic', 'true');
+                announcement.className = 'sr-only';
+                announcement.textContent = message;
+                document.body.appendChild(announcement);
+                
+                setTimeout(() => {
+                    document.body.removeChild(announcement);
+                }, 1000);
+            }
+
+            window.announceStatus = announceStatus;
         });
+    </script>
+    <script>
+      // Prevent menu overlay on desktop by shifting content
+      (function(){
+        const style = document.createElement('style');
+        style.innerHTML = `
+          .page-content{ transition: margin-left .3s ease; }
+          @media (min-width:1024px){
+            .page-content{ margin-left:72px; }
+            .floating-menu:hover ~ .page-content{ margin-left:280px; }
+          }
+        `;
+        document.head.appendChild(style);
+      })();
     </script>
 </body>
 </html>

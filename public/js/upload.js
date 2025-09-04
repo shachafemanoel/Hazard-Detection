@@ -10,31 +10,8 @@ document.addEventListener("DOMContentLoaded", async function () {
   const confValueSpan = document.getElementById("conf-value");
   const canvas = document.getElementById("preview-canvas");
   const ctx = canvas ? canvas.getContext("2d") : null; // Check if canvas exists
-  const logoutBtn = document.getElementById("logout-btn");
   const saveBtn = document.getElementById("save-detection");
   const getLocationBtn = document.getElementById("get-location-btn");
-
-  // Toast Notification Elements
-  const toastElement = document.getElementById('toast-notification');
-  const toastBody = document.getElementById('toast-body');
-
-  function showToast(message, type = 'success') {
-    if (!toastElement || !toastBody) return;
-
-    toastBody.textContent = message;
-    toastElement.classList.remove('bg-success', 'bg-danger', 'bg-warning'); // Remove previous classes
-
-    if (type === 'success') {
-      toastElement.classList.add('bg-success');
-    } else if (type === 'error') {
-      toastElement.classList.add('bg-danger');
-    } // Add more types like 'warning' if needed
-
-    toastElement.style.display = 'block';
-    setTimeout(() => {
-      toastElement.style.display = 'none';
-    }, 5000); // Hide after 5 seconds
-  }
 
   let geoData = null;
   let currentLocationData = null;
@@ -43,7 +20,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   async function getCurrentLocation() {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
-        reject(new Error("Geolocation not supported"));
+        reject(new Error("Geolocation is not supported by this browser."));
         return;
       }
 
@@ -64,7 +41,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           resolve(JSON.stringify(locationData));
         },
         (error) => {
-          console.warn("⚠️ Location error:", error);
+          console.warn("⚠️ High-accuracy location error:", error.message);
           // נסיון עם הגדרות פחות מדויקות
           navigator.geolocation.getCurrentPosition(
             (position) => {
@@ -77,7 +54,7 @@ document.addEventListener("DOMContentLoaded", async function () {
               resolve(JSON.stringify(locationData));
             },
             (fallbackError) => {
-              console.error("❌ Both location attempts failed:", fallbackError);
+              reportError(ErrorCodes.UNSUPPORTED, 'Location access failed: ' + fallbackError.message);
               reject(fallbackError);
             },
             { enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 }
@@ -89,149 +66,118 @@ document.addEventListener("DOMContentLoaded", async function () {
   }
 
   function getGeoDataFromImage(file) {
-    // ... (קוד פונקציה זהה)
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = function (e) {
-        const imgData = e.target.result;
-  
         const img = new Image();
         img.onload = function () {
           EXIF.getData(img, function () {
             const lat = EXIF.getTag(this, "GPSLatitude");
             const lon = EXIF.getTag(this, "GPSLongitude");
-            const latRef = EXIF.getTag(this, "GPSLatitudeRef") || "N";
-            const lonRef = EXIF.getTag(this, "GPSLongitudeRef") || "E";
-  
-            if (!lat || !lon) {
-              return resolve(null); // No geo data
-            }
-  
+            if (!lat || !lon) return resolve(null);
+
             const toDecimal = (dms, ref) => {
               const [deg, min, sec] = dms;
               let decimal = deg + min / 60 + sec / 3600;
               if (ref === "S" || ref === "W") decimal *= -1;
               return decimal;
             };
-  
-            const latitude = toDecimal(lat, latRef);
-            const longitude = toDecimal(lon, lonRef);
-  
+
+            const latitude = toDecimal(lat, EXIF.getTag(this, "GPSLatitudeRef") || "N");
+            const longitude = toDecimal(lon, EXIF.getTag(this, "GPSLongitudeRef") || "E");
             resolve(JSON.stringify({ lat: latitude, lng: longitude }));
           });
         };
-        img.src = imgData;
+        img.onerror = () => resolve(null); // Handle image load errors
+        img.src = e.target.result;
       };
+      reader.onerror = () => resolve(null); // Handle file read errors
       reader.readAsDataURL(file);
     });
   }
 
   // ניהול תצוגת מסך הבית וממשק ההעלאה
-  if (showUploadSectionBtn && homeScreenContent && detectionSection) {
+  if (showUploadSectionBtn) {
     showUploadSectionBtn.addEventListener('click', () => {
-      homeScreenContent.style.display = 'none';
-      detectionSection.style.display = 'block';
+      if(homeScreenContent) homeScreenContent.style.display = 'none';
+      if(detectionSection) detectionSection.style.display = 'block';
     });
   }
 
-  if (closeUploadSectionBtn && homeScreenContent && detectionSection) {
+  if (closeUploadSectionBtn) {
     closeUploadSectionBtn.addEventListener('click', () => {
-      detectionSection.style.display = 'none';
-      homeScreenContent.style.display = 'block';
+      if(detectionSection) detectionSection.style.display = 'none';
+      if(homeScreenContent) homeScreenContent.style.display = 'block';
       // איפוס אופציונלי של שדות וקנבס בעת סגירה
-      if (imageUpload) {
-        imageUpload.value = ''; // מנקה את שדה העלאת התמונה
-      }
-      if (ctx && canvas) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height); // נמחק את התמונה המוצגת ב-canvas
-      }
-      if (confValueSpan && confidenceSlider) {
-        confValueSpan.textContent = confidenceSlider.value; // מאפס את תצוגת הסף
-      }
-      currentImage = null; // מאפס את התמונה הנוכחית
-      geoData = null; // מאפס נתוני מיקום
-      if (saveBtn) saveBtn.disabled = true; // מנטרל כפתור שמירה
+      if (imageUpload) imageUpload.value = '';
+      if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (confValueSpan && confidenceSlider) confValueSpan.textContent = confidenceSlider.value;
+      currentImage = null;
+      geoData = null;
+      if (saveBtn) saveBtn.disabled = true;
       const tooltip = document.getElementById("tooltip");
       if (tooltip) tooltip.style.display = "none";
     });
   }
 
-
-// שמירת התמונה והנתונים
-saveBtn.addEventListener("click", async () => {
-  if (!canvas) {
-    showToast("❌ Canvas element not found.", "error");
-    return;
-  }
-
-  // אם אין מיקום, ננסה לקבל עכשיו
-  if (!geoData) {
-    console.log("⚠️ No location data available, trying to get current location...");
-    try {
-      const currentLoc = await getCurrentLocation();
-      geoData = currentLoc;
-      currentLocationData = currentLoc;
-      console.log("✅ Got location for save");
-      showToast("📍 Got current location for report", "success");
-    } catch (err) {
-      console.warn("⚠️ Could not get location for save:", err);
-      // נמשיך בלי מיקום - נשתמש במיקום ברירת מחדל
-      geoData = JSON.stringify({ lat: 32.0853, lng: 34.7818 }); // תל אביב
-      showToast("⚠️ Using default location (Tel Aviv)", "warning");
-    }
-  }
-
-  canvas.toBlob(async (blob) => {
-      if (!blob) return alert("❌ Failed to get image blob");
-  
-      const file = new File([blob], "detection.jpg", { type: "image/jpeg" });
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("geoData", geoData);  // הוספת המיקום לפורם דאטה
-      formData.append("hazardTypes", hazardTypes.join(","));
-      
-      // הוספת הערת מיקום מתאימה
-      let locationNote = "Unknown";
-      if (currentLocationData === geoData) {
-        locationNote = "Current GPS";
-      } else if (geoData.includes('32.0853')) {
-        locationNote = "Default Location";
-      } else {
-        locationNote = "EXIF GPS";
-      }
-      formData.append("locationNote", locationNote);
-
-
-      try {
-          const res = await fetch("/upload-detection", {
-              method: "POST",
-              body: formData,
-              credentials: "include",
-          });
-  
-          const result = await res.json();
-          showToast("✅ Saved to server: " + result.message + "\n📸 " + result.url, "success");
-      } catch (err) {
-          showToast("❌ Failed to save image to server.", "error");
-          console.error(err);
+  // שמירת התמונה והנתונים
+  if(saveBtn) {
+    saveBtn.addEventListener("click", async () => {
+      if (!canvas) {
+        return reportError(ErrorCodes.UNSUPPORTED, "Canvas element not found.");
       }
 
-      // נמחק את התמונה אחרי 5 שניות
-      setTimeout(() => {
-          const imageInput = document.getElementById('image-upload');
-          const imagePreview = document.getElementById('preview-canvas');
+      if (!geoData) {
+        console.log("⚠️ No location data, attempting to get current location...");
+        try {
+          const currentLoc = await getCurrentLocation();
+          geoData = currentLoc;
+          currentLocationData = currentLoc;
+          toastOnce('location-acquired-save', "Current location acquired for report", 'success');
+        } catch (err) {
+          console.warn("⚠️ Could not get location for save:", err);
+          geoData = JSON.stringify({ lat: 32.0853, lng: 34.7818 }); // תל אביב
+          toastOnce('location-default-save', "Using default location (Tel Aviv)", 'warning');
+        }
+      }
 
-          if (imageInput) {
-              imageInput.value = ''; // מנקה את שדה העלאת התמונה
-          }
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          return reportError(ErrorCodes.FILE_READ, 'Failed to generate image blob for saving.');
+        }
+    
+        const file = new File([blob], "detection.jpg", { type: "image/jpeg" });
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("geoData", geoData);
+        formData.append("hazardTypes", hazardTypes.join(","));
+        
+        let locationNote = "Unknown";
+        if (currentLocationData === geoData) locationNote = "Current GPS";
+        else if (geoData.includes('32.0853')) locationNote = "Default Location";
+        else locationNote = "EXIF GPS";
+        formData.append("locationNote", locationNote);
 
-          if (imagePreview) {
-              const ctx = imagePreview.getContext('2d'); 
-              ctx.clearRect(0, 0, imagePreview.width, imagePreview.height);           // נמחק את התמונה המוצגת ב-canvas
-          }
-      }, 2500);
-  }, "image/jpeg", 0.95);
-});
+        try {
+            const res = await fetch("/upload-detection", {
+                method: "POST",
+                body: formData,
+                credentials: "include",
+            });
+            if (!res.ok) throw new Error(`Server responded with ${res.status}`);
+            const result = await res.json();
+            toastOnce('save-success', `✅ Report saved successfully!`, 'success');
+        } catch (err) {
+            reportError(ErrorCodes.UNSUPPORTED, 'Server upload failed: ' + err.message);
+        }
+
+        setTimeout(() => {
+            if (imageUpload) imageUpload.value = '';
+            if (canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }, 2500);
+      }, "image/jpeg", 0.95);
+    });
+  }
 
   // כפתור קבלת מיקום ידני
   if (getLocationBtn) {
@@ -244,20 +190,12 @@ saveBtn.addEventListener("click", async () => {
         const currentLoc = await getCurrentLocation();
         geoData = currentLoc;
         currentLocationData = currentLoc;
-        console.log("✅ Manual location acquired");
-        showToast("📍 Location acquired successfully", "success");
+        toastOnce('location-acquired-manual', "Location acquired successfully", 'success');
         getLocationBtn.innerHTML = '<i class="fas fa-check text-xl mr-3"></i><span class="text-sm font-medium">Location Acquired</span>';
-        
-        setTimeout(() => {
-          getLocationBtn.innerHTML = '<i class="fas fa-map-marker-alt text-xl mr-3"></i><span class="text-sm font-medium">Get Current Location</span>';
-          getLocationBtn.disabled = false;
-        }, 2000);
-        
       } catch (err) {
-        console.error("❌ Manual location failed:", err);
-        showToast("❌ Failed to get location. Check permissions.", "error");
+        reportError(ErrorCodes.CAMERA_PERMISSION, 'Manual location failed: ' + err.message);
         getLocationBtn.innerHTML = '<i class="fas fa-exclamation-triangle text-xl mr-3"></i><span class="text-sm font-medium">Location Failed</span>';
-        
+      } finally {
         setTimeout(() => {
           getLocationBtn.innerHTML = '<i class="fas fa-map-marker-alt text-xl mr-3"></i><span class="text-sm font-medium">Get Current Location</span>';
           getLocationBtn.disabled = false;
@@ -266,301 +204,242 @@ saveBtn.addEventListener("click", async () => {
     });
   }
   
-  // המודל (YOLO באון-אן-אקס) מיוצא לגודל 640x640
-  const FIXED_SIZE =640;
-
-  // רשימת המחלקות
+  const FIXED_SIZE = 640;
   const classNames = ['crack', 'pothole'];
-
   let session = null;
-  
-  ort.env.wasm.wasmPaths = '/ort/';  
+  ort.env.wasm.wasmPaths = '/ort/';
 
-
+  let optimizedFunctions = {};
   try {
-    session = await ort.InferenceSession.create(
-      '/object_detecion_model/best-11-8-2025.onnx',
-      { executionProviders: ['cpu'] }
-    );
-    
-    console.log("✅ YOLO model loaded!");
+    const module = await import('./yolo_tfjs.js');
+    optimizedFunctions = { ...module };
+    console.log("✅ Optimized YOLO functions imported for upload");
   } catch (err) {
-    console.error("❌ Failed to load model:", err);
+    console.warn("⚠️ Failed to import optimized functions for upload:", err);
   }
 
-  let confidenceThreshold = parseFloat(confidenceSlider.value);
-  confidenceSlider.addEventListener("input", (e) => {
-    confidenceThreshold = parseFloat(e.target.value);
-    confValueSpan.textContent = confidenceThreshold;
-    if (currentImage) {
-      runInferenceOnImage(currentImage);
+  try {
+    if (optimizedFunctions.getOnnxSession) {
+      session = await optimizedFunctions.getOnnxSession('/object_detecion_model/best-11-8-2025.onnx');
+      if (optimizedFunctions.warmupOnnx) {
+        await optimizedFunctions.warmupOnnx(session, FIXED_SIZE);
+        console.log("🔥 Upload session warmed up");
+      }
+    } else {
+      session = await ort.InferenceSession.create('/object_detecion_model/best-11-8-2025.onnx', { executionProviders: ['cpu'] });
     }
-  });
+    console.log("✅ YOLO model loaded for upload!");
+  } catch (err) {
+    reportError(ErrorCodes.MODEL_LOAD, err.message || err);
+  }
+
+  let confidenceThreshold = 0.5;
+  if (confidenceSlider) {
+    confidenceThreshold = parseFloat(confidenceSlider.value);
+    confidenceSlider.addEventListener("input", (e) => {
+      confidenceThreshold = parseFloat(e.target.value);
+      if(confValueSpan) confValueSpan.textContent = confidenceThreshold;
+      if (currentImage) runInferenceOnImage(currentImage);
+    });
+  }
 
   let currentImage = null;
   let letterboxParams = { offsetX: 0, offsetY: 0, newW: FIXED_SIZE, newH: FIXED_SIZE };
 
-  if (imageUpload) {
-    imageUpload.addEventListener("change", async (event) => {
-  const file = event.target.files[0];
-  if (!file || !canvas) return; // Add check for canvas
+  let currentStatus = 'ready';
+  let currentMode = 'upload';
 
-  console.log("📷 Image selected, checking for location data...");
-
-  // 1. נתחיל קריאת EXIF ברקע (לא חוסם את התצוגה)
-  try {
-    const exifData = await getGeoDataFromImage(file);
-    if (exifData) {
-      geoData = exifData;
-      currentLocationData = exifData;
-      console.log("✅ Using EXIF location data");
-      showToast("📍 Found location in image EXIF data", "success");
-    } else {
-      console.log("⚠️ No EXIF location data, trying current location...");
-      // אם אין EXIF, ננסה לקבל מיקום נוכחי
-      try {
-        const currentLoc = await getCurrentLocation();
-        geoData = currentLoc;
-        currentLocationData = currentLoc;
-        console.log("✅ Using current location");
-        showToast("📍 Using current location", "success");
-      } catch (locationErr) {
-        console.warn("⚠️ Could not get current location:", locationErr);
-        showToast("⚠️ No location available - you can still analyze the image", "warning");
-        geoData = null;
-        currentLocationData = null;
+  function setStatus(status, message = '') {
+    currentStatus = status;
+    console.log(`📊 Status: ${status} - ${message}`);
+    const statusElement = document.querySelector('.status-indicator');
+    if (statusElement) {
+      statusElement.className = `status-indicator status-${status}`;
+      statusElement.textContent = message;
+    }
+    
+    if (message && status !== 'ready') {
+      const type = status === 'error' ? 'error' : status === 'success' ? 'success' : 'info';
+      const toastKey = `${status}-${message.substring(0, 20)}`;
+      if (type === 'error') {
+        reportError(ErrorCodes.UNSUPPORTED, message);
+      } else {
+        toastOnce(toastKey, message, type);
       }
     }
-  } catch (err) {
-    console.error("❌ Error getting location data:", err);
-    showToast("⚠️ Location error - you can still analyze the image", "warning");
   }
 
-  // 2. תמיד תציג תצוגה ותריץ את המודל
-  const reader = new FileReader();
-  reader.onload = e => {
-    const img = new Image();
-    img.onload = async () => {
-      currentImage = img;
-      canvas.width  = FIXED_SIZE;
-      canvas.height = FIXED_SIZE;
-      await runInferenceOnImage(img);  // כאן מציירים את המסגרות
-    };
-    img.src = e.target.result;
-  };
-  reader.readAsDataURL(file);
-});
+  function setModeBadge(mode) {
+    currentMode = mode;
+    const badge = document.querySelector('.mode-badge');
+    if (badge) {
+      badge.className = `mode-badge mode-${mode}`;
+      badge.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
+    }
   }
+
+  function setupDragAndDrop() {
+    const canvasContainer = document.querySelector('.canvas-container');
+    if (!canvasContainer) return;
+    
+    canvasContainer.style.transition = 'all 0.3s ease';
+    
+    const onDragOver = (e) => {
+      e.preventDefault(); e.stopPropagation();
+      canvasContainer.classList.add('drag-over');
+      setStatus('drag-over', 'Drop image to upload');
+    };
+    const onDragLeave = (e) => {
+      e.preventDefault(); e.stopPropagation();
+      canvasContainer.classList.remove('drag-over');
+      setStatus('ready', 'Ready to upload image');
+    };
+    const onDrop = (e) => {
+      e.preventDefault(); e.stopPropagation();
+      canvasContainer.classList.remove('drag-over');
+      if (e.dataTransfer.files.length > 0) handleFileInput(e.dataTransfer.files[0]);
+    };
+    
+    canvasContainer.addEventListener('dragover', onDragOver);
+    canvasContainer.addEventListener('dragleave', onDragLeave);
+    canvasContainer.addEventListener('drop', onDrop);
+  }
+
+  function enhanceFileInput() {
+    if (!imageUpload) return;
+    imageUpload.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) handleFileInput(e.target.files[0]);
+    });
+  }
+
+  async function handleFileInput(file) {
+    if (!file || !canvas) return setStatus('error', 'No file or canvas not available');
+    if (!file.type.startsWith('image/')) return setStatus('error', 'Please select a valid image file');
+    if (file.size > 10 * 1024 * 1024) return setStatus('error', 'Image file too large (Max 10MB)');
+    
+    setStatus('processing', 'Processing image...');
+    setModeBadge('processing');
+    
+    try {
+      const exifData = await getGeoDataFromImage(file);
+      if (exifData) {
+        geoData = exifData;
+        currentLocationData = exifData;
+        setStatus('location-found', 'Found location in image metadata');
+      } else {
+        console.log('⚠️ No EXIF location data, trying current location...');
+        try {
+          const currentLoc = await getCurrentLocation();
+          geoData = currentLoc;
+          currentLocationData = currentLoc;
+          setStatus('location-current', 'Using current location');
+        } catch (locationErr) {
+          setStatus('warning', 'No location available - you can still analyze the image');
+          geoData = null;
+          currentLocationData = null;
+        }
+      }
+      
+      const reader = new FileReader();
+      reader.onload = e => {
+        const img = new Image();
+        img.onload = async () => {
+          currentImage = img;
+          await renderPreviewImage(img);
+          await runInferenceOnImage(img);
+          setStatus('ready', 'Image loaded and analyzed');
+          setModeBadge('analysis');
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      reportError(ErrorCodes.FILE_READ, 'Error processing image file: ' + err.message);
+    }
+  }
+
+  async function renderPreviewImage(imageElement, animate = true) {
+    if (!canvas || !ctx) return;
+    
+    canvas.width = FIXED_SIZE; canvas.height = FIXED_SIZE;
+    const { offsetX, offsetY, newW, newH } = optimizedFunctions.computeLetterboxParams(imageElement.width, imageElement.height, FIXED_SIZE);
+    letterboxParams = { offsetX, offsetY, newW, newH };
+    
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
+    ctx.drawImage(imageElement, offsetX, offsetY, newW, newH);
+  }
+
+  function initUploadUI() {
+    console.log('🎨 Initializing Upload UI...');
+    setStatus('ready', 'Ready to upload image');
+    setModeBadge('upload');
+    setupDragAndDrop();
+    enhanceFileInput();
+  }
+
+  initUploadUI();
 
   async function runInferenceOnImage(imageElement) {
-    if (!session) {
-      console.warn("Model not loaded yet or canvas not found.");
-      return;
+    if (!session || !canvas) {
+      return reportError(ErrorCodes.MODEL_LOAD, "Model session not ready or canvas not found.");
     }
 
     try {
-      const offscreen = document.createElement("canvas");
-      offscreen.width = FIXED_SIZE;
-      offscreen.height = FIXED_SIZE;
-      const offCtx = offscreen.getContext("2d");
+      const { tensor, letterboxParams: lbParams } = optimizedFunctions.preprocessFrameToTensor(imageElement, FIXED_SIZE);
+      letterboxParams = lbParams;
+      
+      const rawBoxes = await optimizedFunctions.runModel(session, tensor);
+      const processedBoxes = optimizedFunctions.postprocessDetections(rawBoxes, confidenceThreshold, 0.5);
+      
+      // The raw output from postprocessDetections is what our drawing function expects
+      drawDetectionsOverlay(processedBoxes);
 
-      const imgW = imageElement.width;
-      const imgH = imageElement.height;
-      const scale = Math.min(FIXED_SIZE / imgW, FIXED_SIZE / imgH);
-      const newW = Math.round(imgW * scale);
-      const newH = Math.round(imgH * scale);
-      const offsetX = Math.floor((FIXED_SIZE - newW) / 2);
-      const offsetY = Math.floor((FIXED_SIZE - newH) / 2);
-
-      letterboxParams = { offsetX, offsetY, newW, newH };
-
-      offCtx.fillStyle = "black";
-      offCtx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
-      offCtx.drawImage(imageElement, offsetX, offsetY, newW, newH);
-
-      const imageData = offCtx.getImageData(0, 0, FIXED_SIZE, FIXED_SIZE);
-      const { data, width, height } = imageData;
-
-      const tensorData = new Float32Array(width * height * 3);
-      for (let i = 0, j = 0; i < data.length; i += 4, j += 3) {
-        tensorData[j] = data[i] / 255;
-        tensorData[j + 1] = data[i + 1] / 255;
-        tensorData[j + 2] = data[i + 2] / 255;
-      }
-
-      const chwData = new Float32Array(3 * width * height);
-      for (let c = 0; c < 3; c++) {
-        for (let h = 0; h < height; h++) {
-          for (let w = 0; w < width; w++) {
-            chwData[c * width * height + h * width + w] =
-              tensorData[h * width * 3 + w * 3 + c];
-          }
-        }
-      }
-
-      const dims = [1, 3, height, width];
-      const tensor = new ort.Tensor("float32", chwData, dims);
-      const feeds = { images: tensor };
-
-      const results = await session.run(feeds);
-      const outputKey = Object.keys(results)[0];
-      const outputData = results[outputKey].data;
-
-      console.log("Raw outputData:", outputData);
-
-      const boxes = [];
-      for (let i = 0; i < outputData.length; i += 6) {
-        const box = outputData.slice(i, i + 6);
-        boxes.push(box);
-      }
-
-      console.log("Parsed boxes:", boxes.slice(0, 5));
-      drawResults(boxes);
     } catch (err) {
-      console.error("Error in inference:", err);
+      reportError(ErrorCodes.INFERENCE, err.message || err);
     }
   }
 
   let hazardTypes = [];
   let hasHazard = false;
 
-  function drawResults(boxes) {
-    if (!ctx) return; // Check if context exists
+  function drawDetectionsOverlay(boxes) {
+    if (!ctx || !currentImage) return;
+    hazardTypes = [];
+    hasHazard = false;
+    
+    // Use the new centralized drawing function
+    optimizedFunctions.drawDetections(ctx, currentImage, boxes, classNames, letterboxParams);
 
-    hazardTypes = []; // מאתחל את המערך של סוגי המפגעים
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const { offsetX, offsetY, newW, newH } = letterboxParams;
-
-    ctx.fillStyle = "black";
-    ctx.fillRect(0, 0, FIXED_SIZE, FIXED_SIZE);
-
-    if (currentImage) {
-      ctx.drawImage(currentImage, offsetX, offsetY, newW, newH);
+    const detectionCount = boxes.length;
+    if (detectionCount > 0) {
+        hasHazard = true;
+        hazardTypes = [...new Set(boxes.map(b => classNames[Math.floor(b.classId)]))];
+        setStatus('detections-found', `Found ${detectionCount} hazard(s): ${hazardTypes.join(', ')}`);
+    } else {
+        setStatus('no-detections', 'No hazards detected in image');
     }
 
-    hasHazard = false; // משתנה שמבצע את הבדיקה אם יש מפגע
-    const tooltip = document.getElementById("tooltip");
-
-    boxes.forEach((box) => {
-      let [x1, y1, x2, y2, score, classId] = box;
-      if (score < confidenceThreshold) return;
-
-      const boxW = x2 - x1;
-      const boxH = y2 - y1;
-
-      if (boxW <= 1 || boxH <= 1 || boxW > FIXED_SIZE || boxH > FIXED_SIZE) return;
-
-      // אם מצאנו לפחות קופסה שמאובחנת כמפגע, נעדכן את המשתנה
-      hasHazard = true;
-
-      const labelName = classNames[Math.floor(classId)] || `Class ${classId}`;
-      const scorePerc = (score * 100).toFixed(1);
-
-      // מוסיפים את סוג המפגע למערך אם הוא לא כבר שם
-      if (!hazardTypes.includes(labelName)) {
-      hazardTypes.push(labelName);
-      }
-      console.log("Hazard types:", hazardTypes);
-
-      // --- שינוי סגנון התיבות ---
-      const color = '#00FF00'; // ירוק בהיר
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 3; // קו עבה יותר
-      ctx.strokeRect(x1, y1, boxW, boxH);
-
-      // --- שינוי סגנון הטקסט והוספת רקע ---
-      ctx.fillStyle = color;
-      ctx.font='bold 16px Arial'; // פונט מודגש
-      const textWidth = ctx.measureText(`${labelName} (${scorePerc}%)`).width;
-      // מיקום הרקע מעל התיבה, עם התאמה אם התיבה קרובה לקצה העליון
-      const textBgX = x1;
-      const textBgY = y1 > 20 ? y1 - 20 : y1;
-      const textBgWidth = textWidth + 8; // רוחב הטקסט + ריווח קטן
-      const textBgHeight = 20; // גובה קבוע לרקע הטקסט
-      ctx.fillRect(textBgX, textBgY, textBgWidth, textBgHeight); // רקע לטקסט
-      ctx.fillStyle = 'black'; // צבע טקסט שחור על הרקע הבהיר
-      ctx.fillText(`${labelName} (${scorePerc}%)`, textBgX + 4, textBgY + 15); // מיקום הטקסט בתוך הרקע
-    });
-
-  // שליטה בכפתור השמירה לפי האם יש מפגעים
-  if (!saveBtn || !tooltip) return;
-
-  if (!hasHazard) {
-    saveBtn.disabled = true;
-    saveBtn.style.opacity = "0.5";
-    saveBtn.style.cursor = "not-allowed";
-
-    // מוסיפים את ההאזנה רק אם לא נוספה עדיין
-    saveBtn.addEventListener("mousemove", showTooltip);
-    saveBtn.addEventListener("mouseleave", hideTooltip);
-  } else {
-    saveBtn.disabled = false;
-    saveBtn.style.opacity = "1";
-    saveBtn.style.cursor = "pointer";
-
-    // מסתיר את הטולטיפ מיידית
-    tooltip.style.display = "none";
-    tooltip.style.left = "-9999px";  // אופציונלי — לוודא שהוא לא נשאר במקום
-    tooltip.style.top = "-9999px";
-
-    // מסיר את ההאזנה כדי למנוע חפיפות
-    saveBtn.removeEventListener("mousemove", showTooltip);
-    saveBtn.removeEventListener("mouseleave", hideTooltip);
+    if (saveBtn) saveBtn.disabled = !hasHazard;
   }
-}
 
-function showTooltip(e) {
-  tooltip.style.left = e.pageX + 15 + "px";
-  tooltip.style.top = e.pageY + "px";
-  tooltip.style.display = "block";
-}
-
-function hideTooltip() {
-  tooltip.style.display = "none";
-}
-
-if (saveBtn && tooltip) { // Ensure elements exist before adding listeners
-  saveBtn.addEventListener("mousemove", (e) => {
-    if (saveBtn.disabled) { // Simplified tooltip logic, text is static in HTML/CSS
-      tooltip.style.left = `${e.pageX + 10}px`;
-      tooltip.style.top = `${e.pageY + 10}px`;
-      tooltip.style.display = "block";
-    }
-  });
-
-  saveBtn.addEventListener("mouseleave", () => {
-    tooltip.style.display = "none";
-  });
-}
-
-  if (logoutBtn) {
-    logoutBtn.addEventListener("click", async () => {
-      // This button is removed from upload.html.
-      // If logout is needed, it should be handled by a button in the sidebar
-      // or another shared component.
+  const sidebarLogoutBtn = document.getElementById('sidebar-logout-btn');
+  if (sidebarLogoutBtn) {
+    sidebarLogoutBtn.addEventListener("click", async () => {
       try {
         const response = await fetch("/logout", { method: "GET" });
-        if (response.redirected) {
-          window.location.href = response.url;
-        }
+        if (response.redirected) window.location.href = response.url;
       } catch (error) {
-        console.error("Logout failed:", error);
+        reportError(ErrorCodes.UNSUPPORTED, 'Logout failed: ' + error.message);
       }
     });
-  } else {
-    // Optional: Add logout functionality to a sidebar button if it exists
-    const sidebarLogoutBtn = document.getElementById('sidebar-logout-btn');
-    if (sidebarLogoutBtn) {
-      sidebarLogoutBtn.addEventListener("click", async () => {
-        try {
-          const response = await fetch("/logout", { method: "GET" });
-          if (response.redirected) {
-            window.location.href = response.url;
-          }
-        } catch (error) {
-          console.error("Logout failed:", error);
-        }
-      });
-    }
   }
+
+  // ====== SMOKE TESTS FOR UPLOAD FUNCTIONALITY ======
+  async function runSmokeTestUpload() {
+    // Smoke test implementation can be expanded here
+  }
+
+  if (!window.HDTests) window.HDTests = {};
+  window.HDTests.runSmokeTestUpload = runSmokeTestUpload;
 });

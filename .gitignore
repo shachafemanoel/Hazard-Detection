@@ -9,6 +9,10 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.DS_Store
+coverage/
+uploads/
+uploads/**
 
 # IDE
 .idea/
@@ -39,6 +43,11 @@ calibration_image_sample_data*
 # Certificates and sensitive files
 *.pem
 serviceAccountKey.json
+.env
+.env.*
+server/.env
+server/.env.*
+!.env.example
 
 # Large directories
 /patchs.v2i.yolov12/

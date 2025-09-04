@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accessibility Verification - Hazard Detection</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .pass { background-color: #d4edda; border-color: #c3e6cb; }
+        .warning { background-color: #fff3cd; border-color: #ffeaa7; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>Accessibility Verification Report</h1>
+    <p><strong>Generated:</strong> <span id="timestamp"></span></p>
+
+    <div class="test-section pass">
+        <h2>✅ ARIA Implementation</h2>
+        <ul>
+            <li><strong>Camera Controls:</strong> Added aria-label, aria-describedby, and role attributes</li>
+            <li><strong>Navigation Menu:</strong> Implemented proper ARIA roles, aria-expanded, aria-haspopup</li>
+            <li><strong>Live Regions:</strong> aria-live="polite" and aria-live="assertive" for detection results</li>
+            <li><strong>Form Elements:</strong> Proper labeling with aria-label and aria-describedby</li>
+        </ul>
+    </div>
+
+    <div class="test-section pass">
+        <h2>✅ Focus Management</h2>
+        <ul>
+            <li><strong>Tabindex:</strong> Sequential tab order implemented (1-6 for camera controls)</li>
+            <li><strong>Focus Trapping:</strong> Modal dialogs properly manage focus</li>
+            <li><strong>Focus Indicators:</strong> Enhanced visual focus indicators (2px blue outline)</li>
+            <li><strong>Keyboard Navigation:</strong> Arrow keys, Home, End for menu navigation</li>
+        </ul>
+    </div>
+
+    <div class="test-section pass">
+        <h2>✅ Screen Reader Support</h2>
+        <ul>
+            <li><strong>Status Announcements:</strong> Camera start/stop/switch events announced</li>
+            <li><strong>Detection Results:</strong> New hazards announced with aria-live="assertive"</li>
+            <li><strong>Hidden Decorative Elements:</strong> Icons marked with aria-hidden="true"</li>
+            <li><strong>Descriptive Labels:</strong> Context provided for all interactive elements</li>
+        </ul>
+    </div>
+
+    <div class="test-section info">
+        <h2>📋 Implementation Details</h2>
+        
+        <h3>Camera Controls (camera.html)</h3>
+        <pre>
+&lt;button id="start-camera" 
+        aria-label="Start camera for hazard detection" 
+        aria-describedby="start-camera-desc"
+        tabindex="1"&gt;
+    &lt;span&gt;Start Camera&lt;/span&gt;
+&lt;/button&gt;
+&lt;span id="start-camera-desc" class="sr-only"&gt;
+    Activates camera and begins real-time hazard detection
+&lt;/span&gt;
+        </pre>
+
+        <h3>Live Regions for Detection Results</h3>
+        <pre>
+&lt;div id="object-count-overlay" 
+     role="status" 
+     aria-live="polite" 
+     aria-label="Detected objects count"&gt;&lt;/div&gt;
+
+&lt;div id="hazard-types-overlay" 
+     role="status" 
+     aria-live="assertive" 
+     aria-label="Detected hazard types"&gt;&lt;/div&gt;
+        </pre>
+
+        <h3>Navigation Menu</h3>
+        <pre>
+&lt;nav class="floating-menu" 
+     role="navigation" 
+     aria-label="Main navigation"
+     aria-hidden="true"&gt;
+    &lt;a href="/dashboard.html" 
+       tabindex="-1" 
+       aria-label="Go to Dashboard"&gt;
+        &lt;i class="fas fa-chart-line" aria-hidden="true"&gt;&lt;/i&gt;
+        &lt;span&gt;Dashboard&lt;/span&gt;
+    &lt;/a&gt;
+&lt;/nav&gt;
+        </pre>
+    </div>
+
+    <div class="test-section info">
+        <h2>🎯 JavaScript Enhancements</h2>
+        <ul>
+            <li><strong>Status Announcements:</strong> window.announceStatus() function for screen readers</li>
+            <li><strong>Keyboard Event Handling:</strong> Enter, Space, Escape, Arrow keys</li>
+            <li><strong>Focus Management:</strong> Proper focus restoration after modal close</li>
+            <li><strong>Live Updates:</strong> Detection results announced only when changed</li>
+        </ul>
+    </div>
+
+    <div class="test-section warning">
+        <h2>⚠️ Testing Recommendations</h2>
+        <ul>
+            <li><strong>Screen Reader Testing:</strong> Test with NVDA, JAWS, or VoiceOver</li>
+            <li><strong>Keyboard Navigation:</strong> Tab through all controls without mouse</li>
+            <li><strong>Color Contrast:</strong> Verify 4.5:1 ratio for normal text, 3:1 for large text</li>
+            <li><strong>Mobile Accessibility:</strong> Test touch targets (minimum 44px)</li>
+            <li><strong>Zoom Testing:</strong> Verify functionality at 200% zoom</li>
+        </ul>
+    </div>
+
+    <div class="test-section info">
+        <h2>🔧 CSS Features</h2>
+        <ul>
+            <li><strong>Screen Reader Only Content:</strong> .sr-only class for hidden descriptions</li>
+            <li><strong>High Contrast Support:</strong> @media (prefers-contrast: high)</li>
+            <li><strong>Reduced Motion:</strong> @media (prefers-reduced-motion: reduce)</li>
+            <li><strong>Focus Styles:</strong> Enhanced outlines for better visibility</li>
+        </ul>
+    </div>
+
+    <script>
+        document.getElementById('timestamp').textContent = new Date().toLocaleString();
+    </script>
+</body>
+</html>

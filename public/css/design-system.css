@@ -1,0 +1,155 @@
+/* design-system.css */
+
+/* You can add custom overrides and styles here to complement Bootstrap */
+body {
+    background-color: #0f172a;
+    color: #e2e8f0;
+}
+
+.btn-icon-left {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-icon-left .fas {
+    margin-right: 0.5rem;
+}
+
+/* --- Dashboard Specific Styles --- */
+body {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+header {
+  background: rgba(15,23,42,0.95);
+  border-bottom: 2px solid #3b82f6;
+  padding: 1rem 1.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 1100;
+  text-align: center;
+}
+header h1 {
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: #3b82f6;
+}
+.dashboard-panel {
+  background: rgba(15,23,42,0.8);
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+#map {
+  width: 100%;
+  height: 60vh;
+  border-radius: 8px;
+  border: 1px solid #334155;
+}
+.filter-panel {
+  background: rgba(30,41,59,0.8);
+  border: 1px solid #475569;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+.filter-row {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+.filter-input {
+  flex: 1;
+  min-width: 200px;
+}
+#reports-table-container {
+  max-height: 50vh;
+  overflow-y: auto;
+  border-radius: 8px;
+  background: rgba(15,23,42,0.6);
+  border: 1px solid #334155;
+}
+.table-dark {
+  --bs-table-bg: transparent;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.table-dark th {
+  border: 1px solid #475569;
+  color: #3b82f6;
+  font-weight: 700;
+  background: rgba(30,41,59,0.9);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.table-dark tbody tr:hover {
+  background-color: rgba(59,130,246,0.1);
+}
+.type-pothole { background-color: #dc2626 !important; }
+.type-crack { background-color: #16a34a !important; }
+.type-other { background-color: #7c3aed !important; }
+.btn-action { margin: 0 0.25rem; }
+.btn-view { background: #3b82f6; }
+.btn-view:hover { background: #2563eb; }
+.btn-image { background: #16a34a; }
+.btn-image:hover { background: #15803d; }
+.btn-edit { background: #f59e0b; }
+.btn-edit:hover { background: #d97706; }
+.status-new { background-color: #dc2626; }
+.status-open { background-color: #ea580c; }
+.status-resolved { background-color: #16a34a; }
+.status-closed { background-color: #6b7280; }
+.btn-refresh {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  border: none;
+  color: white;
+}
+.dropdown-menu {
+  background: rgba(15,23,42,0.95);
+  border: 1px solid #334155;
+}
+.dropdown-item:hover, .dropdown-item:focus {
+  background: rgba(59,130,246,0.2);
+  color: #3b82f6;
+}
+.dropdown-item.active {
+  background: rgba(59,130,246,0.3);
+  color: #3b82f6;
+}
+
+/* --- On-Map Legend Filters --- */
+.legend-chip {
+    transition: all 0.2s ease-in-out;
+    border-width: 2px;
+}
+
+.legend-chip.active {
+    color: #fff;
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+}
+
+.legend-chip[data-type="pothole"].active {
+    background-color: #dc2626;
+    border-color: #dc2626;
+}
+
+.legend-chip[data-type="crack"].active {
+    background-color: #16a34a;
+    border-color: #16a34a;
+}
+
+.legend-chip[data-type="manhole"].active {
+    background-color: #9333ea; /* A purple color */
+    border-color: #9333ea;
+}
+
+.legend-chip[data-type="other"].active {
+    background-color: #7c3aed;
+    border-color: #7c3aed;
+}
