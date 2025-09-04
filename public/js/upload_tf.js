@@ -21,7 +21,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const cameraSelect = document.getElementById("camera-select");
   const video = document.getElementById("camera-stream");
   const canvas = document.getElementById("overlay-canvas");
-  const ctx = canvas.getContext("2d");
+  const ctx = canvas.getContext('2d');
+  const supportsFacingMode = navigator.mediaDevices.getSupportedConstraints().facingMode;
   
   // Verify all required elements are present
   if (!startBtn || !stopBtn || !switchBtn || !video || !canvas || !ctx) {
@@ -43,6 +44,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let _watchId    = null;
   let videoDevices = [];
   let currentCamIndex = 0;
+  let currentFacingMode = 'environment';
   let skipFrames = 3;
   const targetFps = 15;
   let rafId = null;
@@ -111,12 +113,13 @@ document.addEventListener("DOMContentLoaded", () => {
         });
       }
       
-      if (videoDevices.length > 1) {
-        switchBtn.style.display = "inline-block";
-        if (cameraSelect) cameraSelect.style.display = "inline-block";
+      if (videoDevices.length > 1 || supportsFacingMode) {
+        switchBtn.style.display = 'inline-block';
+        if (videoDevices.length > 1 && cameraSelect) cameraSelect.style.display = 'inline-block';
+        else if (cameraSelect) cameraSelect.style.display = 'none';
       } else {
-        switchBtn.style.display = "none";
-        if (cameraSelect) cameraSelect.style.display = "none";
+        switchBtn.style.display = 'none';
+        if (cameraSelect) cameraSelect.style.display = 'none';
       }
     } catch (err) {
       console.warn("⚠️ Could not enumerate video devices:", err);
@@ -661,21 +664,33 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function initCamera(preferredDeviceId = null) {
-    console.log("🎥 Initializing camera...", { preferredDeviceId });
-    const initialStream = await navigator.mediaDevices.getUserMedia({ video: true });
-    initialStream.getTracks().forEach(track => track.stop());
-    await enumerateAndPopulateCameras();
+    console.log('🎥 Initializing camera...', { preferredDeviceId, currentFacingMode });
+    if (!videoDevices.length) {
+      try {
+        const initialStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        initialStream.getTracks().forEach(track => track.stop());
+      } catch (err) {
+        console.warn('⚠️ Initial camera open failed', err);
+      }
+      await enumerateAndPopulateCameras();
+    }
     const targetDevice = preferredDeviceId ? videoDevices.find(d => d.deviceId === preferredDeviceId) : videoDevices[0];
-    if (!targetDevice) throw new Error('No camera device available');
-    const constraints = { 
-      video: { 
-        deviceId: { exact: targetDevice.deviceId },
-        aspectRatio: { ideal: 16/9 },
+    const constraints = {
+      video: {
+        aspectRatio: { ideal: 16 / 9 },
         inlineSize: { ideal: 1280 },
-        blockSize: { ideal: 720 },
-        facingMode: { ideal: 'environment' }
+        blockSize: { ideal: 720 }
       }
     };
+    if (targetDevice) {
+      constraints.video.deviceId = { exact: targetDevice.deviceId };
+      const label = (targetDevice.label || '').toLowerCase();
+      if (label.includes('front')) currentFacingMode = 'user';
+      if (label.includes('back') || label.includes('rear') || label.includes('environment')) currentFacingMode = 'environment';
+    } else {
+      constraints.video.facingMode = currentFacingMode;
+    }
+    if (!constraints.video.facingMode) constraints.video.facingMode = { ideal: currentFacingMode };
     const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
     mediaStream.getTracks().forEach(track => addTrackEventListeners(track));
     return { stream: mediaStream, device: targetDevice };
@@ -685,17 +700,18 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const { stream: mediaStream, device } = await initCamera();
       stream = mediaStream;
-      currentCamIndex = videoDevices.findIndex(d => d.deviceId === device.deviceId);
-      if (cameraSelect) cameraSelect.value = device.deviceId;
+      currentCamIndex = videoDevices.findIndex(d => d.deviceId === (device && device.deviceId));
+      if (cameraSelect && device) cameraSelect.value = device.deviceId;
+      video.muted = true;
       video.srcObject = stream;
       console.log(`📱 Started camera: ${device.label || 'Unknown'}`);
       startBtn.style.display = "none";
       stopBtn.style.display = "inline-block";
       detectedObjectCount = 0;
       uniqueHazardTypes = [];
-      if (videoDevices.length > 1) {
-        switchBtn.style.display = "inline-block";
-        if (cameraSelect) cameraSelect.style.display = "inline-block";
+      if (videoDevices.length > 1 || supportsFacingMode) {
+        switchBtn.style.display = 'inline-block';
+        if (videoDevices.length > 1 && cameraSelect) cameraSelect.style.display = 'inline-block';
       }
       video.addEventListener("loadeddata", () => {
         syncCanvasToVideo();
@@ -712,14 +728,23 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function switchCamera(targetDeviceId = null) {
-    if (!stream || videoDevices.length < 2) throw new Error('Cannot switch camera - invalid state');
+    if (!stream) throw new Error('Cannot switch camera - invalid state');
     console.log('🔄 Switching camera...');
     stopStream(stream);
-    const nextIndex = targetDeviceId ? videoDevices.findIndex(d => d.deviceId === targetDeviceId) : (currentCamIndex + 1) % videoDevices.length;
-    const { stream: newStream, device } = await initCamera(videoDevices[nextIndex].deviceId);
-    stream = newStream;
-    currentCamIndex = nextIndex;
-    if (cameraSelect) cameraSelect.value = device.deviceId;
+    if (videoDevices.length > 1) {
+      const nextIndex = targetDeviceId ? videoDevices.findIndex(d => d.deviceId === targetDeviceId) : (currentCamIndex + 1) % videoDevices.length;
+      const { stream: newStream, device } = await initCamera(videoDevices[nextIndex].deviceId);
+      stream = newStream;
+      currentCamIndex = nextIndex;
+      if (cameraSelect) cameraSelect.value = device.deviceId;
+    } else if (supportsFacingMode) {
+      currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+      const { stream: newStream } = await initCamera();
+      stream = newStream;
+    } else {
+      throw new Error('Cannot switch camera - no alternative found');
+    }
+    video.muted = true;
     video.srcObject = stream;
     return new Promise(resolve => {
       video.addEventListener('loadeddata', () => {
