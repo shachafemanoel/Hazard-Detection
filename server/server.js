@@ -89,9 +89,9 @@ app.use((req, res, next) => {
 app.use((req, res, next) => {
   // Required for SharedArrayBuffer / multi-threaded WASM
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-  // Prefer require-corp in production; fallback to credentialless elsewhere
-  const coep = process.env.NODE_ENV === 'production' ? 'require-corp' : 'credentialless';
-  res.setHeader('Cross-Origin-Embedder-Policy', coep);
+  // Use credentialless to avoid requiring CORP on every cross-origin subresource
+  // This keeps the page cross-origin isolated while allowing CDN assets to load anonymously
+  res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
   // Explicitly allow camera/geolocation on top-level origin
   res.setHeader('Permissions-Policy', "camera=(self), microphone=(), geolocation=*, fullscreen=(self)");
   next();
