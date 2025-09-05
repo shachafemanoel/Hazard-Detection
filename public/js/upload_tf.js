@@ -947,36 +947,55 @@ document.addEventListener("DOMContentLoaded", () => {
     let newStream, device;
 
     try {
+        // Pause ongoing detection loop safely
+        detecting = false;
+        if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+        isProcessingFrame = false;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Initialize a new stream for the requested device/facing
         if (targetDeviceId) {
-            ({ stream: newStream, device } = await initCamera(targetDeviceId));
+          ({ stream: newStream, device } = await initCamera(targetDeviceId));
         } else if (videoDevices.length > 1) {
-            const nextIndex = (currentCamIndex + 1) % videoDevices.length;
-            ({ stream: newStream, device } = await initCamera(videoDevices[nextIndex].deviceId));
+          const nextIndex = (currentCamIndex + 1) % videoDevices.length;
+          ({ stream: newStream, device } = await initCamera(videoDevices[nextIndex].deviceId));
         } else if (supportsFacingMode) {
-            currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
-            ({ stream: newStream, device } = await initCamera());
+          currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+          ({ stream: newStream, device } = await initCamera());
         } else {
           throw new Error('Cannot switch camera - no alternative found');
         }
 
+        // Stop previous stream to release the camera
+        const prevStream = stream;
+        if (prevStream) { try { stopStream(prevStream); } catch (e) { console.warn('Failed stopping previous stream:', e); } }
+
+        // Attach new stream
         stream = newStream;
         video.muted = true;
         video.srcObject = stream;
 
         if (device && device.deviceId && cameraSelect) {
-            cameraSelect.value = device.deviceId;
+          cameraSelect.value = device.deviceId;
         }
 
+        // Wait for metadata to have correct dimensions
         await new Promise(resolve => {
-          video.addEventListener('loadeddata', () => {
+          const onReady = () => {
+            video.removeEventListener('loadedmetadata', onReady);
             syncCanvasToVideo();
             configureCameraControls();
+            detecting = true;
             if (window.announceStatus) {
-                const selectedOption = cameraSelect.options[cameraSelect.selectedIndex];
-                window.announceStatus(`Switched to ${selectedOption?.text || 'next camera'}`, "polite");
+              const selectedOption = cameraSelect?.options?.[cameraSelect.selectedIndex];
+              window.announceStatus(`Switched to ${selectedOption?.text || device?.label || 'next camera'}`, "polite");
             }
+            // restart detection loop
+            if (rafId) cancelAnimationFrame(rafId);
+            detectLoop();
             resolve();
-          }, { once: true });
+          };
+          video.addEventListener('loadedmetadata', onReady, { once: true });
         });
 
     } catch (err) {
@@ -999,6 +1018,7 @@ document.addEventListener("DOMContentLoaded", () => {
       cancelAnimationFrame(rafId);
       rafId = null;
     }
+    isProcessingFrame = false;
     if (stream) {
       stopStream(stream);
       stream = null;

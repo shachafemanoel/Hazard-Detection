@@ -244,18 +244,31 @@ body {
 @media (max-width: 768px) {
     body { font-size: 14px; }
     .container-fluid { padding: 1rem; }
-    .camera-wrapper { border-radius: 0; margin: 0; height: calc(100vh - 150px); }
-    .camera-controls { 
-        flex-direction: column;
+    .camera-wrapper { border-radius: 0; margin: 0; height: calc(100vh - 120px); }
+    .camera-controls {
         position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        width: 100%;
-        border-radius: 16px 16px 0 0;
-        margin: 0;
-        padding: 1rem;
-        max-height: 150px;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: 12px;
+        width: calc(100% - 24px);
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 12px;
+        justify-content: center;
     }
-    .additional-controls { justify-content: center; }
+    .camera-controls button, .additional-controls select {
+        width: 48px;
+        height: 48px;
+        padding: 0;
+        border-radius: 10px;
+        justify-content: center;
+    }
+    .camera-controls button span { display: none; }
+    .additional-controls { display: none !important; }
+}
+
+/* Ultra-compact on very small phones */
+@media (max-width: 420px) {
+  .camera-controls { bottom: 8px; width: calc(100% - 16px); padding: 6px 8px; gap: 6px; }
+  .camera-controls button, .camera-controls select { width: 44px; height: 44px; }
 }
