@@ -69,6 +69,9 @@ export class MapManager {
         }, () => { locateBtn.disabled = false; }, { enableHighAccuracy: true, timeout: 6000 });
       });
     }
+
+    // Initial default: show ~1km around the user (GPS/IP fallback)
+    this.centerOnUserRadius(1000);
   }
 
   addMapControls() {
@@ -357,5 +360,41 @@ export class MapManager {
     const ea = area(a) || 1;
     const eb = area(b) || 1;
     return eb / ea;
+  }
+
+  async centerOnUserRadius(radiusMeters = 1000) {
+    const centerToBounds = (lat, lng) => {
+      try {
+        const circle = L.circle([lat, lng], { radius: radiusMeters });
+        const bounds = circle.getBounds();
+        // Mark that we auto-located so other flows don't override immediately
+        this.didAutoLocate = true;
+        // Fit bounds with a bit of padding
+        this.map.fitBounds(bounds, { padding: [40, 40] });
+      } catch (e) { console.warn('Failed to set initial user view:', e); }
+    };
+
+    const ipFallback = async () => {
+      try {
+        const res = await fetch('https://ipapi.co/json/');
+        if (!res.ok) return;
+        const j = await res.json();
+        const lat = Number(j.latitude);
+        const lng = Number(j.longitude);
+        if (isFinite(lat) && isFinite(lng)) centerToBounds(lat, lng);
+      } catch (e) { /* ignore */ }
+    };
+
+    if ('geolocation' in navigator) {
+      try {
+        navigator.geolocation.getCurrentPosition(
+          pos => centerToBounds(pos.coords.latitude, pos.coords.longitude),
+          () => ipFallback(),
+          { enableHighAccuracy: true, timeout: 4000, maximumAge: 60000 }
+        );
+      } catch { ipFallback(); }
+    } else {
+      ipFallback();
+    }
   }
 }

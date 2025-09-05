@@ -62,6 +62,10 @@ table.compact-reports .report-thumb-sm {
   cursor: pointer;
 }
 
+table.compact-reports .report-compact {
+  cursor: pointer;
+}
+
 table.compact-reports .report-lines .line-1 .address {
   max-width: 28ch;
 }

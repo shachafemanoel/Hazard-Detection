@@ -133,7 +133,7 @@ export class UIManager {
       const statusBadge = `<span class="badge bg-${this.getStatusColor(report.status)}">${this.getStatusName(report.status)}</span>`;
       row.innerHTML = `
         <td>
-          <div class="report-compact d-flex align-items-center gap-3">
+          <div class="report-compact d-flex align-items-center gap-3" data-action="open-report" data-url="${imgUrl}">
             <img src="${imgUrl}" alt="תמונת דיווח" class="report-thumb-sm" data-action="view-image" data-url="${imgUrl}">
             <div class="report-lines flex-grow-1">
               <div class="line-1 d-flex align-items-center gap-2">
@@ -287,6 +287,7 @@ export class UIManager {
     const tableBody = document.getElementById('reports-table-body');
     if (tableBody) {
       tableBody.addEventListener('click', (e) => {
+        // If delete button was clicked, handle and stop here
         const imgBtn = e.target.closest('[data-action="view-image"]');
         if (imgBtn) {
           const url = imgBtn.getAttribute('data-url');
@@ -300,6 +301,15 @@ export class UIManager {
           const id = delBtn.getAttribute('data-id');
           if (window.dashboard && typeof window.dashboard.deleteReport === 'function') {
             window.dashboard.deleteReport(id);
+          }
+          return;
+        }
+        // Open report modal if clicked anywhere in the compact row
+        const openArea = e.target.closest('[data-action="open-report"]');
+        if (openArea) {
+          const url = openArea.getAttribute('data-url');
+          if (url && window.dashboard && typeof window.dashboard.showImage === 'function') {
+            window.dashboard.showImage(url);
           }
         }
       });
