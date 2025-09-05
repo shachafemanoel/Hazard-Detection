@@ -11,6 +11,8 @@ export class MapManager {
     this.userInteractionUntil = 0;
     this.lastPlottedBounds = null;
     this.didAutoLocate = false;
+    // Do not auto-fit to markers; keep user-centric view unless user changes it
+    this.fitToMarkers = false;
   }
 
   init() {
@@ -36,7 +38,7 @@ export class MapManager {
     const centerBtn = document.getElementById('center-map');
     if (centerBtn) {
       centerBtn.addEventListener('click', () => {
-        this.map.setView(this.config.center, this.config.zoom);
+        this.centerOnUserRadius(1000);
       });
     }
 
@@ -154,33 +156,18 @@ export class MapManager {
       if (this.map.hasLayer(this.markerCluster)) this.map.removeLayer(this.markerCluster);
     }
 
-    // Fit map bounds if we have markers
-    if (this.markers.length > 0) {
+    // Optionally fit to markers; disabled by default per requirements
+    if (this.fitToMarkers && this.markers.length > 0) {
       const group = L.featureGroup(this.markers);
       const newBounds = group.getBounds();
       this.lastPlottedBounds = newBounds;
       if (this.shouldAutoCenter(newBounds)) {
-        // Use flyToBounds for a nicer animation
         this.map.flyToBounds(newBounds, { padding: [50, 50] });
       }
     }
     console.debug('Map plotReports:', { total: reports.length, markers: this.markers.length, resolved });
 
-    // After fitting bounds, auto center to user location once if available
-    if (!this.didAutoLocate && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(pos => {
-        this.didAutoLocate = true;
-        const { latitude, longitude, accuracy } = pos.coords;
-        const targetZoom = Math.max(this.map.getZoom(), 15);
-        this.map.flyTo([latitude, longitude], targetZoom);
-        // optional accuracy circle
-        try {
-          const circle = L.circle([latitude, longitude], { radius: accuracy || 30, color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.15 });
-          circle.addTo(this.map);
-          setTimeout(() => this.map.removeLayer(circle), 15000);
-        } catch {}
-      }, () => { this.didAutoLocate = true; }, { enableHighAccuracy: true, timeout: 6000 });
-    }
+    // Do not auto-center here; initial centering handled in init via centerOnUserRadius
   }
 
   refreshLayers() {

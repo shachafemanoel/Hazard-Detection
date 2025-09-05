@@ -122,7 +122,7 @@ export class DataManager {
       return true;
     });
 
-    // Sorting
+    // Sorting (pinned first always)
     const sortKey = (this.filters.sort || 'newest').toLowerCase();
     const getDate = (r) => new Date(r.createdAt || r.time || 0).getTime() || 0;
     const getCoords = (r) => {
@@ -146,17 +146,19 @@ export class DataManager {
       return 2 * R * Math.asin(Math.sqrt(h));
     };
 
+    const pinCmp = (a,b) => ((b.pinned?1:0) - (a.pinned?1:0));
+
     if (sortKey === 'newest') {
-      return filtered.sort((a,b) => getDate(b) - getDate(a));
+      return filtered.sort((a,b) => pinCmp(a,b) || (getDate(b) - getDate(a)));
     } else if (sortKey === 'oldest') {
-      return filtered.sort((a,b) => getDate(a) - getDate(b));
+      return filtered.sort((a,b) => pinCmp(a,b) || (getDate(a) - getDate(b)));
     } else if (sortKey === 'nearest' && this.userLocation) {
       return filtered.slice().sort((a,b) => {
         const ca = getCoords(a);
         const cb = getCoords(b);
         const da = ca ? haversine(this.userLocation, ca) : Number.POSITIVE_INFINITY;
         const db = cb ? haversine(this.userLocation, cb) : Number.POSITIVE_INFINITY;
-        return da - db;
+        return pinCmp(a,b) || (da - db);
       });
     }
 

@@ -129,7 +129,8 @@ export class UIManager {
       row.dataset.reportId = report.id;
       const imgUrl = report.imageUrl || report.image || 'placeholder.jpg';
       const address = typeof report.location === 'string' ? report.location : (report.location?.address || 'מיקום לא ידוע');
-      const typeBadge = `<span class="badge rounded-pill bg-${this.getTypeColor(report.type)}">${this.getHazardTypeName(report.type)}</span>`;
+      const pinIcon = report.pinned ? '<i class="fas fa-thumbtack text-warning me-1" title="Pinned"></i>' : '';
+      const typeBadge = `${pinIcon}<span class="badge rounded-pill bg-${this.getTypeColor(report.type)}">${this.getHazardTypeName(report.type)}</span>`;
       const statusBadge = `<span class="badge bg-${this.getStatusColor(report.status)}">${this.getStatusName(report.status)}</span>`;
       row.innerHTML = `
         <td>
@@ -146,9 +147,22 @@ export class UIManager {
                 ${statusBadge}
               </div>
             </div>
-            <button class="btn btn-sm btn-outline-danger ms-2" data-action="delete-report" data-id="${report.id}" title="מחק">
-              <i class="fas fa-trash"></i>
-            </button>
+            <div class="btn-group btn-group-sm ms-2" role="group">
+              <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Actions">
+                <i class="fas fa-ellipsis-v"></i>
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li><button class="dropdown-item" data-action="set-status" data-id="${report.id}" data-status="open"><i class="fas fa-folder-open me-2"></i>Mark Open</button></li>
+                <li><button class="dropdown-item" data-action="set-status" data-id="${report.id}" data-status="in_progress"><i class="fas fa-spinner me-2"></i>In Progress</button></li>
+                <li><button class="dropdown-item" data-action="set-status" data-id="${report.id}" data-status="resolved"><i class="fas fa-check me-2"></i>Mark Resolved</button></li>
+                <li><hr class="dropdown-divider"></li>
+                ${report.pinned
+                  ? `<li><button class="dropdown-item" data-action="unpin-report" data-id="${report.id}"><i class="fas fa-thumbtack me-2"></i>Unpin</button></li>`
+                  : `<li><button class="dropdown-item" data-action="pin-report" data-id="${report.id}"><i class="fas fa-thumbtack me-2"></i>Pin to Top</button></li>`}
+                <li><hr class="dropdown-divider"></li>
+                <li><button class="dropdown-item text-danger" data-action="delete-report" data-id="${report.id}"><i class="fas fa-trash me-2"></i>Delete</button></li>
+              </ul>
+            </div>
           </div>
         </td>`;
       tableBody.appendChild(row);
@@ -301,6 +315,24 @@ export class UIManager {
           const id = delBtn.getAttribute('data-id');
           if (window.dashboard && typeof window.dashboard.deleteReport === 'function') {
             window.dashboard.deleteReport(id);
+          }
+          return;
+        }
+        const statusBtn = e.target.closest('[data-action="set-status"]');
+        if (statusBtn) {
+          const id = statusBtn.getAttribute('data-id');
+          const status = statusBtn.getAttribute('data-status');
+          if (window.dashboard && typeof window.dashboard.updateReportStatus === 'function') {
+            window.dashboard.updateReportStatus(id, status);
+          }
+          return;
+        }
+        const pinBtn = e.target.closest('[data-action="pin-report"], [data-action="unpin-report"]');
+        if (pinBtn) {
+          const id = pinBtn.getAttribute('data-id');
+          const pinned = pinBtn.getAttribute('data-action') === 'pin-report';
+          if (window.dashboard && typeof window.dashboard.updateReport === 'function') {
+            window.dashboard.updateReport(id, { pinned });
           }
           return;
         }

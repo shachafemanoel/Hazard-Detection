@@ -174,6 +174,23 @@ class Dashboard {
     }
   }
 
+  async updateReport(id, updates) {
+    try {
+      const resp = await fetch(`/api/reports/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(updates)
+      });
+      if (!resp.ok) throw new Error('Failed to update report');
+      this.ui.toast.show('Report updated', 'success');
+      await this.loadData(false);
+    } catch (e) {
+      console.error('Update report failed:', e);
+      this.ui.toast.show('Failed to update report', 'error');
+    }
+  }
+
   async deleteReport(id) {
     try {
       const confirmed = confirm('Delete this report? This action cannot be undone.');
