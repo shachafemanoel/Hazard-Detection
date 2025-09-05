@@ -119,48 +119,30 @@ export class UIManager {
     reports.forEach(report => {
       const row = document.createElement('tr');
       row.dataset.reportId = report.id;
+      const imgUrl = report.imageUrl || report.image || 'placeholder.jpg';
+      const address = typeof report.location === 'string' ? report.location : (report.location?.address || 'מיקום לא ידוע');
+      const typeBadge = `<span class="badge rounded-pill bg-${this.getTypeColor(report.type)}">${this.getHazardTypeName(report.type)}</span>`;
+      const statusBadge = `<span class="badge bg-${this.getStatusColor(report.status)}">${this.getStatusName(report.status)}</span>`;
       row.innerHTML = `
         <td>
-          <div class="form-check">
-            <input class="form-check-input report-checkbox" type="checkbox" value="${report.id}">
-          </div>
-        </td>
-        <td>
-          <img src="${report.imageUrl || report.image || 'placeholder.jpg'}" 
-               alt="תמונת דיווח" 
-               class="report-thumb"
-               data-action="view-image"
-               data-url="${report.imageUrl || report.image || ''}">
-        </td>
-        <td>
-          <span class="badge rounded-pill bg-${this.getTypeColor(report.type)}">
-            ${this.getHazardTypeName(report.type)}
-          </span>
-        </td>
-        <td>
-          <div class="location-info">
-            <div class="location-address">${
-              typeof report.location === 'string' 
-                ? report.location 
-                : (report.location?.address || 'מיקום לא ידוע')
-            }</div>
-            ${report.locationNote ? `<small class="text-muted">${report.locationNote}</small>` : ''}
-          </div>
-        </td>
-        <td>
-          <span class="badge bg-${this.getStatusColor(report.status)}">
-            ${this.getStatusName(report.status)}
-          </span>
-        </td>
-        <td>${this.formatDate(report.createdAt || report.time)}</td>
-        <td>
-          <div class="btn-group btn-group-sm">
-            <button class="btn btn-outline-danger" data-action="delete-report" data-id="${report.id}" title="מחק">
+          <div class="report-compact d-flex align-items-center gap-3">
+            <img src="${imgUrl}" alt="תמונת דיווח" class="report-thumb-sm" data-action="view-image" data-url="${imgUrl}">
+            <div class="report-lines flex-grow-1">
+              <div class="line-1 d-flex align-items-center gap-2">
+                ${typeBadge}
+                <div class="address text-truncate" title="${address}">${address}</div>
+              </div>
+              <div class="line-2 d-flex align-items-center gap-2 text-muted small">
+                <i class="far fa-calendar"></i>
+                <span>${this.formatDate(report.createdAt || report.time)}</span>
+                ${statusBadge}
+              </div>
+            </div>
+            <button class="btn btn-sm btn-outline-danger ms-2" data-action="delete-report" data-id="${report.id}" title="מחק">
               <i class="fas fa-trash"></i>
             </button>
           </div>
-        </td>
-      `;
+        </td>`;
       tableBody.appendChild(row);
     });
   }

@@ -53,6 +53,23 @@
   padding-inline-end: 0.5rem;
 }
 
+/* Compact Reports Table */
+table.compact-reports .report-thumb-sm {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+table.compact-reports .report-lines .line-1 .address {
+  max-width: 28ch;
+}
+
+@media (max-width: 768px) {
+  table.compact-reports .report-lines .line-1 .address { max-width: 18ch; }
+}
+
 .reports-container::-webkit-scrollbar {
   inline-size: 0.5rem;
 }
