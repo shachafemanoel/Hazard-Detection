@@ -30,6 +30,9 @@ class Dashboard {
       // Load initial data
       await this.loadData();
 
+      // Attempt to get user location for nearest sorting
+      this.tryGetUserLocation();
+
       // Setup auto-refresh
       this.startAutoRefresh();
 
@@ -39,6 +42,24 @@ class Dashboard {
       console.error('Dashboard initialization failed:', error);
       this.ui.toast.show('Failed to initialize dashboard', 'error');
     }
+  }
+
+  tryGetUserLocation() {
+    if (!('geolocation' in navigator)) return;
+    const onSuccess = (pos) => {
+      const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      this.data.setUserLocation(coords);
+      // If currently sorted by nearest, refresh ordering
+      if ((this.data.filters.sort || 'newest') === 'nearest') {
+        this.redrawFiltered();
+      }
+    };
+    const onError = (err) => {
+      console.warn('Geolocation not available:', err); 
+    };
+    try {
+      navigator.geolocation.getCurrentPosition(onSuccess, onError, { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 });
+    } catch (e) { console.warn('Geo error:', e); }
   }
 
   async loadData(showLoading = true) {

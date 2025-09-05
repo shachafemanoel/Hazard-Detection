@@ -7,8 +7,10 @@ export class DataManager {
       types: [],   // multi-select via legend chips
       status: 'all',
       dateRange: null,
-      searchQuery: ''
+      searchQuery: '',
+      sort: 'newest' // newest | oldest | nearest
     };
+    this.userLocation = null; // { lat, lng }
   }
 
   async fetchReports() {
@@ -87,7 +89,7 @@ export class DataManager {
     const fStatus = (this.filters.status || 'all').toString().toLowerCase().replace(/\s+/g, '_');
     const q = (this.filters.searchQuery || '').toLowerCase().trim();
 
-    return this.reports.filter(report => {
+    const filtered = this.reports.filter(report => {
       // normalize type
       const types = Array.isArray(report.type) ? report.type : [report.type];
       const typeValues = types.filter(Boolean).map(t => t.toString().toLowerCase());
@@ -119,10 +121,57 @@ export class DataManager {
 
       return true;
     });
+
+    // Sorting
+    const sortKey = (this.filters.sort || 'newest').toLowerCase();
+    const getDate = (r) => new Date(r.createdAt || r.time || 0).getTime() || 0;
+    const getCoords = (r) => {
+      const loc = r.location || {};
+      if (typeof loc === 'object') {
+        const lat = loc.lat ?? loc.latitude;
+        const lng = loc.lng ?? loc.longitude;
+        if (typeof lat === 'number' && typeof lng === 'number') return { lat, lng };
+      }
+      if (typeof r.lat === 'number' && typeof r.lng === 'number') return { lat: r.lat, lng: r.lng };
+      return null;
+    };
+    const haversine = (a, b) => {
+      const toRad = (x) => x * Math.PI / 180;
+      const R = 6371000; // meters
+      const dLat = toRad(b.lat - a.lat);
+      const dLng = toRad(b.lng - a.lng);
+      const la1 = toRad(a.lat);
+      const la2 = toRad(b.lat);
+      const h = Math.sin(dLat/2)**2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLng/2)**2;
+      return 2 * R * Math.asin(Math.sqrt(h));
+    };
+
+    if (sortKey === 'newest') {
+      return filtered.sort((a,b) => getDate(b) - getDate(a));
+    } else if (sortKey === 'oldest') {
+      return filtered.sort((a,b) => getDate(a) - getDate(b));
+    } else if (sortKey === 'nearest' && this.userLocation) {
+      return filtered.slice().sort((a,b) => {
+        const ca = getCoords(a);
+        const cb = getCoords(b);
+        const da = ca ? haversine(this.userLocation, ca) : Number.POSITIVE_INFINITY;
+        const db = cb ? haversine(this.userLocation, cb) : Number.POSITIVE_INFINITY;
+        return da - db;
+      });
+    }
+
+    // Fallback
+    return filtered;
   }
 
   updateFilters(newFilters) {
     this.filters = { ...this.filters, ...newFilters };
+  }
+
+  setUserLocation(coords) {
+    if (coords && typeof coords.lat === 'number' && typeof coords.lng === 'number') {
+      this.userLocation = { lat: coords.lat, lng: coords.lng };
+    }
   }
 
   getStats() {

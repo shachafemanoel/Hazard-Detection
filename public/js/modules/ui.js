@@ -79,6 +79,14 @@ export class UIManager {
         this.broadcastFilters({ type: 'all', types: [], status: 'all', dateRange: null, searchQuery: '' });
       });
     }
+
+    // Sort select
+    const sortSelect = document.getElementById('sort-select');
+    if (sortSelect) {
+      sortSelect.addEventListener('change', (e) => {
+        this.onFilterChange('sort', e.target.value);
+      });
+    }
   }
 
   onFilterChange(key, value) {

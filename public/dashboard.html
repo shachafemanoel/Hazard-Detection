@@ -118,7 +118,20 @@
       <!-- Reports List -->
       <div class="col-md-5">
         <div class="card h-100"><div class="card-body">
-          <h5 class="card-title d-flex justify-content-between align-items-center mb-3"><span><i class="fas fa-list me-2"></i>Reports Log</span><span class="badge bg-primary" id="reports-count">0</span></h5>
+          <h5 class="card-title d-flex justify-content-between align-items-center mb-3">
+            <span><i class="fas fa-list me-2"></i>Reports Log</span>
+            <div class="d-flex align-items-center gap-2">
+              <div class="input-group input-group-sm" style="width: 220px;">
+                <label class="input-group-text" for="sort-select">Sort</label>
+                <select id="sort-select" class="form-select">
+                  <option value="newest" selected>Newest</option>
+                  <option value="oldest">Oldest</option>
+                  <option value="nearest">Nearest</option>
+                </select>
+              </div>
+              <span class="badge bg-primary" id="reports-count">0</span>
+            </div>
+          </h5>
           <!-- Bulk Actions -->
           <div id="bulk-actions" class="mb-3" style="display: none;" role="group" aria-label="Bulk actions">
             <button id="bulk-delete-btn" class="btn btn-danger" aria-describedby="bulk-delete-desc"><i class="fas fa-trash me-1"></i>Delete Selected (<span id="selected-count" aria-live="polite">0</span>)</button>
