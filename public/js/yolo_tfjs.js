@@ -456,11 +456,11 @@ export function drawDetections(ctx, sourceElement, boxes, classNames, letterboxP
  * Class names mapping for hazard detection
  */
 export const labelsMap = {
-  0: 'crack',
-  1: 'pothole'
+  0: 'pothole',
+  1: 'crack'
 };
 
-export const classNames = ['crack', 'pothole'];
+export const classNames = ['pothole', 'crack'];
 
 /**
  * Main detection loop for camera feed

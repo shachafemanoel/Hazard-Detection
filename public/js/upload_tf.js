@@ -21,8 +21,20 @@ document.addEventListener("DOMContentLoaded", () => {
   const cameraSelect = document.getElementById("camera-select");
   const video = document.getElementById("camera-stream");
   const canvas = document.getElementById("overlay-canvas");
+  const brightnessSlider = document.getElementById('brightness-slider');
+  const zoomSlider = document.getElementById('zoom-slider');
   const ctx = canvas.getContext('2d');
   const supportsFacingMode = navigator.mediaDevices.getSupportedConstraints().facingMode;
+  const DETECTION_CONFIG = {
+    // Restrict to pothole only per user request; can override via ?classes=pothole,crack
+    allowedClasses: new Set((() => {
+      const qp = new URLSearchParams(location.search);
+      const classes = qp.get('classes');
+      if (classes) return classes.split(',').map(s => s.trim().toLowerCase());
+      return ['pothole'];
+    })()),
+    debug: new URLSearchParams(location.search).get('debug') === '1'
+  };
   
   // Verify all required elements are present
   if (!startBtn || !stopBtn || !switchBtn || !video || !canvas || !ctx) {
@@ -30,6 +42,14 @@ document.addEventListener("DOMContentLoaded", () => {
     alert('Error: Required page elements not found. Please refresh the page.');
     return;
   }
+  // Initial UI state
+  try {
+    stopBtn.style.display = 'none';
+    switchBtn.style.display = 'none';
+    if (cameraSelect) cameraSelect.style.display = 'none';
+  } catch {}
+  // Ensure controls reflect current state
+  try { updateUIState(); } catch {}
   const objectCountOverlay = document.getElementById('object-count-overlay');
   const loadingOverlay = document.getElementById('loading-overlay');
   const hazardTypesOverlay = document.getElementById('hazard-types-overlay');
@@ -38,6 +58,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let stream = null;
   let detecting = false;
   let session = null;
+  let isStarting = false;
+  let isSwitching = false;
   let frameCount = 0;
   let lastSaveTime = 0;
   let _lastCoords = null;
@@ -53,6 +75,115 @@ document.addEventListener("DOMContentLoaded", () => {
   let detectedObjectCount = 0;
   let uniqueHazardTypes = [];
   const trackEventHandlers = new WeakMap();
+
+  function setBusy(el, busy) {
+    try { if (el) el.setAttribute('aria-busy', busy ? 'true' : 'false'); } catch {}
+  }
+
+  function updateUIState() {
+    const canSwitch = (videoDevices.length > 1) || supportsFacingMode;
+    const isReady = (modelStatus === ModelStatus.READY) || (modelStatus === ModelStatus.ERROR); // allow camera start even if model failed
+
+    if (startBtn) {
+      startBtn.style.display = detecting ? 'none' : 'inline-block';
+      startBtn.disabled = !isReady || isStarting;
+      startBtn.setAttribute('aria-disabled', String(startBtn.disabled));
+    }
+
+    if (stopBtn) {
+      stopBtn.style.display = detecting ? 'inline-block' : 'none';
+      stopBtn.disabled = isSwitching || isStarting;
+      stopBtn.setAttribute('aria-disabled', String(stopBtn.disabled));
+    }
+
+    if (switchBtn) {
+      switchBtn.style.display = detecting && canSwitch ? 'inline-block' : 'none';
+      switchBtn.disabled = isSwitching;
+      switchBtn.setAttribute('aria-disabled', String(switchBtn.disabled));
+    }
+    if (cameraSelect) {
+      cameraSelect.style.display = detecting && videoDevices.length > 1 ? 'inline-block' : 'none';
+      cameraSelect.disabled = isSwitching;
+    }
+
+    const slidersDisabled = !detecting || isSwitching || isStarting;
+    if (brightnessSlider) brightnessSlider.disabled = slidersDisabled;
+    if (zoomSlider) zoomSlider.disabled = slidersDisabled;
+
+    if (!detecting) {
+      if (objectCountOverlay) objectCountOverlay.textContent = '';
+      if (hazardTypesOverlay) hazardTypesOverlay.textContent = '';
+    }
+  }
+
+  // Zoom/brightness helpers
+  function applyBrightness(percent = 100) {
+    const clamped = Math.max(50, Math.min(150, Number(percent)));
+    video.style.filter = `brightness(${clamped}%)`;
+  }
+
+  async function applyZoom(level = 1) {
+    const container = video.parentElement; // wraps both video & canvas
+    const track = stream?.getVideoTracks?.()[0];
+    const caps = track?.getCapabilities ? track.getCapabilities() : null;
+    if (caps && 'zoom' in caps) {
+      const min = caps.zoom.min ?? 1;
+      const max = caps.zoom.max ?? 3;
+      const clamped = Math.max(min, Math.min(max, Number(level)));
+      try {
+        await track.applyConstraints({ advanced: [{ zoom: clamped }] });
+      } catch (e) {
+        console.warn('Zoom constraints failed, falling back to CSS scale:', e);
+        if (container) {
+          container.style.transformOrigin = 'center center';
+          container.style.transform = `scale(${clamped})`;
+        }
+      }
+    } else {
+      if (container) {
+        container.style.transformOrigin = 'center center';
+        container.style.transform = `scale(${Number(level)})`;
+      }
+    }
+  }
+
+  function resetVisualAdjustments() {
+    const container = video.parentElement;
+    if (container) container.style.transform = '';
+    video.style.filter = '';
+  }
+
+  function configureCameraControls() {
+    // Brightness: basic CSS filter always available
+    if (brightnessSlider) {
+      brightnessSlider.value = brightnessSlider.value || '100';
+      applyBrightness(brightnessSlider.value);
+    }
+
+    // Zoom: prefer track capability, else fallback to CSS scale
+    try {
+      const track = stream?.getVideoTracks?.()[0];
+      const caps = track?.getCapabilities ? track.getCapabilities() : null;
+      if (zoomSlider) {
+        if (caps && 'zoom' in caps) {
+          const { min = 1, max = 3, step = 0.1 } = caps.zoom || {};
+          zoomSlider.min = String(min);
+          zoomSlider.max = String(max);
+          zoomSlider.step = String(step);
+          if (!zoomSlider.value) zoomSlider.value = String(min);
+        } else {
+          // CSS fallback 1-3 scale
+          zoomSlider.min = '1';
+          zoomSlider.max = '3';
+          zoomSlider.step = '0.1';
+          if (!zoomSlider.value) zoomSlider.value = '1';
+        }
+        applyZoom(zoomSlider.value);
+      }
+    } catch (e) {
+      console.warn('Failed to configure zoom slider:', e);
+    }
+  }
 
   function addTrackEventListeners(track) {
     const endedHandler = () => onCameraEnded(track);
@@ -113,14 +244,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
       }
       
-      if (videoDevices.length > 1 || supportsFacingMode) {
-        switchBtn.style.display = 'inline-block';
-        if (videoDevices.length > 1 && cameraSelect) cameraSelect.style.display = 'inline-block';
-        else if (cameraSelect) cameraSelect.style.display = 'none';
-      } else {
-        switchBtn.style.display = 'none';
-        if (cameraSelect) cameraSelect.style.display = 'none';
-      }
+      updateUIState();
     } catch (err) {
       console.warn("⚠️ Could not enumerate video devices:", err);
     }
@@ -139,7 +263,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const errorMsg = 'ONNX Runtime not loaded. Please check your internet connection and refresh the page.';
       console.error('❌', errorMsg);
       updateLoadingUI(ModelStatus.ERROR, 0, errorMsg);
-      if (startBtn) startBtn.disabled = true;
+      if (startBtn) startBtn.disabled = false;
+      updateUIState();
       return;
     }
 
@@ -148,7 +273,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const errorMsg = 'WebAssembly is not supported in this browser. The application cannot run.';
       console.error('❌', errorMsg);
       updateLoadingUI(ModelStatus.ERROR, 0, errorMsg);
-      if (startBtn) startBtn.disabled = true;
+      if (startBtn) startBtn.disabled = false;
+      updateUIState();
       return;
     }
 
@@ -195,6 +321,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // If we get here, everything worked
         console.log("✅ Model verified and ready to use");
+        updateUIState();
         return true;
 
       } catch (err) {
@@ -205,7 +332,8 @@ document.addEventListener("DOMContentLoaded", () => {
           console.error('❌', errorMsg);
           reportError(ErrorCodes.MODEL_LOAD, errorMsg);
           updateLoadingUI(ModelStatus.ERROR, 0, errorMsg);
-          if (startBtn) startBtn.disabled = true;
+          if (startBtn) startBtn.disabled = false;
+          updateUIState();
           return false;
         }
 
@@ -215,14 +343,14 @@ document.addEventListener("DOMContentLoaded", () => {
         await new Promise(resolve => setTimeout(resolve, delay));
         updateLoadingUI(ModelStatus.NOT_STARTED, 0, 
           `Retrying in ${delay/1000} seconds... (Attempt ${modelLoadAttempts + 1}/${MAX_LOAD_ATTEMPTS})`);
-      }
     }
+  }
   }
 
   // Start initialization
   initializeWithRetry();
 
-  const classNames = ['crack', 'pothole'];
+  let classNames = ['pothole', 'crack'];
 
   function initLocationTracking() {
     return new Promise(resolve => {
@@ -369,6 +497,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function updateLoadingUI(status, progress, error = null) {
     if (!loadingOverlay) return;
+    try {
+      const main = document.getElementById('camera-container');
+      if (main) main.setAttribute('aria-busy', status !== ModelStatus.READY ? 'true' : 'false');
+    } catch {}
 
     const statusMessages = {
       [ModelStatus.NOT_STARTED]: 'Initializing...',
@@ -380,6 +512,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     if (status === ModelStatus.ERROR) {
+      loadingOverlay.style.display = 'flex';
       loadingOverlay.innerHTML = `
         <div class="alert alert-danger error-message p-4 shadow-sm">
           <div class="d-flex align-items-center mb-3">
@@ -399,6 +532,9 @@ document.addEventListener("DOMContentLoaded", () => {
             </button>
             <button onclick="window.HDTests.quickCheck()" class="btn btn-outline-secondary">
               <i class="fas fa-stethoscope me-2"></i> Run Diagnostics
+            </button>
+            <button onclick="(function(){ const el=document.getElementById('loading-overlay'); if(el) el.style.display='none'; })()" class="btn btn-outline-light">
+              <i class="fas fa-video me-2"></i> Continue with Camera Only
             </button>
           </div>
         </div>
@@ -439,7 +575,15 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         if (progressText) progressText.textContent = `${progress}%`;
       }
+      // Show/hide based on status
+      if (status === ModelStatus.READY) {
+        loadingOverlay.style.display = 'none';
+      } else {
+        loadingOverlay.style.display = 'flex';
+      }
     }
+    // Sync button states with model status
+    try { updateUIState(); } catch {}
   }
 
   async function loadModel() {
@@ -447,12 +591,12 @@ document.addEventListener("DOMContentLoaded", () => {
       modelStatus = ModelStatus.NOT_STARTED;
       updateLoadingUI(modelStatus, 0);
 
-      // Check network connectivity
+      // Optional network connectivity check (non-fatal)
       try {
         const networkTest = await fetch('/ort/ort.min.js', { method: 'HEAD' });
-        if (!networkTest.ok) throw new Error('Network connectivity issue');
+        if (!networkTest.ok) console.warn('ORT asset not accessible via HEAD check');
       } catch (err) {
-        throw new Error('Network connectivity issue - please check your internet connection');
+        console.warn('Network HEAD check failed, continuing:', err);
       }
 
       // Verify ONNX runtime is ready
@@ -560,6 +704,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 <button onclick="window.HDTests.quickCheck()" class="btn btn-outline-secondary">
                   <i class="fas fa-stethoscope me-2"></i> Run Diagnostics
                 </button>
+                <button onclick="(function(){ const el=document.getElementById('loading-overlay'); if(el) el.style.display='none'; })()" class="btn btn-outline-light">
+                  <i class="fas fa-video me-2"></i> Continue with Camera Only
+                </button>
               </div>
             </div>
           `;
@@ -584,6 +731,10 @@ document.addEventListener("DOMContentLoaded", () => {
       window.runModel = module.runModel;
       window.postprocessDetections = module.postprocessDetections;
       window.drawDetections = module.drawDetections;
+      if (module.classNames) {
+        window.classNames = module.classNames;
+        classNames = module.classNames;
+      }
       console.log("✅ Optimized YOLO functions imported");
     } catch (err) {
       console.warn("⚠️ Failed to import optimized functions, using fallback:", err);
@@ -625,10 +776,32 @@ document.addEventListener("DOMContentLoaded", () => {
       const boxes = await window.runModel(session, tensor);
       
       // Process detections
-      const detections = window.postprocessDetections(boxes, 0.5, 0.5);
+      let detections = window.postprocessDetections(boxes, 0.5, 0.5);
+
+      // Filter by allowed classes
+      if (DETECTION_CONFIG.allowedClasses && DETECTION_CONFIG.allowedClasses.size > 0) {
+        detections = detections.filter(d => DETECTION_CONFIG.allowedClasses.has(classNames[d.classId]?.toLowerCase()));
+      }
       
       // Draw detections using the optimized drawing function
       window.drawDetections(ctx, video, detections, classNames, letterboxParams);
+
+      // Optional debug annotations: show class id and mapped name
+      if (DETECTION_CONFIG.debug && detections.length) {
+        const scaleX = canvas.width / 640;
+        const scaleY = canvas.height / 640;
+        ctx.save();
+        ctx.fillStyle = '#00e5ff';
+        ctx.font = 'bold 12px monospace';
+        ctx.textBaseline = 'top';
+        for (const d of detections) {
+          const x = d.x1 * scaleX;
+          const y = d.y1 * scaleY;
+          const name = classNames[d.classId] || `cls${d.classId}`;
+          ctx.fillText(`id:${d.classId} ${name}`, x + 2, y + 2);
+        }
+        ctx.restore();
+      }
 
       // Save detection if needed
       if (detections.length > 0 && (!lastSaveTime || Date.now() - lastSaveTime > 10000)) {
@@ -665,93 +838,159 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function initCamera(preferredDeviceId = null) {
     console.log('🎥 Initializing camera...', { preferredDeviceId, currentFacingMode });
-    if (!videoDevices.length) {
+
+    if (stream) {
+        stopStream(stream);
+        stream = null;
+    }
+
+    if (videoDevices.length === 0) {
       try {
-        const initialStream = await navigator.mediaDevices.getUserMedia({ video: true });
-        initialStream.getTracks().forEach(track => track.stop());
+        const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        tempStream.getTracks().forEach(track => track.stop());
       } catch (err) {
-        console.warn('⚠️ Initial camera open failed', err);
+        console.error("Initial camera permission was not granted.", err);
       }
       await enumerateAndPopulateCameras();
+      if (videoDevices.length === 0) {
+        throw new Error("No video devices found on this system.");
+      }
     }
-    const targetDevice = preferredDeviceId ? videoDevices.find(d => d.deviceId === preferredDeviceId) : videoDevices[0];
+
     const constraints = {
       video: {
         aspectRatio: { ideal: 16 / 9 },
-        inlineSize: { ideal: 1280 },
-        blockSize: { ideal: 720 }
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
       }
     };
-    if (targetDevice) {
-      constraints.video.deviceId = { exact: targetDevice.deviceId };
-      const label = (targetDevice.label || '').toLowerCase();
-      if (label.includes('front')) currentFacingMode = 'user';
-      if (label.includes('back') || label.includes('rear') || label.includes('environment')) currentFacingMode = 'environment';
-    } else {
-      constraints.video.facingMode = currentFacingMode;
+
+    if (preferredDeviceId) {
+      constraints.video.deviceId = { exact: preferredDeviceId };
+    } else if (supportsFacingMode) {
+      constraints.video.facingMode = { ideal: currentFacingMode };
+    } else if (videoDevices.length > 0) {
+      constraints.video.deviceId = { exact: videoDevices[currentCamIndex].deviceId };
     }
-    if (!constraints.video.facingMode) constraints.video.facingMode = { ideal: currentFacingMode };
+
+    console.log("Using constraints:", JSON.stringify(constraints, null, 2));
+
     const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+    const videoTrack = mediaStream.getVideoTracks()[0];
+    const settings = videoTrack.getSettings();
+    
+    const actualDeviceId = videoTrack.getSettings().deviceId;
+    const targetDevice = videoDevices.find(d => d.deviceId === actualDeviceId);
+
+    currentCamIndex = videoDevices.findIndex(d => d.deviceId === actualDeviceId);
+    if (settings.facingMode) {
+        currentFacingMode = settings.facingMode;
+    } else if (targetDevice && targetDevice.label) {
+        const label = targetDevice.label.toLowerCase();
+        if (label.includes('front')) currentFacingMode = 'user';
+        else if (label.includes('back') || label.includes('rear')) currentFacingMode = 'environment';
+    }
+    
     mediaStream.getTracks().forEach(track => addTrackEventListeners(track));
-    return { stream: mediaStream, device: targetDevice };
+    return { stream: mediaStream, device: targetDevice || { deviceId: actualDeviceId, label: videoTrack.label } };
   }
 
-  async function startCamera() {
+  async function startCamera(preferredDeviceId = null) {
     try {
-      const { stream: mediaStream, device } = await initCamera();
+      if (isStarting) return;
+      isStarting = true; setBusy(startBtn, true); updateUIState();
+      const { stream: mediaStream, device } = await initCamera(preferredDeviceId);
       stream = mediaStream;
-      currentCamIndex = videoDevices.findIndex(d => d.deviceId === (device && device.deviceId));
-      if (cameraSelect && device) cameraSelect.value = device.deviceId;
+      
+      if (device && device.deviceId) {
+        currentCamIndex = videoDevices.findIndex(d => d.deviceId === device.deviceId);
+        if (cameraSelect) cameraSelect.value = device.deviceId;
+      }
+
       video.muted = true;
       video.srcObject = stream;
-      console.log(`📱 Started camera: ${device.label || 'Unknown'}`);
-      startBtn.style.display = "none";
-      stopBtn.style.display = "inline-block";
+      console.log(`📱 Started camera: ${device?.label || 'Unknown'}`);
+      
       detectedObjectCount = 0;
       uniqueHazardTypes = [];
-      if (videoDevices.length > 1 || supportsFacingMode) {
-        switchBtn.style.display = 'inline-block';
-        if (videoDevices.length > 1 && cameraSelect) cameraSelect.style.display = 'inline-block';
-      }
+      updateUIState();
+      
       video.addEventListener("loadeddata", () => {
         syncCanvasToVideo();
         if (window.announceStatus) window.announceStatus("Camera started successfully. Hazard detection is now active.", "assertive");
+        configureCameraControls();
         detecting = true;
+        updateUIState();
         if (rafId) cancelAnimationFrame(rafId);
         detectLoop();
       }, { once: true });
+      
       return true;
     } catch (err) {
       console.error("❌ Camera initialization failed:", err);
+      reportError(ErrorCodes.CAMERA_SWITCH, `Failed to start camera: ${err.message}. Please ensure you have granted camera permissions.`);
       throw err;
+    } finally {
+      isStarting = false; setBusy(startBtn, false); updateUIState();
     }
   }
 
   async function switchCamera(targetDeviceId = null) {
-    if (!stream) throw new Error('Cannot switch camera - invalid state');
-    console.log('🔄 Switching camera...');
-    stopStream(stream);
-    if (videoDevices.length > 1) {
-      const nextIndex = targetDeviceId ? videoDevices.findIndex(d => d.deviceId === targetDeviceId) : (currentCamIndex + 1) % videoDevices.length;
-      const { stream: newStream, device } = await initCamera(videoDevices[nextIndex].deviceId);
-      stream = newStream;
-      currentCamIndex = nextIndex;
-      if (cameraSelect) cameraSelect.value = device.deviceId;
-    } else if (supportsFacingMode) {
-      currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
-      const { stream: newStream } = await initCamera();
-      stream = newStream;
-    } else {
-      throw new Error('Cannot switch camera - no alternative found');
+    if (!stream) {
+      console.log("Stream not active, calling startCamera() instead of switch.");
+      await startCamera(targetDeviceId);
+      return;
     }
-    video.muted = true;
-    video.srcObject = stream;
-    return new Promise(resolve => {
-      video.addEventListener('loadeddata', () => {
-        syncCanvasToVideo();
-        resolve();
-      }, { once: true });
-    });
+    
+    console.log('🔄 Switching camera...');
+    isSwitching = true; updateUIState(); setBusy(switchBtn, true);
+    let newStream, device;
+
+    try {
+        if (targetDeviceId) {
+            ({ stream: newStream, device } = await initCamera(targetDeviceId));
+        } else if (videoDevices.length > 1) {
+            const nextIndex = (currentCamIndex + 1) % videoDevices.length;
+            ({ stream: newStream, device } = await initCamera(videoDevices[nextIndex].deviceId));
+        } else if (supportsFacingMode) {
+            currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+            ({ stream: newStream, device } = await initCamera());
+        } else {
+          throw new Error('Cannot switch camera - no alternative found');
+        }
+
+        stream = newStream;
+        video.muted = true;
+        video.srcObject = stream;
+
+        if (device && device.deviceId && cameraSelect) {
+            cameraSelect.value = device.deviceId;
+        }
+
+        await new Promise(resolve => {
+          video.addEventListener('loadeddata', () => {
+            syncCanvasToVideo();
+            configureCameraControls();
+            if (window.announceStatus) {
+                const selectedOption = cameraSelect.options[cameraSelect.selectedIndex];
+                window.announceStatus(`Switched to ${selectedOption?.text || 'next camera'}`, "polite");
+            }
+            resolve();
+          }, { once: true });
+        });
+
+    } catch (err) {
+        console.error("❌ Camera switch failed:", err);
+        reportError(ErrorCodes.CAMERA_SWITCH, 'Failed to switch camera: ' + err.message);
+        // Try to recover by starting the default camera
+        try {
+            await startCamera();
+        } catch (fallbackErr) {
+            reportError(ErrorCodes.CAMERA_SWITCH, 'Fallback camera restart also failed: ' + fallbackErr.message);
+        }
+    } finally {
+        isSwitching = false; setBusy(switchBtn, false); updateUIState();
+    }
   }
 
   function stopCamera() {
@@ -769,7 +1008,9 @@ document.addEventListener("DOMContentLoaded", () => {
     frameCount = 0;
     detectedObjectCount = 0;
     uniqueHazardTypes = [];
+    resetVisualAdjustments();
     console.log('⏹️ Camera stopped');
+    updateUIState();
   }
 
   startBtn.addEventListener("click", async () => {
@@ -788,30 +1029,21 @@ document.addEventListener("DOMContentLoaded", () => {
       console.warn("⚠️ Location tracking failed:", err);
     }
     try {
-      await startCamera();
+      const selectedDeviceId = cameraSelect ? cameraSelect.value : null;
+      await startCamera(selectedDeviceId);
     } catch (err) {
-      reportError(ErrorCodes.CAMERA_SWITCH, 'Failed to start camera: ' + err.message);
+      // Error is reported in startCamera
     }
   });
 
   if (cameraSelect) {
     cameraSelect.addEventListener("change", async () => {
-      if (!stream) return reportError(ErrorCodes.CAMERA_INACTIVE, 'Camera must be started before switching');
       const selectedDeviceId = cameraSelect.value;
       if (!selectedDeviceId) return;
       try {
         await switchCamera(selectedDeviceId);
-        if (window.announceStatus) {
-          const selectedOption = cameraSelect.options[cameraSelect.selectedIndex];
-          window.announceStatus(`Switched to ${selectedOption.text}`, "polite");
-        }
       } catch (err) {
         reportError(ErrorCodes.CAMERA_SWITCH, 'Camera switch via dropdown failed: ' + err.message);
-        try {
-          await startCamera(); // try to restart default
-        } catch (fallbackErr) {
-          reportError(ErrorCodes.CAMERA_SWITCH, 'Fallback camera also failed: ' + fallbackErr.message);
-        }
       }
     });
   }
@@ -824,22 +1056,19 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  stopBtn.addEventListener("click", () => {
-    if (window.announceStatus) window.announceStatus("Camera stopped. Hazard detection is now inactive.", "assertive");
-    if (objectCountOverlay) objectCountOverlay.textContent = '';
-    if (hazardTypesOverlay) hazardTypesOverlay.textContent = '';
+  // Stop button handler
+  stopBtn.addEventListener('click', () => {
     stopCamera();
-    startBtn.style.display = "inline-block";
-    stopBtn.style.display = "none";
-    switchBtn.style.display = "none";
-    if (cameraSelect) cameraSelect.style.display = "none";
     stopLocationTracking();
+    updateUIState();
   });
 
-  // Smoke Tests
-  async function runSmokeTestCamera() {
-    // Implementation for smoke tests
+  // Brightness/Zoom UI handlers
+  if (brightnessSlider) {
+    brightnessSlider.addEventListener('input', (e) => applyBrightness(e.target.value));
   }
-  if (!window.HDTests) window.HDTests = {};
-  window.HDTests.runSmokeTestCamera = runSmokeTestCamera;
-});
+  if (zoomSlider) {
+    zoomSlider.addEventListener('input', (e) => { applyZoom(e.target.value); });
+  }
+
+}); // end DOMContentLoaded

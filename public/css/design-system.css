@@ -123,6 +123,15 @@ header h1 {
   color: #3b82f6;
 }
 
+/* --- Generic disabled styles for controls --- */
+.btn[disabled],
+button[disabled],
+select[disabled],
+input[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed !important;
+}
+
 /* --- On-Map Legend Filters --- */
 .legend-chip {
     transition: all 0.2s ease-in-out;
