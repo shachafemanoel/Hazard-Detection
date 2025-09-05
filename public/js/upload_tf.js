@@ -25,16 +25,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const zoomSlider = document.getElementById('zoom-slider');
   const ctx = canvas.getContext('2d');
   const supportsFacingMode = navigator.mediaDevices.getSupportedConstraints().facingMode;
-  const DETECTION_CONFIG = {
-    // Restrict to pothole only per user request; can override via ?classes=pothole,crack
-    allowedClasses: new Set((() => {
-      const qp = new URLSearchParams(location.search);
-      const classes = qp.get('classes');
-      if (classes) return classes.split(',').map(s => s.trim().toLowerCase());
-      return ['pothole'];
-    })()),
-    debug: new URLSearchParams(location.search).get('debug') === '1'
-  };
+  const DETECTION_CONFIG = (() => {
+    const qp = new URLSearchParams(location.search);
+    const classes = qp.get('classes');
+    return {
+      // If classes query provided, filter; otherwise show all classes
+      allowedClasses: classes ? new Set(classes.split(',').map(s => s.trim().toLowerCase())) : null,
+      debug: qp.get('debug') === '1'
+    };
+  })();
   
   // Verify all required elements are present
   if (!startBtn || !stopBtn || !switchBtn || !video || !canvas || !ctx) {
