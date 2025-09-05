@@ -349,7 +349,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Start initialization
   initializeWithRetry();
 
-  let classNames = ['pothole', 'crack'];
+  let classNames = ['crack', 'pothole'];
 
   function initLocationTracking() {
     return new Promise(resolve => {
