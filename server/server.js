@@ -75,11 +75,26 @@ const upload = multer();
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Set Cross-Origin-Isolation headers as the very first middleware
+// Enforce HTTPS in production behind a proxy (Render)
+app.enable('trust proxy');
 app.use((req, res, next) => {
-    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-    res.setHeader('Cross-Origin-Embedder-Policy', 'credentialless');
-    next();
+  if (process.env.NODE_ENV === 'production' && req.headers['x-forwarded-proto'] !== 'https') {
+    const host = req.headers.host;
+    return res.redirect(301, `https://${host}${req.originalUrl}`);
+  }
+  next();
+});
+
+// Cross-Origin Isolation & Permissions headers (needed for WebAssembly + camera)
+app.use((req, res, next) => {
+  // Required for SharedArrayBuffer / multi-threaded WASM
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  // Prefer require-corp in production; fallback to credentialless elsewhere
+  const coep = process.env.NODE_ENV === 'production' ? 'require-corp' : 'credentialless';
+  res.setHeader('Cross-Origin-Embedder-Policy', coep);
+  // Explicitly allow camera/geolocation on top-level origin
+  res.setHeader('Permissions-Policy', "camera=(self), microphone=(), geolocation=*, fullscreen=(self)");
+  next();
 });
 
 // Serving static files from the "public" directory
@@ -87,15 +102,31 @@ app.use((req, res, next) => {
 // Apply CORS middleware with configured options
 app.use(cors(corsOptions));
 
-app.use(express.static(path.join(__dirname, '../public'), { 
-    index: false,
-    extensions: ['html']
+app.use(express.static(path.join(__dirname, '../public'), {
+  index: false,
+  extensions: ['html'],
+  setHeaders: (res, filePath) => {
+    // Ensure CORP header so COEP=require-corp works with same-origin resources
+    res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    if (filePath.endsWith('.wasm')) {
+      res.setHeader('Content-Type', 'application/wasm');
+      // Some browsers require explicit CORS for wasm even on same-origin when COEP is set
+      res.setHeader('Access-Control-Allow-Origin', process.env.BASE_URL || '*');
+    }
+  }
 }));
 
-app.use(
-    '/ort',
-    express.static(path.join(__dirname, '../public/ort'))
-);
+app.use('/ort', express.static(path.join(__dirname, '../public/ort'), {
+  setHeaders: (res, filePath) => {
+    res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    if (filePath.endsWith('.wasm')) {
+      res.setHeader('Content-Type', 'application/wasm');
+      res.setHeader('Access-Control-Allow-Origin', process.env.BASE_URL || '*');
+    }
+  }
+}));
 
 app.use(express.json());
 
