@@ -176,7 +176,7 @@
   <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toast-container"></div>
   </div><!-- /.page-content -->
 
-  <!-- Image Modal -->
+  <!-- Image Modal (legacy quick view) -->
   <div class="modal fade" id="imageModal" tabindex="-1" aria-labelledby="imageModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
       <div class="modal-content">
@@ -186,6 +186,54 @@
         </div>
         <div class="modal-body text-center">
           <img id="modal-image" src="" alt="Report Image" class="img-fluid rounded">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Full Report Profile Modal -->
+  <div class="modal fade" id="reportModal" tabindex="-1" aria-labelledby="reportModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="reportModalLabel">Report Details</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-7">
+              <img id="report-modal-image" src="" alt="Report" class="img-fluid rounded w-100" style="max-height: 520px; object-fit: cover;" />
+            </div>
+            <div class="col-md-5">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <span id="report-modal-type" class="badge rounded-pill bg-secondary">Type</span>
+                <span id="report-modal-status" class="badge bg-secondary">Status</span>
+              </div>
+              <div class="mb-2">
+                <i class="fas fa-map-marker-alt me-2"></i>
+                <span id="report-modal-address">Address</span>
+              </div>
+              <div class="mb-2 text-muted">
+                <i class="far fa-calendar me-2"></i>
+                <span id="report-modal-date">Date</span>
+              </div>
+              <div class="mb-3">
+                <div class="fw-semibold mb-1">Description</div>
+                <div id="report-modal-description" class="text-muted">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer d-flex flex-wrap gap-2 justify-content-between">
+          <div class="btn-group" role="group" aria-label="Status actions">
+            <button class="btn btn-outline-primary" data-action="set-status" data-status="open"><i class="fas fa-folder-open me-2"></i>Open</button>
+            <button class="btn btn-outline-warning" data-action="set-status" data-status="in_progress"><i class="fas fa-spinner me-2"></i>In Progress</button>
+            <button class="btn btn-outline-success" data-action="set-status" data-status="resolved"><i class="fas fa-check me-2"></i>Resolved</button>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary" data-action="toggle-pin"><i class="fas fa-thumbtack me-2"></i><span class="pin-text">Pin to Top</span></button>
+            <button class="btn btn-outline-danger" data-action="delete-report"><i class="fas fa-trash me-2"></i>Delete</button>
+          </div>
         </div>
       </div>
     </div>

@@ -218,6 +218,76 @@ class Dashboard {
       }
     } catch {}
   }
+
+  async openReport(id) {
+    try {
+      // Fetch full report details
+      const resp = await fetch(`/api/reports/${id}`, { credentials: 'include' });
+      if (!resp.ok) throw new Error('Failed to fetch report');
+      const report = await resp.json();
+      this.currentReport = report;
+
+      // Populate modal fields
+      const imgEl = document.getElementById('report-modal-image');
+      const typeEl = document.getElementById('report-modal-type');
+      const statusEl = document.getElementById('report-modal-status');
+      const addrEl = document.getElementById('report-modal-address');
+      const dateEl = document.getElementById('report-modal-date');
+      const descEl = document.getElementById('report-modal-description');
+      const modalEl = document.getElementById('reportModal');
+      const pinBtn = modalEl?.querySelector('[data-action="toggle-pin"] .pin-text');
+
+      if (imgEl) imgEl.src = report.imageUrl || report.image || '';
+      if (typeEl) {
+        typeEl.textContent = this.ui.getHazardTypeName(Array.isArray(report.type) ? report.type[0] : report.type);
+        typeEl.className = `badge rounded-pill bg-${this.ui.getTypeColor(Array.isArray(report.type) ? report.type[0] : report.type)}`;
+      }
+      if (statusEl) {
+        statusEl.textContent = this.ui.getStatusName(report.status);
+        statusEl.className = `badge bg-${this.ui.getStatusColor(report.status)}`;
+      }
+      if (addrEl) {
+        const addr = typeof report.location === 'string' ? report.location : (report.location?.address || '—');
+        addrEl.textContent = addr;
+      }
+      if (dateEl) dateEl.textContent = this.ui.formatDate(report.createdAt || report.time);
+      if (descEl) descEl.textContent = report.description || '—';
+      if (pinBtn) pinBtn.textContent = report.pinned ? 'Unpin' : 'Pin to Top';
+
+      // Attach actions
+      if (modalEl) {
+        modalEl.dataset.reportId = report.id;
+        modalEl.querySelectorAll('[data-action="set-status"]').forEach(btn => {
+          btn.onclick = async () => {
+            await this.updateReportStatus(report.id, btn.getAttribute('data-status'));
+            // update status badge without closing
+            const updated = await (await fetch(`/api/reports/${report.id}`, { credentials: 'include' })).json();
+            if (statusEl) {
+              statusEl.textContent = this.ui.getStatusName(updated.status);
+              statusEl.className = `badge bg-${this.ui.getStatusColor(updated.status)}`;
+            }
+          };
+        });
+        const togglePin = modalEl.querySelector('[data-action="toggle-pin"]');
+        if (togglePin) togglePin.onclick = async () => {
+          await this.updateReport(report.id, { pinned: !report.pinned });
+          report.pinned = !report.pinned;
+          if (pinBtn) pinBtn.textContent = report.pinned ? 'Unpin' : 'Pin to Top';
+        };
+        const delBtn = modalEl.querySelector('[data-action="delete-report"]');
+        if (delBtn) delBtn.onclick = async () => {
+          await this.deleteReport(report.id);
+          const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+          modal.hide();
+        };
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+      }
+    } catch (e) {
+      console.error('Open report failed:', e);
+      this.ui.toast.show('Failed to open report', 'error');
+    }
+  }
 }
 
 // Initialize dashboard when DOM is loaded

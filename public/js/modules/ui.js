@@ -134,8 +134,8 @@ export class UIManager {
       const statusBadge = `<span class="badge bg-${this.getStatusColor(report.status)}">${this.getStatusName(report.status)}</span>`;
       row.innerHTML = `
         <td>
-          <div class="report-compact d-flex align-items-center gap-3" data-action="open-report" data-url="${imgUrl}">
-            <img src="${imgUrl}" alt="תמונת דיווח" class="report-thumb-sm" data-action="view-image" data-url="${imgUrl}">
+          <div class="report-compact d-flex align-items-center gap-3">
+            <img src="${imgUrl}" alt="תמונת דיווח" class="report-thumb-sm" data-action="open-report" data-id="${report.id}">
             <div class="report-lines flex-grow-1">
               <div class="line-1 d-flex align-items-center gap-2">
                 ${typeBadge}
@@ -148,7 +148,7 @@ export class UIManager {
               </div>
             </div>
             <div class="btn-group btn-group-sm ms-2" role="group">
-              <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Actions">
+              <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Actions" onclick="event.stopPropagation()">
                 <i class="fas fa-ellipsis-v"></i>
               </button>
               <ul class="dropdown-menu dropdown-menu-end">
@@ -301,15 +301,9 @@ export class UIManager {
     const tableBody = document.getElementById('reports-table-body');
     if (tableBody) {
       tableBody.addEventListener('click', (e) => {
+        // Actions dropdown clicks should not open report
+        if (e.target.closest('.dropdown-menu') || e.target.closest('.dropdown-toggle')) return;
         // If delete button was clicked, handle and stop here
-        const imgBtn = e.target.closest('[data-action="view-image"]');
-        if (imgBtn) {
-          const url = imgBtn.getAttribute('data-url');
-          if (window.dashboard && typeof window.dashboard.showImage === 'function') {
-            window.dashboard.showImage(url);
-          }
-          return;
-        }
         const delBtn = e.target.closest('[data-action="delete-report"]');
         if (delBtn) {
           const id = delBtn.getAttribute('data-id');
@@ -336,13 +330,14 @@ export class UIManager {
           }
           return;
         }
-        // Open report modal if clicked anywhere in the compact row
+        // Open full report profile only when clicking on the image
         const openArea = e.target.closest('[data-action="open-report"]');
         if (openArea) {
-          const url = openArea.getAttribute('data-url');
-          if (url && window.dashboard && typeof window.dashboard.showImage === 'function') {
-            window.dashboard.showImage(url);
+          const id = openArea.getAttribute('data-id');
+          if (id && window.dashboard && typeof window.dashboard.openReport === 'function') {
+            window.dashboard.openReport(id);
           }
+          return;
         }
       });
     }
